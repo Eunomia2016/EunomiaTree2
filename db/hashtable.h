@@ -39,11 +39,8 @@ class HashTable {
   bool Lookup(const Slice& key, void **vp);
 
   void PrintHashTable();
-  private:
 
-
-  
-  struct Node 
+    struct Node 
   {
   	void* value;
   	void (*deleter)(const Slice&, void* value);
@@ -62,17 +59,41 @@ class HashTable {
 		return Slice(key_data, key_length);
 	  }
 	}
-};
+  };
+	
+  
+  private:
+  	
 
-  uint32_t length_;
-  uint32_t elems_;
+  int length_;
+  int elems_;
   Node** list_;
 
   void Resize();
   uint32_t HashSlice(const Slice& s);
   Node* InsertNode(Node* h);
   Node** FindNode(const Slice& key, uint32_t hash); 
- 
+
+ public:
+ 	class Iterator {
+   	  public:
+      // Initialize an iterator over the specified list.
+      // The returned iterator is not valid.
+      explicit Iterator(const HashTable* htable);
+
+      // Returns true iff the iterator is positioned at a valid node.
+      bool Next();
+
+      // Advances to the next position.
+      // REQUIRES: Valid()
+      HashTable::Node* Current();
+
+     private:
+      const HashTable* htable;
+	  Node* current;
+	  int slotIndex;
+    // Intentionally copyable
+    };
   	
 };
 

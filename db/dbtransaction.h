@@ -8,9 +8,11 @@
 #include <string>
 #include "leveldb/db.h"
 #include "db/dbformat.h"
-#include "db/skiplist.h"
-#include "util/arena.h"
-#include <map>
+#include "db/hashtable.h"
+#include "db/memtable.h"
+#include "port/port_posix.h"
+
+
 
 namespace leveldb {
 
@@ -20,15 +22,29 @@ class DBTransaction {
   explicit DBTransaction();
   ~DBTransaction();
 
-  void begin();
-  void end();
-  void Add(ValueType type,
-           const Slice& key,
-           const Slice& value);
+  void Begin();
+  bool End();
+  void Add(ValueType type, Slice& key, Slice& value);
 
   bool Get(const Slice& key, std::string* value, Status* s);
   
- //private:
+ private:
+
+	struct WSNode {
+		Slice* key;
+		Slice* value;
+		ValueType type;
+		SequenceNumber seq;
+	};
+	
+ 	HashTable readset;
+	HashTable writeset;
+
+	port::Mutex* storemutex;
+	port::Mutex* seqmutex;
+	HashTable *latestseq_ ;
+	MemTable *memstore_ ;
+	
   
 };
 

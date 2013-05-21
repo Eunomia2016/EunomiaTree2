@@ -66,7 +66,7 @@ bool HashTable::Insert(const Slice& key, void* value,
 bool HashTable::Lookup(const Slice& key, void **vp) 
 {
     Node** ptr = FindNode(key, HashSlice(key));
-    if(ptr == NULL)
+    if(ptr == NULL || *ptr == NULL)
 	return false;
     *vp = (*ptr)->value;
     return true;
@@ -84,6 +84,46 @@ void HashTable::PrintHashTable()
         }
 	printf("\n");
     }
+}
+
+HashTable::Iterator::Iterator(const HashTable* htable)
+{
+	this->htable = htable;
+	slotIndex = -1;
+	current = NULL;
+}
+
+// Advances to the next position
+bool HashTable::Iterator::Next()
+{
+	if(slotIndex >= htable->length_)
+		return false;
+
+	if (current == NULL || current->next == NULL) {
+		slotIndex++;
+		while( slotIndex < htable->length_ 
+			&& htable->list_[slotIndex] == NULL)
+			slotIndex++;
+
+		//printf("slotIndex %d length_ %d\n", slotIndex, htable->length_);
+
+		if(slotIndex >= htable->length_)
+			return false;
+	
+		current = htable->list_[slotIndex];
+		return true;
+	} 
+	else if (current->next != NULL) {
+		current = current->next;
+		return true;
+	}
+	
+}
+
+   
+HashTable::Node* HashTable::Iterator::Current() 
+{
+	return current;
 }
 
 uint32_t HashTable::HashSlice(const Slice& s) 
