@@ -58,7 +58,7 @@ bool HashTable::Insert(const Slice& key, void* value,
     e->key_length = key.size();
     e->hash = HashSlice(key);
     memcpy(e->key_data, key.data(), key.size());
-
+    printf("Memcp key %s\n", key.ToString().c_str());
     InsertNode(e);
     return true;
 }
@@ -78,7 +78,7 @@ void HashTable::PrintHashTable()
 	printf("slot [%d] : ", i);
         Node** ptr = &list_[i];
         while (*ptr != NULL) {
-	   printf("Key: %s , Hash: %d, Value: %p  ", (*ptr)->key(), (*ptr)->hash, (*ptr)->value);
+	   printf("Key: %s , Hash: %d, Value: %p  ", (*ptr)->key_data, (*ptr)->hash, (*ptr)->value);
            ptr = &(*ptr)->next;
         }
 	printf("\n");

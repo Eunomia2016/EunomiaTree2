@@ -35,11 +35,15 @@ int main()
 {
     leveldb::HashTable ht;
     int i = 0;
-    for(; i < 10; i++) {
-	ht.Insert(leveldb::Slice(std::string(i+"k")), NULL,NULL);
+    for(; i < 100; i++) {
+	char key[100];
+        snprintf(key, sizeof(key), "%d", i);
+
+	//printf("Insert %s\n", *s);
+	ht.Insert(leveldb::Slice(key), NULL,NULL);
     }
     ht.PrintHashTable();
-    printf("helloworld\n");
+    //printf("helloworld\n");
     return 0;
  }
 
