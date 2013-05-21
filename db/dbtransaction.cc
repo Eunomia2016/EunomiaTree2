@@ -34,15 +34,26 @@ namespace leveldb {
 int main()
 {
     leveldb::HashTable ht;
-    int i = 0;
-    for(; i < 100; i++) {
+    
+    for(int i = 0; i < 100; i++) {
 	char key[100];
         snprintf(key, sizeof(key), "%d", i);
 
 	//printf("Insert %s\n", *s);
-	ht.Insert(leveldb::Slice(key), NULL,NULL);
+	ht.Insert(leveldb::Slice(key), (void *)i,NULL);
+    }
+
+    for(int i = 0; i < 100; i++) {
+	char key[100];
+        snprintf(key, sizeof(key), "%d", i);
+
+	//printf("Insert %s\n", *s);
+	void* v;
+	if(!ht.Lookup(leveldb::Slice(key), &v))
+		printf("Error Occur\n");
     }
     ht.PrintHashTable();
+
     //printf("helloworld\n");
     return 0;
  }

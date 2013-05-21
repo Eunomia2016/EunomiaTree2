@@ -36,7 +36,7 @@ class HashTable {
                          void (*deleter)(const Slice& key, void* value));
 
 
-  void* Lookup(const Slice& key);
+  bool Lookup(const Slice& key, void **vp);
 
   void PrintHashTable();
   private:
