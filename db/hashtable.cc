@@ -79,7 +79,7 @@ void HashTable::PrintHashTable()
 	printf("slot [%d] : ", i);
         Node** ptr = &list_[i];
         while (*ptr != NULL) {
-	   printf("Key: %s , Hash: %d, Value: %p  ", (*ptr)->key_data, (*ptr)->hash, (*ptr)->value);
+	   printf("Key: %s , Hash: %d, Value: %d  ", (*ptr)->key_data, (*ptr)->hash, (*ptr)->value);
            ptr = &(*ptr)->next;
         }
 	printf("\n");
