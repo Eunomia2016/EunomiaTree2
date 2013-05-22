@@ -37,8 +37,8 @@ class DBTransaction {
 		SequenceNumber seq;
 	};
 	
- 	HashTable readset;
-	HashTable writeset;
+ 	HashTable *readset;
+	HashTable *writeset;
 
 	port::Mutex* storemutex;
 	HashTable *latestseq_ ;

@@ -29,6 +29,8 @@ namespace leveldb {
   void DBTransaction::Begin()
   {
 	//TODO: reset the local read set and write set
+	readset = new HashTable();
+	writeset = new HashTable();
   }
   
   bool DBTransaction::End()
@@ -45,9 +47,8 @@ namespace leveldb {
 	wn->value = &value;
 	wn->type = type;
 	wn->seq = 0;
-
 	//TODO: Pass the deleter of wsnode into function
-	writeset.Insert(key, wn, NULL);
+	writeset->Insert(key, wn, NULL);
   }
 
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
@@ -55,7 +56,7 @@ namespace leveldb {
   	//step 1. First check if the <k,v> is in the write set
   	
 	WSNode* wn;
-	if(writeset.Lookup(key, (void **)&wn)) {
+	if(writeset->Lookup(key, (void **)&wn)) {
 		//Found
 		switch (wn->type) {
           case kTypeValue: {
@@ -96,7 +97,7 @@ namespace leveldb {
 
 	// step 3. put into the read set
 	
-	readset.Insert(key, (void *)seq, NULL);
+	readset->Insert(key, (void *)seq, NULL);
 
 	return found;
   }
@@ -105,7 +106,7 @@ namespace leveldb {
 	//TODO use tx to protect
 
 	//step 1. check if the seq has been changed (any one change the value after reading)
-	HashTable::Iterator *riter = new HashTable::Iterator(&readset);
+	HashTable::Iterator *riter = new HashTable::Iterator(readset);
 	while(riter->Next()) {
 		HashTable::Node *cur = riter->Current();
 		uint64_t oldseq = (uint64_t)cur->value;
@@ -117,7 +118,7 @@ namespace leveldb {
 	}
 
 	//step 2.  update the the seq set 
-	HashTable::Iterator *witer = new HashTable::Iterator(&writeset);
+	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
 	while(witer->Next()) {
 		HashTable::Node *cur = witer->Current();
 		WSNode *wcur = (WSNode *)cur->value;
@@ -146,16 +147,21 @@ namespace leveldb {
   
   void DBTransaction::GlobalCommit() {
 	//commit the local write set into the memory storage
-	HashTable::Iterator *witer = new HashTable::Iterator(&writeset);
+	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
 	while(witer->Next()) {
 		HashTable::Node *cur = witer->Current();
 		WSNode *wcur = (WSNode *)cur->value;
 		
 		storemutex->Lock();
-//		printf("Commit Insert %s\n", cur->key());
 		memstore_->Add(wcur->seq, wcur->type, cur->key(), *wcur->value);
 		storemutex->Unlock();
 	}
+
+	if(readset != NULL)
+		delete readset;
+	
+	if(writeset != NULL)
+		delete writeset;
   }
 
 
@@ -200,7 +206,7 @@ void testht()
 
 int main()
 {
-    char key[100];
+    
 	leveldb::Options options;
 	leveldb::InternalKeyComparator cmp(options.comparator);
 	
@@ -212,17 +218,34 @@ int main()
 
 	leveldb::ValueType t = leveldb::kTypeValue;
 
-
-
 	tx.Begin();
 	
     for(int i = 0; i < 10; i++) {
-	
+		char* key = new char[100];
         snprintf(key, sizeof(key), "%d", i);
 		leveldb::Slice k(key);
-		leveldb::Slice v(key);
-		printf("Insert %s\n", k);
-		tx.Add(t, k, v);
+		leveldb::Slice *v = new leveldb::Slice(key);
+		printf("Insert %s ", k);
+		printf(" Value %s\n", *v);
+		tx.Add(t, k, *v);
+		std::string *str = new std::string();
+		leveldb::Status s;
+		tx.Get(k, str, &s);
+    }
+
+	tx.End();
+
+	tx.Begin();	
+
+	for(int i = 0; i < 10; i++) {
+		char key[100];
+        snprintf(key, sizeof(key), "%d", i);
+		leveldb::Slice k(key);
+		std::string *str = new std::string();
+		leveldb::Status s;
+		tx.Get(k, str, &s);
+		printf("Get %s ", k);
+		printf(" Value %s\n", str->c_str());
     }
 
 	tx.End();
