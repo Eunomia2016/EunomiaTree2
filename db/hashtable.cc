@@ -63,6 +63,20 @@ bool HashTable::Insert(const Slice& key, void* value,
     return true;
 }
 
+bool HashTable::Update(const Slice& key,  void* value) 
+{
+    Node** ptr = FindNode(key, HashSlice(key));
+    assert(ptr != NULL && *ptr != NULL);
+
+	if( (*ptr)->deleter != NULL)
+		(*ptr)->deleter(key, (*ptr)->value);
+	
+    (*ptr)->value = value;
+	
+    return true;
+}
+
+
 bool HashTable::Lookup(const Slice& key, void **vp) 
 {
     Node** ptr = FindNode(key, HashSlice(key));

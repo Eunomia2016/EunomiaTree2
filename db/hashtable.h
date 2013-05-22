@@ -38,6 +38,9 @@ class HashTable {
 
   bool Lookup(const Slice& key, void **vp);
 
+  
+  bool Update(const Slice& key, void* value);
+  
   void PrintHashTable();
 
     struct Node 

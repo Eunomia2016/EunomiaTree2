@@ -12,9 +12,13 @@
 
 namespace leveldb {
  	
-  DBTransaction::DBTransaction()
+  DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
   {
 	//TODO: get the globle store and versions passed by the parameter
+	storemutex = mutex;
+	latestseq_ = ht;
+	memstore_ = store;
+	
   }
   
   DBTransaction::~DBTransaction()
@@ -29,14 +33,15 @@ namespace leveldb {
   
   bool DBTransaction::End()
   {
-	//TODO
-	return false;
+	if( !Validation())
+		return false;
+
+	GlobalCommit();
   }
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
 	//write the key value into local buffer
 	WSNode *wn = new WSNode();
-	wn->key = &key;
 	wn->value = &value;
 	wn->type = type;
 	wn->seq = 0;
@@ -78,12 +83,16 @@ namespace leveldb {
 	//construct the lookup key and find the key value in the in memory storage
 	LookupKey lkey(key, seq);
 
-	storemutex->Lock();
-	found = memstore_->Get(lkey, value, s);
-	storemutex->Unlock();
-	
-	assert(found);
-	
+	found = false;
+
+	//may be not found, should wait for a while
+	while(!found) {
+		
+		storemutex->Lock();
+		found = memstore_->Get(lkey, value, s);
+		storemutex->Unlock();
+		
+	}
 
 	// step 3. put into the read set
 	
@@ -92,32 +101,92 @@ namespace leveldb {
 	return found;
   }
 
+  bool DBTransaction::Validation() {
+	//TODO use tx to protect
+
+	//step 1. check if the seq has been changed (any one change the value after reading)
+	HashTable::Iterator *riter = new HashTable::Iterator(&readset);
+	while(riter->Next()) {
+		HashTable::Node *cur = riter->Current();
+		uint64_t oldseq = (uint64_t)cur->value;
+		uint64_t curseq;
+		bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+		assert(found);
+		if(oldseq != curseq)
+			return false;
+	}
+
+	//step 2.  update the the seq set 
+	HashTable::Iterator *witer = new HashTable::Iterator(&writeset);
+	while(witer->Next()) {
+		HashTable::Node *cur = witer->Current();
+		WSNode *wcur = (WSNode *)cur->value;
+		
+		uint64_t curseq;
+		bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+		if(!found) {
+			//The node is inserted into the list first time
+			curseq = 1;
+			latestseq_->Insert(cur->key(),(void *)curseq, NULL);
+		}
+		else {			
+			curseq++;		
+			latestseq_->Update(cur->key(),(void *)curseq);
+		}
+		
+		wcur->seq = curseq;
+	
+	}
+
+	return true;
+	
+  }
+
+
+  
+  void DBTransaction::GlobalCommit() {
+	//commit the local write set into the memory storage
+	HashTable::Iterator *witer = new HashTable::Iterator(&writeset);
+	while(witer->Next()) {
+		HashTable::Node *cur = witer->Current();
+		WSNode *wcur = (WSNode *)cur->value;
+		
+		storemutex->Lock();
+//		printf("Commit Insert %s\n", cur->key());
+		memstore_->Add(wcur->seq, wcur->type, cur->key(), *wcur->value);
+		storemutex->Unlock();
+	}
+  }
+
 
 }  // namespace leveldb
 
-int main()
+void testht()
 {
 	leveldb::HashTable ht;
-    
-    for(int i = 0; i < 10; i++) {
-		char key[100];
-        snprintf(key, sizeof(key), "%d", i);
+	char key[100];
+		
+	for(int i = 0; i < 10; i++) {
+	
+		snprintf(key, sizeof(key), "%d", 10);
 
 	//printf("Insert %s\n", *s);
 		ht.Insert(leveldb::Slice(key), (void *)i,NULL);
-    }
+	}
 
-    for(int i = 0; i < 20; i++) {
-	char key[100];
-        snprintf(key, sizeof(key), "%d", i);
+	ht.Update(leveldb::Slice(key), (void *)1000);
+	
+	for(int i = 0; i < 20; i++) {
+	
+		snprintf(key, sizeof(key), "%d", i);
 
 	//printf("Insert %s\n", *s);
 	void* v;
 	if(!ht.Lookup(leveldb::Slice(key), &v))
 		printf("key %s Not Found\n", key);
-    }
-    //ht.PrintHashTable();
-    
+	}
+	//ht.PrintHashTable();
+	
 	leveldb::HashTable::Iterator* iter = new leveldb::HashTable::Iterator(&ht);
 	while(iter->Next()) {
 		leveldb::HashTable::Node *n = iter->Current();
@@ -126,7 +195,51 @@ int main()
 		
 	}
 	
-    //printf("helloworld\n");
+	//printf("helloworld\n");
+ }
+
+int main()
+{
+    char key[100];
+	leveldb::Options options;
+	leveldb::InternalKeyComparator cmp(options.comparator);
+	
+	leveldb::HashTable seqs;
+	leveldb::MemTable *store = new leveldb::MemTable(cmp);
+	leveldb::port::Mutex mutex;
+	
+	leveldb::DBTransaction tx(&seqs, store, &mutex);
+
+	leveldb::ValueType t = leveldb::kTypeValue;
+
+
+
+	tx.Begin();
+	
+    for(int i = 0; i < 10; i++) {
+	
+        snprintf(key, sizeof(key), "%d", i);
+		leveldb::Slice k(key);
+		leveldb::Slice v(key);
+		printf("Insert %s\n", k);
+		tx.Add(t, k, v);
+    }
+
+	tx.End();
+	
+	leveldb::Iterator* iter = store->NewIterator();
+	iter->SeekToFirst();
+	int count = 0;
+	
+	while(iter->Valid()) {		
+		count++;
+		printf("Key: %s  ", iter->key());
+		printf("Value: %s \n", iter->value());
+		iter->Next();
+		
+	}
+	
+    printf("Total Elements %d\n", count);
     return 0;
  }
 

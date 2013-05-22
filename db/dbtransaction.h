@@ -19,7 +19,7 @@ namespace leveldb {
 class DBTransaction {
  public:
  	
-  explicit DBTransaction();
+  explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
   ~DBTransaction();
 
   void Begin();
@@ -31,7 +31,7 @@ class DBTransaction {
  private:
 
 	struct WSNode {
-		Slice* key;
+		//Slice* key;
 		Slice* value;
 		ValueType type;
 		SequenceNumber seq;
@@ -41,11 +41,11 @@ class DBTransaction {
 	HashTable writeset;
 
 	port::Mutex* storemutex;
-	port::Mutex* seqmutex;
 	HashTable *latestseq_ ;
 	MemTable *memstore_ ;
 	
-  
+  	bool Validation();
+	void GlobalCommit();
 };
 
 }  // namespace leveldb
