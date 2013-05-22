@@ -63,6 +63,7 @@ namespace leveldb {
 		return false;
 
 	GlobalCommit();
+	return true;
   }
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
@@ -102,8 +103,12 @@ namespace leveldb {
 	found = latestseq_->Lookup(key, (void **)&seq);
 
 
-	if (!found)
+	if (!found) {
+		//even not found, still need to put the k into read set to avoid concurrent insertion		
+		readset->Insert(key, (void *)seq, NULL);
 		return found;
+
+	}
 	
 	//construct the lookup key and find the key value in the in memory storage
 	LookupKey lkey(key, seq);
@@ -135,9 +140,10 @@ namespace leveldb {
 	while(riter->Next()) {
 		HashTable::Node *cur = riter->Current();
 		uint64_t oldseq = (uint64_t)cur->value;
-		uint64_t curseq;
+		uint64_t curseq = 0;
 		bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-		assert(found);
+		assert(oldseq == 0 || found);
+		
 		if(oldseq != curseq)
 			return false;
 	}
@@ -233,7 +239,7 @@ void testht()
 	
 	//printf("helloworld\n");
  }
-
+/*
 int main()
 {
     
@@ -295,5 +301,5 @@ int main()
     printf("Total Elements %d\n", count);
     return 0;
  }
-
+*/
 

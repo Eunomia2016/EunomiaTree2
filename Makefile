@@ -101,6 +101,10 @@ $(LIBRARY): $(LIBOBJECTS)
 db_bench: db/db_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/db_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
+tx_bench: db/tx_bench.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) db/tx_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
+
 dbtransaction: db/dbtransaction.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
