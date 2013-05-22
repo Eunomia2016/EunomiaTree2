@@ -18,17 +18,31 @@ namespace leveldb {
 	storemutex = mutex;
 	latestseq_ = ht;
 	memstore_ = store;
+
+	readset = NULL;
+	writeset = NULL;
 	
   }
   
   DBTransaction::~DBTransaction()
   {
 	//TODO: clear all the data
+	if(readset != NULL)
+		delete readset;
+	
+	if(writeset != NULL)
+		delete writeset;
   }
 
   void DBTransaction::Begin()
   {
 	//TODO: reset the local read set and write set
+	if(readset != NULL)
+		delete readset;
+	
+	if(writeset != NULL)
+		delete writeset;
+	
 	readset = new HashTable();
 	writeset = new HashTable();
   }
