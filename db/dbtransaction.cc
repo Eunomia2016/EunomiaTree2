@@ -118,7 +118,7 @@ namespace leveldb {
 	while(!found) {
 		
 		storemutex->Lock();
-		found = memstore_->Get(lkey, value, s);
+		found = memstore_->GetWithSeq(lkey, value, s);
 		storemutex->Unlock();
 		
 	}
@@ -127,7 +127,7 @@ namespace leveldb {
 	
 	readset->Insert(key, (void *)seq, NULL);
 	
-	printf("Get seq %ld value %s\n", seq, value->c_str());
+	//printf("Get seq %ld value %s\n", seq, value->c_str());
 	
 	return found;
   }
@@ -185,7 +185,7 @@ namespace leveldb {
 		WSNode *wcur = (WSNode *)cur->value;
 		
 		storemutex->Lock();
-		printf("Commit seq %ld value %s\n", wcur->seq,  *wcur->value);
+		//printf("Commit seq %ld value %s\n", wcur->seq,  *wcur->value);
 		memstore_->Add(wcur->seq, wcur->type, cur->key(), *wcur->value);
 		storemutex->Unlock();
 	}
@@ -242,6 +242,7 @@ void testht()
 	//printf("helloworld\n");
  }
 
+/*
 int main()
 {
     
@@ -324,8 +325,9 @@ int main()
 	}
 	
     printf("Total Elements %d\n", count);
-	*/
+	
     return 0;
  }
 
+ */
 

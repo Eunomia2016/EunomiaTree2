@@ -209,12 +209,12 @@ private:
 		   
 			while(total_count > 0) {
 
-				int64_t oldv = XADD64(&total_count, -10);
+				int64_t oldv = XADD64(&total_count, -100);
 				if(oldv <= 0)
 					   break;
 
 				
-				for (int i =0; i < 10; i++) {				   
+				for (int i =0; i < 100; i++) {				   
 				/*	Key k;
 					if(seq)
 						k = MakeKey(tid,seqNum++);
