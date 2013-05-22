@@ -9,6 +9,8 @@
 #include "leveldb/env.h"
 #include "leveldb/iterator.h"
 #include "util/coding.h"
+#include "util/mutexlock.h"
+
 
 namespace leveldb {
  	
@@ -27,21 +29,29 @@ namespace leveldb {
   DBTransaction::~DBTransaction()
   {
 	//TODO: clear all the data
-	if(readset != NULL)
+	if(readset != NULL) {
 		delete readset;
+		readset = NULL;
+	}
 	
-	if(writeset != NULL)
+	if(writeset != NULL) {
 		delete writeset;
+		writeset = NULL;
+	}
   }
 
   void DBTransaction::Begin()
   {
 	//TODO: reset the local read set and write set
-	if(readset != NULL)
+	if(readset != NULL) {
 		delete readset;
+		readset = NULL;
+	}
 	
-	if(writeset != NULL)
+	if(writeset != NULL) {
 		delete writeset;
+		writeset = NULL;
+	}
 	
 	readset = new HashTable();
 	writeset = new HashTable();
@@ -118,7 +128,8 @@ namespace leveldb {
 
   bool DBTransaction::Validation() {
 	//TODO use tx to protect
-
+	MutexLock mu(storemutex);
+	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	HashTable::Iterator *riter = new HashTable::Iterator(readset);
 	while(riter->Next()) {
@@ -171,11 +182,16 @@ namespace leveldb {
 		storemutex->Unlock();
 	}
 
-	if(readset != NULL)
+	if(readset != NULL) {
 		delete readset;
+		readset = NULL;
+	}
 	
-	if(writeset != NULL)
+	if(writeset != NULL) {
 		delete writeset;
+		writeset = NULL;
+	}
+	
   }
 
 
