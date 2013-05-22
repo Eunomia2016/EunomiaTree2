@@ -99,7 +99,6 @@ namespace leveldb {
 	//first get the seq number
 	bool found = false;
 	uint64_t seq = 0;
-	
 	found = latestseq_->Lookup(key, (void **)&seq);
 
 
@@ -127,7 +126,9 @@ namespace leveldb {
 	// step 3. put into the read set
 	
 	readset->Insert(key, (void *)seq, NULL);
-
+	
+	printf("Get seq %ld value %s\n", seq, value->c_str());
+	
 	return found;
   }
 
@@ -184,6 +185,7 @@ namespace leveldb {
 		WSNode *wcur = (WSNode *)cur->value;
 		
 		storemutex->Lock();
+		printf("Commit seq %ld value %s\n", wcur->seq,  *wcur->value);
 		memstore_->Add(wcur->seq, wcur->type, cur->key(), *wcur->value);
 		storemutex->Unlock();
 	}
@@ -239,7 +241,7 @@ void testht()
 	
 	//printf("helloworld\n");
  }
-/*
+
 int main()
 {
     
@@ -254,6 +256,29 @@ int main()
 
 	leveldb::ValueType t = leveldb::kTypeValue;
 
+	char* key = new char[100];
+    snprintf(key, sizeof(key), "%d", 1024);
+	leveldb::Slice k(key);
+	leveldb::SequenceNumber seq = 1;
+	
+	store->Add(seq, t, k, k);
+
+
+	key = new char[100];
+    snprintf(key, sizeof(key), "%d", 2048);
+	leveldb::Slice k2(key);
+	seq = 100;
+	
+	store->Add(seq, t, k, k2);
+
+	std::string str;
+	leveldb::Status s;
+	seq = 2;
+	leveldb::LookupKey lkey(k, seq);
+	bool found = store->GetWithSeq(lkey, &str, &s);
+	printf("Found %d value %s\n", found, str.c_str());
+	
+	/*
 	tx.Begin();
 	
     for(int i = 0; i < 10; i++) {
@@ -299,7 +324,8 @@ int main()
 	}
 	
     printf("Total Elements %d\n", count);
+	*/
     return 0;
  }
-*/
+
 

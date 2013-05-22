@@ -243,7 +243,7 @@ private:
 							char* vc = new char[100];
 							snprintf(vc, sizeof(vc), "%d", v);
 							leveldb::Slice vs(vc);
-							printf("Insert %s\n", vs);
+							//printf("Insert %s\n", vs);
 							tx.Add(t, k, vs);
 						}
 						done = tx.End();
