@@ -221,7 +221,7 @@ end:
 
 }  // namespace leveldb
 
-void testht()
+int main()
 {
 	leveldb::HashTable ht;
 	char key[100];

@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include "leveldb/slice.h"
+#include <stdlib.h>
 
 namespace leveldb {
 
@@ -36,6 +37,7 @@ class HashTable {
                          void (*deleter)(const Slice& key, void* value));
 
   
+
   
   bool Lookup(const Slice& key, void **vp);
 
@@ -49,9 +51,9 @@ class HashTable {
   	void* value;
   	void (*deleter)(const Slice&, void* value);
   	Node* next;
-  	Node* prev;
   	size_t key_length;
-  	uint32_t hash;      // Hash of key(); used for fast sharding and comparisons
+  	uint32_t hash;      // Hash of key(); used for fast sharding and comparisons  	
+	uint32_t refs;
   	char key_data[1];   // Beginning of key
 
 	Slice key() const {
@@ -63,8 +65,26 @@ class HashTable {
 		return Slice(key_data, key_length);
 	  }
 	}
+
+	void Unref() {
+	  assert(refs > 0);
+	  refs--;
+	  if (refs <= 0) {
+	    if (deleter != NULL)
+		    (*deleter)(key(), value);
+		
+	    free(this);
+
+	  }
+	}
+
+	void Ref() {
+		refs++;
+	}
   };
-	
+
+  //remove a node, but doesn't deref 
+  Node* Remove(const Slice& key, uint32_t hash);
   
   Node* InsertNode(Node* h);
   
