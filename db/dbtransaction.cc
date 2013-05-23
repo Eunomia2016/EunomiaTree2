@@ -10,7 +10,7 @@
 #include "leveldb/iterator.h"
 #include "util/coding.h"
 #include "util/mutexlock.h"
-
+#include "util/rtm.h"
 
 namespace leveldb {
  	
@@ -134,7 +134,8 @@ namespace leveldb {
 
   bool DBTransaction::Validation() {
 	//TODO use tx to protect
-	MutexLock mu(storemutex);
+	//MutexLock mu(storemutex);
+	RTMScope rtm(NULL);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	HashTable::Iterator *riter = new HashTable::Iterator(readset);
@@ -146,7 +147,7 @@ namespace leveldb {
 		assert(oldseq == 0 || found);
 		
 		if(oldseq != curseq)
-			return false;
+			return false; //Return false is safe, because it hasn't modify any data, then no need to abort
 	}
 
 	//step 2.  update the the seq set 
