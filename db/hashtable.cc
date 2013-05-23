@@ -18,11 +18,12 @@ HashTable::HashTable() : length_(0), elems_(0), list_(NULL) {
 }
 
 HashTable::~HashTable() {
+	//TODO garbage collection
 }
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 4;
+	uint32_t new_length = 128;
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}

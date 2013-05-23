@@ -135,44 +135,59 @@ namespace leveldb {
   bool DBTransaction::Validation() {
 	//TODO use tx to protect
 	//MutexLock mu(storemutex);
-	RTMScope rtm(NULL);
 	
-	//step 1. check if the seq has been changed (any one change the value after reading)
-	HashTable::Iterator *riter = new HashTable::Iterator(readset);
-	while(riter->Next()) {
-		HashTable::Node *cur = riter->Current();
-		uint64_t oldseq = (uint64_t)cur->value;
-		uint64_t curseq = 0;
-		bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-		assert(oldseq == 0 || found);
-		
-		if(oldseq != curseq)
-			return false; //Return false is safe, because it hasn't modify any data, then no need to abort
-	}
-
-	//step 2.  update the the seq set 
+	HashTable::Iterator *riter = new HashTable::Iterator(readset);	
 	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
-	while(witer->Next()) {
-		HashTable::Node *cur = witer->Current();
-		WSNode *wcur = (WSNode *)cur->value;
-		
-		uint64_t curseq;
-		bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-		if(!found) {
-			//The node is inserted into the list first time
-			curseq = 1;
-			latestseq_->Insert(cur->key(),(void *)curseq, NULL);
-		}
-		else {			
-			curseq++;		
-			latestseq_->Update(cur->key(),(void *)curseq);
-		}
-		
-		wcur->seq = curseq;
 	
-	}
+	bool validate = true;
 
-	return true;
+	{
+		RTMScope rtm(NULL);
+		
+		//step 1. check if the seq has been changed (any one change the value after reading)
+		while(riter->Next()) {
+			HashTable::Node *cur = riter->Current();
+			uint64_t oldseq = (uint64_t)cur->value;
+			uint64_t curseq = 0;
+			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+			assert(oldseq == 0 || found);
+			
+			if(oldseq != curseq) {
+				validate = false; //Return false is safe, because it hasn't modify any data, then no need to abort
+				goto end;
+
+			}
+		}
+		//step 2.  update the the seq set 
+		while(witer->Next()) {
+			HashTable::Node *cur = witer->Current();
+			WSNode *wcur = (WSNode *)cur->value;
+			
+			uint64_t curseq;
+			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+			if(!found) {
+				//The node is inserted into the list first time
+				curseq = 1;
+				latestseq_->Insert(cur->key(),(void *)curseq, NULL);
+				//latestseq_->InsertNode(cur);
+				//latestseq_->Update(cur->key(),(void *)curseq);
+			}
+			else {			
+				curseq++;		
+				latestseq_->Update(cur->key(),(void *)curseq);
+			}
+			
+			wcur->seq = curseq;
+		
+		}
+
+	}
+	
+end:
+	delete riter;
+	delete witer;
+	
+	return validate;
 	
   }
 

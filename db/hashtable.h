@@ -35,7 +35,8 @@ class HashTable {
   bool Insert(const Slice& key, void* value,
                          void (*deleter)(const Slice& key, void* value));
 
-
+  
+  
   bool Lookup(const Slice& key, void **vp);
 
   
@@ -65,6 +66,8 @@ class HashTable {
   };
 	
   
+  Node* InsertNode(Node* h);
+  
   private:
   	
 
@@ -74,7 +77,6 @@ class HashTable {
 
   void Resize();
   uint32_t HashSlice(const Slice& s);
-  Node* InsertNode(Node* h);
   Node** FindNode(const Slice& key, uint32_t hash); 
 
  public:
