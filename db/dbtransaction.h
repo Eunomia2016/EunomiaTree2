@@ -19,24 +19,42 @@ namespace leveldb {
 class DBTransaction {
  public:
  	
-  explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
-  ~DBTransaction();
+	explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
+	~DBTransaction();
 
-  void Begin();
-  bool End();
-  void Add(ValueType type, Slice& key, Slice& value);
+	void Begin();
+	bool End();
+	void Add(ValueType type, Slice& key, Slice& value);
 
-  bool Get(const Slice& key, std::string* value, Status* s);
+	bool Get(const Slice& key, std::string* value, Status* s);
   
- private:
 
 	struct WSNode {
 		//Slice* key;
 		Slice* value;
 		ValueType type;
 		SequenceNumber seq;
+		HashTable::Node* knode;
+		uint32_t refs;
+
+		void Unref() {
+		  assert(refs > 0);
+		  refs--;
+		  if (refs <= 0) {
+		  	//FIXME: doesn't delete the value
+			//delete value;
+			delete this;
+		  }
+		}
+
+		void Ref() {
+			refs++;
+		}
 	};
+
 	
+private:
+
  	HashTable *readset;
 	HashTable *writeset;
 

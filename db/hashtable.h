@@ -46,7 +46,7 @@ class HashTable {
   
   void PrintHashTable();
 
-    struct Node 
+  struct Node 
   {
   	void* value;
   	void (*deleter)(const Slice&, void* value);
@@ -74,7 +74,6 @@ class HashTable {
 		    (*deleter)(key(), value);
 		
 	    free(this);
-
 	  }
 	}
 

@@ -13,6 +13,12 @@
 #include "util/rtm.h"
 
 namespace leveldb {
+
+  static void UnrefWSN(const Slice& key, void* value) {
+	   DBTransaction::WSNode* wsn = reinterpret_cast<DBTransaction::WSNode*>(value);
+	   wsn->Unref();
+  }
+
  	
   DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
   {
@@ -28,7 +34,7 @@ namespace leveldb {
   
   DBTransaction::~DBTransaction()
   {
-	//TODO: clear all the data
+	//clear all the data
 	if(readset != NULL) {
 		delete readset;
 		readset = NULL;
@@ -42,7 +48,7 @@ namespace leveldb {
 
   void DBTransaction::Begin()
   {
-	//TODO: reset the local read set and write set
+	//reset the local read set and write set
 	if(readset != NULL) {
 		delete readset;
 		readset = NULL;
@@ -72,8 +78,10 @@ namespace leveldb {
 	wn->value = &value;
 	wn->type = type;
 	wn->seq = 0;
+	wn->refs = 1;
+	
 	//TODO: Pass the deleter of wsnode into function
-	writeset->Insert(key, wn, NULL);
+	writeset->Insert(key, wn, &UnrefWSN);
   }
 
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
@@ -133,8 +141,7 @@ namespace leveldb {
   }
 
   bool DBTransaction::Validation() {
-	//TODO use tx to protect
-	//MutexLock mu(storemutex);
+	
 	
 	HashTable::Iterator *riter = new HashTable::Iterator(readset);	
 	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
@@ -142,7 +149,8 @@ namespace leveldb {
 	bool validate = true;
 
 	{
-		RTMScope rtm(NULL);
+		//RTMScope rtm(NULL);
+		MutexLock mu(storemutex);
 		
 		//step 1. check if the seq has been changed (any one change the value after reading)
 		while(riter->Next()) {
@@ -218,9 +226,9 @@ end:
 	
   }
 
-
 }  // namespace leveldb
 
+/*
 int main()
 {
 	leveldb::HashTable ht;
@@ -258,7 +266,7 @@ int main()
 	//printf("helloworld\n");
  }
 
-/*
+
 int main()
 {
     
