@@ -183,7 +183,7 @@ EOF
       int main() {}
 EOF
     if [ "$?" = 0 ]; then
-        PLATFORM_LIBS="$PLATFORM_LIBS -ltcmalloc"
+        PLATFORM_LIBS="$PLATFORM_LIBS -lssmalloc"
     fi
 fi
 

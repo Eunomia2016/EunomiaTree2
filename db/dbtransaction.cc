@@ -22,7 +22,7 @@ namespace leveldb {
  	
   DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
   {
-	//TODO: get the globle store and versions passed by the parameter
+	//get the globle store and versions passed by the parameter
 	storemutex = mutex;
 	latestseq_ = ht;
 	memstore_ = store;
@@ -181,8 +181,8 @@ namespace leveldb {
 	bool validate = true;
 
 	{
-		//RTMScope rtm(NULL);
-		MutexLock mu(storemutex);
+		RTMScope rtm(NULL);
+		//MutexLock mu(storemutex);
 		
 		//step 1. check if the seq has been changed (any one change the value after reading)
 		while(riter->Next()) {
