@@ -19,8 +19,26 @@ class Transaction {
 	bitmap = 0;
     }   
 }*/
+
+struct SharedState {
+  port::Mutex mu;
+  port::CondVar cv;
+  int total;
+
+  volatile double start_time;
+  volatile double end_time;
+	  	
+  int num_initialized;
+  int num_done;
+  bool start;
+
+	
+  SharedState() : cv(&mu) { }
+};
+
 struct ThreadState {
 	int tid;
+	SharedState *shared;
 	ThreadState(int index)
       : tid(index)
     {
@@ -47,6 +65,7 @@ class Benchmark {
 	static void ThreadBody(void* v) {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->tid)->tid;
+		sharedState *shared = arg->shared;
 		HashTable *seqs = arg->seqs;
 		MemTable *store = arg->store;
 		port::Mutex *mutex = arg->mutex;
@@ -54,7 +73,7 @@ class Benchmark {
 		ValueType t = kTypeValue;
 		std::string *str  = new std::string[3];
 
-		printf("In tid %lx\n", arg);
+		//printf("In tid %lx\n", arg);
 		printf("start %d\n",tid);
 		
 		
@@ -73,8 +92,8 @@ class Benchmark {
 				snprintf(value, sizeof(value), "%d", i);
 				Slice *v = new leveldb::Slice(value);
 
-				//printf("Insert %s ", key);
-				//printf(" Value %s\n", value);
+				printf("Insert %s ", key);
+				printf(" Value %s\n", value);
 				tx.Add(t, k, *v);			
 			}
 			b = tx.End();
@@ -99,9 +118,26 @@ class Benchmark {
 			assert(str[1]==str[2]);
 
 		}
+		{
+		  MutexLock l(&shared->mu);
+		  shared->num_done++;
+		  if (shared->num_done >= shared->total) {
+			shared->cv.SignalAll();
+		  }
+		}
 
 	}
 	void Run() {
+		 
+		SharedState shared;
+		shared.total = 4;
+		shared.num_initialized = 0;
+		shared.start_time = 0;
+		shared.end_time = 0;
+		shared.num_done = 0;
+		shared.start = false;
+		 
+		 
 		 ThreadArg* arg = new ThreadArg[4];
 		 
 		 for (int i = 0; i < 4; i++) {	 	
@@ -109,12 +145,17 @@ class Benchmark {
 			arg[i].seqs = seqs;
 			arg[i].store = store;
 			arg[i].mutex = mutex;
-			printf("Out tid %lx\n", &arg[i]);
+			arg[i].shared = &shared;
+			//printf("Out tid %lx\n", &arg[i]);
 			Env::Default()->StartThread(ThreadBody, &arg[i]);
 			
 		 }
 
-		 while(true);
+		 shared.mu.Lock();
+		 while (shared.num_done < n) {
+		  shared.cv.Wait();
+		 }
+		 shared.mu.Unlock();
 	}
 };
 }// end namespace leveldb

@@ -29,12 +29,9 @@ namespace leveldb {
 
 	readset = NULL;
 	writeset = NULL;
-<<<<<<< HEAD
-	
-=======
+
 	committedValues = NULL;
 
->>>>>>> c8ed87afaba7b83e8fd45a27423db9cf3122c2de
   }
   
   DBTransaction::~DBTransaction()
