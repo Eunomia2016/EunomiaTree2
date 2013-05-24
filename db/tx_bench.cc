@@ -24,6 +24,9 @@ static const char* FLAGS_benchmarks ="random";
 
 static int FLAGS_num = 200;
 static int FLAGS_threads = 2;
+static int FLAGS_rdnum = 2;
+static int FLAGS_wtnum = 2;
+
 
 
 namespace leveldb {
@@ -90,7 +93,10 @@ private:
   
   };
 
-   int64_t total_count;  
+   int64_t total_count;
+   int64_t read_count;
+   int64_t write_count;
+   
    KeyComparator comparator;
 
    leveldb::HashTable seqs;
@@ -204,17 +210,19 @@ private:
 	   
 		   int tid = thread->tid;
 		   int seqNum = 0;
+		   int rnum = read_count;
+		   int wnum = write_count;
 		   
 		   //printf("DoWrite %d\n", total_count);
 		   
 			while(total_count > 0) {
 
-				int64_t oldv = XADD64(&total_count, -10);
+				int64_t oldv = XADD64(&total_count, -1);
 				if(oldv <= 0)
 					   break;
 
 				
-				for (int i =0; i < 10; i++) {				   
+				for (int i =0; i < 1; i++) {		   
 				/*	Key k;
 					if(seq)
 						k = MakeKey(tid,seqNum++);
@@ -225,37 +233,36 @@ private:
 					DBTransaction tx(&seqs, store, &mutex);
 
 					ValueType t = kTypeValue;
-					char* key = new char[100];
-					snprintf(key, sizeof(key), "%d", 1);
-					leveldb::Slice k(key);
+					char* kc = new char[100];
+					char* vc = new char[100];
 					
 					leveldb::Status s;
+					std::string str;
 					bool done = false;
 					
 					while( !done ) {
 						tx.Begin();
-						std::string str;
-						if(tx.Get(k, &str, &s) == false) {
+						//first write tuples
+						for(int i = 0; i < wnum; i++) {
+							snprintf(kc, sizeof(kc), "%d", thread->rnd.Next());
+							leveldb::Slice k(kc);
 							tx.Add(t, k, k);
-						} else {
-							int v = atoi(str.c_str());
-							v++;
-							char* vc = new char[100];
-							snprintf(vc, sizeof(vc), "%d", v);
-							leveldb::Slice vs(vc);
-							//printf("Insert %s\n", vs);
-							tx.Add(t, k, vs);
-							delete vc;
-							
 						}
+
+						for(int i = 0; i < rnum; i++) {
+							snprintf(kc, sizeof(kc), "%d", thread->rnd.Next());
+							leveldb::Slice k(kc);
+							tx.Get(k, &str, &s);
+						}
+						
 						done = tx.End();
 
 						//delete vc;
 						
 					}
 					
-					delete key;
-
+					delete kc;
+					delete vc;
 				}		
 			}
 	
@@ -297,7 +304,7 @@ private:
 
 	public:
 
-	  Benchmark(): total_count(FLAGS_num)
+	  Benchmark(): total_count(FLAGS_num), read_count(FLAGS_rdnum), write_count(FLAGS_wtnum)
 	  {
 		leveldb::Options options;
 		leveldb::InternalKeyComparator cmp(options.comparator);
@@ -345,7 +352,7 @@ private:
 		  shared.cv.Wait();
 		}
 		shared.mu.Unlock();
-		
+		/*
 		uint64_t seq;
 		ValueType t = kTypeValue;
 		char* key = new char[100];
@@ -360,8 +367,9 @@ private:
 		Status s;
 		store->Get(lkey, &val, &s);
 		printf("Value %s\n", val.c_str());
-/*
-		printf(" ...... Iterate ......");
+		*/
+
+		printf(" ...... Iterate  MemStore ......\n");
 		leveldb::Iterator* iter = store->NewIterator();
 		iter->SeekToFirst();
 		int count = 0;
@@ -374,7 +382,10 @@ private:
 		}
 
 		printf("Total %d\n", count);
-	*/	
+
+		//printf(" ...... Iterate  Seq Hash Table ......");
+		//seqs.PrintHashTable();
+		
 		/*
 		if(method == &Benchmark::WriteRandom || method == &Benchmark::WriteSeq)
 			printf("Total Write Run Time : %lf ms\n", (shared.end_time - shared.start_time)/1000);
@@ -441,7 +452,11 @@ int main(int argc, char** argv) {
 	   FLAGS_num = n;
 	 } else if (sscanf(argv[i], "--threads=%d%c", &n, &junk) == 1) {
 	   FLAGS_threads = n;
-	 } 
+	 } else if (sscanf(argv[i], "--read=%d%c", &n, &junk) == 1) {
+	   FLAGS_rdnum= n;
+	 } else if (sscanf(argv[i], "--write=%d%c", &n, &junk) == 1) {
+	   FLAGS_wtnum = n;
+	 }
  }
 
 	

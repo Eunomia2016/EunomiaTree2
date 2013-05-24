@@ -22,7 +22,7 @@ namespace leveldb {
  	
   DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
   {
-	//TODO: get the globle store and versions passed by the parameter
+	//get the globle store and versions passed by the parameter
 	storemutex = mutex;
 	latestseq_ = ht;
 	memstore_ = store;
@@ -109,7 +109,7 @@ namespace leveldb {
 
 	//Insert to the committed values linked list
 	if(committedValues != NULL) {
-		wsn->next = committedValues->next;
+		wsn->next = committedValues;
 	}
 	committedValues = wsn;
 	wsn->Ref();
