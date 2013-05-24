@@ -28,7 +28,7 @@ HashTable::~HashTable() {
 		   tmp->Unref();
         }
     }
-	delete list_;
+	delete[] list_;
 }
 
 void HashTable::Resize() 
