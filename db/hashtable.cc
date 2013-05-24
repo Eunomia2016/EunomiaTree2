@@ -18,11 +18,22 @@ HashTable::HashTable() : length_(0), elems_(0), list_(NULL) {
 }
 
 HashTable::~HashTable() {
+	//TODO garbage collection
+	int i = 0;
+    for(; i < length_; i++) {
+        Node** ptr = &list_[i];
+        while (*ptr != NULL) {
+		   Node* tmp = *ptr;
+           ptr = &(*ptr)->next;
+		   tmp->Unref();
+        }
+    }
+	delete list_;
 }
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 4;
+	uint32_t new_length = 128;
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}
@@ -48,7 +59,7 @@ void HashTable::Resize()
 	length_ = new_length;
   }
 
-bool HashTable::Insert(const Slice& key, void* value,
+HashTable::Node* HashTable::Insert(const Slice& key, void* value,
 					   void (*deleter)(const Slice& key, void* value))
 {
     Node* e = reinterpret_cast<Node*>(
@@ -60,8 +71,23 @@ bool HashTable::Insert(const Slice& key, void* value,
     memcpy(e->key_data, key.data(), key.size());
     //printf("Memcp key %s\n", key.ToString().c_str());
     InsertNode(e);
-    return true;
+	e->refs = 1;
+    return e;
 }
+
+
+HashTable::Node* HashTable::Remove(const Slice& key, uint32_t hash) 
+{
+    Node** ptr = FindNode(key, hash);
+    Node* result = *ptr;
+    if (result != NULL) {
+      *ptr = result->next;
+      --elems_;
+    }
+    return result;
+
+}
+
 
 bool HashTable::Update(const Slice& key,  void* value) 
 {
@@ -160,6 +186,7 @@ HashTable::Node* HashTable::InsertNode(Node* h) {
     }
     return old;  
 }
+
 
 
 HashTable::Node** HashTable::FindNode(const Slice& key, uint32_t hash) 

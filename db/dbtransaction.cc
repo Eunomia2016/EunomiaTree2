@@ -10,9 +10,15 @@
 #include "leveldb/iterator.h"
 #include "util/coding.h"
 #include "util/mutexlock.h"
-
+#include "util/rtm.h"
 
 namespace leveldb {
+
+  static void UnrefWSN(const Slice& key, void* value) {
+	   DBTransaction::WSNode* wsn = reinterpret_cast<DBTransaction::WSNode*>(value);
+	   wsn->Unref();
+  }
+
  	
   DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
   {
@@ -23,12 +29,17 @@ namespace leveldb {
 
 	readset = NULL;
 	writeset = NULL;
+<<<<<<< HEAD
 	
+=======
+	committedValues = NULL;
+
+>>>>>>> c8ed87afaba7b83e8fd45a27423db9cf3122c2de
   }
   
   DBTransaction::~DBTransaction()
   {
-	//TODO: clear all the data
+	//clear all the data
 	if(readset != NULL) {
 		delete readset;
 		readset = NULL;
@@ -38,11 +49,20 @@ namespace leveldb {
 		delete writeset;
 		writeset = NULL;
 	}
+
+	WSNode *wsn = committedValues;
+	while(wsn != NULL) {
+		WSNode* tmp = wsn;
+		tmp->Unref();
+		wsn = wsn->next;
+	}
+	committedValues = NULL;
+	
   }
 
   void DBTransaction::Begin()
   {
-	//TODO: reset the local read set and write set
+	//reset the local read set and write set
 	if(readset != NULL) {
 		delete readset;
 		readset = NULL;
@@ -52,6 +72,14 @@ namespace leveldb {
 		delete writeset;
 		writeset = NULL;
 	}
+
+	WSNode *wsn = committedValues;
+	while(wsn != NULL) {
+		WSNode* tmp = wsn;
+		tmp->Unref();
+		wsn = wsn->next;
+	}
+	committedValues = NULL;
 	
 	readset = new HashTable();
 	writeset = new HashTable();
@@ -63,28 +91,44 @@ namespace leveldb {
 		return false;
 
 	GlobalCommit();
+	return true;
   }
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
 	//write the key value into local buffer
-	WSNode *wn = new WSNode();
-	wn->value = &value;
-	wn->type = type;
-	wn->seq = 0;
-	//TODO: Pass the deleter of wsnode into function
-	writeset->Insert(key, wn, NULL);
+	WSNode* wsn = reinterpret_cast<WSNode*>(
+    	malloc(sizeof(WSNode)-1 + value.size()));
+	
+    wsn->value_length= value.size();
+	memcpy(wsn->value_data, value.data(), value.size());;
+	wsn->type = type;
+	wsn->seq = 0;
+	wsn->refs = 1;
+	wsn->next = NULL;
+	
+	//Pass the deleter of wsnode into function
+	wsn->knode = writeset->Insert(key, wsn, &UnrefWSN);
+	wsn->knode->Ref();
+
+	//Insert to the committed values linked list
+	if(committedValues != NULL) {
+		wsn->next = committedValues->next;
+	}
+	committedValues = wsn;
+	wsn->Ref();
+		
   }
 
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
   {
   	//step 1. First check if the <k,v> is in the write set
   	
-	WSNode* wn;
-	if(writeset->Lookup(key, (void **)&wn)) {
+	WSNode* wsn;
+	if(writeset->Lookup(key, (void **)&wsn)) {
 		//Found
-		switch (wn->type) {
+		switch (wsn->type) {
           case kTypeValue: {
-          	value->assign(wn->value->data(), wn->value->size());
+          	value->assign(wsn->value_data, wsn->value_length);
           	return true;
           }
           case kTypeDeletion:
@@ -98,12 +142,15 @@ namespace leveldb {
 	//first get the seq number
 	bool found = false;
 	uint64_t seq = 0;
-	
 	found = latestseq_->Lookup(key, (void **)&seq);
 
 
-	if (!found)
+	if (!found) {
+		//even not found, still need to put the k into read set to avoid concurrent insertion		
+		readset->Insert(key, (void *)seq, NULL);
 		return found;
+
+	}
 	
 	//construct the lookup key and find the key value in the in memory storage
 	LookupKey lkey(key, seq);
@@ -114,7 +161,7 @@ namespace leveldb {
 	while(!found) {
 		
 		storemutex->Lock();
-		found = memstore_->Get(lkey, value, s);
+		found = memstore_->GetWithSeq(lkey, value, s);
 		storemutex->Unlock();
 		
 	}
@@ -122,49 +169,80 @@ namespace leveldb {
 	// step 3. put into the read set
 	
 	readset->Insert(key, (void *)seq, NULL);
-
+	
+	//printf("Get seq %ld value %s\n", seq, value->c_str());
+	
 	return found;
   }
 
   bool DBTransaction::Validation() {
-	//TODO use tx to protect
-	MutexLock mu(storemutex);
 	
-	//step 1. check if the seq has been changed (any one change the value after reading)
-	HashTable::Iterator *riter = new HashTable::Iterator(readset);
-	while(riter->Next()) {
-		HashTable::Node *cur = riter->Current();
-		uint64_t oldseq = (uint64_t)cur->value;
-		uint64_t curseq;
-		bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-		assert(found);
-		if(oldseq != curseq)
-			return false;
-	}
-
-	//step 2.  update the the seq set 
+	
+	HashTable::Iterator *riter = new HashTable::Iterator(readset);	
 	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
-	while(witer->Next()) {
-		HashTable::Node *cur = witer->Current();
-		WSNode *wcur = (WSNode *)cur->value;
-		
-		uint64_t curseq;
-		bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-		if(!found) {
-			//The node is inserted into the list first time
-			curseq = 1;
-			latestseq_->Insert(cur->key(),(void *)curseq, NULL);
-		}
-		else {			
-			curseq++;		
-			latestseq_->Update(cur->key(),(void *)curseq);
-		}
-		
-		wcur->seq = curseq;
 	
-	}
+	bool validate = true;
 
-	return true;
+	{
+		//RTMScope rtm(NULL);
+		MutexLock mu(storemutex);
+		
+		//step 1. check if the seq has been changed (any one change the value after reading)
+		while(riter->Next()) {
+			HashTable::Node *cur = riter->Current();
+			uint64_t oldseq = (uint64_t)cur->value;
+			uint64_t curseq = 0;
+			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+			assert(oldseq == 0 || found);
+			
+			if(oldseq != curseq) {
+				validate = false; //Return false is safe, because it hasn't modify any data, then no need to abort
+				goto end;
+
+			}
+		}
+		//step 2.  update the the seq set 
+		while(witer->Next()) {
+			HashTable::Node *cur = witer->Current();
+			WSNode *wcur = (WSNode *)cur->value;
+			
+			uint64_t curseq;
+			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+			if(!found) {
+				//The node is inserted into the list first time
+				curseq = 1;
+
+				//Still use the node in the write set to avoid memory allocation
+				HashTable::Node* n = writeset->Remove(cur->key(), cur->hash);
+			
+				assert(n == cur);
+				
+				if(cur->deleter != NULL)
+					cur->deleter(cur->key(), cur->value);
+				
+				cur->deleter = NULL;
+				cur->value = (void *)curseq;
+				
+				//latestseq_->Insert(cur->key(),(void *)curseq, NULL);
+				latestseq_->InsertNode(cur);
+				
+			}
+			else {			
+				curseq++;		
+				latestseq_->Update(cur->key(),(void *)curseq);
+			}
+			
+			wcur->seq = curseq;
+		
+		}
+
+	}
+	
+end:
+	delete riter;
+	delete witer;
+	
+	return validate;
 	
   }
 
@@ -172,14 +250,15 @@ namespace leveldb {
   
   void DBTransaction::GlobalCommit() {
 	//commit the local write set into the memory storage
-	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
-	while(witer->Next()) {
-		HashTable::Node *cur = witer->Current();
-		WSNode *wcur = (WSNode *)cur->value;
+	WSNode *wsn = committedValues;
+	while(wsn != NULL) {
+		HashTable::Node *cur = wsn->knode;;
 		
 		storemutex->Lock();
-		memstore_->Add(wcur->seq, wcur->type, cur->key(), *wcur->value);
+		memstore_->Add(wsn->seq, wsn->type, cur->key(), wsn->value());
 		storemutex->Unlock();
+		
+		wsn = wsn->next;
 	}
 
 	if(readset != NULL) {
@@ -191,13 +270,22 @@ namespace leveldb {
 		delete writeset;
 		writeset = NULL;
 	}
+
+
+	wsn = committedValues;
+	while(wsn != NULL) {
+		WSNode* tmp = wsn;
+		tmp->Unref();
+		wsn = wsn->next;
+	}
+	committedValues = NULL;
 	
   }
 
-
 }  // namespace leveldb
 
-void testht()
+/*
+int main()
 {
 	leveldb::HashTable ht;
 	char key[100];
@@ -233,7 +321,7 @@ void testht()
 	
 	//printf("helloworld\n");
  }
-/*
+
 int main()
 {
     
@@ -248,6 +336,29 @@ int main()
 
 	leveldb::ValueType t = leveldb::kTypeValue;
 
+	char* key = new char[100];
+    snprintf(key, sizeof(key), "%d", 1024);
+	leveldb::Slice k(key);
+	leveldb::SequenceNumber seq = 1;
+	
+	store->Add(seq, t, k, k);
+
+
+	key = new char[100];
+    snprintf(key, sizeof(key), "%d", 2048);
+	leveldb::Slice k2(key);
+	seq = 100;
+	
+	store->Add(seq, t, k, k2);
+
+	std::string str;
+	leveldb::Status s;
+	seq = 2;
+	leveldb::LookupKey lkey(k, seq);
+	bool found = store->GetWithSeq(lkey, &str, &s);
+	printf("Found %d value %s\n", found, str.c_str());
+	
+	/*
 	tx.Begin();
 	
     for(int i = 0; i < 10; i++) {
@@ -293,7 +404,10 @@ int main()
 	}
 	
     printf("Total Elements %d\n", count);
+	
     return 0;
  }
+
 */
+
 

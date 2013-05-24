@@ -20,11 +20,47 @@
 
 #include <stdint.h>
 #include "leveldb/slice.h"
+#include <stdlib.h>
 
 namespace leveldb {
 
 class HashTable {
  public:
+
+  struct Node 
+	{
+	  void* value;
+	  void (*deleter)(const Slice&, void* value);
+	  Node* next;
+	  uint32_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
+	  uint32_t refs;
+	  
+	  size_t key_length;
+	  char key_data[1];   // Beginning of key
+  
+	  Slice key() const {
+		  // For cheaper lookups, we allow a temporary Handle object
+		  // to store a pointer to a key in "value".
+		  return Slice(key_data, key_length);
+	  }
+  
+	  void Unref() {
+		assert(refs > 0);
+		refs--;
+		if (refs <= 0) {
+		  if (deleter != NULL)
+			  (*deleter)(key(), value);
+		  
+		  free(this);
+		}
+	  }
+  
+	  void Ref() {
+		  refs++;
+	  }
+	};
+
+
   HashTable();
 
   // Destroys all existing entries by calling the "deleter"
@@ -32,10 +68,12 @@ class HashTable {
   virtual ~HashTable();
 
   
-  bool Insert(const Slice& key, void* value,
+  HashTable::Node* Insert(const Slice& key, void* value,
                          void (*deleter)(const Slice& key, void* value));
 
+  
 
+  
   bool Lookup(const Slice& key, void **vp);
 
   
@@ -43,27 +81,11 @@ class HashTable {
   
   void PrintHashTable();
 
-    struct Node 
-  {
-  	void* value;
-  	void (*deleter)(const Slice&, void* value);
-  	Node* next;
-  	Node* prev;
-  	size_t key_length;
-  	uint32_t hash;      // Hash of key(); used for fast sharding and comparisons
-  	char key_data[1];   // Beginning of key
 
-	Slice key() const {
-		// For cheaper lookups, we allow a temporary Handle object
-		// to store a pointer to a key in "value".
-	  if (next == this) {
-		return *(reinterpret_cast<Slice*>(value));
-	  } else {
-		return Slice(key_data, key_length);
-	  }
-	}
-  };
-	
+  //remove a node, but doesn't deref 
+  Node* Remove(const Slice& key, uint32_t hash);
+  
+  Node* InsertNode(Node* h);
   
   private:
   	
@@ -74,7 +96,6 @@ class HashTable {
 
   void Resize();
   uint32_t HashSlice(const Slice& s);
-  Node* InsertNode(Node* h);
   Node** FindNode(const Slice& key, uint32_t hash); 
 
  public:

@@ -19,27 +19,53 @@ namespace leveldb {
 class DBTransaction {
  public:
  	
-  explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
-  ~DBTransaction();
+	explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
+	~DBTransaction();
 
-  void Begin();
-  bool End();
-  void Add(ValueType type, Slice& key, Slice& value);
-
-  bool Get(const Slice& key, std::string* value, Status* s);
+	void Begin();
+	bool End();
+	void Add(ValueType type, Slice& key, Slice& value);
+	bool Get(const Slice& key, std::string* value, Status* s);
   
- private:
-
 	struct WSNode {
-		//Slice* key;
-		Slice* value;
 		ValueType type;
 		SequenceNumber seq;
+		HashTable::Node* knode;
+		WSNode* next;
+		uint32_t refs;
+		
+		size_t value_length;
+		char value_data[1];	// Beginning of key
+		
+		Slice value() const {
+			// For cheaper lookups, we allow a temporary Handle object
+			// to store a pointer to a key in "value".
+			return Slice(value_data, value_length);
+		}
+
+		void Unref() {
+		  assert(refs > 0);
+		  refs--;
+		  if (refs <= 0) {		
+			if(knode != NULL)
+				knode->Unref();
+			free(this);
+		  }
+		}
+
+		void Ref() {
+			refs++;
+		}
 	};
+
 	
+private:
+
  	HashTable *readset;
 	HashTable *writeset;
 
+	WSNode* committedValues;
+	
 	port::Mutex* storemutex;
 	HashTable *latestseq_ ;
 	MemTable *memstore_ ;
