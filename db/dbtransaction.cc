@@ -284,7 +284,9 @@ end:
 
 }  // namespace leveldb
 
+
 /*
+
 int main()
 {
 	leveldb::HashTable ht;
@@ -292,7 +294,7 @@ int main()
 		
 	for(int i = 0; i < 10; i++) {
 	
-		snprintf(key, sizeof(key), "%d", 10);
+		snprintf(key, sizeof(key), "%d", i);
 
 	//printf("Insert %s\n", *s);
 		ht.Insert(leveldb::Slice(key), (void *)i,NULL);
