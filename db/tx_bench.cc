@@ -226,6 +226,7 @@ private:
 
 					ValueType t = kTypeValue;
 					char* key = new char[100];
+					char* vc;
 					snprintf(key, sizeof(key), "%d", 1);
 					leveldb::Slice k(key);
 					
@@ -245,12 +246,15 @@ private:
 							leveldb::Slice vs(vc);
 							//printf("Insert %s\n", vs);
 							tx.Add(t, k, vs);
+							
 						}
 						done = tx.End();
-						//if(!done)
-							//printf("Abort!!!!!\n");
-//						printf("done %d \n", done);
+
+						//delete vc;
+						
 					}
+					
+					delete key;
 
 				}		
 			}

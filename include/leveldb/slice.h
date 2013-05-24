@@ -77,8 +77,10 @@ class Slice {
             (memcmp(data_, x.data_, x.size_) == 0));
   }
 
- private:
-  const char* data_;
+ //private:
+  //const char* data_;
+public:
+  const char* data_;  
   size_t size_;
 
   // Intentionally copyable

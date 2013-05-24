@@ -29,7 +29,8 @@ namespace leveldb {
 
 	readset = NULL;
 	writeset = NULL;
-	
+	committedValues = NULL;
+
   }
   
   DBTransaction::~DBTransaction()
@@ -44,6 +45,15 @@ namespace leveldb {
 		delete writeset;
 		writeset = NULL;
 	}
+
+	WSNode *wsn = committedValues;
+	while(wsn != NULL) {
+		WSNode* tmp = wsn;
+		tmp->Unref();
+		wsn = wsn->next;
+	}
+	committedValues = NULL;
+	
   }
 
   void DBTransaction::Begin()
@@ -58,6 +68,14 @@ namespace leveldb {
 		delete writeset;
 		writeset = NULL;
 	}
+
+	WSNode *wsn = committedValues;
+	while(wsn != NULL) {
+		WSNode* tmp = wsn;
+		tmp->Unref();
+		wsn = wsn->next;
+	}
+	committedValues = NULL;
 	
 	readset = new HashTable();
 	writeset = new HashTable();
@@ -80,8 +98,17 @@ namespace leveldb {
 	wn->seq = 0;
 	wn->refs = 1;
 	
-	//TODO: Pass the deleter of wsnode into function
-	writeset->Insert(key, wn, &UnrefWSN);
+	//Pass the deleter of wsnode into function
+	wn->knode = writeset->Insert(key, wn, &UnrefWSN);
+	wn->knode->Ref();
+
+	//Insert to the committed values linked list
+	if(committedValues != NULL) {
+		wn->next = committedValues->next;
+	}
+	committedValues = wn;
+	wn->Ref();
+		
   }
 
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
@@ -176,9 +203,21 @@ namespace leveldb {
 			if(!found) {
 				//The node is inserted into the list first time
 				curseq = 1;
-				latestseq_->Insert(cur->key(),(void *)curseq, NULL);
-				//latestseq_->InsertNode(cur);
-				//latestseq_->Update(cur->key(),(void *)curseq);
+
+				//Still use the node in the write set to avoid memory allocation
+				HashTable::Node* n = writeset->Remove(cur->key(), cur->hash);
+			
+				assert(n == cur);
+				
+				if(cur->deleter != NULL)
+					cur->deleter(cur->key(), cur->value);
+				
+				cur->deleter = NULL;
+				cur->value = (void *)curseq;
+				
+				//latestseq_->Insert(cur->key(),(void *)curseq, NULL);
+				latestseq_->InsertNode(cur);
+				
 			}
 			else {			
 				curseq++;		
@@ -203,15 +242,15 @@ end:
   
   void DBTransaction::GlobalCommit() {
 	//commit the local write set into the memory storage
-	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
-	while(witer->Next()) {
-		HashTable::Node *cur = witer->Current();
-		WSNode *wcur = (WSNode *)cur->value;
+	WSNode *wsn = committedValues;
+	while(wsn != NULL) {
+		HashTable::Node *cur = wsn->knode;;
 		
 		storemutex->Lock();
-		//printf("Commit seq %ld value %s\n", wcur->seq,  *wcur->value);
-		memstore_->Add(wcur->seq, wcur->type, cur->key(), *wcur->value);
+		memstore_->Add(wsn->seq, wsn->type, cur->key(), *wsn->value);
 		storemutex->Unlock();
+		
+		wsn = wsn->next;
 	}
 
 	if(readset != NULL) {
@@ -223,6 +262,15 @@ end:
 		delete writeset;
 		writeset = NULL;
 	}
+
+
+	wsn = committedValues;
+	while(wsn != NULL) {
+		WSNode* tmp = wsn;
+		tmp->Unref();
+		wsn = wsn->next;
+	}
+	committedValues = NULL;
 	
   }
 

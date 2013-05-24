@@ -25,24 +25,27 @@ class DBTransaction {
 	void Begin();
 	bool End();
 	void Add(ValueType type, Slice& key, Slice& value);
-
 	bool Get(const Slice& key, std::string* value, Status* s);
   
-
 	struct WSNode {
 		//Slice* key;
 		Slice* value;
 		ValueType type;
 		SequenceNumber seq;
 		HashTable::Node* knode;
+		WSNode* next;
 		uint32_t refs;
 
 		void Unref() {
 		  assert(refs > 0);
 		  refs--;
 		  if (refs <= 0) {
-		  	//FIXME: doesn't delete the value
-			//delete value;
+		  	//FIXME: delete value
+			//delete[] value->data_;
+			
+			if(knode != NULL)
+				knode->Unref();
+			
 			delete this;
 		  }
 		}
@@ -58,6 +61,8 @@ private:
  	HashTable *readset;
 	HashTable *writeset;
 
+	WSNode* committedValues;
+	
 	port::Mutex* storemutex;
 	HashTable *latestseq_ ;
 	MemTable *memstore_ ;

@@ -26,6 +26,40 @@ namespace leveldb {
 
 class HashTable {
  public:
+
+  struct Node 
+	{
+	  void* value;
+	  void (*deleter)(const Slice&, void* value);
+	  Node* next;
+	  size_t key_length;
+	  uint32_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
+	  uint32_t refs;
+	  char key_data[1];   // Beginning of key
+  
+	  Slice key() const {
+		  // For cheaper lookups, we allow a temporary Handle object
+		  // to store a pointer to a key in "value".
+		  return Slice(key_data, key_length);
+	  }
+  
+	  void Unref() {
+		assert(refs > 0);
+		refs--;
+		if (refs <= 0) {
+		  if (deleter != NULL)
+			  (*deleter)(key(), value);
+		  
+		  free(this);
+		}
+	  }
+  
+	  void Ref() {
+		  refs++;
+	  }
+	};
+
+
   HashTable();
 
   // Destroys all existing entries by calling the "deleter"
@@ -33,7 +67,7 @@ class HashTable {
   virtual ~HashTable();
 
   
-  bool Insert(const Slice& key, void* value,
+  HashTable::Node* Insert(const Slice& key, void* value,
                          void (*deleter)(const Slice& key, void* value));
 
   
@@ -46,41 +80,6 @@ class HashTable {
   
   void PrintHashTable();
 
-  struct Node 
-  {
-  	void* value;
-  	void (*deleter)(const Slice&, void* value);
-  	Node* next;
-  	size_t key_length;
-  	uint32_t hash;      // Hash of key(); used for fast sharding and comparisons  	
-	uint32_t refs;
-  	char key_data[1];   // Beginning of key
-
-	Slice key() const {
-		// For cheaper lookups, we allow a temporary Handle object
-		// to store a pointer to a key in "value".
-	  if (next == this) {
-		return *(reinterpret_cast<Slice*>(value));
-	  } else {
-		return Slice(key_data, key_length);
-	  }
-	}
-
-	void Unref() {
-	  assert(refs > 0);
-	  refs--;
-	  if (refs <= 0) {
-	    if (deleter != NULL)
-		    (*deleter)(key(), value);
-		
-	    free(this);
-	  }
-	}
-
-	void Ref() {
-		refs++;
-	}
-  };
 
   //remove a node, but doesn't deref 
   Node* Remove(const Slice& key, uint32_t hash);

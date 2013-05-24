@@ -59,7 +59,7 @@ void HashTable::Resize()
 	length_ = new_length;
   }
 
-bool HashTable::Insert(const Slice& key, void* value,
+HashTable::Node* HashTable::Insert(const Slice& key, void* value,
 					   void (*deleter)(const Slice& key, void* value))
 {
     Node* e = reinterpret_cast<Node*>(
@@ -72,7 +72,7 @@ bool HashTable::Insert(const Slice& key, void* value,
     //printf("Memcp key %s\n", key.ToString().c_str());
     InsertNode(e);
 	e->refs = 1;
-    return true;
+    return e;
 }
 
 
