@@ -28,25 +28,28 @@ class DBTransaction {
 	bool Get(const Slice& key, std::string* value, Status* s);
   
 	struct WSNode {
-		//Slice* key;
-		Slice* value;
 		ValueType type;
 		SequenceNumber seq;
 		HashTable::Node* knode;
 		WSNode* next;
 		uint32_t refs;
+		
+		size_t value_length;
+		char value_data[1];	// Beginning of key
+		
+		Slice value() const {
+			// For cheaper lookups, we allow a temporary Handle object
+			// to store a pointer to a key in "value".
+			return Slice(value_data, value_length);
+		}
 
 		void Unref() {
 		  assert(refs > 0);
 		  refs--;
-		  if (refs <= 0) {
-		  	//FIXME: delete value
-			//delete[] value->data_;
-			
+		  if (refs <= 0) {		
 			if(knode != NULL)
 				knode->Unref();
-			
-			delete this;
+			free(this);
 		  }
 		}
 

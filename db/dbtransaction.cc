@@ -92,22 +92,26 @@ namespace leveldb {
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
 	//write the key value into local buffer
-	WSNode *wn = new WSNode();
-	wn->value = &value;
-	wn->type = type;
-	wn->seq = 0;
-	wn->refs = 1;
+	WSNode* wsn = reinterpret_cast<WSNode*>(
+    	malloc(sizeof(WSNode)-1 + value.size()));
+	
+    wsn->value_length= value.size();
+	memcpy(wsn->value_data, value.data(), value.size());;
+	wsn->type = type;
+	wsn->seq = 0;
+	wsn->refs = 1;
+	wsn->next = NULL;
 	
 	//Pass the deleter of wsnode into function
-	wn->knode = writeset->Insert(key, wn, &UnrefWSN);
-	wn->knode->Ref();
+	wsn->knode = writeset->Insert(key, wsn, &UnrefWSN);
+	wsn->knode->Ref();
 
 	//Insert to the committed values linked list
 	if(committedValues != NULL) {
-		wn->next = committedValues->next;
+		wsn->next = committedValues->next;
 	}
-	committedValues = wn;
-	wn->Ref();
+	committedValues = wsn;
+	wsn->Ref();
 		
   }
 
@@ -115,12 +119,12 @@ namespace leveldb {
   {
   	//step 1. First check if the <k,v> is in the write set
   	
-	WSNode* wn;
-	if(writeset->Lookup(key, (void **)&wn)) {
+	WSNode* wsn;
+	if(writeset->Lookup(key, (void **)&wsn)) {
 		//Found
-		switch (wn->type) {
+		switch (wsn->type) {
           case kTypeValue: {
-          	value->assign(wn->value->data(), wn->value->size());
+          	value->assign(wsn->value_data, wsn->value_length);
           	return true;
           }
           case kTypeDeletion:
@@ -247,7 +251,7 @@ end:
 		HashTable::Node *cur = wsn->knode;;
 		
 		storemutex->Lock();
-		memstore_->Add(wsn->seq, wsn->type, cur->key(), *wsn->value);
+		memstore_->Add(wsn->seq, wsn->type, cur->key(), wsn->value());
 		storemutex->Unlock();
 		
 		wsn = wsn->next;

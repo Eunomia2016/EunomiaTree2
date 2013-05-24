@@ -32,9 +32,10 @@ class HashTable {
 	  void* value;
 	  void (*deleter)(const Slice&, void* value);
 	  Node* next;
-	  size_t key_length;
 	  uint32_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
 	  uint32_t refs;
+	  
+	  size_t key_length;
 	  char key_data[1];   // Beginning of key
   
 	  Slice key() const {
