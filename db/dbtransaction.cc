@@ -109,7 +109,7 @@ namespace leveldb {
 
 	//Insert to the committed values linked list
 	if(committedValues != NULL) {
-		wsn->next = committedValues->next;
+		wsn->next = committedValues;
 	}
 	committedValues = wsn;
 	wsn->Ref();
@@ -181,8 +181,8 @@ namespace leveldb {
 	bool validate = true;
 
 	{
-		RTMScope rtm(NULL);
-		//MutexLock mu(storemutex);
+		//RTMScope rtm(NULL);
+		MutexLock mu(storemutex);
 		
 		//step 1. check if the seq has been changed (any one change the value after reading)
 		while(riter->Next()) {

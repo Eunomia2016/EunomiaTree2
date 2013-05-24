@@ -217,12 +217,12 @@ private:
 		   
 			while(total_count > 0) {
 
-				int64_t oldv = XADD64(&total_count, -10);
+				int64_t oldv = XADD64(&total_count, -1);
 				if(oldv <= 0)
 					   break;
 
 				
-				for (int i =0; i < 10; i++) {		   
+				for (int i =0; i < 1; i++) {		   
 				/*	Key k;
 					if(seq)
 						k = MakeKey(tid,seqNum++);
@@ -369,7 +369,7 @@ private:
 		printf("Value %s\n", val.c_str());
 		*/
 
-		printf(" ...... Iterate  MemStore ......");
+		printf(" ...... Iterate  MemStore ......\n");
 		leveldb::Iterator* iter = store->NewIterator();
 		iter->SeekToFirst();
 		int count = 0;
@@ -383,8 +383,8 @@ private:
 
 		printf("Total %d\n", count);
 
-		printf(" ...... Iterate  Seq Hash Table ......");
-		seqs.PrintHashTable();
+		//printf(" ...... Iterate  Seq Hash Table ......");
+		//seqs.PrintHashTable();
 		
 		/*
 		if(method == &Benchmark::WriteRandom || method == &Benchmark::WriteSeq)
