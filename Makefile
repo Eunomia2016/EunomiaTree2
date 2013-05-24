@@ -108,8 +108,8 @@ tx_bench: db/tx_bench.o $(LIBOBJECTS) $(TESTUTIL)
 dbtransaction: db/dbtransaction.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
-tx_correctness: db/tx_correctness.o $(LIBOBJECTS) $(TESTUTIL)
-	$(CXX) $(LDFLAGS) $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+tx_test: db/tx_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) db/tx_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
 db_bench_sqlite3: doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL) -o $@ -lsqlite3 $(LIBS)
