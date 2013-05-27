@@ -97,7 +97,7 @@ namespace leveldb {
     	malloc(sizeof(WSNode)-1 + value.size()));
 	
     wsn->value_length= value.size();
-	memcpy(wsn->value_data, value.data(), value.size());;
+	memcpy(wsn->value_data, value.data(), value.size());
 	wsn->type = type;
 	wsn->seq = 0;
 	wsn->refs = 1;
@@ -181,14 +181,15 @@ namespace leveldb {
 	bool validate = true;
 
 	{
-		//RTMScope rtm(NULL);
-		MutexLock mu(storemutex);
+
+		RTMScope rtm(NULL);
+		//MutexLock mu(storemutex);
 		
 		//step 1. check if the seq has been changed (any one change the value after reading)
 		while(riter->Next()) {
 			HashTable::Node *cur = riter->Current();
 			uint64_t oldseq = (uint64_t)cur->value;
-			uint64_t curseq = 0;
+			uint64_t curseq = 0; //Here must initialized as 0
 			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
 			assert(oldseq == 0 || found);
 			

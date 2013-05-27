@@ -33,7 +33,7 @@ HashTable::~HashTable() {
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 16;
+	uint32_t new_length = 32;
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}
@@ -82,7 +82,7 @@ HashTable::Node* HashTable::Remove(const Slice& key, uint32_t hash)
     Node* result = *ptr;
     if (result != NULL) {
       *ptr = result->next;
-      --elems_;
+      //--elems_;
     }
     return result;
 
@@ -176,6 +176,7 @@ HashTable::Node* HashTable::InsertNode(Node* h) {
     Node* old = *ptr;
     h->next = (old == NULL ? NULL : old->next);
     *ptr = h;
+	/*
     if (old == NULL) {
       ++elems_;
       if (elems_ > length_) {
@@ -183,7 +184,8 @@ HashTable::Node* HashTable::InsertNode(Node* h) {
         // average linked list length (<= 1).
         Resize();
       }
-    }
+    }*/
+    
     return old;  
 }
 
