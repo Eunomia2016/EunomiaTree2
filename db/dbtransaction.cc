@@ -176,14 +176,13 @@ namespace leveldb {
 	
 	
 	HashTable::Iterator *riter = new HashTable::Iterator(readset);	
-	HashTable::Iterator *witer = new HashTable::Iterator(writeset);
-	
+
+	writeset->PrintHashTable();
 	bool validate = true;
 
 	{
-
-		RTMScope rtm(NULL);
-		//MutexLock mu(storemutex);
+		//RTMScope rtm(NULL);
+		MutexLock mu(storemutex);
 		
 		//step 1. check if the seq has been changed (any one change the value after reading)
 		while(riter->Next()) {
@@ -199,46 +198,55 @@ namespace leveldb {
 
 			}
 		}
+		int count = 0;
 		//step 2.  update the the seq set 
-		while(witer->Next()) {
-			HashTable::Node *cur = witer->Current();
-			WSNode *wcur = (WSNode *)cur->value;
-			
-			uint64_t curseq;
-			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-			if(!found) {
-				//The node is inserted into the list first time
-				curseq = 1;
+		//can't use the iterator because the cur node may be deleted 
 
-				//Still use the node in the write set to avoid memory allocation
-				HashTable::Node* n = writeset->Remove(cur->key(), cur->hash);
+		for(int i = 0; i < writeset->length_; i++) {
+        	HashTable::Node* ptr = writeset->list_[i];
+        	while (ptr != NULL) {
+				
+				HashTable::Node *cur = ptr;
+				//must get next before the following operation
+           		ptr = ptr->next;
+
+				WSNode *wcur = (WSNode *)cur->value;
+				uint64_t curseq;
+				bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+
+				if(!found) {
+					//The node is inserted into the list first time
+					curseq = 1;
+
+					//Still use the node in the write set to avoid memory allocation
+					HashTable::Node* n = writeset->Remove(cur->key(), cur->hash);
 			
-				assert(n == cur);
+					assert(n == cur);
 				
-				if(cur->deleter != NULL)
-					cur->deleter(cur->key(), cur->value);
+					if(cur->deleter != NULL)
+						cur->deleter(cur->key(), cur->value);
 				
-				cur->deleter = NULL;
-				cur->value = (void *)curseq;
+					cur->deleter = NULL;
+					cur->value = (void *)curseq;
+					cur->next = NULL;
 				
-				//latestseq_->Insert(cur->key(),(void *)curseq, NULL);
-				latestseq_->InsertNode(cur);
+					//latestseq_->Insert(cur->key(),(void *)curseq, NULL);
+					latestseq_->InsertNode(cur);
 				
-			}
-			else {			
-				curseq++;		
-				latestseq_->Update(cur->key(),(void *)curseq);
-			}
+				}
+				else {			
+					curseq++;		
+					latestseq_->Update(cur->key(),(void *)curseq);
+				}
 			
-			wcur->seq = curseq;
-		
-		}
+				wcur->seq = curseq;
+        	}	
+    	}
 
 	}
 	
 end:
 	delete riter;
-	delete witer;
 	
 	return validate;
 	
@@ -283,14 +291,16 @@ end:
 }  // namespace leveldb
 
 
+
 /*
+
 
 int main()
 {
 	leveldb::HashTable ht;
 	char key[100];
 		
-	for(int i = 0; i < 10; i++) {
+	for(int i = 0; i < 100; i++) {
 	
 		snprintf(key, sizeof(key), "%d", i);
 
@@ -304,12 +314,15 @@ int main()
 	
 		snprintf(key, sizeof(key), "%d", i);
 
-	//printf("Insert %s\n", *s);
 	void* v;
 	if(!ht.Lookup(leveldb::Slice(key), &v))
 		printf("key %s Not Found\n", key);
 	}
-	//ht.PrintHashTable();
+	
+	
+	ht.PrintHashTable();
+
+	
 	
 	leveldb::HashTable::Iterator* iter = new leveldb::HashTable::Iterator(&ht);
 	while(iter->Next()) {

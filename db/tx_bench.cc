@@ -376,15 +376,15 @@ private:
 	
 		while(iter->Valid()) {		
 			count++;
-			printf("Key: %s  ", iter->key());
-			printf("Value: %s \n", iter->value());
+		//	printf("Key: %s  ", iter->key());
+		//	printf("Value: %s \n", iter->value());
 			iter->Next();
 		}
 
-		printf("Total %d\n", count);
+		printf("MemStore Total %d\n", count);
 
 		//printf(" ...... Iterate  Seq Hash Table ......");
-		//seqs.PrintHashTable();
+		seqs.PrintHashTable();
 		
 		/*
 		if(method == &Benchmark::WriteRandom || method == &Benchmark::WriteSeq)

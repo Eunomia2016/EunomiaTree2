@@ -33,7 +33,7 @@ HashTable::~HashTable() {
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 32;
+	uint32_t new_length = 4;
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}
@@ -114,16 +114,20 @@ bool HashTable::Lookup(const Slice& key, void **vp)
 
 void HashTable::PrintHashTable() 
 {
+	int count = 0;
     int i = 0;
     for(; i < length_; i++) {
-	printf("slot [%d] : ", i);
+	//printf("slot [%d] : ", i);
         Node** ptr = &list_[i];
         while (*ptr != NULL) {
-	   printf("Key: %s , Hash: %d, Value: %d  ", (*ptr)->key_data, (*ptr)->hash, (*ptr)->value);
+			count++;
+	  // printf("Key: %s , Hash: %d, Value: %d  ", (*ptr)->key_data, (*ptr)->hash, (*ptr)->value);
            ptr = &(*ptr)->next;
         }
-	printf("\n");
+	//printf("\n");
     }
+
+	printf(" Hash Table Elements %d\n", count);
 }
 
 HashTable::Iterator::Iterator(const HashTable* htable)

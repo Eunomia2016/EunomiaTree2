@@ -87,7 +87,7 @@ class HashTable {
   
   Node* InsertNode(Node* h);
   
-  private:
+  public:
   	
 
   int length_;
