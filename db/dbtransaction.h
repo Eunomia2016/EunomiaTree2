@@ -11,6 +11,7 @@
 #include "db/hashtable.h"
 #include "db/memtable.h"
 #include "port/port_posix.h"
+#include "util/txprofile.h"
 
 
 
@@ -18,7 +19,9 @@ namespace leveldb {
 
 class DBTransaction {
  public:
- 	
+
+	RTMProfile rtmProf;
+	
 	explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
 	~DBTransaction();
 
@@ -59,7 +62,42 @@ class DBTransaction {
 	};
 
 	
-private:
+public:
+
+	
+	struct RSSeqPair {
+		uint64_t oldseq; //seq got when read the value
+		uint64_t *seq; //pointer to the global memory location 
+	};
+
+	struct Key {
+		
+		uint32_t key_length;
+		char key_data[1]; // Beginning of key
+				
+		Slice keySlice() const {
+			return Slice(key_data, key_length);
+		}
+	};
+
+ 	class ReadSet {
+		private:
+			int max_length;
+			int elems;
+
+			RSSeqPair *seqs;
+			uint64_t *hashes;
+			Key **keys;
+
+			void Resize();
+			
+		public:
+			ReadSet();
+			~ReadSet();			
+			void Add(const Slice& key, uint64_t hash, uint64_t seq_addr);
+			bool Validate(HashTable* ht);
+			void Print();
+	};
 
  	HashTable *readset;
 	HashTable *writeset;

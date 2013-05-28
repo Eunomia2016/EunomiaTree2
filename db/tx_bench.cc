@@ -143,12 +143,16 @@ private:
 	  int tid;			   // 0..n-1 when running in n threads
 	  SharedState* shared;
 	  int count;
+	  int falseConflict;
+	  int conflict;
 	  double time;
 	  Random rnd;         // Has different seeds for different threads
 
 	  ThreadState(int index)
 	      : tid(index),
 	        rnd(1000 + index) {
+	 		falseConflict = 0;
+			conflict = 0;
 	  }
 	  
 	};
@@ -228,10 +232,11 @@ private:
 						k = MakeKey(tid,seqNum++);
 					else
 						k = MakeKey(tid, thread->rnd.Next());*/
-					
+				//	printf("Exec %d\n", i+1);
 	
 					DBTransaction tx(&seqs, store, &mutex);
-
+					int conflict = 0;
+					
 					ValueType t = kTypeValue;
 					char* kc = new char[100];
 					char* vc = new char[100];
@@ -256,10 +261,15 @@ private:
 						}
 						
 						done = tx.End();
-
+						
+						if( !done )
+							conflict++;
 						//delete vc;
 						
 					}
+					
+					thread->conflict += conflict;
+					thread->falseConflict += tx.rtmProf.abortCounts;
 					
 					delete kc;
 					delete vc;
@@ -396,6 +406,15 @@ private:
 		for (int i = 0; i < n; i++) {
 		  //printf("Thread[%d] Run Time %lf ms\n", i, arg[i].thread->time/1000);
 		}*/
+
+		int conflict = 0;
+		int falseConflict = 0;
+		for (int i = 0; i < n; i++) {
+		 	conflict += arg[i].thread->conflict;
+			falseConflict += arg[i].thread->falseConflict;
+		}
+
+		printf("Conflict %d FalseConflict %d\n", conflict, falseConflict);
 		
 		for (int i = 0; i < n; i++) {
 		  delete arg[i].thread;
