@@ -19,6 +19,119 @@ namespace leveldb {
 	   wsn->Unref();
   }
 
+  DBTransaction::ReadSet::ReadSet() {
+
+	max_length = 1024; //first allocate 1024 numbers
+  	elems = 0;
+	
+	seqs = new RSSeqPair[max_length];
+	hashes = new uint64_t[max_length];
+	keys = new Key*[max_length];
+  }
+
+  DBTransaction::ReadSet::~ReadSet() {
+
+	delete[] seqs;
+	delete[] hashes;
+
+	for(int i = 0; i < elems; i++)
+		free(keys[i]);
+	delete[] keys;
+	
+  }
+
+void  DBTransaction::ReadSet::Resize() {
+  	
+	max_length = max_length * 2;
+
+	RSSeqPair *ns = new RSSeqPair[max_length];
+	uint64_t* nh = new uint64_t[max_length];
+	Key** nk = new Key*[max_length];
+
+	for(int i = 0; i < elems; i++) {
+		ns[i] = seqs[i];
+		nh[i] = hashes[i];
+		nk[i] = keys[i];
+	}
+
+	delete[] seqs;
+	delete[] hashes;
+	delete[] keys;
+
+	seqs = ns;
+	hashes = nh;
+	keys = nk;
+	
+  }
+  
+  void DBTransaction::ReadSet::Add(const Slice& key, uint64_t hash, uint64_t seq_addr)
+  {
+
+	assert(elems <= max_length);
+	
+	if(elems == max_length)
+		Resize();
+
+	int cur = elems;
+	elems++;
+
+	if(0 == seq_addr) {
+		seqs[cur].seq = (uint64_t *)0;
+		seqs[cur].oldseq = 0;
+	} else {
+		seqs[cur].seq = (uint64_t *)seq_addr;
+		seqs[cur].oldseq = *seqs[cur].seq;
+	}
+	
+	hashes[cur] = hash;
+
+	Key* kp = reinterpret_cast<Key*>(
+    	malloc(sizeof(Key)-1 + key.size()));
+
+	kp->key_length = key.size();
+	memcpy(kp->key_data, key.data(), key.size());
+
+	keys[cur] = kp;
+  }
+
+  bool DBTransaction::ReadSet::Validate(HashTable* ht) {
+	
+	for(int i = 0; i < elems; i++) {
+		if(seqs[i].seq != NULL 
+			&& seqs[i].oldseq != *seqs[i].seq)
+			return false;
+
+		if(seqs[i].seq == NULL) {
+			
+			//doesn't read any thing
+			uint64_t curseq = 0; //Here must initialized as 0
+
+			//TODO: we can just use the hash to find the key
+			bool found = ht->Lookup(keys[i]->keySlice(),(void **)&curseq);
+			
+			if(seqs[i].oldseq != curseq) {
+				assert(found);
+				return false;
+			}
+		}
+	}
+
+	return true;
+  }
+
+  void DBTransaction::ReadSet::Print()
+  {
+	for(int i = 0; i < elems; i++) {
+		printf("Key[%d] ", i);
+		if(seqs[i].seq != NULL) {
+			printf("Old Seq %ld Cur Seq %ld Seq Addr 0x%lx ", 
+				seqs[i].oldseq, *seqs[i].seq, seqs[i].seq);
+		}
+
+		printf("key %s  ", keys[i]->keySlice());
+		printf("hash %ld\n", hashes[i]);
+	}
+  }
  	
   DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
   {
@@ -177,12 +290,12 @@ namespace leveldb {
 	
 	HashTable::Iterator *riter = new HashTable::Iterator(readset);	
 
-	writeset->PrintHashTable();
+	//writeset->PrintHashTable();
 	bool validate = true;
 
 	{
-		//RTMScope rtm(NULL);
-		MutexLock mu(storemutex);
+		RTMScope rtm(&rtmProf);
+		//MutexLock mu(storemutex);
 		
 		//step 1. check if the seq has been changed (any one change the value after reading)
 		while(riter->Next()) {
@@ -292,6 +405,33 @@ end:
 
 
 
+
+int main(){
+	leveldb::DBTransaction::ReadSet rs;
+
+	uint64_t arr[100];
+	char key[100];
+
+	for(int i = 0; i < 100; i++)  {
+		arr[i] = i;
+	}
+	
+	for(int i = 0; i < 100; i++) {
+		snprintf(key, sizeof(key), "%d", i);
+
+		rs.Add(leveldb::Slice(key), i, (uint64_t)&arr[i]);
+	}
+
+	for(int i = 0; i < 100; i++)  {
+		arr[i] = i*i;
+	}
+
+	rs.Print();
+	
+	//printf("helloworld\n");
+
+}
+
 /*
 
 
@@ -334,6 +474,9 @@ int main()
 	
 	//printf("helloworld\n");
  }
+
+
+
 
 int main()
 {

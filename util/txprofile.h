@@ -21,12 +21,14 @@ namespace leveldb {
 
 class RTMProfile {
 
+ public:
+
  pthread_spinlock_t slock;
  uint32_t status[7];
  uint32_t abortCounts;
  uint32_t succCounts;
 
- public:
+
 
   static __inline__ void atomic_inc32(uint32_t *p)
   {
