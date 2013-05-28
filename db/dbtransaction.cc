@@ -11,6 +11,8 @@
 #include "util/coding.h"
 #include "util/mutexlock.h"
 #include "util/rtm.h"
+#include "util/hash.h"
+
 
 namespace leveldb {
 
@@ -191,7 +193,7 @@ void  DBTransaction::ReadSet::Resize() {
 	}
 	committedValues = NULL;
 	
-	readset = new HashTable();
+	readset = new ReadSet();
 	writeset = new HashTable();
   }
   
@@ -252,12 +254,13 @@ void  DBTransaction::ReadSet::Resize() {
 	//first get the seq number
 	bool found = false;
 	uint64_t seq = 0;
-	found = latestseq_->Lookup(key, (void **)&seq);
 
-
-	if (!found) {
-		//even not found, still need to put the k into read set to avoid concurrent insertion		
-		readset->Insert(key, (void *)seq, NULL);
+	HashTable::Node* node = latestseq_->GetNode(key);
+	
+	if ( NULL == node) {
+		//even not found, still need to put the k into read set to avoid concurrent insertion
+		readset->Add(key, Hash(key.data(), key.size(), 0), 0);
+		
 		return found;
 
 	}
@@ -277,8 +280,7 @@ void  DBTransaction::ReadSet::Resize() {
 	}
 
 	// step 3. put into the read set
-	
-	readset->Insert(key, (void *)seq, NULL);
+	readset->Add(key, node->hash, (uint64_t)&node->value);
 	
 	//printf("Get seq %ld value %s\n", seq, value->c_str());
 	
@@ -287,8 +289,6 @@ void  DBTransaction::ReadSet::Resize() {
 
   bool DBTransaction::Validation() {
 	
-	
-	HashTable::Iterator *riter = new HashTable::Iterator(readset);	
 
 	//writeset->PrintHashTable();
 	bool validate = true;
@@ -298,19 +298,9 @@ void  DBTransaction::ReadSet::Resize() {
 		//MutexLock mu(storemutex);
 		
 		//step 1. check if the seq has been changed (any one change the value after reading)
-		while(riter->Next()) {
-			HashTable::Node *cur = riter->Current();
-			uint64_t oldseq = (uint64_t)cur->value;
-			uint64_t curseq = 0; //Here must initialized as 0
-			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-			assert(oldseq == 0 || found);
-			
-			if(oldseq != curseq) {
-				validate = false; //Return false is safe, because it hasn't modify any data, then no need to abort
-				goto end;
-
-			}
-		}
+		if( !readset->Validate(latestseq_))
+			return false;
+		
 		int count = 0;
 		//step 2.  update the the seq set 
 		//can't use the iterator because the cur node may be deleted 
@@ -359,7 +349,6 @@ void  DBTransaction::ReadSet::Resize() {
 	}
 	
 end:
-	delete riter;
 	
 	return validate;
 	
@@ -404,6 +393,7 @@ end:
 }  // namespace leveldb
 
 
+/*
 
 
 int main(){
@@ -432,7 +422,7 @@ int main(){
 
 }
 
-/*
+
 
 
 int main()

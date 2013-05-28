@@ -77,6 +77,8 @@ class HashTable {
   bool Lookup(const Slice& key, void **vp);
 
   
+  Node* GetNode(const Slice& key);
+  
   bool Update(const Slice& key, void* value);
   
   void PrintHashTable();

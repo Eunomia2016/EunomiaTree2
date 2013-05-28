@@ -99,7 +99,8 @@ public:
 			void Print();
 	};
 
- 	HashTable *readset;
+//	HashTable *readset;
+	ReadSet* readset;
 	HashTable *writeset;
 
 	WSNode* committedValues;

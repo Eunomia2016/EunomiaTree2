@@ -411,7 +411,8 @@ int main(int argc, char**argv)
 		 int n;
 		 char junk;
 	 	 if (leveldb::Slice(argv[i]).starts_with("--help")){
-		 	printf("To Run :\n./tx_test [--benchmarks=BENCHMARK]\nBenchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle\t 4 threads, each tx write (tid,1) ((tid+1) %4,2) , never have all keys' value are the same\nconsistency\t Check the (key,seq) in hashtable is consistent with memstore\n");
+		 	printf("To Run :\n./tx_test [--benchmarks=Benchmark Name(default: all)] [--num=number of tx (default: 100)] [--threads= number of threads (defaults: 4)]\n");
+			printf("Benchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle\t 4 threads, each tx write (tid,1) ((tid+1) %4,2) , never have all keys' value are the same\nconsistency\t Check the (key,seq) in hashtable is consistent with memstore\n");
 			return 0;
 	 	 }
 		 if (leveldb::Slice(argv[i]).starts_with("--benchmarks=")) {

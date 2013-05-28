@@ -112,6 +112,16 @@ bool HashTable::Lookup(const Slice& key, void **vp)
     return true;
 }
 
+HashTable::Node* HashTable::GetNode(const Slice& key) 
+{
+    Node** ptr = FindNode(key, HashSlice(key));
+    if(ptr == NULL || *ptr == NULL)
+		return NULL;
+	
+    return *ptr;
+}
+
+
 void HashTable::PrintHashTable() 
 {
 	int count = 0;
