@@ -7,7 +7,7 @@
 #include "port/port.h"
 #include "util/mutexlock.h"
 
-
+static int FLAGS_txs = 100;
 static int FLAGS_threads = 4;
 static const char* FLAGS_benchmarks =
 	"equal,"
@@ -71,7 +71,7 @@ class Benchmark {
 		port::Mutex *mutex = arg->mutex;
 		
 		ValueType t = kTypeValue;
-		for (int i=tid; i<tid+1000; i+=2 ){
+		for (int i=tid; i<tid+FLAGS_txs*2; i+=2 ){
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
 			while (b==false) {
@@ -121,7 +121,7 @@ class Benchmark {
 		//printf("start %d\n",tid);
 		
 		
-		for (int i=tid*10000; i< (tid+1)*10000; i++ ) {
+		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
 			while (b==false) {
@@ -185,7 +185,7 @@ class Benchmark {
 		port::Mutex *mutex = arg->mutex;
 		//printf("start %d\n",tid);
 		ValueType t = kTypeValue;
-		for (int i=tid*10000; i< (tid+1)*10000; i++ ) {
+		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
 			while (b==false) {
@@ -236,7 +236,7 @@ class Benchmark {
 		//printf("start %d\n",tid);
 		
 		
-		for (int i=tid*1000; i< (tid+1)*1000; i++ ) {
+		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
 			while (b==false) {
@@ -367,12 +367,12 @@ class Benchmark {
 			//printf("result %d\n",result);
 			b = tx.End();
 			}
-			assert(result == (10000*num));
+			assert(result == (FLAGS_txs*num));
 			printf("CounterTest pass!\n");
 		 }
 		 else if (name == Slice("consistency")) {
 		 	//printf("verify\n");
-		 	for (int i = 0; i< num+999; i++) {
+		 	for (int i = 0; i< num-1+FLAGS_txs*2; i++) {
 				char* key = new char[100];
 				snprintf(key, sizeof(key), "%d", i);
 				Slice k(key);
@@ -418,7 +418,10 @@ int main(int argc, char**argv)
 		   FLAGS_benchmarks = argv[i] + strlen("--benchmarks=");
 		 } else if (sscanf(argv[i], "--threads=%d%c", &n, &junk) == 1) {
 		   FLAGS_threads = n;
+	 	 } else if (sscanf(argv[i], "--num=%d%c", &n, &junk) == 1) {
+		   FLAGS_txs = n;
 	 	 }
+		 
  	}
 
 	const char* benchmarks = FLAGS_benchmarks;
