@@ -97,8 +97,11 @@ void  DBTransaction::ReadSet::Resize() {
   }
 
   bool DBTransaction::ReadSet::Validate(HashTable* ht) {
+
+	//This function should be protected by rtm or mutex
 	
 	for(int i = 0; i < elems; i++) {
+
 		if(seqs[i].seq != NULL 
 			&& seqs[i].oldseq != *seqs[i].seq)
 			return false;
@@ -248,6 +251,7 @@ void  DBTransaction::ReadSet::Resize() {
           	return true;
       	}	
 	}
+	
 
 	//step 2.  Read the <k,v> from the in memory store
 
@@ -262,12 +266,13 @@ void  DBTransaction::ReadSet::Resize() {
 		readset->Add(key, Hash(key.data(), key.size(), 0), 0);
 		
 		return found;
-
 	}
+
+	seq = (uint64_t)node->value;
 	
 	//construct the lookup key and find the key value in the in memory storage
 	LookupKey lkey(key, seq);
-
+	
 	found = false;
 
 	//may be not found, should wait for a while
@@ -290,67 +295,59 @@ void  DBTransaction::ReadSet::Resize() {
   bool DBTransaction::Validation() {
 	
 
-	//writeset->PrintHashTable();
-	bool validate = true;
+	//writeset->PrintHashTable();	
+	//RTMScope rtm(&rtmProf);
+	MutexLock mu(storemutex);
+	
+	//step 1. check if the seq has been changed (any one change the value after reading)
+	if( !readset->Validate(latestseq_))
+		return false;
+	
+	int count = 0;
+	//step 2.  update the the seq set 
+	//can't use the iterator because the cur node may be deleted 
 
-	{
-		RTMScope rtm(&rtmProf);
-		//MutexLock mu(storemutex);
+	for(int i = 0; i < writeset->length_; i++) {
 		
-		//step 1. check if the seq has been changed (any one change the value after reading)
-		if( !readset->Validate(latestseq_))
-			return false;
+    	HashTable::Node* ptr = writeset->list_[i];
+    	while (ptr != NULL) {
+			HashTable::Node *cur = ptr;
+			//must get next before the following operation
+       		ptr = ptr->next;
+
+			WSNode *wcur = (WSNode *)cur->value;
+			uint64_t curseq;
+			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
+
+			if(!found) {
+				//The node is inserted into the list first time
+				curseq = 1;
+				//Still use the node in the write set to avoid memory allocation
+				HashTable::Node* n = writeset->Remove(cur->key(), cur->hash);
+
+				assert(n == cur);
+
+				if(cur->deleter != NULL)
+					cur->deleter(cur->key(), cur->value);
+
+				cur->deleter = NULL;
+				cur->value = (void *)curseq;
+				cur->next = NULL;
+				//latestseq_->Insert(cur->key(),(void *)curseq, NULL);
+				latestseq_->InsertNode(cur);
+
+			
+			}
+			else {			
+				curseq++;		
+				latestseq_->Update(cur->key(),(void *)curseq);
+			}
 		
-		int count = 0;
-		//step 2.  update the the seq set 
-		//can't use the iterator because the cur node may be deleted 
-
-		for(int i = 0; i < writeset->length_; i++) {
-        	HashTable::Node* ptr = writeset->list_[i];
-        	while (ptr != NULL) {
-				
-				HashTable::Node *cur = ptr;
-				//must get next before the following operation
-           		ptr = ptr->next;
-
-				WSNode *wcur = (WSNode *)cur->value;
-				uint64_t curseq;
-				bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-
-				if(!found) {
-					//The node is inserted into the list first time
-					curseq = 1;
-
-					//Still use the node in the write set to avoid memory allocation
-					HashTable::Node* n = writeset->Remove(cur->key(), cur->hash);
-			
-					assert(n == cur);
-				
-					if(cur->deleter != NULL)
-						cur->deleter(cur->key(), cur->value);
-				
-					cur->deleter = NULL;
-					cur->value = (void *)curseq;
-					cur->next = NULL;
-				
-					//latestseq_->Insert(cur->key(),(void *)curseq, NULL);
-					latestseq_->InsertNode(cur);
-				
-				}
-				else {			
-					curseq++;		
-					latestseq_->Update(cur->key(),(void *)curseq);
-				}
-			
-				wcur->seq = curseq;
-        	}	
-    	}
-
+			wcur->seq = curseq;
+    	}	
 	}
 	
-end:
-	
-	return validate;
+	return true;
 	
   }
 
