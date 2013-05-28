@@ -294,8 +294,9 @@ class Benchmark {
 	}
 	void Run(void (*method)(void* arg), Slice name ) {
 		int num = FLAGS_threads;
-		printf("%s start\n", name.data());				 		
+		printf("%s start\n", name.ToString().c_str());				 		
 		if (name == Slice("counter")) {
+			
 			ValueType t = kTypeValue;
 			DBTransaction tx(seqs, store, mutex);
 			bool b =false;
@@ -409,7 +410,10 @@ int main(int argc, char**argv)
 
 		 int n;
 		 char junk;
-	 
+	 	 if (leveldb::Slice(argv[i]).starts_with("--help")){
+		 	printf("To Run :\n./tx_test [--benchmarks=BENCHMARK]\nBenchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle\t 4 threads, each tx write (tid,1) ((tid+1) %4,2) , never have all keys' value are the same\nconsistency\t Check the (key,seq) in hashtable is consistent with memstore\n");
+			return 0;
+	 	 }
 		 if (leveldb::Slice(argv[i]).starts_with("--benchmarks=")) {
 		   FLAGS_benchmarks = argv[i] + strlen("--benchmarks=");
 		 } else if (sscanf(argv[i], "--threads=%d%c", &n, &junk) == 1) {
