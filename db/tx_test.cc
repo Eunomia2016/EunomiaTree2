@@ -115,9 +115,9 @@ class Benchmark {
 		HashTable *seqs = arg->seqs;
 		MemTable *store = arg->store;
 		port::Mutex *mutex = arg->mutex;
-
+		int num = shared->total;
 		ValueType t = kTypeValue;
-		std::string *str  = new std::string[4];
+		std::string *str  = new std::string[num];
 		//printf("start %d\n",tid);
 		
 		
@@ -135,7 +135,7 @@ class Benchmark {
 			tx.Add(t, k, *v);		
 
 			char* key1 = new char[100];
-			snprintf(key1, sizeof(key1), "%d", (tid+1) % 4);
+			snprintf(key1, sizeof(key1), "%d", (tid+1) % num);
 			Slice k1(key1);
 			char* value1 = new char[100];
 			snprintf(value1, sizeof(value1), "%d", 2);
@@ -144,30 +144,37 @@ class Benchmark {
 
 			b = tx.End();
 			}
+			
 
-			if (i % 10 == tid && i>10) {
+			if (i % 10 == (tid%10) && i>10) {
 				DBTransaction tx1(seqs, store, mutex);
 				b =false;
 				while (b==false) {
 				tx1.Begin();
 			
-				for (int j=0; j<4; j++) {
+				for (int j=0; j<num; j++) {
 					char* key = new char[100];
 					snprintf(key, sizeof(key), "%d", j);
 					Slice k(key);				
 
 					Status s;
+					//printf("Get %d\n",tid);
 					tx1.Get(k, &(str[j]), &s);
 					//printf("Tid %d get %s %s\n",tid,key,&str[j]);
 				}						
 				b = tx1.End();
-			
+			   
 				}
-				bool e = (str[0]==str[1]) && (str[1]==str[2]) && (str[2]==str[3]);
+				bool e = true;
+				for (int j=0;j<num-1; j++) {
+					e = e && (str[j]==str[j+1]);
+				}
+				
 				assert(!e);
 			}
 			
 		}
+		
 		{
 		  MutexLock l(&shared->mu);
 		  shared->num_done++;
@@ -318,7 +325,7 @@ class Benchmark {
 			}
 			//printf("init \n");
 		}
-		else if (name == Slice("nocycle")) num = 4;
+		//else if (name == Slice("nocycle")) num = 4;
 
 
 		SharedState shared;
@@ -411,8 +418,8 @@ int main(int argc, char**argv)
 		 int n;
 		 char junk;
 	 	 if (leveldb::Slice(argv[i]).starts_with("--help")){
-		 	printf("To Run :\n./tx_test [--benchmarks=Benchmark Name(default: all)] [--num=number of tx (default: 100)] [--threads= number of threads (defaults: 4)]\n");
-			printf("Benchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle\t 4 threads, each tx write (tid,1) ((tid+1) %4,2) , never have all keys' value are the same\nconsistency\t Check the (key,seq) in hashtable is consistent with memstore\n");
+		 	printf("To Run :\n./tx_test [--benchmarks=Benchmark Name(default: all)] [--num=number of tx per thread(default: 100)] [--threads= number of threads (defaults: 4)]\n");
+			printf("Benchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle\t n threads, each tx write (tid,1) ((tid+1) %n,2) , never have all keys' value are the same\nconsistency\t Check the (key,seq) in hashtable is consistent with memstore\n");
 			return 0;
 	 	 }
 		 if (leveldb::Slice(argv[i]).starts_with("--benchmarks=")) {
