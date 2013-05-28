@@ -71,7 +71,7 @@ class Benchmark {
 		port::Mutex *mutex = arg->mutex;
 		
 		ValueType t = kTypeValue;
-		for (int i=tid*100; i<(tid+2)*100; i+=2 ){
+		for (int i=tid; i<tid+1000; i+=2 ){
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
 			while (b==false) {
@@ -371,7 +371,7 @@ class Benchmark {
 		 }
 		 else if (name == Slice("consistency")) {
 		 	//printf("verify\n");
-		 	for (int i = 0; i< (num+1)*100; i++) {
+		 	for (int i = 0; i< num+999; i++) {
 				char* key = new char[100];
 				snprintf(key, sizeof(key), "%d", i);
 				Slice k(key);
@@ -380,18 +380,21 @@ class Benchmark {
 				found = seqs->Lookup(key, (void **)&seq);
 				assert(found);
 
-				
-				LookupKey lkey(key, seq);				
+				uint64_t seq1 = num+1;
+				LookupKey lkey(key, seq1);				
 				found = false;
 				std::string value;
 				Status s; int j = 0;
+				uint64_t mseq = seq1;
 				while(!found && j<3) {	
 					j++;				
 					mutex->Lock();
-					found = store->GetWithSeq(lkey, &value, &s);
+					found = store->GetSeq(lkey, &value, &s , &mseq);
 					mutex->Unlock();	
-				}				
+				}			
 				assert(found);
+				assert(mseq<=seq);
+				
 				
 		 	}
 		 	printf("ConsistencyTest pass!\n");

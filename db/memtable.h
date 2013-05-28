@@ -62,7 +62,7 @@ class MemTable {
   // in *status and return true.
   // Else, return false.
   bool Get(const LookupKey& key, std::string* value, Status* s);
-
+  bool GetSeq(const LookupKey& key, std::string* value, Status* s, uint64_t* seq);
   //Only get the value with the sequence number in the lookupkey
   bool GetWithSeq(const LookupKey& key, std::string* value, Status* s);
 
