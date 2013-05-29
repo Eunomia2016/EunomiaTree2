@@ -61,7 +61,7 @@ void  DBTransaction::ReadSet::Resize() {
 	
   }
   
-  void DBTransaction::ReadSet::Add(const Slice& key, uint64_t hash, uint64_t seq_addr)
+  void DBTransaction::ReadSet::Add(const Slice& key, uint64_t hash, uint64_t oldeseq, uint64_t seq_addr)
   {
 
 	assert(elems <= max_length);
@@ -72,13 +72,8 @@ void  DBTransaction::ReadSet::Resize() {
 	int cur = elems;
 	elems++;
 
-	if(0 == seq_addr) {
-		seqs[cur].seq = (uint64_t *)0;
-		seqs[cur].oldseq = 0;
-	} else {
-		seqs[cur].seq = (uint64_t *)seq_addr;
-		seqs[cur].oldseq = *seqs[cur].seq;
-	}
+	seqs[cur].seq = (uint64_t *)seq_addr;
+	seqs[cur].oldseq = oldeseq;
 	
 	hashes[cur] = hash;
 
@@ -100,7 +95,7 @@ void  DBTransaction::ReadSet::Resize() {
 		if(seqs[i].seq != NULL 
 			&& seqs[i].oldseq != *seqs[i].seq)
 			return false;
-
+		//printf("[%lx Get Validate] old seq %ld seq %ld\n", pthread_self(), seqs[i].oldseq, *seqs[i].seq);
 		if(seqs[i].seq == NULL) {
 			
 			//doesn't read any thing
@@ -206,21 +201,27 @@ void  DBTransaction::WriteSet::Resize() {
 	seqs[cur] = 0;
 
 	//TODO: don't use the hashtable node, it is too big
-	HashTable::Node* kp = reinterpret_cast<HashTable::Node*>(
-    	malloc(sizeof(HashTable::Node)-1 + key.size()));
-    kp->value = 0;
-    kp->deleter = NULL;
-	kp->next = NULL;
-    kp->key_length = key.size();
-    kp->hash = hash;
-	kp->refs = 1;
-    memcpy(kp->key_data, key.data(), key.size());
-    keys[cur] = kp;
+	HashTable::Node* n = new HashTable::Node();
+	n->value = 0;
+	n->deleter = NULL;
+	n->next = NULL;
+	n->hash = hash;
+	n->refs = 1;
+	
+	HashTable::Data* kp = reinterpret_cast<HashTable::Data*>(
+    	malloc(sizeof(HashTable::Data)-1 + key.size()));
+
+    kp->length = key.size();
+    memcpy(kp->contents, key.data(), key.size());
+
+	n->key = kp;
+    keys[cur] = n;
 
 	Data* vp = reinterpret_cast<Data*>(
     	malloc(sizeof(Data)-1 + val.size()));	
 	vp->length = val.size();
 	memcpy(vp->contents, val.data(), val.size());
+
 	
 	values[cur].type = type;
 	values[cur].val= vp;
@@ -233,7 +234,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 	for(int i = 0; i < elems; i++) {
 		uint64_t seq = 0;
-		bool found = ht->Lookup(keys[i]->key(),(void **)&seq);
+		bool found = ht->Lookup(keys[i]->key->Getslice(),(void **)&seq);
 
 		
 		if(!found) {
@@ -246,11 +247,11 @@ void  DBTransaction::WriteSet::Resize() {
 		}
 		else {			
 			seq++;		
-			ht->Update(keys[i]->key(),(void *)seq);
+			ht->Update(keys[i]->key->Getslice(),(void *)seq);
 		}
 		
 		seqs[i] = seq;
-		
+
 	}
 
   }
@@ -258,7 +259,7 @@ void  DBTransaction::WriteSet::Resize() {
   bool DBTransaction::WriteSet::Lookup(const Slice& key, ValueType* type, Slice* val) 
   {
 	  for(int i = 0; i < elems; i++) {
-		if(keys[i]->key() == key) {
+		if(keys[i]->key->Getslice()== key) {
 			*type = values[i].type;
 			*val = values[i].val->Getslice();
 			return true;
@@ -273,7 +274,8 @@ void  DBTransaction::WriteSet::Resize() {
 	//commit the local write set into the memory storage
 	//should holde the mutex of memstore
 	for(int i = 0; i < elems; i++) {
-		memstore->Add(seqs[i], values[i].type, keys[i]->key(), values[i].val->Getslice());
+		//printf("[%lx Commit] Insert Seq %ld Value %s\n", pthread_self(), seqs[i], values[i].val->Getslice());
+		memstore->Add(seqs[i], values[i].type, keys[i]->key->Getslice(), values[i].val->Getslice());
 	}
   }
 
@@ -382,7 +384,7 @@ void  DBTransaction::WriteSet::Resize() {
 	
 	if ( NULL == node) {
 		//even not found, still need to put the k into read set to avoid concurrent insertion
-		readset->Add(key, Hash(key.data(), key.size(), 0), 0);
+		readset->Add(key, Hash(key.data(), key.size(), 0), seq, 0);
 		
 		return found;
 	}
@@ -404,9 +406,7 @@ void  DBTransaction::WriteSet::Resize() {
 	}
 
 	// step 3. put into the read set
-	readset->Add(key, node->hash, (uint64_t)&node->value);
-	
-	//printf("Get seq %ld value %s\n", seq, value->c_str());
+	readset->Add(key, node->hash, seq, (uint64_t)&node->value);
 	
 	return found;
   }
@@ -415,8 +415,8 @@ void  DBTransaction::WriteSet::Resize() {
 	
 
 	//writeset->PrintHashTable();	
-	RTMScope rtm(&rtmProf);
-	//MutexLock mu(storemutex);
+	//RTMScope rtm(&rtmProf);
+	MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))

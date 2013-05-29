@@ -27,31 +27,32 @@ namespace leveldb {
 class HashTable {
  public:
 
+  struct Data {
+		
+		uint32_t length;
+		char contents[1]; // Beginning of key
+				
+		Slice Getslice() const {
+			return Slice(contents, length);
+		}
+  };
+  
   struct Node 
 	{
 	  void* value;
 	  void (*deleter)(const Slice&, void* value);
 	  Node* next;
-	  uint32_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
-	  uint32_t refs;
-	  
-	  uint32_t key_length;
-	  char key_data[1];   // Beginning of key
-  
-	  Slice key() const {
-		  // For cheaper lookups, we allow a temporary Handle object
-		  // to store a pointer to a key in "value".
-		  return Slice(key_data, key_length);
-	  }
+	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
+	  uint32_t refs;	  
+	  Data* key;
   
 	  void Unref() {
 		assert(refs > 0);
 		refs--;
 		if (refs <= 0) {
-		  if (deleter != NULL)
-			  (*deleter)(key(), value);
-		  
-		  free(this);
+		  assert( key != NULL);
+		  free(key);
+		  delete this;
 		}
 	  }
   

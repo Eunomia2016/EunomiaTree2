@@ -66,6 +66,8 @@ class MemTable {
   //Only get the value with the sequence number in the lookupkey
   bool GetWithSeq(const LookupKey& key, std::string* value, Status* s);
 
+  void DumpMemtable();
+
  private:
   ~MemTable();  // Private since only Unref() should be used to delete it
 

@@ -142,6 +142,27 @@ bool MemTable::GetWithSeq(const LookupKey& key, std::string* value, Status* s) {
   return false;
 }
 
+void MemTable::DumpMemtable()
+{
+  Table::Iterator iter(&table_);
+  iter.SeekToFirst();
+  while(iter.Valid()) {
+	const char* entry = iter.key();
+	uint32_t key_length;
+    const char* key_ptr = GetVarint32Ptr(entry, entry+5, &key_length);
+	Slice k = Slice(key_ptr, key_length - 8);
+	const uint64_t tag = DecodeFixed64(key_ptr + key_length - 8);
+	uint64_t seq = tag>>8;
+	Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
+
+	printf("Key %s ", k);
+	printf("Seq %ld ", seq);
+	printf("Value %s \n", v);
+
+	iter.Next();
+  }
+}
+
 bool MemTable::GetSeq(const LookupKey& key, std::string* value, Status* s, uint64_t *seq) {
   Slice memkey = key.memtable_key();
   Table::Iterator iter(&table_);

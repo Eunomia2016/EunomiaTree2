@@ -33,7 +33,7 @@ HashTable::~HashTable() {
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 32;
+	uint32_t new_length = 4;
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}
@@ -44,7 +44,7 @@ void HashTable::Resize()
 	  Node* h = list_[i];
 	  while (h != NULL) {
 		Node* next = h->next;
-		Slice key = h->key();
+		Slice key = h->key->Getslice();
 		uint32_t hash = h->hash;
 		Node** ptr = &new_list[hash & (new_length - 1)];
 		h->next = *ptr;
@@ -62,13 +62,18 @@ void HashTable::Resize()
 HashTable::Node* HashTable::Insert(const Slice& key, void* value,
 					   void (*deleter)(const Slice& key, void* value))
 {
-    Node* e = reinterpret_cast<Node*>(
-    	malloc(sizeof(Node)-1 + key.size()));
-    e->value = value;
-    e->deleter = deleter;
-    e->key_length = key.size();
-    e->hash = HashSlice(key);
-    memcpy(e->key_data, key.data(), key.size());
+	Node* e = new Node();
+	e->value = value;
+	e->deleter = deleter;
+	e->hash = HashSlice(key);
+	
+    Data* kp = reinterpret_cast<Data*>(
+    	malloc(sizeof(Data)-1 + key.size()));
+    kp->length = key.size();
+    memcpy(kp->contents, key.data(), key.size());
+
+	e->key = kp;
+	
     //printf("Memcp key %s\n", key.ToString().c_str());
     InsertNode(e);
 	e->refs = 1;
@@ -127,14 +132,14 @@ void HashTable::PrintHashTable()
 	int count = 0;
     int i = 0;
     for(; i < length_; i++) {
-	//printf("slot [%d] : ", i);
+	printf("slot [%d] : ", i);
         Node** ptr = &list_[i];
         while (*ptr != NULL) {
 			count++;
-	  // printf("Key: %s , Hash: %d, Value: %d  ", (*ptr)->key_data, (*ptr)->hash, (*ptr)->value);
+	   printf("Hash: %ld, Value: %ld  ",  (*ptr)->hash, (*ptr)->value);
            ptr = &(*ptr)->next;
         }
-	//printf("\n");
+	printf("\n");
     }
 
 	printf(" Hash Table Elements %d\n", count);
@@ -185,12 +190,13 @@ uint32_t HashTable::HashSlice(const Slice& s)
     return Hash(s.data(), s.size(), 0);
 }
 
-HashTable::Node* HashTable::InsertNode(Node* h) {
-    Node** ptr = FindNode(h->key(), h->hash);
+HashTable::Node* HashTable::InsertNode(Node* h) 
+{
+    Node** ptr = FindNode(h->key->Getslice(), h->hash);
     Node* old = *ptr;
     h->next = (old == NULL ? NULL : old->next);
     *ptr = h;
-	/*
+    /*
     if (old == NULL) {
       ++elems_;
       if (elems_ > length_) {
@@ -199,7 +205,6 @@ HashTable::Node* HashTable::InsertNode(Node* h) {
         Resize();
       }
     }*/
-    
     return old;  
 }
 
@@ -209,10 +214,9 @@ HashTable::Node** HashTable::FindNode(const Slice& key, uint32_t hash)
 {
     Node** ptr = &list_[hash & (length_ - 1)];
     while (*ptr != NULL &&
-           ((*ptr)->hash != hash || key != (*ptr)->key())) {
+           ((*ptr)->hash != hash || key != (*ptr)->key->Getslice())) {
       ptr = &(*ptr)->next;
     }
     return ptr;
 }
-
 }
