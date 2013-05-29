@@ -173,6 +173,7 @@ class Benchmark {
 				//assert(!e); 
 				if (e) {
 					fail = true;  
+					printf("all keys have same value\n");
 					break;
 				}
 			}
@@ -294,7 +295,13 @@ class Benchmark {
 			//assert(str[1]==str[2]);
 			//if (!(str[0]==str[1])) printf("0f\n");
 			//if (str[1]!=str[2]) printf("1f\n");
-			if (!(str[0]==str[1]) || !(str[1]==str[2])) {
+			if (!(str[0]==str[1])){
+				printf("Key 1 has value %s, Key 2 has value %s, not equal\n",str[0].c_str(),str[1].c_str());
+				fail = true;
+				break;
+			}
+			if (!(str[1]==str[2])) {
+				printf("Key 2 has value %s, Key 3 has value %s, not equal\n",str[1].c_str(),str[2].c_str());
 				fail = true;
 				break;
 			}
@@ -390,7 +397,7 @@ class Benchmark {
 			//printf("result %d\n",result);
 			b = tx.End();
 			}
-			if (result != (FLAGS_txs*num)) printf("counter fail!\n");
+			if (result != (FLAGS_txs*num)) printf("Get %d instead of %d from the counter\ncounter fail!\n",result,FLAGS_txs*num);
 			//assert();
 			else printf("CounterTest pass!\n");
 		 }
@@ -406,7 +413,7 @@ class Benchmark {
 				found = seqs->Lookup(key, (void **)&seq);
 				//assert(found);
 				if (!found) {
-					printf("consistency fail!\n");
+					printf("Key %d is not found in the hashtable\nconsistency fail!\n",i);
 					succ = false;
 					break;
 				}
@@ -422,10 +429,15 @@ class Benchmark {
 					mutex->Lock();
 					found = store->GetSeq(lkey, &value, &s , &mseq);
 					mutex->Unlock();	
-				}	
-				if (!found || mseq<=seq) {
+				}
+				if (!found) {
+					printf("Key %d is not found in the memstore\nconsistency fail!\n",i);
 					succ = false;
-					printf("consistency fail!\n");
+					break;
+				}
+				if (mseq>seq) {
+					succ = false;
+					printf("Key %d 's seqno in memstore(%d) is larger than in hashtable(%d)\nconsistency fail!\n",i,seq,seq1);
 					break;
 				//assert(found);
 				//assert(mseq<=seq);
