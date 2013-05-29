@@ -226,7 +226,7 @@ HashTable::Node* HashTable::InsertNode(Node* h)
 {
 	Node* ptr = list_[h->hash & (length_ - 1)];
 	
-    h->next = (ptr == NULL ? NULL : ptr->next);
+    h->next = ptr;
     list_[h->hash & (length_ - 1)] = h;
 	
     /*

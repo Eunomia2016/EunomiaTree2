@@ -230,10 +230,10 @@ void  DBTransaction::WriteSet::Resize() {
   void DBTransaction::WriteSet::UpdateGlobalSeqs(HashTable* ht) {
 
 	//This function should be protected by rtm or mutex
-
+	
+	uint64_t seq = 0;
 	for(int i = 0; i < elems; i++) {
-		uint64_t seq = 0;
-		
+		seq = 0;				
 //		bool found = ht->Lookup(keys[i]->key->Getslice(),&seq);
 		bool found = ht->GetMaxWithHash(keys[i]->hash, &seq);
 		
