@@ -233,8 +233,9 @@ void  DBTransaction::WriteSet::Resize() {
 
 	for(int i = 0; i < elems; i++) {
 		uint64_t seq = 0;
-		bool found = ht->Lookup(keys[i]->key->Getslice(),&seq);
-
+		
+//		bool found = ht->Lookup(keys[i]->key->Getslice(),&seq);
+		bool found = ht->GetMaxWithHash(keys[i]->hash, &seq);
 		
 		if(!found) {
 			//The node is inserted into the list first time
@@ -246,7 +247,7 @@ void  DBTransaction::WriteSet::Resize() {
 		}
 		else {			
 			seq++;		
-			ht->Update(keys[i]->key->Getslice(),seq);
+			ht->UpdateWithHash(keys[i]->hash,seq);
 		}
 		
 		seqs[i] = seq;
@@ -397,11 +398,9 @@ void  DBTransaction::WriteSet::Resize() {
 
 	//may be not found, should wait for a while
 	while(!found) {
-		
 		storemutex->Lock();
 		found = memstore_->GetWithSeq(lkey, value, s);
 		storemutex->Unlock();
-		
 	}
 
 	// step 3. put into the read set

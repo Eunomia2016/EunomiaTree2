@@ -67,11 +67,11 @@ class HashTable {
   // function that was passed to the constructor.
   virtual ~HashTable();
 
+  bool GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr);\
+  
+  void UpdateWithHash(uint64_t hash, uint64_t seq);
   
   HashTable::Node* Insert(const Slice& key, uint64_t seq);
-
-  
-
   
   bool Lookup(const Slice& key, uint64_t *seq_ptr);
 

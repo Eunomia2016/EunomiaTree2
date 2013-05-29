@@ -59,6 +59,43 @@ void HashTable::Resize()
 	length_ = new_length;
   }
 
+bool HashTable::GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr)
+{
+	uint64_t max = 0;
+	Node* ptr = list_[hash & (length_ - 1)];
+	
+    while (ptr != NULL) {
+
+	  if(ptr->hash == hash) {
+
+		if(max < ptr->seq)
+			max = ptr->seq;
+	  }
+      ptr = ptr->next;
+    }
+
+	if(max == 0)
+		return false;
+
+	*seq_ptr = max;
+
+	return true;
+}
+
+void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
+{
+	uint64_t max = 0;
+	Node* ptr = list_[hash & (length_ - 1)];
+	
+    while (ptr != NULL) {
+
+	  if(ptr->hash == hash) 
+		ptr->seq = seq;
+	  
+      ptr = ptr->next;
+    }
+}
+
 HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 {
 	Node* e = new Node();
@@ -187,10 +224,11 @@ uint32_t HashTable::HashSlice(const Slice& s)
 
 HashTable::Node* HashTable::InsertNode(Node* h) 
 {
-    Node** ptr = FindNode(h->key->Getslice(), h->hash);
-    Node* old = *ptr;
-    h->next = (old == NULL ? NULL : old->next);
-    *ptr = h;
+	Node* ptr = list_[h->hash & (length_ - 1)];
+	
+    h->next = (ptr == NULL ? NULL : ptr->next);
+    list_[h->hash & (length_ - 1)] = h;
+	
     /*
     if (old == NULL) {
       ++elems_;
@@ -200,7 +238,7 @@ HashTable::Node* HashTable::InsertNode(Node* h)
         Resize();
       }
     }*/
-    return old;  
+    return ptr;  
 }
 
 
