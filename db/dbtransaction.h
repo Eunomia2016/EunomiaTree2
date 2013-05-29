@@ -29,65 +29,34 @@ class DBTransaction {
 	bool End();
 	void Add(ValueType type, Slice& key, Slice& value);
 	bool Get(const Slice& key, std::string* value, Status* s);
-  
-	struct WSNode {
-		ValueType type;
-		SequenceNumber seq;
-		HashTable::Node* knode;
-		WSNode* next;
-		uint32_t refs;
-		
-		size_t value_length;
-		char value_data[1];	// Beginning of key
-		
-		Slice value() const {
-			// For cheaper lookups, we allow a temporary Handle object
-			// to store a pointer to a key in "value".
-			return Slice(value_data, value_length);
-		}
-
-		void Unref() {
-		  assert(refs > 0);
-		  refs--;
-		  if (refs <= 0) {		
-			if(knode != NULL)
-				knode->Unref();
-			free(this);
-		  }
-		}
-
-		void Ref() {
-			refs++;
-		}
-	};
 
 	
 public:
 
-	
-	struct RSSeqPair {
-		uint64_t oldseq; //seq got when read the value
-		uint64_t *seq; //pointer to the global memory location 
-	};
-
-	struct Key {
+	struct Data {
 		
-		uint32_t key_length;
-		char key_data[1]; // Beginning of key
+		uint32_t length;
+		char contents[1]; // Beginning of key
 				
-		Slice keySlice() const {
-			return Slice(key_data, key_length);
+		Slice Getslice() const {
+			return Slice(contents, length);
 		}
 	};
 
  	class ReadSet {
+
+		struct RSSeqPair {
+			uint64_t oldseq; //seq got when read the value
+			uint64_t *seq; //pointer to the global memory location 
+		};
+		
 		private:
 			int max_length;
 			int elems;
 
 			RSSeqPair *seqs;
 			uint64_t *hashes;
-			Key **keys;
+			Data **keys;
 
 			void Resize();
 			
@@ -99,11 +68,40 @@ public:
 			void Print();
 	};
 
+
+	class WriteSet {
+		
+		struct WSValue {
+			ValueType type; //seq got when read the value
+			Data *val; //pointer to the global memory location 
+		};
+		
+		private:
+			int max_length;
+			int elems;
+
+			HashTable::Node **keys;
+			
+			uint64_t *seqs;
+			uint64_t *hashes;
+			WSValue *values;
+
+			void Resize();
+			
+		public:
+			WriteSet();
+			~WriteSet();			
+			void Add(ValueType type, const Slice& key, uint64_t hash, const Slice& val);
+			void UpdateGlobalSeqs(HashTable* ht);
+			bool Lookup(const Slice& key, ValueType* type, Slice* val);
+			
+			void Commit(MemTable *memstore);
+			void Print();
+	};
+
 //	HashTable *readset;
 	ReadSet* readset;
-	HashTable *writeset;
-
-	WSNode* committedValues;
+	WriteSet *writeset;
 	
 	port::Mutex* storemutex;
 	HashTable *latestseq_ ;

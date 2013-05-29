@@ -16,11 +16,6 @@
 
 namespace leveldb {
 
-  static void UnrefWSN(const Slice& key, void* value) {
-	   DBTransaction::WSNode* wsn = reinterpret_cast<DBTransaction::WSNode*>(value);
-	   wsn->Unref();
-  }
-
   DBTransaction::ReadSet::ReadSet() {
 
 	max_length = 1024; //first allocate 1024 numbers
@@ -28,7 +23,7 @@ namespace leveldb {
 	
 	seqs = new RSSeqPair[max_length];
 	hashes = new uint64_t[max_length];
-	keys = new Key*[max_length];
+	keys = new Data*[max_length];
   }
 
   DBTransaction::ReadSet::~ReadSet() {
@@ -48,7 +43,7 @@ void  DBTransaction::ReadSet::Resize() {
 
 	RSSeqPair *ns = new RSSeqPair[max_length];
 	uint64_t* nh = new uint64_t[max_length];
-	Key** nk = new Key*[max_length];
+	Data** nk = new Data*[max_length];
 
 	for(int i = 0; i < elems; i++) {
 		ns[i] = seqs[i];
@@ -87,11 +82,11 @@ void  DBTransaction::ReadSet::Resize() {
 	
 	hashes[cur] = hash;
 
-	Key* kp = reinterpret_cast<Key*>(
-    	malloc(sizeof(Key)-1 + key.size()));
-
-	kp->key_length = key.size();
-	memcpy(kp->key_data, key.data(), key.size());
+	Data* kp = reinterpret_cast<Data*>(
+    	malloc(sizeof(Data)-1 + key.size()));
+	
+	kp->length = key.size();
+	memcpy(kp->contents, key.data(), key.size());
 
 	keys[cur] = kp;
   }
@@ -112,7 +107,7 @@ void  DBTransaction::ReadSet::Resize() {
 			uint64_t curseq = 0; //Here must initialized as 0
 
 			//TODO: we can just use the hash to find the key
-			bool found = ht->Lookup(keys[i]->keySlice(),(void **)&curseq);
+			bool found = ht->Lookup(keys[i]->Getslice(),(void **)&curseq);
 			
 			if(seqs[i].oldseq != curseq) {
 				assert(found);
@@ -133,11 +128,172 @@ void  DBTransaction::ReadSet::Resize() {
 				seqs[i].oldseq, *seqs[i].seq, seqs[i].seq);
 		}
 
-		printf("key %s  ", keys[i]->keySlice());
+		printf("key %s  ", keys[i]->Getslice());
 		printf("hash %ld\n", hashes[i]);
 	}
   }
- 	
+
+
+  DBTransaction::WriteSet::WriteSet() {
+
+	max_length = 1024; //first allocate 1024 numbers
+  	elems = 0;
+
+	keys = new HashTable::Node*[max_length];;
+
+	hashes = new uint64_t[max_length];
+	seqs = new uint64_t[max_length];
+	values = new WSValue[max_length];
+	
+  }
+
+  DBTransaction::WriteSet::~WriteSet() {
+
+	delete[] seqs;
+	delete[] hashes;
+
+	for(int i = 0; i < elems; i++)
+		keys[i]->Unref();
+	delete[] keys;
+
+	for(int i = 0; i < elems; i++)
+		free(values[i].val);
+	delete[] values;
+	
+  }
+
+void  DBTransaction::WriteSet::Resize() {
+  	
+	max_length = max_length * 2;
+
+	uint64_t* ns = new uint64_t[max_length];
+	uint64_t* nh = new uint64_t[max_length];
+	HashTable::Node** nk = new HashTable::Node*[max_length];;
+	WSValue* nv = new WSValue[max_length];
+	
+	for(int i = 0; i < elems; i++) {
+		ns[i] = seqs[i];
+		nh[i] = hashes[i];
+		nk[i] = keys[i];
+		nv[i] = values[i];
+	}
+
+	delete[] seqs;
+	delete[] hashes;
+	delete[] keys;
+	delete[] values;
+
+	seqs = ns;
+	hashes = nh;
+	keys = nk;
+	values = nv;
+  }
+  
+  void DBTransaction::WriteSet::Add(ValueType type, const Slice& key, 
+  											uint64_t hash, const Slice& val)
+  {
+
+	assert(elems <= max_length);
+	
+	if(elems == max_length)
+		Resize();
+
+	int cur = elems;
+	elems++;
+	
+	hashes[cur] = hash;
+	
+	seqs[cur] = 0;
+
+	//TODO: don't use the hashtable node, it is too big
+	HashTable::Node* kp = reinterpret_cast<HashTable::Node*>(
+    	malloc(sizeof(HashTable::Node)-1 + key.size()));
+    kp->value = 0;
+    kp->deleter = NULL;
+	kp->next = NULL;
+    kp->key_length = key.size();
+    kp->hash = hash;
+	kp->refs = 1;
+    memcpy(kp->key_data, key.data(), key.size());
+    keys[cur] = kp;
+
+	Data* vp = reinterpret_cast<Data*>(
+    	malloc(sizeof(Data)-1 + val.size()));	
+	vp->length = val.size();
+	memcpy(vp->contents, val.data(), val.size());
+	
+	values[cur].type = type;
+	values[cur].val= vp;
+		
+  }
+
+  void DBTransaction::WriteSet::UpdateGlobalSeqs(HashTable* ht) {
+
+	//This function should be protected by rtm or mutex
+
+	for(int i = 0; i < elems; i++) {
+		uint64_t seq = 0;
+		bool found = ht->Lookup(keys[i]->key(),(void **)&seq);
+
+		
+		if(!found) {
+			//The node is inserted into the list first time
+			seq = 1;
+			//Still use the node in the write set to avoid memory allocation
+			keys[i]->value = (void *)seq;
+			keys[i]->Ref();
+			ht->InsertNode(keys[i]);			
+		}
+		else {			
+			seq++;		
+			ht->Update(keys[i]->key(),(void *)seq);
+		}
+		
+		seqs[i] = seq;
+		
+	}
+
+  }
+
+  bool DBTransaction::WriteSet::Lookup(const Slice& key, ValueType* type, Slice* val) 
+  {
+	  for(int i = 0; i < elems; i++) {
+		if(keys[i]->key() == key) {
+			*type = values[i].type;
+			*val = values[i].val->Getslice();
+			return true;
+		}
+	  }
+
+	  return false;
+  }
+
+  void DBTransaction::WriteSet::Commit(MemTable *memstore) 
+  {
+	//commit the local write set into the memory storage
+	//should holde the mutex of memstore
+	for(int i = 0; i < elems; i++) {
+		memstore->Add(seqs[i], values[i].type, keys[i]->key(), values[i].val->Getslice());
+	}
+  }
+
+  void DBTransaction::WriteSet::Print()
+  {
+	for(int i = 0; i < elems; i++) {
+		/*
+		printf("Key[%d] ", i);
+		if(seqs[i].seq != NULL) {
+			printf("Old Seq %ld Cur Seq %ld Seq Addr 0x%lx ", 
+				seqs[i].oldseq, *seqs[i].seq, seqs[i].seq);
+		}
+
+		printf("key %s  ", keys[i]->Getslice());
+		printf("hash %ld\n", hashes[i]);
+		*/
+	}
+  }
+
+  
   DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
   {
 	//get the globle store and versions passed by the parameter
@@ -147,8 +303,6 @@ void  DBTransaction::ReadSet::Resize() {
 
 	readset = NULL;
 	writeset = NULL;
-
-	committedValues = NULL;
 
   }
   
@@ -163,16 +317,7 @@ void  DBTransaction::ReadSet::Resize() {
 	if(writeset != NULL) {
 		delete writeset;
 		writeset = NULL;
-	}
-
-	WSNode *wsn = committedValues;
-	while(wsn != NULL) {
-		WSNode* tmp = wsn;
-		tmp->Unref();
-		wsn = wsn->next;
-	}
-	committedValues = NULL;
-	
+	}	
   }
 
   void DBTransaction::Begin()
@@ -188,16 +333,8 @@ void  DBTransaction::ReadSet::Resize() {
 		writeset = NULL;
 	}
 
-	WSNode *wsn = committedValues;
-	while(wsn != NULL) {
-		WSNode* tmp = wsn;
-		tmp->Unref();
-		wsn = wsn->next;
-	}
-	committedValues = NULL;
-	
 	readset = new ReadSet();
-	writeset = new HashTable();
+	writeset = new WriteSet();
   }
   
   bool DBTransaction::End()
@@ -211,39 +348,21 @@ void  DBTransaction::ReadSet::Resize() {
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
 	//write the key value into local buffer
-	WSNode* wsn = reinterpret_cast<WSNode*>(
-    	malloc(sizeof(WSNode)-1 + value.size()));
-	
-    wsn->value_length= value.size();
-	memcpy(wsn->value_data, value.data(), value.size());
-	wsn->type = type;
-	wsn->seq = 0;
-	wsn->refs = 1;
-	wsn->next = NULL;
-	
-	//Pass the deleter of wsnode into function
-	wsn->knode = writeset->Insert(key, wsn, &UnrefWSN);
-	wsn->knode->Ref();
-
-	//Insert to the committed values linked list
-	if(committedValues != NULL) {
-		wsn->next = committedValues;
-	}
-	committedValues = wsn;
-	wsn->Ref();
-		
+	uint64_t h = Hash(key.data(), key.size(), 0);
+	writeset->Add(type, key, h, value);
   }
 
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
   {
   	//step 1. First check if the <k,v> is in the write set
   	
-	WSNode* wsn;
-	if(writeset->Lookup(key, (void **)&wsn)) {
+	Slice val;
+	ValueType type;
+	if(writeset->Lookup(key, &type, &val)) {
 		//Found
-		switch (wsn->type) {
+		switch (type) {
           case kTypeValue: {
-          	value->assign(wsn->value_data, wsn->value_length);
+          	value->assign(val.data(), val.size());
           	return true;
           }
           case kTypeDeletion:
@@ -296,56 +415,17 @@ void  DBTransaction::ReadSet::Resize() {
 	
 
 	//writeset->PrintHashTable();	
-	//RTMScope rtm(&rtmProf);
-	MutexLock mu(storemutex);
+	RTMScope rtm(&rtmProf);
+	//MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))
 		return false;
 	
-	int count = 0;
+	
 	//step 2.  update the the seq set 
 	//can't use the iterator because the cur node may be deleted 
-
-	for(int i = 0; i < writeset->length_; i++) {
-		
-    	HashTable::Node* ptr = writeset->list_[i];
-    	while (ptr != NULL) {
-			HashTable::Node *cur = ptr;
-			//must get next before the following operation
-       		ptr = ptr->next;
-
-			WSNode *wcur = (WSNode *)cur->value;
-			uint64_t curseq;
-			bool found = latestseq_->Lookup(cur->key(),(void **)&curseq);
-
-			if(!found) {
-				//The node is inserted into the list first time
-				curseq = 1;
-				//Still use the node in the write set to avoid memory allocation
-				HashTable::Node* n = writeset->Remove(cur->key(), cur->hash);
-
-				assert(n == cur);
-
-				if(cur->deleter != NULL)
-					cur->deleter(cur->key(), cur->value);
-
-				cur->deleter = NULL;
-				cur->value = (void *)curseq;
-				cur->next = NULL;
-				//latestseq_->Insert(cur->key(),(void *)curseq, NULL);
-				latestseq_->InsertNode(cur);
-
-			
-			}
-			else {			
-				curseq++;		
-				latestseq_->Update(cur->key(),(void *)curseq);
-			}
-		
-			wcur->seq = curseq;
-    	}	
-	}
+	writeset->UpdateGlobalSeqs(latestseq_);
 	
 	return true;
 	
@@ -354,18 +434,11 @@ void  DBTransaction::ReadSet::Resize() {
 
   
   void DBTransaction::GlobalCommit() {
-	//commit the local write set into the memory storage
-	WSNode *wsn = committedValues;
-	while(wsn != NULL) {
-		HashTable::Node *cur = wsn->knode;;
-		
-		storemutex->Lock();
-		memstore_->Add(wsn->seq, wsn->type, cur->key(), wsn->value());
-		storemutex->Unlock();
-		
-		wsn = wsn->next;
-	}
-
+	//commit the local write set into the memory storage		
+	storemutex->Lock();
+	writeset->Commit(memstore_);
+	storemutex->Unlock();
+	
 	if(readset != NULL) {
 		delete readset;
 		readset = NULL;
@@ -375,15 +448,6 @@ void  DBTransaction::ReadSet::Resize() {
 		delete writeset;
 		writeset = NULL;
 	}
-
-
-	wsn = committedValues;
-	while(wsn != NULL) {
-		WSNode* tmp = wsn;
-		tmp->Unref();
-		wsn = wsn->next;
-	}
-	committedValues = NULL;
 	
   }
 
