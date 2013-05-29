@@ -29,7 +29,7 @@ struct SharedState {
   int num_initialized;
   int num_done;
   bool start;
-
+  bool fail;
 	
   SharedState() : cv(&mu) { }
 };
@@ -119,7 +119,7 @@ class Benchmark {
 		ValueType t = kTypeValue;
 		std::string *str  = new std::string[num];
 		//printf("start %d\n",tid);
-		
+		bool fail = false;
 		
 		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
 			DBTransaction tx(seqs, store, mutex);
@@ -170,13 +170,18 @@ class Benchmark {
 					e = e && (str[j]==str[j+1]);
 				}
 				
-				assert(!e);
+				//assert(!e); 
+				if (e) {
+					fail = true;  
+					break;
+				}
 			}
 			
 		}
 		
 		{
 		  MutexLock l(&shared->mu);
+		  if (fail) shared->fail = fail; 
 		  shared->num_done++;
 		  if (shared->num_done >= shared->total) {
 			shared->cv.SignalAll();
@@ -242,7 +247,7 @@ class Benchmark {
 		//printf("In tid %lx\n", arg);
 		//printf("start %d\n",tid);
 		
-		
+		bool fail = false;
 		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
@@ -285,13 +290,21 @@ class Benchmark {
 			b = tx1.End();
 			//if (b==true)printf("%d\n", i);
 			}
-			assert(str[0]==str[1]);
-			assert(str[1]==str[2]);
+			//assert(str[0]==str[1]);
+			//assert(str[1]==str[2]);
+			//if (!(str[0]==str[1])) printf("0f\n");
+			//if (str[1]!=str[2]) printf("1f\n");
+			if (!(str[0]==str[1]) || !(str[1]==str[2])) {
+				fail = true;
+				break;
+			}
+			
 			//printf("Tid %d Iter %d\n",tid,i);
 
 		}
 		{
 		  MutexLock l(&shared->mu);
+		  if (fail) shared->fail = fail;
 		  shared->num_done++;
 		  if (shared->num_done >= shared->total) {
 			shared->cv.SignalAll();
@@ -335,7 +348,7 @@ class Benchmark {
 		shared.end_time = 0;
 		shared.num_done = 0;
 		shared.start = false;
-		 
+		shared.fail = false;
 		 ThreadArg* arg = new ThreadArg[num];
 		 for (int i = 0; i < num; i++) {	 	
 		 	arg[i].thread = new ThreadState(i);
@@ -354,6 +367,9 @@ class Benchmark {
 		 }
 		 shared.mu.Unlock();
 		 //printf("all done\n");
+		 if (shared.fail) {
+		 	printf("%s fail!\n", name.ToString().c_str());	
+		 }else {
 		 if (name == Slice("equal")) printf("EqualTest pass!\n");
 		 else if (name == Slice("nocycle")) printf("NocycleTest pass!\n");
 		 else if (name == Slice("counter")) {
@@ -374,11 +390,13 @@ class Benchmark {
 			//printf("result %d\n",result);
 			b = tx.End();
 			}
-			assert(result == (FLAGS_txs*num));
-			printf("CounterTest pass!\n");
+			if (result != (FLAGS_txs*num)) printf("counter fail!\n");
+			//assert();
+			else printf("CounterTest pass!\n");
 		 }
 		 else if (name == Slice("consistency")) {
 		 	//printf("verify\n");
+		 	bool succ = true;
 		 	for (int i = 0; i< num-1+FLAGS_txs*2; i++) {
 				char* key = new char[100];
 				snprintf(key, sizeof(key), "%d", i);
@@ -386,7 +404,12 @@ class Benchmark {
 				bool found = false;
 				uint64_t seq = 0;
 				found = seqs->Lookup(key, (void **)&seq);
-				assert(found);
+				//assert(found);
+				if (!found) {
+					printf("consistency fail!\n");
+					succ = false;
+					break;
+				}
 
 				uint64_t seq1 = num+1;
 				LookupKey lkey(key, seq1);				
@@ -399,13 +422,18 @@ class Benchmark {
 					mutex->Lock();
 					found = store->GetSeq(lkey, &value, &s , &mseq);
 					mutex->Unlock();	
-				}			
-				assert(found);
-				assert(mseq<=seq);
-				
+				}	
+				if (!found || mseq<=seq) {
+					succ = false;
+					printf("consistency fail!\n");
+					break;
+				//assert(found);
+				//assert(mseq<=seq);
+				}
 				
 		 	}
-		 	printf("ConsistencyTest pass!\n");
+		 	if (succ) printf("ConsistencyTest pass!\n");
+		 }
 		 }
 	}
 };
