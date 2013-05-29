@@ -102,7 +102,7 @@ void  DBTransaction::ReadSet::Resize() {
 			uint64_t curseq = 0; //Here must initialized as 0
 
 			//TODO: we can just use the hash to find the key
-			bool found = ht->Lookup(keys[i]->Getslice(),(void **)&curseq);
+			bool found = ht->Lookup(keys[i]->Getslice(), &curseq);
 			
 			if(seqs[i].oldseq != curseq) {
 				assert(found);
@@ -202,8 +202,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 	//TODO: don't use the hashtable node, it is too big
 	HashTable::Node* n = new HashTable::Node();
-	n->value = 0;
-	n->deleter = NULL;
+	n->seq = 0;
 	n->next = NULL;
 	n->hash = hash;
 	n->refs = 1;
@@ -234,20 +233,20 @@ void  DBTransaction::WriteSet::Resize() {
 
 	for(int i = 0; i < elems; i++) {
 		uint64_t seq = 0;
-		bool found = ht->Lookup(keys[i]->key->Getslice(),(void **)&seq);
+		bool found = ht->Lookup(keys[i]->key->Getslice(),&seq);
 
 		
 		if(!found) {
 			//The node is inserted into the list first time
 			seq = 1;
 			//Still use the node in the write set to avoid memory allocation
-			keys[i]->value = (void *)seq;
+			keys[i]->seq = seq;
 			keys[i]->Ref();
 			ht->InsertNode(keys[i]);			
 		}
 		else {			
 			seq++;		
-			ht->Update(keys[i]->key->Getslice(),(void *)seq);
+			ht->Update(keys[i]->key->Getslice(),seq);
 		}
 		
 		seqs[i] = seq;
@@ -389,7 +388,7 @@ void  DBTransaction::WriteSet::Resize() {
 		return found;
 	}
 
-	seq = (uint64_t)node->value;
+	seq = node->seq;
 	
 	//construct the lookup key and find the key value in the in memory storage
 	LookupKey lkey(key, seq);
@@ -406,7 +405,7 @@ void  DBTransaction::WriteSet::Resize() {
 	}
 
 	// step 3. put into the read set
-	readset->Add(key, node->hash, seq, (uint64_t)&node->value);
+	readset->Add(key, node->hash, seq, (uint64_t)&node->seq);
 	
 	return found;
   }
@@ -415,8 +414,8 @@ void  DBTransaction::WriteSet::Resize() {
 	
 
 	//writeset->PrintHashTable();	
-	//RTMScope rtm(&rtmProf);
-	MutexLock mu(storemutex);
+	RTMScope rtm(&rtmProf);
+	//MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))

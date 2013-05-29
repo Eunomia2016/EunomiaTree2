@@ -410,7 +410,7 @@ class Benchmark {
 				Slice k(key);
 				bool found = false;
 				uint64_t seq = 0;
-				found = seqs->Lookup(key, (void **)&seq);
+				found = seqs->Lookup(key, &seq);
 				//assert(found);
 				if (!found) {
 					printf("Key %d is not found in the hashtable\nconsistency fail!\n",i);

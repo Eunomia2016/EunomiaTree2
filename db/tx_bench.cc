@@ -394,7 +394,7 @@ private:
 		printf("MemStore Total %d\n", count);
 
 		//printf(" ...... Iterate  Seq Hash Table ......");
-		seqs.PrintHashTable();
+		//seqs.PrintHashTable();
 		
 		/*
 		if(method == &Benchmark::WriteRandom || method == &Benchmark::WriteSeq)

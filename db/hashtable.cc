@@ -33,7 +33,7 @@ HashTable::~HashTable() {
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 4;
+	uint32_t new_length = 1024;
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}
@@ -59,12 +59,10 @@ void HashTable::Resize()
 	length_ = new_length;
   }
 
-HashTable::Node* HashTable::Insert(const Slice& key, void* value,
-					   void (*deleter)(const Slice& key, void* value))
+HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 {
 	Node* e = new Node();
-	e->value = value;
-	e->deleter = deleter;
+	e->seq = seq;
 	e->hash = HashSlice(key);
 	
     Data* kp = reinterpret_cast<Data*>(
@@ -94,26 +92,23 @@ HashTable::Node* HashTable::Remove(const Slice& key, uint32_t hash)
 }
 
 
-bool HashTable::Update(const Slice& key,  void* value) 
+bool HashTable::Update(const Slice& key,  uint64_t seq) 
 {
     Node** ptr = FindNode(key, HashSlice(key));
     assert(ptr != NULL && *ptr != NULL);
-
-	if( (*ptr)->deleter != NULL)
-		(*ptr)->deleter(key, (*ptr)->value);
 	
-    (*ptr)->value = value;
+    (*ptr)->seq = seq;
 	
     return true;
 }
 
 
-bool HashTable::Lookup(const Slice& key, void **vp) 
+bool HashTable::Lookup(const Slice& key, uint64_t *seq_ptr) 
 {
     Node** ptr = FindNode(key, HashSlice(key));
     if(ptr == NULL || *ptr == NULL)
 	return false;
-    *vp = (*ptr)->value;
+    *seq_ptr = (*ptr)->seq;
     return true;
 }
 
@@ -136,7 +131,7 @@ void HashTable::PrintHashTable()
         Node** ptr = &list_[i];
         while (*ptr != NULL) {
 			count++;
-	   printf("Hash: %ld, Value: %ld  ",  (*ptr)->hash, (*ptr)->value);
+	   printf("Hash: %ld, Seq: %ld  ",  (*ptr)->hash, (*ptr)->seq);
            ptr = &(*ptr)->next;
         }
 	printf("\n");

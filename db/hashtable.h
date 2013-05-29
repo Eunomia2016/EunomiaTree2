@@ -39,8 +39,7 @@ class HashTable {
   
   struct Node 
 	{
-	  void* value;
-	  void (*deleter)(const Slice&, void* value);
+	  uint64_t seq;
 	  Node* next;
 	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
 	  uint32_t refs;	  
@@ -69,18 +68,17 @@ class HashTable {
   virtual ~HashTable();
 
   
-  HashTable::Node* Insert(const Slice& key, void* value,
-                         void (*deleter)(const Slice& key, void* value));
+  HashTable::Node* Insert(const Slice& key, uint64_t seq);
 
   
 
   
-  bool Lookup(const Slice& key, void **vp);
+  bool Lookup(const Slice& key, uint64_t *seq_ptr);
 
   
   Node* GetNode(const Slice& key);
   
-  bool Update(const Slice& key, void* value);
+  bool Update(const Slice& key, uint64_t seq);
   
   void PrintHashTable();
 
