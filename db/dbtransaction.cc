@@ -107,14 +107,11 @@ void  DBTransaction::ReadSet::Resize() {
 
 	keys = new WSKey[max_length];;
 
-	hashes = new uint64_t[max_length];
 	values = new WSValue[max_length];
 	
   }
 
   DBTransaction::WriteSet::~WriteSet() {
-
-	delete[] hashes;
 
 /*
 	for(int i = 0; i < elems; i++)
@@ -132,21 +129,17 @@ void  DBTransaction::WriteSet::Resize() {
   	
 	max_length = max_length * 2;
 
-	uint64_t* nh = new uint64_t[max_length];
 	WSKey* nk = new WSKey[max_length];;
 	WSValue* nv = new WSValue[max_length];
 	
 	for(int i = 0; i < elems; i++) {
-		nh[i] = hashes[i];
 		nk[i] = keys[i];
 		nv[i] = values[i];
 	}
 
-	delete[] hashes;
 	delete[] keys;
 	delete[] values;
 
-	hashes = nh;
 	keys = nk;
 	values = nv;
   }
@@ -163,7 +156,6 @@ void  DBTransaction::WriteSet::Resize() {
 	int cur = elems;
 	elems++;
 	
-	hashes[cur] = hash;
 
 	//TODO: don't use the hashtable node, it is too big
 	keys[cur].node.seq = 0;

@@ -86,7 +86,6 @@ public:
 
 			WSKey *keys;
 						
-			uint64_t *hashes;
 			WSValue *values;
 
 			void Resize();
