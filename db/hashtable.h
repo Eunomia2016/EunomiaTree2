@@ -29,36 +29,21 @@ class HashTable {
 
   struct Data {
 		
-		uint32_t length;
-		char contents[1]; // Beginning of key
-				
-		Slice Getslice() const {
-			return Slice(contents, length);
-		}
+	uint32_t length;
+	char contents[1]; // Beginning of key
+			
+	Slice Getslice() const {
+		return Slice(contents, length);
+	}
   };
   
   struct Node 
-	{
-	  uint64_t seq;
-	  Node* next;
-	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
-	  uint32_t refs;	  
-	  Data* key;
-  
-	  void Unref() {
-		assert(refs > 0);
-		refs--;
-		if (refs <= 0) {
-		  assert( key != NULL);
-		  free(key);
-		  delete this;
-		}
-	  }
-  
-	  void Ref() {
-		  refs++;
-	  }
-	};
+  {
+	uint64_t seq;
+	Node* next;
+	uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
+	Data* key;
+  };
 
 
   HashTable();

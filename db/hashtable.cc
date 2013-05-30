@@ -19,6 +19,7 @@ HashTable::HashTable() : length_(0), elems_(0), list_(NULL) {
 
 HashTable::~HashTable() {
 	//TODO garbage collection
+	/*
 	int i = 0;
     for(; i < length_; i++) {
         Node** ptr = &list_[i];
@@ -28,7 +29,8 @@ HashTable::~HashTable() {
 		   tmp->Unref();
         }
     }
-	delete[] list_;
+	delete[] list_;*/
+	
 }
 
 void HashTable::Resize() 
@@ -111,7 +113,7 @@ HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 	
     //printf("Memcp key %s\n", key.ToString().c_str());
     InsertNode(e);
-	e->refs = 1;
+	//e->refs = 1;
     return e;
 }
 

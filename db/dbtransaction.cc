@@ -134,7 +134,7 @@ void  DBTransaction::ReadSet::Resize() {
 	max_length = 1024; //first allocate 1024 numbers
   	elems = 0;
 
-	keys = new HashTable::Node*[max_length];;
+	keys = new HashTable::Node[max_length];;
 
 	hashes = new uint64_t[max_length];
 	seqs = new uint64_t[max_length];
@@ -147,9 +147,11 @@ void  DBTransaction::ReadSet::Resize() {
 	delete[] seqs;
 	delete[] hashes;
 
+/*
 	for(int i = 0; i < elems; i++)
-		keys[i]->Unref();
+		keys[i].Unref();
 	delete[] keys;
+*/
 
 	for(int i = 0; i < elems; i++)
 		free(values[i].val);
@@ -163,7 +165,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 	uint64_t* ns = new uint64_t[max_length];
 	uint64_t* nh = new uint64_t[max_length];
-	HashTable::Node** nk = new HashTable::Node*[max_length];;
+	HashTable::Node* nk = new HashTable::Node[max_length];;
 	WSValue* nv = new WSValue[max_length];
 	
 	for(int i = 0; i < elems; i++) {
@@ -201,11 +203,10 @@ void  DBTransaction::WriteSet::Resize() {
 	seqs[cur] = 0;
 
 	//TODO: don't use the hashtable node, it is too big
-	HashTable::Node* n = new HashTable::Node();
-	n->seq = 0;
-	n->next = NULL;
-	n->hash = hash;
-	n->refs = 1;
+	keys[cur].seq = 0;
+	keys[cur].next = NULL;
+	keys[cur].hash = hash;
+//	keys[cur].refs = 1;
 	
 	HashTable::Data* kp = reinterpret_cast<HashTable::Data*>(
     	malloc(sizeof(HashTable::Data)-1 + key.size()));
@@ -213,8 +214,7 @@ void  DBTransaction::WriteSet::Resize() {
     kp->length = key.size();
     memcpy(kp->contents, key.data(), key.size());
 
-	n->key = kp;
-    keys[cur] = n;
+	keys[cur].key = kp;
 
 	Data* vp = reinterpret_cast<Data*>(
     	malloc(sizeof(Data)-1 + val.size()));	
@@ -233,21 +233,19 @@ void  DBTransaction::WriteSet::Resize() {
 	
 	uint64_t seq = 0;
 	for(int i = 0; i < elems; i++) {
-		seq = 0;				
-//		bool found = ht->Lookup(keys[i]->key->Getslice(),&seq);
-		bool found = ht->GetMaxWithHash(keys[i]->hash, &seq);
+		seq = 0;
+		bool found = ht->GetMaxWithHash(keys[i].hash, &seq);
 		
 		if(!found) {
 			//The node is inserted into the list first time
 			seq = 1;
 			//Still use the node in the write set to avoid memory allocation
-			keys[i]->seq = seq;
-			keys[i]->Ref();
-			ht->InsertNode(keys[i]);			
+			keys[i].seq = seq;
+			ht->InsertNode(&keys[i]);	
 		}
 		else {			
 			seq++;		
-			ht->UpdateWithHash(keys[i]->hash,seq);
+			ht->UpdateWithHash(keys[i].hash,seq);
 		}
 		
 		seqs[i] = seq;
@@ -259,7 +257,7 @@ void  DBTransaction::WriteSet::Resize() {
   bool DBTransaction::WriteSet::Lookup(const Slice& key, ValueType* type, Slice* val) 
   {
 	  for(int i = 0; i < elems; i++) {
-		if(keys[i]->key->Getslice()== key) {
+		if(keys[i].key->Getslice()== key) {
 			*type = values[i].type;
 			*val = values[i].val->Getslice();
 			return true;
@@ -275,7 +273,7 @@ void  DBTransaction::WriteSet::Resize() {
 	//should holde the mutex of memstore
 	for(int i = 0; i < elems; i++) {
 		//printf("[%lx Commit] Insert Seq %ld Value %s\n", pthread_self(), seqs[i], values[i].val->Getslice());
-		memstore->Add(seqs[i], values[i].type, keys[i]->key->Getslice(), values[i].val->Getslice());
+		memstore->Add(seqs[i], values[i].type, keys[i].key->Getslice(), values[i].val->Getslice());
 	}
   }
 

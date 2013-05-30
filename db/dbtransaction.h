@@ -80,8 +80,8 @@ public:
 			int max_length;
 			int elems;
 
-			HashTable::Node **keys;
-			
+			HashTable::Node *keys;
+						
 			uint64_t *seqs;
 			uint64_t *hashes;
 			WSValue *values;
