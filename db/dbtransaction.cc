@@ -44,7 +44,7 @@ void  DBTransaction::ReadSet::Resize() {
 	seqs = ns;
   }
   
-  void DBTransaction::ReadSet::Add(uint64_t hash, uint64_t oldeseq, uint64_t seq_addr)
+  void DBTransaction::ReadSet::Add(uint64_t hash, uint64_t oldeseq, uint64_t *ptr)
   {
 
 	assert(elems <= max_length);
@@ -55,7 +55,7 @@ void  DBTransaction::ReadSet::Resize() {
 	int cur = elems;
 	elems++;
 
-	seqs[cur].seq = (uint64_t *)seq_addr;
+	seqs[cur].seq = ptr;
 	seqs[cur].oldseq = oldeseq;
 	seqs[cur].hash = hash;
   }
@@ -338,7 +338,7 @@ void  DBTransaction::WriteSet::Resize() {
 	
 	if ( NULL == node) {
 		//even not found, still need to put the k into read set to avoid concurrent insertion
-		readset->Add(Hash(key.data(), key.size(), 0), seq, 0);
+		readset->Add(Hash(key.data(), key.size(), 0), seq, (uint64_t *)0);
 		
 		return found;
 	}
@@ -358,7 +358,7 @@ void  DBTransaction::WriteSet::Resize() {
 	}
 
 	// step 3. put into the read set
-	readset->Add(node->hash, seq, (uint64_t)&node->seq);
+	readset->Add(node->hash, seq, &node->seq);
 	
 	return found;
   }
