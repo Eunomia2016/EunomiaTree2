@@ -47,7 +47,8 @@ public:
 
 		struct RSSeqPair {
 			uint64_t oldseq; //seq got when read the value
-			uint64_t *seq; //pointer to the global memory location 
+			uint64_t *seq; //pointer to the global memory location
+			uint64_t hash;
 		};
 		
 		private:
@@ -55,7 +56,6 @@ public:
 			int elems;
 
 			RSSeqPair *seqs;
-			uint64_t *hashes;
 			Data **keys;
 
 			void Resize();

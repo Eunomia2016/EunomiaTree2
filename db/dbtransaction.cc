@@ -22,14 +22,12 @@ namespace leveldb {
   	elems = 0;
 	
 	seqs = new RSSeqPair[max_length];
-	hashes = new uint64_t[max_length];
 	keys = new Data*[max_length];
   }
 
   DBTransaction::ReadSet::~ReadSet() {
 
 	delete[] seqs;
-	delete[] hashes;
 
 	for(int i = 0; i < elems; i++)
 		free(keys[i]);
@@ -42,21 +40,17 @@ void  DBTransaction::ReadSet::Resize() {
 	max_length = max_length * 2;
 
 	RSSeqPair *ns = new RSSeqPair[max_length];
-	uint64_t* nh = new uint64_t[max_length];
 	Data** nk = new Data*[max_length];
 
 	for(int i = 0; i < elems; i++) {
 		ns[i] = seqs[i];
-		nh[i] = hashes[i];
 		nk[i] = keys[i];
 	}
 
 	delete[] seqs;
-	delete[] hashes;
 	delete[] keys;
 
 	seqs = ns;
-	hashes = nh;
 	keys = nk;
 	
   }
@@ -74,9 +68,8 @@ void  DBTransaction::ReadSet::Resize() {
 
 	seqs[cur].seq = (uint64_t *)seq_addr;
 	seqs[cur].oldseq = oldeseq;
+	seqs[cur].hash = hash;
 	
-	hashes[cur] = hash;
-
 	Data* kp = reinterpret_cast<Data*>(
     	malloc(sizeof(Data)-1 + key.size()));
 	
@@ -102,7 +95,7 @@ void  DBTransaction::ReadSet::Resize() {
 			uint64_t curseq = 0; //Here must initialized as 0
 
 			//TODO: we can just use the hash to find the key
-			bool found = ht->Lookup(keys[i]->Getslice(), &curseq);
+			bool found = ht->GetMaxWithHash(seqs[i].hash, &curseq);
 			
 			if(seqs[i].oldseq != curseq) {
 				assert(found);
@@ -124,7 +117,6 @@ void  DBTransaction::ReadSet::Resize() {
 		}
 
 		printf("key %s  ", keys[i]->Getslice());
-		printf("hash %ld\n", hashes[i]);
 	}
   }
 
