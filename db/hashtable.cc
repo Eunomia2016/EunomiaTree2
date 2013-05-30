@@ -35,7 +35,7 @@ HashTable::~HashTable() {
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 1024;
+	uint32_t new_length = 8;
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}

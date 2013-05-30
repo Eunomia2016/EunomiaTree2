@@ -76,13 +76,17 @@ public:
 			Data *val; //pointer to the global memory location 
 		};
 		
+		struct WSKey {
+			HashTable::Node node;
+			uint64_t wseq;
+		};
+		
 		private:
 			int max_length;
 			int elems;
 
-			HashTable::Node *keys;
+			WSKey *keys;
 						
-			uint64_t *seqs;
 			uint64_t *hashes;
 			WSValue *values;
 
