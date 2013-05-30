@@ -22,17 +22,10 @@ namespace leveldb {
   	elems = 0;
 	
 	seqs = new RSSeqPair[max_length];
-	keys = new Data*[max_length];
   }
 
   DBTransaction::ReadSet::~ReadSet() {
-
-	delete[] seqs;
-
-	for(int i = 0; i < elems; i++)
-		free(keys[i]);
-	delete[] keys;
-	
+	delete[] seqs;	
   }
 
 void  DBTransaction::ReadSet::Resize() {
@@ -44,18 +37,14 @@ void  DBTransaction::ReadSet::Resize() {
 
 	for(int i = 0; i < elems; i++) {
 		ns[i] = seqs[i];
-		nk[i] = keys[i];
 	}
 
 	delete[] seqs;
-	delete[] keys;
 
 	seqs = ns;
-	keys = nk;
-	
   }
   
-  void DBTransaction::ReadSet::Add(const Slice& key, uint64_t hash, uint64_t oldeseq, uint64_t seq_addr)
+  void DBTransaction::ReadSet::Add(uint64_t hash, uint64_t oldeseq, uint64_t seq_addr)
   {
 
 	assert(elems <= max_length);
@@ -69,14 +58,6 @@ void  DBTransaction::ReadSet::Resize() {
 	seqs[cur].seq = (uint64_t *)seq_addr;
 	seqs[cur].oldseq = oldeseq;
 	seqs[cur].hash = hash;
-	
-	Data* kp = reinterpret_cast<Data*>(
-    	malloc(sizeof(Data)-1 + key.size()));
-	
-	kp->length = key.size();
-	memcpy(kp->contents, key.data(), key.size());
-
-	keys[cur] = kp;
   }
 
   bool DBTransaction::ReadSet::Validate(HashTable* ht) {
@@ -115,8 +96,6 @@ void  DBTransaction::ReadSet::Resize() {
 			printf("Old Seq %ld Cur Seq %ld Seq Addr 0x%lx ", 
 				seqs[i].oldseq, *seqs[i].seq, seqs[i].seq);
 		}
-
-		printf("key %s  ", keys[i]->Getslice());
 	}
   }
 
@@ -367,7 +346,7 @@ void  DBTransaction::WriteSet::Resize() {
 	
 	if ( NULL == node) {
 		//even not found, still need to put the k into read set to avoid concurrent insertion
-		readset->Add(key, Hash(key.data(), key.size(), 0), seq, 0);
+		readset->Add(Hash(key.data(), key.size(), 0), seq, 0);
 		
 		return found;
 	}
@@ -387,7 +366,7 @@ void  DBTransaction::WriteSet::Resize() {
 	}
 
 	// step 3. put into the read set
-	readset->Add(key, node->hash, seq, (uint64_t)&node->seq);
+	readset->Add(node->hash, seq, (uint64_t)&node->seq);
 	
 	return found;
   }

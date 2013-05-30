@@ -39,10 +39,10 @@ class HashTable {
   
   struct Node 
   {
-	uint64_t seq;
-	Node* next;
-	uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
-	Data* key;
+	  uint64_t seq;
+	  Node* next;
+	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
+	  Data* key;
   };
 
 
@@ -52,7 +52,7 @@ class HashTable {
   // function that was passed to the constructor.
   virtual ~HashTable();
 
-  bool GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr);\
+  bool GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr);
   
   void UpdateWithHash(uint64_t hash, uint64_t seq);
   

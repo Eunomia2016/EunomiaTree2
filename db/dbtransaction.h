@@ -56,14 +56,13 @@ public:
 			int elems;
 
 			RSSeqPair *seqs;
-			Data **keys;
 
 			void Resize();
 			
 		public:
 			ReadSet();
 			~ReadSet();			
-			void Add(const Slice& key, uint64_t hash, uint64_t oldeseq, uint64_t seq_addr);
+			void Add(uint64_t hash, uint64_t oldeseq, uint64_t seq_addr);
 			bool Validate(HashTable* ht);
 			void Print();
 	};
