@@ -280,20 +280,9 @@ void  DBTransaction::WriteSet::Resize() {
 	
 	HashTable::Node* node = latestseq_->GetNode(key);
 		
-	if ( NULL == node) {
-
-		node = new HashTable::Node();
-		HashTable::Data* kp = reinterpret_cast<HashTable::Data*>
-			(malloc(sizeof(HashTable::Data)-1 + key.size()));
-    	kp->length = key.size();
-    	memcpy(kp->contents, key.data(), key.size());
-
-		node->key = kp;
-		node->seq = 0;
-		node->hash = Hash(key.data(), key.size(), 0);
-
-		latestseq_->InsertNode(node);
-	}
+	if ( NULL == node) 
+		node = latestseq_->Insert(key, 0); //insert an empty node
+	
 	
 	storemutex->Unlock();
 	

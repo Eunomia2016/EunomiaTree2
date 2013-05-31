@@ -46,7 +46,6 @@ void HashTable::Resize()
 	  Node* h = list_[i];
 	  while (h != NULL) {
 		Node* next = h->next;
-		Slice key = h->key->Getslice();
 		uint32_t hash = h->hash;
 		Node** ptr = &new_list[hash & (new_length - 1)];
 		h->next = *ptr;
@@ -100,20 +99,17 @@ void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
 
 HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 {
-	Node* e = new Node();
+	Node* e = reinterpret_cast<Node*>(
+    	malloc(sizeof(Node)-1 + key.size()));
 	e->seq = seq;
 	e->hash = HashSlice(key);
+	e->next = NULL;
+    e->key_length = key.size();
 	
-    Data* kp = reinterpret_cast<Data*>(
-    	malloc(sizeof(Data)-1 + key.size()));
-    kp->length = key.size();
-    memcpy(kp->contents, key.data(), key.size());
-
-	e->key = kp;
+    memcpy(e->key_contents, key.data(), key.size());
 	
-    //printf("Memcp key %s\n", key.ToString().c_str());
     InsertNode(e);
-	//e->refs = 1;
+	
     return e;
 }
 
@@ -249,7 +245,7 @@ HashTable::Node** HashTable::FindNode(const Slice& key, uint32_t hash)
 {
     Node** ptr = &list_[hash & (length_ - 1)];
     while (*ptr != NULL &&
-           ((*ptr)->hash != hash || key != (*ptr)->key->Getslice())) {
+           ((*ptr)->hash != hash || key != (*ptr)->Getkey())) {
       ptr = &(*ptr)->next;
     }
     return ptr;

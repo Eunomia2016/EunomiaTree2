@@ -26,23 +26,19 @@ namespace leveldb {
 
 class HashTable {
  public:
-
-  struct Data {
-		
-	uint32_t length;
-	char contents[1]; // Beginning of key
-			
-	Slice Getslice() const {
-		return Slice(contents, length);
-	}
-  };
   
   struct Node 
   {
-	  uint64_t seq;
+	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
 	  Node* next;
-	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons	  
-	  Data* key;
+	  uint64_t seq;
+	  
+	  uint32_t key_length;
+	  char key_contents[1];
+	  
+	  Slice Getkey() const {
+		return Slice(key_contents, key_length);
+	}
   };
 
 
