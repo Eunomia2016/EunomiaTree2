@@ -85,6 +85,7 @@ public:
 
 			int cacheset[64];
 			uint64_t cacheaddr[64][8];
+			uint64_t cachetypes[64][8];
 			int max_length;
 			int elems;
 
@@ -96,7 +97,7 @@ public:
 		public:
 			WriteSet();
 			~WriteSet();	
-			void TouchAddr(uint64_t addr);
+			void TouchAddr(uint64_t addr, int type);
 			
 			void Add(ValueType type, const Slice& key, const Slice& val, uint64_t *seqptr);
 			void UpdateGlobalSeqs(HashTable* ht);

@@ -110,8 +110,10 @@ void  DBTransaction::ReadSet::Resize() {
 
 	for(int i = 0; i < 64; i++) {
 		cacheset[i] = 0;
-		for(int j = 0; j < 8; j++)
+		for(int j = 0; j < 8; j++) {
 			cacheaddr[i][j] = 0;
+			cachetypes[i][j] = 0;
+		}
 	}
 
   }
@@ -176,7 +178,7 @@ void  DBTransaction::WriteSet::Resize() {
 		
   }
 
-   void DBTransaction::WriteSet::TouchAddr(uint64_t addr)
+   void DBTransaction::WriteSet::TouchAddr(uint64_t addr, int type)
   {
   	
   	 uint64_t caddr = addr >> 12;
@@ -195,12 +197,18 @@ void  DBTransaction::WriteSet::Resize() {
 	 }
 	 
 	 cacheset[index]++;
-	 if( cacheset[index] > 8) 
-	 	printf("Cache Set Conflict\n");
+	 if( cacheset[index] > 8) {
+	 	printf("Cache Set Conflict type %d\n", type);
+		for(int i = 0; i < 8; i++) { 
+			printf("[%d] ", cachetypes[index][i]);
+		}
+		printf("\n");
+	 }
 
 	 for(int i = 0; i < 8; i++) {
 	 	if(cacheaddr[index][i] == 0) {
 	 	  	cacheaddr[index][i] = caddr;
+			cachetypes[index][i] = type;
 				//		printf("XXX\n");
 			return;
 	 	}
@@ -218,9 +226,9 @@ void  DBTransaction::WriteSet::Resize() {
 		seqs[i].wseq++;
 		*seqs[i].seqptr = seqs[i].wseq;
 
-		TouchAddr((uint64_t)&seqs[i].wseq);
-		TouchAddr((uint64_t)&seqs[i].seqptr);
-		TouchAddr((uint64_t)seqs[i].seqptr);
+		TouchAddr((uint64_t)&seqs[i].wseq, 1);
+		TouchAddr((uint64_t)&seqs[i].seqptr, 2);
+		TouchAddr((uint64_t)seqs[i].seqptr, 3);
 		
 	}
 
