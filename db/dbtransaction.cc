@@ -105,47 +105,42 @@ void  DBTransaction::ReadSet::Resize() {
 	max_length = 1024; //first allocate 1024 numbers
   	elems = 0;
 
-	keys = new WSKey[max_length];;
-
-	values = new WSValue[max_length];
+	seqs = new WSSeqPair[max_length];
+	kvs = new WSKV[max_length];
 	
   }
 
   DBTransaction::WriteSet::~WriteSet() {
 
-/*
-	for(int i = 0; i < elems; i++)
-		keys[i].Unref();
-	delete[] keys;
-*/
-
-	for(int i = 0; i < elems; i++)
-		free(values[i].val);
-	delete[] values;
-	
+	delete[] seqs;
+	for(int i = 0; i < elems; i++) {
+		free(kvs[i].key);
+		free(kvs[i].val);
+	}
+	delete[] kvs;
   }
 
 void  DBTransaction::WriteSet::Resize() {
   	
 	max_length = max_length * 2;
 
-	WSKey* nk = new WSKey[max_length];;
-	WSValue* nv = new WSValue[max_length];
+	WSSeqPair* nss = new WSSeqPair[max_length];
+	WSKV* nkv = new WSKV[max_length];
 	
 	for(int i = 0; i < elems; i++) {
-		nk[i] = keys[i];
-		nv[i] = values[i];
+		nss[i] = seqs[i];
+		nkv[i] = kvs[i];
 	}
 
-	delete[] keys;
-	delete[] values;
+	delete[] seqs;
+	delete[] kvs;
 
-	keys = nk;
-	values = nv;
+	seqs = nss;
+	kvs = nkv;
   }
   
   void DBTransaction::WriteSet::Add(ValueType type, const Slice& key, 
-  											uint64_t hash, const Slice& val)
+  											const Slice& val, uint64_t *seqptr)
   {
 
 	assert(elems <= max_length);
@@ -156,30 +151,22 @@ void  DBTransaction::WriteSet::Resize() {
 	int cur = elems;
 	elems++;
 	
-
-	//TODO: don't use the hashtable node, it is too big
-	keys[cur].node.seq = 0;
-	keys[cur].node.next = NULL;
-	keys[cur].node.hash = hash;
-	keys[cur].wseq = 0;
-//	keys[cur].refs = 1;
-	
-	HashTable::Data* kp = reinterpret_cast<HashTable::Data*>(
-    	malloc(sizeof(HashTable::Data)-1 + key.size()));
-
+	Data* kp = reinterpret_cast<Data*>(
+    	malloc(sizeof(Data)-1 + key.size()));
     kp->length = key.size();
     memcpy(kp->contents, key.data(), key.size());
-
-	keys[cur].node.key = kp;
+	kvs[cur].key = kp;
 
 	Data* vp = reinterpret_cast<Data*>(
     	malloc(sizeof(Data)-1 + val.size()));	
 	vp->length = val.size();
 	memcpy(vp->contents, val.data(), val.size());
-
+	kvs[cur].val= vp;
 	
-	values[cur].type = type;
-	values[cur].val= vp;
+	kvs[cur].type = type;
+
+	seqs[cur].seqptr = seqptr;
+	seqs[cur].wseq = 0;
 		
   }
 
@@ -187,25 +174,10 @@ void  DBTransaction::WriteSet::Resize() {
 
 	//This function should be protected by rtm or mutex
 	
-	uint64_t seq = 0;
 	for(int i = 0; i < elems; i++) {
-		seq = 0;
-		bool found = ht->GetMaxWithHash(keys[i].node.hash, &seq);
-		
-		if(!found) {
-			//The node is inserted into the list first time
-			seq = 1;
-			//Still use the node in the write set to avoid memory allocation
-			keys[i].node.seq = seq;
-			ht->InsertNode(&keys[i].node);	
-		}
-		else {			
-			seq++;		
-			ht->UpdateWithHash(keys[i].node.hash,seq);
-		}
-		
-		keys[i].wseq= seq;
-
+		seqs[i].wseq = *seqs[i].seqptr;
+		seqs[i].wseq++;
+		*seqs[i].seqptr = seqs[i].wseq;
 	}
 
   }
@@ -213,9 +185,9 @@ void  DBTransaction::WriteSet::Resize() {
   bool DBTransaction::WriteSet::Lookup(const Slice& key, ValueType* type, Slice* val) 
   {
 	  for(int i = 0; i < elems; i++) {
-		if(keys[i].node.key->Getslice()== key) {
-			*type = values[i].type;
-			*val = values[i].val->Getslice();
+		if(kvs[i].key->Getslice()== key) {
+			*type = kvs[i].type;
+			*val = kvs[i].val->Getslice();
 			return true;
 		}
 	  }
@@ -229,7 +201,7 @@ void  DBTransaction::WriteSet::Resize() {
 	//should holde the mutex of memstore
 	for(int i = 0; i < elems; i++) {
 		//printf("[%lx Commit] Insert Seq %ld Value %s\n", pthread_self(), seqs[i], values[i].val->Getslice());
-		memstore->Add(keys[i].wseq, values[i].type, keys[i].node.key->Getslice(), values[i].val->Getslice());
+		memstore->Add(seqs[i].wseq, kvs[i].type, kvs[i].key->Getslice(), kvs[i].val->Getslice());
 	}
   }
 
@@ -303,9 +275,30 @@ void  DBTransaction::WriteSet::Resize() {
   }
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
+  	//Get the seq addr from the hashtable
+	storemutex->Lock();
+	
+	HashTable::Node* node = latestseq_->GetNode(key);
+		
+	if ( NULL == node) {
+
+		node = new HashTable::Node();
+		HashTable::Data* kp = reinterpret_cast<HashTable::Data*>
+			(malloc(sizeof(HashTable::Data)-1 + key.size()));
+    	kp->length = key.size();
+    	memcpy(kp->contents, key.data(), key.size());
+
+		node->key = kp;
+		node->seq = 0;
+		node->hash = Hash(key.data(), key.size(), 0);
+
+		latestseq_->InsertNode(node);
+	}
+	
+	storemutex->Unlock();
+	
 	//write the key value into local buffer
-	uint64_t h = Hash(key.data(), key.size(), 0);
-	writeset->Add(type, key, h, value);
+	writeset->Add(type, key, value, &node->seq);
   }
 
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)

@@ -70,30 +70,30 @@ public:
 
 	class WriteSet {
 		
-		struct WSValue {
+		struct WSKV{
 			ValueType type; //seq got when read the value
-			Data *val; //pointer to the global memory location 
+			Data *key; //pointer to the written key 
+			Data *val; //pointer to the written value
 		};
 		
-		struct WSKey {
-			HashTable::Node node;
-			uint64_t wseq;
+		struct WSSeqPair {
+			uint64_t wseq; //seq of the written key
+			uint64_t *seqptr; //pointer to the sequence number memory location
 		};
 		
 		private:
 			int max_length;
 			int elems;
 
-			WSKey *keys;
-						
-			WSValue *values;
+			WSSeqPair *seqs;
+			WSKV *kvs;
 
 			void Resize();
 			
 		public:
 			WriteSet();
 			~WriteSet();			
-			void Add(ValueType type, const Slice& key, uint64_t hash, const Slice& val);
+			void Add(ValueType type, const Slice& key, const Slice& val, uint64_t *seqptr);
 			void UpdateGlobalSeqs(HashTable* ht);
 			bool Lookup(const Slice& key, ValueType* type, Slice* val);
 			
