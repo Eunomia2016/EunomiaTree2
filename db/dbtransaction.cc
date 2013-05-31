@@ -107,7 +107,13 @@ void  DBTransaction::ReadSet::Resize() {
 
 	seqs = new WSSeqPair[max_length];
 	kvs = new WSKV[max_length];
-	
+
+	for(int i = 0; i < 64; i++) {
+		cacheset[i] = 0;
+		for(int j = 0; j < 8; j++)
+			cacheaddr[i][j] = 0;
+	}
+
   }
 
   DBTransaction::WriteSet::~WriteSet() {
@@ -138,7 +144,7 @@ void  DBTransaction::WriteSet::Resize() {
 	seqs = nss;
 	kvs = nkv;
   }
-  
+
   void DBTransaction::WriteSet::Add(ValueType type, const Slice& key, 
   											const Slice& val, uint64_t *seqptr)
   {
@@ -170,6 +176,39 @@ void  DBTransaction::WriteSet::Resize() {
 		
   }
 
+   void DBTransaction::WriteSet::TouchAddr(uint64_t addr)
+  {
+  	
+  	 uint64_t caddr = addr >> 12;
+     int index = (int)((addr>>6)&0x3f);
+
+//printf("addr %lx, paddr %lx, index %d\n", addr, caddr, index);
+	 for(int i = 0; i < 8; i++) {
+
+		//printf("set %d , index %d, paddr %lx\n", i, index, cacheaddr[index][i]);
+		
+	 	if(cacheaddr[index][i] == caddr) {
+			//printf("!!!!!\n");
+			return;
+
+		}
+	 }
+	 
+	 cacheset[index]++;
+	 if( cacheset[index] > 8) 
+	 	printf("Cache Set Conflict\n");
+
+	 for(int i = 0; i < 8; i++) {
+	 	if(cacheaddr[index][i] == 0) {
+	 	  	cacheaddr[index][i] = caddr;
+				//		printf("XXX\n");
+			return;
+	 	}
+	 }
+
+  }
+
+  
   void DBTransaction::WriteSet::UpdateGlobalSeqs(HashTable* ht) {
 
 	//This function should be protected by rtm or mutex
@@ -178,6 +217,11 @@ void  DBTransaction::WriteSet::Resize() {
 		seqs[i].wseq = *seqs[i].seqptr;
 		seqs[i].wseq++;
 		*seqs[i].seqptr = seqs[i].wseq;
+
+		TouchAddr((uint64_t)&seqs[i].wseq);
+		TouchAddr((uint64_t)&seqs[i].seqptr);
+		TouchAddr((uint64_t)seqs[i].seqptr);
+		
 	}
 
   }
@@ -349,8 +393,8 @@ void  DBTransaction::WriteSet::Resize() {
 	
 
 	//writeset->PrintHashTable();	
-	RTMScope rtm(&rtmProf);
-	//MutexLock mu(storemutex);
+	//RTMScope rtm(&rtmProf);
+	MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))
