@@ -197,12 +197,14 @@ void  DBTransaction::WriteSet::Resize() {
 	 }
 	 
 	 cacheset[index]++;
+	 static int count = 0;
 	 if( cacheset[index] > 8) {
-	 	printf("Cache Set Conflict type %d\n", type);
+	 	count++;
+	 	printf("Cache Set [%d] Conflict type %d\n", index ,type );
 		for(int i = 0; i < 8; i++) { 
 			printf("[%d] ", cachetypes[index][i]);
 		}
-		printf("\n");
+		printf(" %d \n", count);
 	 }
 
 	 for(int i = 0; i < 8; i++) {

@@ -103,7 +103,7 @@ void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
 
 HashTable::Node* HashTable::NewNode(const Slice & key)
 {
-	Node* e = reinterpret_cast<Node*>(arena_->Allocate(
+	Node* e = reinterpret_cast<Node*>(arena_->AllocateAligned(
       sizeof(Node) + (key.size() - 1)));
 
 	e->key_length = key.size();

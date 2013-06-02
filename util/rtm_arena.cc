@@ -4,21 +4,30 @@
 
 #include "util/rtm_arena.h"
 #include <assert.h>
+#include <stdio.h>
 
 namespace leveldb {
 
-static const int kBlockSize = 4096;
+static const int kBlockSize = 4096*64;
 
 RTMArena::RTMArena() {
   blocks_memory_ = 0;
   alloc_ptr_ = NULL;  // First allocation will allocate a block
   alloc_bytes_remaining_ = 0;
+  for(int i = 0; i < 64; i ++)
+  	cacheset[i] = 0;
+
+  cachelineaddr = 0;
 }
 
 RTMArena::~RTMArena() {
   for (size_t i = 0; i < blocks_.size(); i++) {
     delete[] blocks_[i];
   }
+  for(int i = 0; i < 64; i ++)
+  	printf("cacheset[%d] %d ", i, cacheset[i]);
+
+  printf("\n");
 }
 
 char* RTMArena::AllocateFallback(size_t bytes) {
@@ -40,6 +49,7 @@ char* RTMArena::AllocateFallback(size_t bytes) {
 }
 
 char* RTMArena::AllocateAligned(size_t bytes) {
+	//printf("Alloca size %d\n", bytes);
   const int align = sizeof(void*);    // We'll align to pointer size
   assert((align & (align-1)) == 0);   // Pointer size should be a power of 2
   size_t current_mod = reinterpret_cast<uintptr_t>(alloc_ptr_) & (align-1);
@@ -54,6 +64,13 @@ char* RTMArena::AllocateAligned(size_t bytes) {
     // AllocateFallback always returned aligned memory
     result = AllocateFallback(bytes);
   }
+
+  if( cachelineaddr != (uint64_t)result >> 6) {
+  	cachelineaddr = (uint64_t)result >> 6;
+  	int index = (int)(((uint64_t)result>>6)&0x3f);
+  	cacheset[index]++;
+  }
+  
   assert((reinterpret_cast<uintptr_t>(result) & (align-1)) == 0);
   return result;
 }

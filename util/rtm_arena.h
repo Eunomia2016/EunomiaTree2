@@ -40,6 +40,8 @@ class RTMArena {
 
   // Array of new[] allocated memory blocks
   std::vector<char*> blocks_;
+  uint64_t cachelineaddr;
+  int cacheset[64];
 
   // Bytes of memory in blocks allocated so far
   size_t blocks_memory_;
@@ -53,14 +55,16 @@ inline char* RTMArena::Allocate(size_t bytes) {
   // The semantics of what to return are a bit messy if we allow
   // 0-byte allocations, so we disallow them here (we don't need
   // them for our internal use).
+  char *result = NULL;
   assert(bytes > 0);
   if (bytes <= alloc_bytes_remaining_) {
-    char* result = alloc_ptr_;
+    result = alloc_ptr_;
     alloc_ptr_ += bytes;
     alloc_bytes_remaining_ -= bytes;
-    return result;
+  } else {
+  	result =  AllocateFallback(bytes);
   }
-  return AllocateFallback(bytes);
+  return result;
 }
 
 }  // namespace leveldb

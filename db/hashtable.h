@@ -30,9 +30,9 @@ class HashTable {
   
   struct Node 
   {
-	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
-	  Node* next;
 	  uint64_t seq;
+	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
+	  Node* next;  
 	  
 	  uint32_t key_length;
 	  char key_contents[1];
