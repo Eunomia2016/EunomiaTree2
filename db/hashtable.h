@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include "leveldb/slice.h"
 #include <stdlib.h>
+#include "util/rtm_arena.h"
 
 namespace leveldb {
 
@@ -51,11 +52,12 @@ class HashTable {
   bool GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr);
   
   void UpdateWithHash(uint64_t hash, uint64_t seq);
+
+  Node* NewNode(const Slice & key);
   
   HashTable::Node* Insert(const Slice& key, uint64_t seq);
   
   bool Lookup(const Slice& key, uint64_t *seq_ptr);
-
   
   Node* GetNode(const Slice& key);
   
@@ -76,6 +78,8 @@ class HashTable {
   int elems_;
   Node** list_;
 
+  RTMArena* arena_;    // Arena used for allocations of nodes
+  
   void Resize();
   uint32_t HashSlice(const Slice& s);
   Node** FindNode(const Slice& key, uint32_t hash); 

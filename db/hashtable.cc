@@ -14,10 +14,13 @@
 namespace leveldb {
 
 HashTable::HashTable() : length_(0), elems_(0), list_(NULL) {
+	arena_ = new RTMArena();
     Resize();
 }
 
 HashTable::~HashTable() {
+	delete arena_;
+	delete[] list_;
 	//TODO garbage collection
 	/*
 	int i = 0;
@@ -97,16 +100,24 @@ void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
     }
 }
 
+
+HashTable::Node* HashTable::NewNode(const Slice & key)
+{
+	Node* e = reinterpret_cast<Node*>(arena_->AllocateAligned(
+      sizeof(Node) + (key.size() - 1)));
+
+	e->key_length = key.size();
+	memcpy(e->key_contents, key.data(), key.size());
+	
+    return e;
+}
+
 HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 {
-	Node* e = reinterpret_cast<Node*>(
-    	malloc(sizeof(Node)-1 + key.size()));
+	Node* e = NewNode(key);
 	e->seq = seq;
-	e->hash = HashSlice(key);
 	e->next = NULL;
-    e->key_length = key.size();
-	
-    memcpy(e->key_contents, key.data(), key.size());
+	e->hash = HashSlice(key);   
 	
     InsertNode(e);
 	
