@@ -30,7 +30,7 @@ class HashTable {
   
   struct Node 
   {
-	  uint64_t seq;
+	  uint64_t *seqaddr;
 	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
 	  Node* next;  
 	  
@@ -40,6 +40,12 @@ class HashTable {
 	  Slice Getkey() const {
 		return Slice(key_contents, key_length);
 	}
+  };
+
+  struct SeqNumber
+  {
+	  uint64_t seq;
+	  char padding[48];
   };
 
 
@@ -78,7 +84,11 @@ class HashTable {
   int elems_;
   Node** list_;
 
+  int seqIndex;
+  SeqNumber* seqs;
+  
   RTMArena* arena_;    // Arena used for allocations of nodes
+  
   
   void Resize();
   uint32_t HashSlice(const Slice& s);

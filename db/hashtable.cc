@@ -39,6 +39,11 @@ HashTable::~HashTable() {
 void HashTable::Resize() 
 {
 	uint32_t new_length = 16384;
+	
+	seqs = reinterpret_cast<SeqNumber*>
+		(arena_->AllocateAligned(new_length * sizeof(SeqNumber)));
+	seqIndex = 0;
+	
 	while (new_length < elems_) {
 	  new_length *= 2;
 	}
@@ -72,8 +77,8 @@ bool HashTable::GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr)
 
 	  if(ptr->hash == hash) {
 
-		if(max < ptr->seq)
-			max = ptr->seq;
+		if(max < *ptr->seqaddr)
+			max = *ptr->seqaddr;
 	  }
       ptr = ptr->next;
     }
@@ -94,7 +99,7 @@ void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
     while (ptr != NULL) {
 
 	  if(ptr->hash == hash) 
-		ptr->seq = seq;
+		*ptr->seqaddr = seq;
 	  
       ptr = ptr->next;
     }
@@ -114,11 +119,15 @@ HashTable::Node* HashTable::NewNode(const Slice & key)
 
 HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 {
+	seqs[seqIndex].seq = seq;
+	
 	Node* e = NewNode(key);
-	e->seq = seq;
+	e->seqaddr = &seqs[seqIndex].seq;
 	e->next = NULL;
 	e->hash = HashSlice(key);   
-	
+
+	seqIndex++;
+
     InsertNode(e);
 	
     return e;
@@ -143,7 +152,7 @@ bool HashTable::Update(const Slice& key,  uint64_t seq)
     Node** ptr = FindNode(key, HashSlice(key));
     assert(ptr != NULL && *ptr != NULL);
 	
-    (*ptr)->seq = seq;
+    *(*ptr)->seqaddr = seq;
 	
     return true;
 }
@@ -154,7 +163,7 @@ bool HashTable::Lookup(const Slice& key, uint64_t *seq_ptr)
     Node** ptr = FindNode(key, HashSlice(key));
     if(ptr == NULL || *ptr == NULL)
 	return false;
-    *seq_ptr = (*ptr)->seq;
+    *seq_ptr = *(*ptr)->seqaddr;
     return true;
 }
 
@@ -177,7 +186,7 @@ void HashTable::PrintHashTable()
         Node** ptr = &list_[i];
         while (*ptr != NULL) {
 			count++;
-	   printf("Hash: %ld, Seq: %ld  ",  (*ptr)->hash, (*ptr)->seq);
+	   printf("Hash: %ld, Seq: %ld  ",  (*ptr)->hash, *(*ptr)->seqaddr);
            ptr = &(*ptr)->next;
         }
 	printf("\n");

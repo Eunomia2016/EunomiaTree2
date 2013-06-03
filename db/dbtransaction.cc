@@ -341,7 +341,7 @@ void  DBTransaction::WriteSet::Resize() {
 	storemutex->Unlock();
 	
 	//write the key value into local buffer
-	writeset->Add(type, key, value, &node->seq);
+	writeset->Add(type, key, value, node->seqaddr);
   }
 
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
@@ -379,7 +379,7 @@ void  DBTransaction::WriteSet::Resize() {
 		return found;
 	}
 
-	seq = node->seq;
+	seq = *node->seqaddr;
 	
 	//construct the lookup key and find the key value in the in memory storage
 	LookupKey lkey(key, seq);
@@ -394,7 +394,7 @@ void  DBTransaction::WriteSet::Resize() {
 	}
 
 	// step 3. put into the read set
-	readset->Add(node->hash, seq, &node->seq);
+	readset->Add(node->hash, seq, node->seqaddr);
 	
 	return found;
   }

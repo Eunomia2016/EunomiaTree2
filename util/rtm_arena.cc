@@ -24,10 +24,11 @@ RTMArena::~RTMArena() {
   for (size_t i = 0; i < blocks_.size(); i++) {
     delete[] blocks_[i];
   }
+  /*
   for(int i = 0; i < 64; i ++)
   	printf("cacheset[%d] %d ", i, cacheset[i]);
 
-  printf("\n");
+  printf("\n");*/
 }
 
 char* RTMArena::AllocateFallback(size_t bytes) {
@@ -64,13 +65,14 @@ char* RTMArena::AllocateAligned(size_t bytes) {
     // AllocateFallback always returned aligned memory
     result = AllocateFallback(bytes);
   }
-
+  
+/*
   if( cachelineaddr != (uint64_t)result >> 6) {
   	cachelineaddr = (uint64_t)result >> 6;
   	int index = (int)(((uint64_t)result>>6)&0x3f);
   	cacheset[index]++;
   }
-  
+  */
   assert((reinterpret_cast<uintptr_t>(result) & (align-1)) == 0);
   return result;
 }
