@@ -119,7 +119,16 @@ void  DBTransaction::ReadSet::Resize() {
   }
 
   DBTransaction::WriteSet::~WriteSet() {
+/*
+	for(int index = 0; index < 64; index++) {
 
+	 	printf("Cache Set [%d] count %d\n", index, cacheset[index]);
+		for(int i = 0; i < 8; i++) {
+			printf("[%lx] ",  cacheaddr[index][i]);
+		}
+		printf("\n");
+	}
+	*/
 	delete[] seqs;
 	for(int i = 0; i < elems; i++) {
 		free(kvs[i].key);
@@ -175,6 +184,8 @@ void  DBTransaction::WriteSet::Resize() {
 
 	seqs[cur].seqptr = seqptr;
 	seqs[cur].wseq = 0;
+
+	TouchAddr((uint64_t)seqptr, 3);
 		
   }
 
@@ -202,7 +213,7 @@ void  DBTransaction::WriteSet::Resize() {
 	 	count++;
 	 	printf("Cache Set [%d] Conflict type %d\n", index ,type );
 		for(int i = 0; i < 8; i++) { 
-			printf("[%d] ", cachetypes[index][i]);
+			printf("[%d][%lx] ", cachetypes[index][i], cacheaddr[index][i]);
 		}
 		printf(" %d \n", count);
 	 }
@@ -228,9 +239,9 @@ void  DBTransaction::WriteSet::Resize() {
 		seqs[i].wseq++;
 		*seqs[i].seqptr = seqs[i].wseq;
 
-		TouchAddr((uint64_t)&seqs[i].wseq, 1);
-		TouchAddr((uint64_t)&seqs[i].seqptr, 2);
-		TouchAddr((uint64_t)seqs[i].seqptr, 3);
+	//	TouchAddr((uint64_t)&seqs[i].wseq, 1);
+	//	TouchAddr((uint64_t)&seqs[i].seqptr, 2);
+	//	TouchAddr((uint64_t)seqs[i].seqptr, 3);
 		
 	}
 
@@ -286,6 +297,7 @@ void  DBTransaction::WriteSet::Resize() {
 	readset = NULL;
 	writeset = NULL;
 
+	count = 0;
   }
   
   DBTransaction::~DBTransaction()
@@ -333,14 +345,19 @@ void  DBTransaction::WriteSet::Resize() {
 	storemutex->Lock();
 	
 	HashTable::Node* node = latestseq_->GetNode(key);
-		
-	if ( NULL == node) 
-		node = latestseq_->Insert(key, 0); //insert an empty node
 	
+	if ( NULL == node) {
+//		printf("Insert %d\n", count);
+		node = latestseq_->Insert(key, 0); //insert an empty node
+	}
 	
 	storemutex->Unlock();
 	
 	//write the key value into local buffer
+	//count++;
+//	if(count == 1 || count == 300)
+	//	printf("seqaddr %lx\n", node->seqaddr);
+	
 	writeset->Add(type, key, value, node->seqaddr);
   }
 
@@ -403,8 +420,8 @@ void  DBTransaction::WriteSet::Resize() {
 	
 
 	//writeset->PrintHashTable();	
-	//RTMScope rtm(&rtmProf);
-	MutexLock mu(storemutex);
+	RTMScope rtm(&rtmProf);
+	//MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))

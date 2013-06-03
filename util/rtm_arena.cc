@@ -8,7 +8,7 @@
 
 namespace leveldb {
 
-static const int kBlockSize = 4096*64;
+static const int kBlockSize = 4096;
 
 RTMArena::RTMArena() {
   blocks_memory_ = 0;
@@ -22,6 +22,7 @@ RTMArena::RTMArena() {
 
 RTMArena::~RTMArena() {
   for (size_t i = 0; i < blocks_.size(); i++) {
+  	//printf("Free %lx\n", blocks_[i]);
     delete[] blocks_[i];
   }
   /*
@@ -79,6 +80,7 @@ char* RTMArena::AllocateAligned(size_t bytes) {
 
 char* RTMArena::AllocateNewBlock(size_t block_bytes) {
   char* result = new char[block_bytes];
+  //printf("Allocate %lx\n", result);
   blocks_memory_ += block_bytes;
   blocks_.push_back(result);
   return result;

@@ -21,7 +21,7 @@ class DBTransaction {
  public:
 
 	RTMProfile rtmProf;
-	
+	int count;
 	explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
 	~DBTransaction();
 

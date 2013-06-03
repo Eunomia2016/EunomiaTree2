@@ -20,33 +20,21 @@ HashTable::HashTable() : length_(0), elems_(0), list_(NULL) {
 
 HashTable::~HashTable() {
 	delete arena_;
-	delete[] list_;
-	//TODO garbage collection
-	/*
-	int i = 0;
-    for(; i < length_; i++) {
-        Node** ptr = &list_[i];
-        while (*ptr != NULL) {
-		   Node* tmp = *ptr;
-           ptr = &(*ptr)->next;
-		   tmp->Unref();
-        }
-    }
-	delete[] list_;*/
-	
+	delete[] list_;	
 }
 
 void HashTable::Resize() 
 {
 	uint32_t new_length = 16384;
 	
+	while (new_length < elems_) {
+	  new_length *= 2;
+	}
+
 	seqs = reinterpret_cast<SeqNumber*>
 		(arena_->AllocateAligned(new_length * sizeof(SeqNumber)));
 	seqIndex = 0;
 	
-	while (new_length < elems_) {
-	  new_length *= 2;
-	}
 	Node** new_list = new Node*[new_length];
 	memset(new_list, 0, sizeof(new_list[0]) * new_length);
 	uint32_t count = 0;
@@ -127,7 +115,7 @@ HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 	e->hash = HashSlice(key);   
 
 	seqIndex++;
-
+//	printf("seqIndex %d\n", seqIndex);
     InsertNode(e);
 	
     return e;
@@ -247,15 +235,15 @@ HashTable::Node* HashTable::InsertNode(Node* h)
     h->next = ptr;
     list_[h->hash & (length_ - 1)] = h;
 	
-    /*
-    if (old == NULL) {
-      ++elems_;
-      if (elems_ > length_) {
-        // Since each cache entry is fairly large, we aim for a small
-        // average linked list length (<= 1).
-        Resize();
-      }
-    }*/
+        
+    ++elems_;
+    if (elems_ > length_) {
+      // Since each cache entry is fairly large, we aim for a small
+      // average linked list length (<= 1).
+      printf("resize\n");
+      Resize();
+    }
+    
     return ptr;  
 }
 
