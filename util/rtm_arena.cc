@@ -52,7 +52,7 @@ char* RTMArena::AllocateFallback(size_t bytes) {
 
 char* RTMArena::AllocateAligned(size_t bytes) {
 	//printf("Alloca size %d\n", bytes);
-  const int align = sizeof(void*);    // We'll align to pointer size
+  const int align = 64;    // We'll align to cache line
   assert((align & (align-1)) == 0);   // Pointer size should be a power of 2
   size_t current_mod = reinterpret_cast<uintptr_t>(alloc_ptr_) & (align-1);
   size_t slop = (current_mod == 0 ? 0 : align - current_mod);

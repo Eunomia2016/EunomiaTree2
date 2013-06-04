@@ -218,12 +218,8 @@ private:
 		   int wnum = write_count;
 		   
 		   //printf("DoWrite %d\n", total_count);
-		   int count = 0;
 			while(total_count > 0) {
-				count++;
-				if(count == 1589)
-					printf("\n TX %d\n", count);
-
+				
 				int64_t oldv = XADD64(&total_count, -1);
 				if(oldv <= 0)
 					   break;

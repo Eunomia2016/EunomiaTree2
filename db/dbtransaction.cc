@@ -185,7 +185,7 @@ void  DBTransaction::WriteSet::Resize() {
 	seqs[cur].seqptr = seqptr;
 	seqs[cur].wseq = 0;
 
-	TouchAddr((uint64_t)seqptr, 3);
+	//TouchAddr((uint64_t)seqptr, 3);
 		
   }
 

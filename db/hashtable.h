@@ -45,7 +45,7 @@ class HashTable {
   struct SeqNumber
   {
 	  uint64_t seq;
-	  char padding[64];
+	  char padding[56];
   };
 
 
