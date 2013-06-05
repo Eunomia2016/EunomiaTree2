@@ -2,18 +2,18 @@
 #include <climits>
 #include <cstdio>
 #include <inttypes.h>
-/*
-#include "clock.h"
-#include "randomgenerator.h"
-#include "tpccclient.h"
-#include "tpccgenerator.h"
-#include "tpcctables.h"
-*/
+
+#include "tpcc/clock.h"
+#include "tpcc/randomgenerator.h"
+#include "tpcc/tpccclient.h"
+#include "tpcc/tpccgenerator.h"
+#include "tpcc/tpcctables.h"
+
 
 static const int NUM_TRANSACTIONS = 200000;
 
 int main(int argc, const char* argv[]) {
-	/*
+	
     if (argc != 2) {
         fprintf(stderr, "tpcc [num warehouses]\n");
         exit(1);
@@ -73,7 +73,7 @@ int main(int argc, const char* argv[]) {
     int64_t microseconds = end - begin;
     printf("%d transactions in %"PRId64" ms = %f txns/s\n", NUM_TRANSACTIONS,
             (microseconds + 500)/1000, NUM_TRANSACTIONS / (double) microseconds * 1000000.0);
-*/
+
 	printf("Hello World\n");
     return 0;
 }
