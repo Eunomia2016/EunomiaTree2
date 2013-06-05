@@ -327,6 +327,49 @@ Slice TPCCLevelDB::marshallNewOrderKey(NewOrder no) {
   return k;
 }
 
+//Stock
+Slice TPCCLevelDB::marshallStockKey(int32_t s_w_id, int32_t s_i_id) {
+  char* key = new char[14];
+  key = "STOCK_";
+  EncodeInt32_t(key + 6, s_i_id);
+  EncodeInt32_t(key + 10, s_w_id);
+  Slice k(key);
+  return k;
+}
+
+Slice TPCCLevelDB::marshallStockValue(Stock s) {
+  char* value = new char[];
+  char* start = value;
+
+  int length = sizeof(uint32_t);			//0
+  EncodeInt32_t(start, s.s_quantity);
+  start += length;
+
+  length = 25;								//4+ i * 25
+  for (int i:=0; i<10; i++) {
+  	memcpy(start, s.s_dist[i], length);
+    start += length;
+  }
+
+  length = sizeof(uint32_t);				//254
+  EncodeInt32_t(start, s.s_ytd);
+  start += length;
+
+  length = sizeof(uint32_t);				//258
+  EncodeInt32_t(start, s.s_order_cnt);
+  start += length;
+
+  length = sizeof(uint32_t);				//262
+  EncodeInt32_t(start, s.s_remote_cnt);
+  start += length;
+
+  length = sizeof(s.s_data);				//264
+  memcpy(start, s.s_data, length);
+
+  Slice v(value);
+  return v;
+}
+
 //Insert Tuples
 Order* TPCCLevelDB::insertOrder(const Order& order) {
   Slice o_key = marshallOrderKey(order.o_w_id, order.o_d_id, order.o_id);
@@ -440,8 +483,49 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   Slice no_value = Slice();
   tx.add(t, no_key, no_value);
 
+
   //-------------------------------------------------------------------------
-  //
+  //For each O_OL_CNT item on the order:
+  //-------------------------------------------------------------------------
+
+  vector<Item*> item_tuples(items.size());
+  OrderLine line;
+  line.ol_o_id = output->o_id;
+  line.ol_d_id = district_id;
+  line.ol_w_id = warehouse_id;
+  memset(line.ol_delivery_d, 0, DATETIME_SIZE+1);
+  output->items.resize(items.size());
+  output->total = 0;
+  for (int i = 0; i < items.size(); ++i) {
+
+	//-------------------------------------------------------------------------
+	//The row in the ITEM table with matching I_ID (equals OL_I_ID) is selected 
+	//and I_PRICE, the price of the item, I_NAME, the name of the item, and I_DATA are retrieved. 
+	//If I_ID has an unused value, a "not-found" condition is signaled, resulting in a rollback of the database transaction.
+	//-------------------------------------------------------------------------
+
+	//-------------------------------------------------------------------------
+	//The row in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals OL_SUPPLY_W_ID) is selected. 
+	//S_QUANTITY, the quantity in stock, S_DIST_xx, where xx represents the district number, and S_DATA are retrieved. 
+	//If the retrieved value for S_QUANTITY exceeds OL_QUANTITY by 10 or more, 
+	//then S_QUANTITY is decreased by OL_QUANTITY; 
+	//otherwise S_QUANTITY is updated to (S_QUANTITY - OL_QUANTITY)+91.
+	//S_YTD is increased by OL_QUANTITY and S_ORDER_CNT is incremented by 1. 
+	//If the order-line is remote, then S_REMOTE_CNT is incremented by 1.
+	//-------------------------------------------------------------------------
+	Slice s_key = marshallStockKey(items[i].ol_supply_w_id, items[i].i_id);
+	Status s_s;
+    std::string *s_value = new std::string();
+    tx.get(s_key, s_value, &s_s);
+    char *s_data = getS_DATA(*s_value);
+	
+	line.ol_number = i+1;
+    line.ol_i_id = items[i].i_id;
+    line.ol_supply_w_id = items[i].ol_supply_w_id;
+    line.ol_quantity = items[i].ol_quantity;
+    assert(sizeof(line.ol_dist_info) == sizeof(stock->s_dist[district_id]));
+    memcpy(line.ol_dist_info, stock->s_dist[district_id], sizeof(line.ol_dist_info));
+  }
   
 }
 
