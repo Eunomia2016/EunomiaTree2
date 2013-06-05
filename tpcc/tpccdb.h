@@ -433,6 +433,16 @@ class TPCCDB {
 public:
     virtual ~TPCCDB() {}
 
+	virtual void insertItem(const Item& item) = 0;
+	virtual void insertStock(const Stock& stock) = 0;
+	virtual void insertWarehouse(const Warehouse& warehouse) = 0;
+	virtual void insertDistrict(const District& district) = 0;
+    virtual void insertCustomer(const Customer& customer) = 0;
+	virtual Order* insertOrder(const Order& order) = 0;
+    virtual OrderLine* insertOrderLine(const OrderLine& orderline) = 0;
+    virtual NewOrder* insertNewOrder(int32_t w_id, int32_t d_id, int32_t o_id) = 0;
+    virtual History* insertHistory(const History& history) = 0;
+
     // Executes the TPC-C "slev" transaction. From the last 20 orders, returns the number of rows in
     // the STOCK table that have S_QUANTITY < threshold. See TPC-C 2.8 (page 43).
     virtual int32_t stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold) = 0;

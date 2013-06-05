@@ -24,7 +24,7 @@ public:
     void generateItem(int32_t id, bool original, Item* item);
 
     // Generates num_items items and inserts them into tables.
-    void makeItemsTable(TPCCTables* tables);
+    void makeItemsTable(TPCCDB* tables);
 
     // Fills warehouse with random data according to the TPC-C specification 4.3.3.1.
     void generateWarehouse(int32_t id, Warehouse* warehouse);
@@ -47,14 +47,14 @@ public:
     void generateHistory(int32_t c_id, int32_t d_id, int32_t w_id, History* history);
 
     // Generates stock rows for w_id.
-    void makeStock(TPCCTables* tables, int32_t w_id);
+    void makeStock(TPCCDB* tables, int32_t w_id);
 
     // Generates one warehouse and all related rows.
-    void makeWarehouse(TPCCTables* tables, int32_t w_id);
+    void makeWarehouse(TPCCDB* tables, int32_t w_id);
 
     // Generates one warehouse and related rows, except stock.
     // TODO: This exists to support partitioning. Does this make sense?
-    void makeWarehouseWithoutStock(TPCCTables* tables, int32_t w_id);
+    void makeWarehouseWithoutStock(TPCCDB* tables, int32_t w_id);
 
 private:
     tpcc::RandomGenerator* random_;
