@@ -26,6 +26,7 @@ class DBTransaction {
 	~DBTransaction();
 
 	void Begin();
+	bool Abort();
 	bool End();
 	void Add(ValueType type, Slice& key, Slice& value);
 	bool Get(const Slice& key, std::string* value, Status* s);

@@ -330,6 +330,11 @@ void  DBTransaction::WriteSet::Resize() {
 	readset = new ReadSet();
 	writeset = new WriteSet();
   }
+
+  bool Abort()
+  {
+	return false;
+  }
   
   bool DBTransaction::End()
   {
