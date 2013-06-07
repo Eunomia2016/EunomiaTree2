@@ -409,6 +409,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 	Status res;
 	//may be not found, should wait for a while
+
 	do{
 		
 		storemutex->Lock();

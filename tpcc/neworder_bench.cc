@@ -10,7 +10,7 @@
 #include "tpcc/tpcctables.h"
 #include "tpcc/tpccleveldb.h"
 
-static const int NUM_TRANSACTIONS = 10;
+static const int NUM_TRANSACTIONS = 100000;
 
 int main(int argc, const char* argv[]) {
 	
@@ -69,6 +69,7 @@ int main(int argc, const char* argv[]) {
     begin = clock->getMicroseconds();
     for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
         client.doNewOrder();
+		printf("commit %d\n", i);
     }
     end = clock->getMicroseconds();
     int64_t microseconds = end - begin;

@@ -103,6 +103,8 @@ void MemTable::Add(SequenceNumber s, ValueType type,
   p = EncodeVarint32(p, val_size);
   memcpy(p, value.data(), val_size);
   assert((p + val_size) - buf == encoded_len);
+  //int count = 0;
+  //printf("Add %d\n",count++);
   table_.Insert(buf);
 }
 

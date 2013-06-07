@@ -606,8 +606,10 @@ OrderLine* TPCCLevelDB::insertOrderLine(const OrderLine & orderline){
   Slice *v = marshallOrderLineValue(orderline);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
+
   memstore_->Put(*k, *v ,s);
   latestseq_->Insert(*k, s);
+
   //printf("OL\n");
   return const_cast<OrderLine *>(&orderline);
 }
@@ -617,6 +619,7 @@ void TPCCLevelDB::insertItem(const Item& item) {
   Slice *v = marshallItemValue(item);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
+
   memstore_->Put(*k, *v ,s);
   latestseq_->Insert(*k, s);
   //printf("I \n");
@@ -627,6 +630,7 @@ void TPCCLevelDB::insertStock(const Stock & stock){
   Slice *v = marshallStockValue(stock);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
+
   memstore_->Put(*k, *v ,s);
   latestseq_->Insert(*k, s);
   //printf("S\n");
