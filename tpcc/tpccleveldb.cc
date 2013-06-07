@@ -475,7 +475,7 @@ Item TPCCLevelDB::unmarshallItemValue(std::string &value) {
 }
 
 //OrderLine
-Slice marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32_t ol_o_id, int32_t ol_number){
+Slice TPCCLevelDB::marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32_t ol_o_id, int32_t ol_number){
   char* key = new char[26];
   memcpy(key, "ORDERLINE_", 10);
   EncodeInt32_t(key + 10, ol_o_id);
@@ -486,7 +486,7 @@ Slice marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32_t ol_o_id, in
   return k;
 }
 
-Slice marshallOrderLineValue(OrderLine line){
+Slice TPCCLevelDB::marshallOrderLineValue(OrderLine line){
   char* value = new char[84];
   char* start = value;
 	
@@ -522,6 +522,14 @@ Slice marshallOrderLineValue(OrderLine line){
   Slice o_value = marshallOrderValue(order);
 }*/
 
+TPCCLevelDB::TPCCLevelDB() {
+  Options options;
+  InternalKeyComparator cmp(options.comparator);
+  latestseq_ = new HashTable();
+  memstore_ = new leveldb::MemTable(cmp);
+  port::Mutex mutex;
+  storemutex = &mutex;
+}
 
 TPCCLevelDB::TPCCLevelDB(uint32_t w_num, HashTable* ht, MemTable* store, port::Mutex* mutex) {
 
@@ -529,6 +537,81 @@ TPCCLevelDB::TPCCLevelDB(uint32_t w_num, HashTable* ht, MemTable* store, port::M
   storemutex = mutex;
   latestseq_ = ht;
   memstore_ = store;
+}
+
+void TPCCLevelDB::insertWarehouse(const Warehouse& warehouse){
+  Slice k = marshallWarehouseKey(warehouse.w_id);
+  Slice v = marshallWarehouseValue(warehouse);
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
+}
+
+void TPCCLevelDB::insertDistrict(const District& district){
+  Slice k = marshallDistrictKey(district.d_w_id, district.d_id);
+  Slice v = marshallDistrictValue(district);
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
+}
+
+void TPCCLevelDB::insertCustomer(const Customer& customer) {
+  Slice k = marshallCustomerKey(customer.c_w_id, customer.c_d_id, customer.c_id);
+  Slice v = marshallCustomerValue(customer);
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
+}
+
+History* TPCCLevelDB::insertHistory(const History& history) {
+  return NULL;
+}
+
+NewOrder* TPCCLevelDB::insertNewOrder(int32_t w_id,int32_t d_id,int32_t o_id) {
+  NewOrder* neworder = new NewOrder();
+  neworder->no_w_id = w_id;
+  neworder->no_d_id = d_id;
+  neworder->no_o_id = o_id;
+  Slice k = marshallNewOrderKey(*neworder);
+  Slice v = Slice();
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
+  return neworder;
+}
+
+Order* TPCCLevelDB::insertOrder(const Order & order){
+  Slice k = marshallOrderKey(order.o_w_id, order.o_d_id, order.o_id);
+  Slice v = marshallOrderValue(order);
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
+  return const_cast<Order *>(&order);
+}
+
+OrderLine* TPCCLevelDB::insertOrderLine(const OrderLine & orderline){
+  Slice k = marshallOrderLineKey(orderline.ol_w_id, orderline.ol_d_id, orderline.ol_o_id, orderline.ol_number);
+  Slice v = marshallOrderLineValue(orderline);
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
+  return const_cast<OrderLine *>(&orderline);
+}
+
+void TPCCLevelDB::insertItem(const Item& item) {
+  Slice k = marshallItemkey(item.i_id);
+  Slice v = marshallItemValue(item);
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
+}
+
+void TPCCLevelDB::insertStock(const Stock & stock){
+  Slice k = marshallStockKey(stock.s_w_id, stock.s_i_id);
+  Slice v = marshallStockValue(stock);
+  ValueType t = kTypeValue;
+  SequenceNumber s = 0;
+  memstore_->Add(s, t, k, v);
 }
 
 bool TPCCLevelDB::newOrder(int32_t warehouse_id, int32_t district_id, int32_t customer_id,
@@ -731,5 +814,65 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   return tx.End();
   
 }
+
+
+
+//not used yet
+bool TPCCLevelDB::newOrderRemote(int32_t home_warehouse, int32_t remote_warehouse,
+            const std::vector<NewOrderItem>& items, std::vector<int32_t>* out_quantities,
+            TPCCUndo** undo){
+  return false;
+}
+
+int32_t TPCCLevelDB::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
+  return 0;
+}
+void TPCCLevelDB::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
+  return;
+}
+void TPCCLevelDB::orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output){
+  return;
+}
+
+void TPCCLevelDB::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+		  int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
+		  PaymentOutput* output, TPCCUndo** undo) {
+  return;
+}
+void TPCCLevelDB::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+		  int32_t c_district_id, const char* c_last, float h_amount, const char* now,
+		  PaymentOutput* output, TPCCUndo** undo) {
+  return;
+}
+void TPCCLevelDB::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+		  int32_t c_district_id, int32_t c_id, float h_amount, const char* now,
+		  PaymentOutput* output, TPCCUndo** undo){
+  return;
+}
+void TPCCLevelDB::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+		  int32_t c_district_id, int32_t c_id, float h_amount, PaymentOutput* output,
+		  TPCCUndo** undo){
+  return;
+}
+void TPCCLevelDB::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+		  int32_t c_district_id, const char* c_last, float h_amount, PaymentOutput* output,
+		  TPCCUndo** undo){
+  return;
+}
+void TPCCLevelDB::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
+		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo){
+  return;
+}
+bool TPCCLevelDB::hasWarehouse(int32_t warehouse_id){
+  return true;
+}
+	
+void TPCCLevelDB::applyUndo(TPCCUndo* undo){
+  return;
+}
+void TPCCLevelDB::freeUndo(TPCCUndo* undo){
+  return;
+}
+
 
 }

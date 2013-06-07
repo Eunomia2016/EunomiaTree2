@@ -8,7 +8,7 @@
 #include "tpcc/tpccclient.h"
 #include "tpcc/tpccgenerator.h"
 #include "tpcc/tpcctables.h"
-
+#include "tpcc/tpccleveldb.h"
 
 static const int NUM_TRANSACTIONS = 200000;
 
@@ -33,7 +33,8 @@ int main(int argc, const char* argv[]) {
         exit(1);
     }
 
-    TPCCTables* tables = new TPCCTables();
+    //TPCCTables* tables = new TPCCTables();
+    leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.
