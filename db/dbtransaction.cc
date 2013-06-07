@@ -336,7 +336,7 @@ void  DBTransaction::WriteSet::Resize() {
 	writeset = new WriteSet();
   }
 
-  bool Abort()
+  bool DBTransaction::Abort()
   {
 	return false;
   }

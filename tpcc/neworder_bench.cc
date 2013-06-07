@@ -10,12 +10,12 @@
 #include "tpcc/tpcctables.h"
 #include "tpcc/tpccleveldb.h"
 
-static const int NUM_TRANSACTIONS = 200000;
+static const int NUM_TRANSACTIONS = 10;
 
 int main(int argc, const char* argv[]) {
 	
     if (argc != 2) {
-        fprintf(stderr, "tpcc [num warehouses]\n");
+        fprintf(stderr, "neworder [num warehouses]\n");
         exit(1);
     }
 
@@ -64,11 +64,11 @@ int main(int argc, const char* argv[]) {
     // Client owns all the parameters
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(num_warehouses),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
-    printf("Running... ");
+    printf("Running... \n");
     fflush(stdout);
     begin = clock->getMicroseconds();
     for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
-        client.doOne();
+        client.doNewOrder();
     }
     end = clock->getMicroseconds();
     int64_t microseconds = end - begin;
