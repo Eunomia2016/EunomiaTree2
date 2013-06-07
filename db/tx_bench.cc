@@ -3,7 +3,6 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "db/txskiplist.h"
-#include "db/memtable.h"
 #include "db/hashtable.h"
 #include "db/dbtransaction.h"
 #include "util/mutexlock.h"

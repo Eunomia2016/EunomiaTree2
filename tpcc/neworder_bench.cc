@@ -10,7 +10,7 @@
 #include "tpcc/tpcctables.h"
 #include "tpcc/tpccleveldb.h"
 
-static const int NUM_TRANSACTIONS = 100000;
+static const int NUM_TRANSACTIONS = 1000000;
 
 int main(int argc, const char* argv[]) {
 	
