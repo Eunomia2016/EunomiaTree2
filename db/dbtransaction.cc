@@ -13,6 +13,7 @@
 #include "util/rtm.h"
 #include "util/hash.h"
 #include "db/txleveldb.h"
+#include "db/txskiplist.h"
 #include "txdb.h"
 
 
@@ -463,9 +464,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 }  // namespace leveldb
 
-
-
-
+/*
 int main()
 {
 	leveldb::ValueType t = leveldb::kTypeValue;
@@ -515,7 +514,53 @@ int main()
 
     return 0;
  }
+*/
 
+//For SkipList
+int main()
+{
+	leveldb::ValueType t = leveldb::kTypeValue;
+	leveldb::HashTable seqs;	
+	leveldb::port::Mutex mutex;
+	
+	leveldb::Options options;
+	leveldb::InternalKeyComparator cmp(options.comparator);
+
+	 leveldb::TXSkiplist* txdb = new leveldb::TXSkiplist(cmp);
+		
+	leveldb::DBTransaction tx(&seqs, txdb, &mutex); 
+	tx.Begin();
+	
+	for(int i = 0; i < 10; i++) {
+		char* key = new char[100];
+		snprintf(key, sizeof(key), "%d", i);
+		leveldb::Slice *k = new leveldb::Slice(key);
+		leveldb::Slice *v = new leveldb::Slice(key);
+		printf("Insert %s ", *k);
+		printf(" Value %s\n", *v);
+		tx.Add(t, *k, *v);
+	}
+
+	tx.End();
+
+	txdb->DumpTXSkiplist();
+
+
+	tx.Begin(); 
+
+	for(int i = 0; i < 10; i++) {
+		char key[100];
+		snprintf(key, sizeof(key), "%d", i);
+		leveldb::Slice k(key);
+		std::string *str = new std::string();
+		leveldb::Status s;
+		tx.Get(k, str, &s);
+		printf("Get %s ", k);
+		printf(" Value %s\n", str->c_str());
+	}
+
+	tx.End();
+}
 
 
 
