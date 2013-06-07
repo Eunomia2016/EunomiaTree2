@@ -107,6 +107,8 @@ HashTable::Node* HashTable::NewNode(const Slice & key)
 
 HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 {
+	uint64_t temp;
+	if (Lookup(key, &temp)) printf("Equal Insert key len %d key %s\n", key.size(), key);
 	seqs[seqIndex].seq = seq;
 	
 	Node* e = NewNode(key);

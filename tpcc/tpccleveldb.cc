@@ -34,7 +34,7 @@ Slice* TPCCLevelDB::marshallWarehouseKey(int32_t w_id) {
   memcpy(key, "WAREHOUSE_", 10);
   EncodeInt32_t(key + 10, w_id);
   //printf("%s %d\n",key,w_id);
-  Slice *k = new Slice(key);
+  Slice *k = new Slice(key, 14);
   return k;
 }
 
@@ -73,7 +73,7 @@ Slice* TPCCLevelDB::marshallWarehouseValue(const Warehouse& w) {
   EncodeFloat(start, w.w_ytd);			//91
   	
   	
-  Slice *v = new Slice(value);
+  Slice *v = new Slice(value, 95);
   return v;
 }
 
@@ -99,7 +99,7 @@ Slice* TPCCLevelDB::marshallDistrictKey(int32_t d_w_id, int32_t d_id) {
   memcpy(key, "DISTRICT_", 9);
   EncodeInt32_t(key + 9, d_id);
   EncodeInt32_t(key + 13, d_w_id);
-  Slice *k = new Slice(key);
+  Slice *k = new Slice(key, 17);
   return k;
 }
 
@@ -140,7 +140,7 @@ Slice* TPCCLevelDB::marshallDistrictValue(const District& d) {
 
   EncodeInt32_t(start, d.d_next_o_id);	//95
   	
-  Slice *v = new Slice(value);
+  Slice *v = new Slice(value, 99);
   return v;
 }
 
@@ -180,7 +180,7 @@ Slice* TPCCLevelDB::marshallCustomerKey(int32_t c_w_id, int32_t c_d_id, int32_t 
   EncodeInt32_t(key + 9, c_id);
   EncodeInt32_t(key + 13, c_d_id);
   EncodeInt32_t(key + 17, c_w_id);
-  Slice* k = new Slice(key);
+  Slice* k = new Slice(key, 21);
   return k;
 }
 
@@ -254,7 +254,7 @@ Slice* TPCCLevelDB::marshallCustomerValue(const Customer& c) {
   length = sizeof(c.c_data);			//172
   memcpy(start, c.c_data, length);
   
-  Slice *v = new Slice(value);
+  Slice *v = new Slice(value, 673);
   return v;
 }
 
@@ -288,7 +288,7 @@ Slice* TPCCLevelDB::marshallOrderKey(int32_t o_w_id, int32_t o_d_id, int32_t o_i
   EncodeInt32_t(key + 9, o_id);
   EncodeInt32_t(key + 13, o_d_id);
   EncodeInt32_t(key + 17, o_w_id);
-  Slice *k = new Slice(key);
+  Slice *k = new Slice(key, 18);
   return k;
 }
 
@@ -313,7 +313,7 @@ Slice* TPCCLevelDB::marshallOrderValue(Order o) {
 
   EncodeInt32_t(start, o.o_all_local);		//27
   
-  Slice *v = new Slice(value);
+  Slice *v = new Slice(value, 31);
   return v;
   
 }
@@ -325,7 +325,7 @@ Slice* TPCCLevelDB::marshallNewOrderKey(const NewOrder& no) {
   EncodeInt32_t(key + 9, no.no_o_id);
   EncodeInt32_t(key + 13, no.no_d_id);
   EncodeInt32_t(key + 17, no.no_w_id);
-  Slice *k = new Slice(key);
+  Slice *k = new Slice(key, 21);
   return k;
 }
 
@@ -335,7 +335,7 @@ Slice* TPCCLevelDB::marshallStockKey(int32_t s_w_id, int32_t s_i_id) {
   memcpy(key, "STOCK_", 6);
   EncodeInt32_t(key + 6, s_i_id);
   EncodeInt32_t(key + 10, s_w_id);
-  Slice *k = new Slice(key);
+  Slice *k = new Slice(key, 14);
   return k;
 }
 
@@ -368,7 +368,7 @@ Slice* TPCCLevelDB::marshallStockValue(Stock s) {
   length = sizeof(s.s_data);				//264
   memcpy(start, s.s_data, length);
 
-  Slice *v = new Slice(value);
+  Slice *v = new Slice(value, 315);
   return v;
 }
 
@@ -393,7 +393,7 @@ Stock TPCCLevelDB::unmarshallStockValue(std::string& value) {
   s.s_remote_cnt = *reinterpret_cast<int32_t *>(v);
   v += 4;
 
-  memcpy(s.s_data, v, 3);
+  memcpy(s.s_data, v, 51);
   
   return s;
 }
@@ -431,7 +431,7 @@ Slice* TPCCLevelDB::marshallItemkey(int32_t i_id) {
   char* key = new char[9];
   memcpy(key, "ITEM_", 5);
   EncodeInt32_t(key + 5, i_id);
-  Slice *k = new Slice(key);
+  Slice *k = new Slice(key, 9);
   return k;
 }
 
@@ -454,7 +454,7 @@ Slice* TPCCLevelDB::marshallItemValue(Item i) {
   length = sizeof(i.i_data);				//33
   memcpy(start, i.i_data, length);
 
-  Slice *v = new Slice(value);
+  Slice *v = new Slice(value, 84);
   return v;
 }
 
@@ -485,7 +485,7 @@ Slice* TPCCLevelDB::marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32
   EncodeInt32_t(key + 14, ol_d_id);
   EncodeInt32_t(key + 18, ol_w_id);
   EncodeInt32_t(key + 22, ol_number);
-  Slice *k = new Slice(key);
+  Slice *k = new Slice(key, 26);
   return k;
 }
 
@@ -515,7 +515,7 @@ Slice* TPCCLevelDB::marshallOrderLineValue(OrderLine line){
   memcpy(start, line.ol_dist_info, length);
   start += length;
 
-  Slice *v = new Slice(value);
+  Slice *v = new Slice(value, 84);
   return v;
 }
 
@@ -548,6 +548,7 @@ void TPCCLevelDB::insertWarehouse(const Warehouse& warehouse){
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("W\n");
 }
 
 void TPCCLevelDB::insertDistrict(const District& district){
@@ -557,6 +558,7 @@ void TPCCLevelDB::insertDistrict(const District& district){
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("D\n");
 }
 
 void TPCCLevelDB::insertCustomer(const Customer& customer) {
@@ -566,6 +568,7 @@ void TPCCLevelDB::insertCustomer(const Customer& customer) {
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("C\n");
 }
 
 History* TPCCLevelDB::insertHistory(const History& history) {
@@ -583,6 +586,7 @@ NewOrder* TPCCLevelDB::insertNewOrder(int32_t w_id,int32_t d_id,int32_t o_id) {
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("NO\n");
   return neworder;
 }
 
@@ -593,6 +597,7 @@ Order* TPCCLevelDB::insertOrder(const Order & order){
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("O\n");
   return const_cast<Order *>(&order);
 }
 
@@ -603,6 +608,7 @@ OrderLine* TPCCLevelDB::insertOrderLine(const OrderLine & orderline){
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("OL\n");
   return const_cast<OrderLine *>(&orderline);
 }
 
@@ -613,6 +619,7 @@ void TPCCLevelDB::insertItem(const Item& item) {
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("I \n");
 }
 
 void TPCCLevelDB::insertStock(const Stock & stock){
@@ -622,6 +629,7 @@ void TPCCLevelDB::insertStock(const Stock & stock){
   SequenceNumber s = 1;
   memstore_->Add(s, t, *k, *v);
   latestseq_->Insert(*k, 1);
+  //printf("S\n");
 }
 
 bool TPCCLevelDB::newOrder(int32_t warehouse_id, int32_t district_id, int32_t customer_id,
@@ -755,7 +763,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	//and I_PRICE, the price of the item, I_NAME, the name of the item, and I_DATA are retrieved. 
 	//If I_ID has an unused value, a "not-found" condition is signaled, resulting in a rollback of the database transaction.	
 	//-------------------------------------------------------------------------
-	
+	printf("Step 6\n");
 	Slice *i_key = marshallItemkey(items[i].i_id);
 	Status i_s;
 	std::string *i_value = new std::string();
@@ -781,9 +789,11 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	//S_YTD is increased by OL_QUANTITY and S_ORDER_CNT is incremented by 1. 
 	//If the order-line is remote, then S_REMOTE_CNT is incremented by 1.
 	//-------------------------------------------------------------------------
+	printf("Step 7\n");
 	Slice *s_key = marshallStockKey(items[i].ol_supply_w_id, items[i].i_id);
 	Status s_s;
     std::string *s_value = new std::string();
+	printf("Item id %d\n", items[i].i_id);
     found = tx.Get(*s_key, s_value, &s_s);
 	printf("found %d %d\n", i, found);
 	Stock s = unmarshallStockValue(*s_value);    
@@ -836,10 +846,12 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	output->total += line.ol_amount;
 	
   }
-
+  
   output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
-
-  if (tx.End()) break;
+  printf("Try commit\n");
+  bool b = tx.End();
+  printf("At last %d\n",b);
+  if (b) break;
   }
   return true;
   

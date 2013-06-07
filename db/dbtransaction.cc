@@ -402,7 +402,7 @@ void  DBTransaction::WriteSet::Resize() {
 	}
 
 	seq = *node->seqaddr;
-	
+	//printf("found in hashtable %d\n",seq);
 	//construct the lookup key and find the key value in the in memory storage
 	LookupKey lkey(key, seq);
 	
@@ -410,6 +410,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 	//may be not found, should wait for a while
 	while(!found) {
+		//printf("in while\n");
 		storemutex->Lock();
 		found = memstore_->GetWithSeq(lkey, value, s);
 		storemutex->Unlock();

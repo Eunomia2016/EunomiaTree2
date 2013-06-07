@@ -258,20 +258,23 @@ bool SkipList<Key,Comparator>::KeyIsAfterNode(const Key& key, Node* n) const {
 template<typename Key, class Comparator>
 typename SkipList<Key,Comparator>::Node* SkipList<Key,Comparator>::FindGreaterOrEqual(const Key& key, Node** prev)
     const {
-  Node* x = head_;
+  Node* x = head_; 
   int level = GetMaxHeight() - 1;
+  //int count = 0;
   while (true) {
+  	//printf("%d\n",count++);
     Node* next = x->Next(level);
     if (KeyIsAfterNode(key, next)) {
       // Keep searching in this list
       x = next;
     } else {
+      //printf("level %d\n", level);
       if (prev != NULL) prev[level] = x;
       if (level == 0) {
         return next;
       } else {
         // Switch to next list
-        level--;
+        level--;//printf("else %d\n",level);
       }
     }
   }
@@ -336,7 +339,7 @@ void SkipList<Key,Comparator>::Insert(const Key& key) {
   // here since Insert() is externally synchronized.
   Node* prev[kMaxHeight];
   Node* x = FindGreaterOrEqual(key, prev);
-
+  //printf("Insert return\n");
   // Our data structure does not allow duplicate insertion
   assert(x == NULL || !Equal(key, x->key));
 
@@ -368,7 +371,7 @@ void SkipList<Key,Comparator>::Insert(const Key& key) {
 
 template<typename Key, class Comparator>
 bool SkipList<Key,Comparator>::Contains(const Key& key) const {
-  Node* x = FindGreaterOrEqual(key, NULL);
+  Node* x = FindGreaterOrEqual(key, NULL);//printf("Contains return\n");
   if (x != NULL && Equal(key, x->key)) {
     return true;
   } else {
