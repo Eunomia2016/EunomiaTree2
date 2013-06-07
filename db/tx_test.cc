@@ -6,6 +6,8 @@
 #include "leveldb/env.h"
 #include "port/port.h"
 #include "util/mutexlock.h"
+#include "db/txskiplist.h"
+
 
 static int FLAGS_txs = 100;
 static int FLAGS_threads = 4;
@@ -46,10 +48,10 @@ struct ThreadState {
 class Benchmark {
   private:
 	HashTable *seqs;
-	MemTable *store;
+	TXSkiplist* store;
 	port::Mutex *mutex;
   public:
-	Benchmark(HashTable *t, MemTable *s , port::Mutex *m) {
+	Benchmark(HashTable *t, TXSkiplist *s , port::Mutex *m) {
 		seqs = t;
 		store = s;
 		mutex = m;
@@ -57,7 +59,7 @@ class Benchmark {
 	struct ThreadArg {
 		ThreadState *thread;
 		HashTable *seqs;
-		MemTable *store;
+		TXSkiplist *store;
 		port::Mutex *mutex;
 		
 	};
@@ -67,7 +69,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		HashTable *seqs = arg->seqs;
-		MemTable *store = arg->store;
+		TXSkiplist *store = arg->store;
 		port::Mutex *mutex = arg->mutex;
 		
 		ValueType t = kTypeValue;
@@ -113,7 +115,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		HashTable *seqs = arg->seqs;
-		MemTable *store = arg->store;
+		TXSkiplist *store = arg->store;
 		port::Mutex *mutex = arg->mutex;
 		int num = shared->total;
 		ValueType t = kTypeValue;
@@ -194,7 +196,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		HashTable *seqs = arg->seqs;
-		MemTable *store = arg->store;
+		TXSkiplist *store = arg->store;
 		port::Mutex *mutex = arg->mutex;
 		//printf("start %d\n",tid);
 		ValueType t = kTypeValue;
@@ -239,7 +241,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		HashTable *seqs = arg->seqs;
-		MemTable *store = arg->store;
+		TXSkiplist *store = arg->store;
 		port::Mutex *mutex = arg->mutex;
 
 		ValueType t = kTypeValue;
@@ -418,26 +420,32 @@ class Benchmark {
 					break;
 				}
 
-				uint64_t seq1 = num+1;
-				LookupKey lkey(key, seq1);				
+
 				found = false;
 				std::string value;
-				Status s; int j = 0;
-				uint64_t mseq = seq1;
-				while(!found && j<3) {	
-					j++;				
+				Status s; 
+				int j = 0;
+				uint64_t mseq = 0;
+				Status founds;
+
+				do{
+					j++;
 					mutex->Lock();
-					found = store->GetSeq(lkey, &value, &s , &mseq);
+					founds = store->GetMaxSeq(key, &mseq);
 					mutex->Unlock();	
-				}
-				if (!found) {
+				}while(founds.IsNotFound() && j < 5);
+
+				
+				if (founds.IsNotFound()) {
+					printf("seq %ld\n", mseq);
 					printf("Key %d is not found in the memstore\nconsistency fail!\n",i);
+					store->DumpTXSkiplist();
 					succ = false;
 					break;
 				}
-				if (mseq>seq) {
+				if (mseq > seq) {
 					succ = false;
-					printf("Key %d 's seqno in memstore(%d) is larger than in hashtable(%d)\nconsistency fail!\n",i,seq,seq1);
+					printf("Key %d 's seqno in memstore(%d) is larger than in hashtable\nconsistency fail!\n",i,seq, mseq);
 					break;
 				//assert(found);
 				//assert(mseq<=seq);
@@ -500,7 +508,7 @@ int main(int argc, char**argv)
 	  }
 	  
 	  leveldb::HashTable seqs;
-	  leveldb::MemTable *store = new leveldb::MemTable(cmp);
+	  leveldb::TXSkiplist* store = new leveldb::TXSkiplist(cmp);
 	  leveldb::port::Mutex mutex;
 	
 	  leveldb::Benchmark *benchmark = new leveldb::Benchmark(&seqs, store, &mutex);

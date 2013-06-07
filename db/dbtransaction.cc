@@ -514,7 +514,6 @@ int main()
 
     return 0;
  }
-*/
 
 //For SkipList
 int main()
@@ -562,5 +561,6 @@ int main()
 	tx.End();
 }
 
+*/
 
 

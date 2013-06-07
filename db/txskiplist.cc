@@ -182,8 +182,22 @@ void TXSkiplist::DumpTXSkiplist()
 
 Status TXSkiplist::GetMaxSeq(const Slice& key, uint64_t* seq)
 {
-    Table::Iterator iter(&table_);
-	iter.Seek(key.data());
+    size_t key_size = key.size();
+  	size_t internal_key_size = key_size + 8;
+  	const size_t encoded_len = VarintLength(internal_key_size) + internal_key_size;
+	
+  	char* buf = new char[encoded_len];
+  	char* p = EncodeVarint32(buf, internal_key_size);
+  	memcpy(p, key.data(), key_size);
+  	p += key_size;
+
+  	EncodeFixed64(p, 0xffffff | kTypeValue);
+	
+	Table::Iterator iter(&table_);
+	iter.Seek(buf);
+
+	delete[] buf;
+	
 	if (iter.Valid()) {
     	const char* entry = iter.key();
     	uint32_t key_length;
@@ -193,10 +207,10 @@ Status TXSkiplist::GetMaxSeq(const Slice& key, uint64_t* seq)
 
       	uint64_t tag = DecodeFixed64(key_ptr + key_length - 8);
 	  	*seq = (tag >>8);
-        return Status::NotFound(Slice());
+        return Status::OK();
       }
     }
-  return Status::OK();
+  return Status::NotFound(Slice());
 }
 
 
