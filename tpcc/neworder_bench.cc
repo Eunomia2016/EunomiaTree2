@@ -64,7 +64,7 @@ int main(int argc, const char* argv[]) {
     // Client owns all the parameters
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(num_warehouses),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
-/*    printf("Running... \n");
+    printf("Running... \n");
     fflush(stdout);
     begin = clock->getMicroseconds();
     for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
@@ -74,7 +74,7 @@ int main(int argc, const char* argv[]) {
     int64_t microseconds = end - begin;
     printf("%d transactions in %"PRId64" ms = %f txns/s\n", NUM_TRANSACTIONS,
             (microseconds + 500)/1000, NUM_TRANSACTIONS / (double) microseconds * 1000000.0);
-*/
+
 	printf("Hello World\n");
     return 0;
 }
