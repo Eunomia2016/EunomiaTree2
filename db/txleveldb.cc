@@ -43,7 +43,7 @@ Slice TXLeveldb::getInternalKey(const Slice& key, uint64_t seq)
   	p += key_size;
   	EncodeFixed64(p, seq);
 	
-  	return Slice(p, internal_key_size);
+  	return Slice(buf, internal_key_size);
 }
 
 }

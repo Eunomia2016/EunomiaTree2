@@ -6,7 +6,7 @@
 
 namespace leveldb {
 
-class TXLeveldb {
+class TXLeveldb: public TXDB {
 
 private:
 	

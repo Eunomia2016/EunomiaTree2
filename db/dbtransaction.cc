@@ -12,6 +12,9 @@
 #include "util/mutexlock.h"
 #include "util/rtm.h"
 #include "util/hash.h"
+#include "db/txleveldb.h"
+#include "txdb.h"
+
 
 
 namespace leveldb {
@@ -260,13 +263,14 @@ void  DBTransaction::WriteSet::Resize() {
 	  return false;
   }
 
-  void DBTransaction::WriteSet::Commit(MemTable *memstore) 
+  void DBTransaction::WriteSet::Commit(TXDB *txdb) 
   {
 	//commit the local write set into the memory storage
 	//should holde the mutex of memstore
 	for(int i = 0; i < elems; i++) {
-		//printf("[%lx Commit] Insert Seq %ld Value %s\n", pthread_self(), seqs[i], values[i].val->Getslice());
-		memstore->Add(seqs[i].wseq, kvs[i].type, kvs[i].key->Getslice(), kvs[i].val->Getslice());
+		//printf("[%lx Commit] Insert Seq %ld Key %s\n", pthread_self(), 
+			//seqs[i].wseq, kvs[i].key->Getslice());
+		txdb->Put(kvs[i].key->Getslice(),kvs[i].val->Getslice(), seqs[i].wseq);
 	}
   }
 
@@ -287,12 +291,12 @@ void  DBTransaction::WriteSet::Resize() {
   }
 
   
-  DBTransaction::DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex)
+  DBTransaction::DBTransaction(HashTable* ht, TXDB* db, port::Mutex* mutex)
   {
 	//get the globle store and versions passed by the parameter
 	storemutex = mutex;
 	latestseq_ = ht;
-	memstore_ = store;
+	txdb_ = db;
 
 	readset = NULL;
 	writeset = NULL;
@@ -388,8 +392,6 @@ void  DBTransaction::WriteSet::Resize() {
 
 	//step 2.  Read the <k,v> from the in memory store
 
-	//first get the seq number
-	bool found = false;
 	uint64_t seq = 0;
 
 	HashTable::Node* node = latestseq_->GetNode(key);
@@ -398,35 +400,33 @@ void  DBTransaction::WriteSet::Resize() {
 		//even not found, still need to put the k into read set to avoid concurrent insertion
 		readset->Add(Hash(key.data(), key.size(), 0), seq, (uint64_t *)0);
 		
-		return found;
+		return false;
 	}
 
 	seq = *node->seqaddr;
-	
-	//construct the lookup key and find the key value in the in memory storage
-	LookupKey lkey(key, seq);
-	
-	found = false;
 
+	Status res;
 	//may be not found, should wait for a while
-	while(!found) {
+	do{
+		
 		storemutex->Lock();
-		found = memstore_->GetWithSeq(lkey, value, s);
+		res = txdb_->Get(key, value, seq);
 		storemutex->Unlock();
-	}
+		
+	}while(res.IsNotFound());
 
 	// step 3. put into the read set
 	readset->Add(node->hash, seq, node->seqaddr);
 	
-	return found;
+	return true;
   }
 
   bool DBTransaction::Validation() {
 	
 
 	//writeset->PrintHashTable();	
-	RTMScope rtm(&rtmProf);
-	//MutexLock mu(storemutex);
+	//RTMScope rtm(&rtmProf);
+	MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))
@@ -446,7 +446,7 @@ void  DBTransaction::WriteSet::Resize() {
   void DBTransaction::GlobalCommit() {
 	//commit the local write set into the memory storage		
 	storemutex->Lock();
-	writeset->Commit(memstore_);
+	writeset->Commit(txdb_);
 	storemutex->Unlock();
 	
 	if(readset != NULL) {
@@ -464,134 +464,39 @@ void  DBTransaction::WriteSet::Resize() {
 }  // namespace leveldb
 
 
-/*
-
-
-int main(){
-	leveldb::DBTransaction::ReadSet rs;
-
-	uint64_t arr[100];
-	char key[100];
-
-	for(int i = 0; i < 100; i++)  {
-		arr[i] = i;
-	}
-	
-	for(int i = 0; i < 100; i++) {
-		snprintf(key, sizeof(key), "%d", i);
-
-		rs.Add(leveldb::Slice(key), i, (uint64_t)&arr[i]);
-	}
-
-	for(int i = 0; i < 100; i++)  {
-		arr[i] = i*i;
-	}
-
-	rs.Print();
-	
-	//printf("helloworld\n");
-
-}
-
-
 
 
 int main()
 {
-	leveldb::HashTable ht;
-	char key[100];
-		
-	for(int i = 0; i < 100; i++) {
-	
-		snprintf(key, sizeof(key), "%d", i);
-
-	//printf("Insert %s\n", *s);
-		ht.Insert(leveldb::Slice(key), (void *)i,NULL);
-	}
-
-	ht.Update(leveldb::Slice(key), (void *)1000);
-	
-	for(int i = 0; i < 20; i++) {
-	
-		snprintf(key, sizeof(key), "%d", i);
-
-	void* v;
-	if(!ht.Lookup(leveldb::Slice(key), &v))
-		printf("key %s Not Found\n", key);
-	}
-	
-	
-	ht.PrintHashTable();
-
-	
-	
-	leveldb::HashTable::Iterator* iter = new leveldb::HashTable::Iterator(&ht);
-	while(iter->Next()) {
-		leveldb::HashTable::Node *n = iter->Current();
-		
-		printf("Key: %s , Hash: %d, Value: %d \n", n->key_data, n->hash, n->value);
-		
-	}
-	
-	//printf("helloworld\n");
- }
-
-
-
-
-int main()
-{
-    
-	leveldb::Options options;
-	leveldb::InternalKeyComparator cmp(options.comparator);
-	
-	leveldb::HashTable seqs;
-	leveldb::MemTable *store = new leveldb::MemTable(cmp);
-	leveldb::port::Mutex mutex;
-	
-	leveldb::DBTransaction tx(&seqs, store, &mutex);
-
 	leveldb::ValueType t = leveldb::kTypeValue;
+	leveldb::DB* db;
+	leveldb::Options options;
+	options.create_if_missing = true;
 
-	char* key = new char[100];
-    snprintf(key, sizeof(key), "%d", 1024);
-	leveldb::Slice k(key);
-	leveldb::SequenceNumber seq = 1;
+	const char* path = "/root/tmp";
 	
-	store->Add(seq, t, k, k);
-
-
-	key = new char[100];
-    snprintf(key, sizeof(key), "%d", 2048);
-	leveldb::Slice k2(key);
-	seq = 100;
 	
-	store->Add(seq, t, k, k2);
+    leveldb::Status s = leveldb::DB::Open(options, path, &db);
 
-	std::string str;
-	leveldb::Status s;
-	seq = 2;
-	leveldb::LookupKey lkey(k, seq);
-	bool found = store->GetWithSeq(lkey, &str, &s);
-	printf("Found %d value %s\n", found, str.c_str());
+	leveldb::HashTable seqs;	
+	leveldb::port::Mutex mutex;
+	leveldb::TXDB* txdb = new leveldb::TXLeveldb(db);
 	
-	/*
+	leveldb::DBTransaction tx(&seqs, txdb, &mutex);	
 	tx.Begin();
 	
     for(int i = 0; i < 10; i++) {
 		char* key = new char[100];
         snprintf(key, sizeof(key), "%d", i);
-		leveldb::Slice k(key);
+		leveldb::Slice *k = new leveldb::Slice(key);
 		leveldb::Slice *v = new leveldb::Slice(key);
-		printf("Insert %s ", k);
+		printf("Insert %s ", *k);
 		printf(" Value %s\n", *v);
-		tx.Add(t, k, *v);
-		std::string *str = new std::string();
-		leveldb::Status s;
-		tx.Get(k, str, &s);
+		tx.Add(t, *k, *v);
     }
 
 	tx.End();
+
 
 	tx.Begin();	
 
@@ -607,24 +512,10 @@ int main()
     }
 
 	tx.End();
-	
-	leveldb::Iterator* iter = store->NewIterator();
-	iter->SeekToFirst();
-	int count = 0;
-	
-	while(iter->Valid()) {		
-		count++;
-		printf("Key: %s  ", iter->key());
-		printf("Value: %s \n", iter->value());
-		iter->Next();
-		
-	}
-	
-    printf("Total Elements %d\n", count);
-	
+
     return 0;
  }
 
-*/
+
 
 

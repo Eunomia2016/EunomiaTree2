@@ -12,7 +12,7 @@ class TXDB {
  public:
 
   TXDB() { }
-  virtual ~TXDB();
+   ~TXDB(){ };
 
   virtual Status Put(const Slice& key,
                      const Slice& value, uint64_t seq) = 0;

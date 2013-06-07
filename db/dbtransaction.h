@@ -7,9 +7,9 @@
 
 #include <string>
 #include "leveldb/db.h"
+#include "txdb.h"
 #include "db/dbformat.h"
 #include "db/hashtable.h"
-#include "db/memtable.h"
 #include "port/port_posix.h"
 #include "util/txprofile.h"
 
@@ -22,7 +22,7 @@ class DBTransaction {
 
 	RTMProfile rtmProf;
 	int count;
-	explicit DBTransaction(HashTable* ht, MemTable* store, port::Mutex* mutex);
+	explicit DBTransaction(HashTable* ht, TXDB* store, port::Mutex* mutex);
 	~DBTransaction();
 
 	void Begin();
@@ -104,7 +104,7 @@ public:
 			void UpdateGlobalSeqs(HashTable* ht);
 			bool Lookup(const Slice& key, ValueType* type, Slice* val);
 			
-			void Commit(MemTable *memstore);
+			void Commit(TXDB *memstore);
 			void Print();
 	};
 
@@ -114,7 +114,7 @@ public:
 	
 	port::Mutex* storemutex;
 	HashTable *latestseq_ ;
-	MemTable *memstore_ ;
+	TXDB *txdb_ ;
 	
   	bool Validation();
 	void GlobalCommit();
