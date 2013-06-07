@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include "db/txskiplist.h"
 #include "db/memtable.h"
 #include "db/hashtable.h"
 #include "db/dbtransaction.h"
@@ -19,6 +20,8 @@
 #include "leveldb/comparator.h"
 #include "dbformat.h"
 #include <vector>
+
+
 
 static const char* FLAGS_benchmarks ="random";
 
@@ -99,9 +102,9 @@ private:
    
    KeyComparator comparator;
 
-   leveldb::HashTable seqs;
-   leveldb::MemTable *store;
-   leveldb::port::Mutex mutex;
+   HashTable seqs;
+   TXSkiplist* store;
+   port::Mutex mutex;
 	
 private:
 	
@@ -318,11 +321,10 @@ private:
 		leveldb::Options options;
 		leveldb::InternalKeyComparator cmp(options.comparator);
 	
-		store = new leveldb::MemTable(cmp);
-		store->Ref();
+		store = new leveldb::TXSkiplist(cmp);
 	  }
 	  
-	  ~Benchmark() {store->Unref();}
+	  ~Benchmark() {delete store;}
 	  
 	  void RunBenchmark(int n,
 						void (Benchmark::*method)(ThreadState*)) {
