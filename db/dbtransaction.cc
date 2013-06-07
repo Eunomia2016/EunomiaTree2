@@ -371,6 +371,7 @@ void  DBTransaction::WriteSet::Resize() {
 	writeset->Add(type, key, value, node->seqaddr);
   }
 
+  //FIXME: value should use slice instead of string !!!
   bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
   {
   	//step 1. First check if the <k,v> is in the write set
