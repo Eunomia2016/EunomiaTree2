@@ -105,6 +105,9 @@ db_bench: db/db_bench.o $(LIBOBJECTS) $(TESTUTIL)
 tpcc_bench: tpcc/tpcc_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) tpcc/tpcc_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
+neworder_bench: tpcc/neworder_bench.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) tpcc/neworder_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
 
 tx_bench: db/tx_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/tx_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)

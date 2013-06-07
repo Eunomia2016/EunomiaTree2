@@ -15,8 +15,10 @@ namespace leveldb {
 
 static void EncodeInt32_t(char *result, int32_t v) {
   char *ip = reinterpret_cast<char *>(&v);				
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < 4; i++) {
   	result[i] = ip[i];
+    
+  }
 }
 
 static void EncodeFloat(char *result, float f) {
@@ -31,6 +33,7 @@ Slice TPCCLevelDB::marshallWarehouseKey(int32_t w_id) {
   char* key = new char[14];
   memcpy(key, "WAREHOUSE_", 10);
   EncodeInt32_t(key + 10, w_id);
+  //printf("%s %d\n",key,w_id);
   Slice k(key);
   return k;
 }
@@ -629,19 +632,22 @@ bool TPCCLevelDB::newOrder(int32_t warehouse_id, int32_t district_id, int32_t cu
 bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_t customer_id,
         const std::vector<NewOrderItem>& items, const char* now,
         NewOrderOutput* output, TPCCUndo** undo) {
-
+  printf("NewOrderHome start\n");
   DBTransaction tx(latestseq_, memstore_, storemutex);
   ValueType t = kTypeValue;
+  while(true) {
   tx.Begin();
   output->status[0] = '\0';
   
   //--------------------------------------------------------------------------
   //The row in the WAREHOUSE table with matching W_ID is selected and W_TAX, the warehouse tax rate, is retrieved. 
   //--------------------------------------------------------------------------
+  printf("Step 1\n");
   Slice w_key = marshallWarehouseKey(warehouse_id);
   Status w_s;
   std::string *w_value = new std::string();
-  tx.Get(w_key, w_value, &w_s);
+  bool found = tx.Get(w_key, w_value, &w_s);
+  printf("found %s %d\n", w_key.ToString().c_str(), found);
   output->w_tax = getW_TAX(*w_value);
   
   //--------------------------------------------------------------------------
@@ -649,14 +655,16 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //D_TAX, the district tax rate, is retrieved, 
   //and D_NEXT_O_ID, the next available order number for the district, is retrieved and incremented by one.
   //--------------------------------------------------------------------------
+  printf("Step 2\n");
   Slice d_key = marshallDistrictKey(warehouse_id, district_id);
   Status d_s;
   std::string *d_value = new std::string();
-  tx.Get(d_key, d_value, &d_s);
+  found = tx.Get(d_key, d_value, &d_s);
+  printf("found %d\n", found);
   output->d_tax = getD_TAX(*d_value);
   output->o_id = getD_NEXT_O_ID(*d_value);
   *d_value = updateD_NEXT_O_ID(*d_value, output->o_id + 1);
-  Slice d_v(*d_value);
+  Slice d_v(*d_value);printf("Step 2 add d\n");
   tx.Add(t, d_key, d_v);
   
 
@@ -665,6 +673,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //and C_DISCOUNT, the customer's discount rate, C_LAST, the customer's last name, 
   //and C_CREDIT, the customer's credit status, are retrieved.
   //--------------------------------------------------------------------------
+  printf("Step 3\n");
   Slice c_key = marshallCustomerKey(warehouse_id, district_id, customer_id);
   Status c_s;
   std::string *c_value = new std::string();
@@ -682,6 +691,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //--------------------------------------------------------------------------
 
   // Check if this is an all local transaction
+  printf("Step 4\n");
   bool all_local = true;
   for (int i = 0; i < items.size(); ++i) {
     if (items[i].ol_supply_w_id != warehouse_id) {
@@ -718,7 +728,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //For each O_OL_CNT item on the order:
   //-------------------------------------------------------------------------
 
-  
+  printf("Step 5\n");
   OrderLine line;
   line.ol_o_id = output->o_id;
   line.ol_d_id = district_id;
@@ -810,8 +820,11 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	
   }
 
-  //output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
-  return tx.End();
+  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
+
+  if (tx.End()) break;
+  }
+  return true;
   
 }
 
