@@ -529,11 +529,11 @@ TPCCLevelDB::TPCCLevelDB() {
   Options options;
   InternalKeyComparator cmp(options.comparator);
   latestseq_ = new HashTable();
-  memstore_ = new leveldb::MemTable(cmp);
+  memstore_ = new leveldb::TXSkiplist(cmp);
   storemutex =  new port::Mutex();
 }
 
-TPCCLevelDB::TPCCLevelDB(uint32_t w_num, HashTable* ht, MemTable* store, port::Mutex* mutex) {
+TPCCLevelDB::TPCCLevelDB(uint32_t w_num, HashTable* ht, TXSkiplist* store, port::Mutex* mutex) {
 
   warehouse_num = w_num;
   storemutex = mutex;
@@ -546,8 +546,8 @@ void TPCCLevelDB::insertWarehouse(const Warehouse& warehouse){
   Slice *v = marshallWarehouseValue(warehouse);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
-  latestseq_->Insert(*k, 1);
+  memstore_->Put(*k, *v ,s);
+  latestseq_->Insert(*k, s);
   //printf("W\n");
 }
 
@@ -556,7 +556,7 @@ void TPCCLevelDB::insertDistrict(const District& district){
   Slice *v = marshallDistrictValue(district);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
+  memstore_->Put(*k, *v ,s);
   latestseq_->Insert(*k, 1);
   //printf("D\n");
 }
@@ -566,8 +566,8 @@ void TPCCLevelDB::insertCustomer(const Customer& customer) {
   Slice *v = marshallCustomerValue(customer);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
-  latestseq_->Insert(*k, 1);
+  memstore_->Put(*k, *v ,s);
+  latestseq_->Insert(*k, s);
   //printf("C\n");
 }
 
@@ -584,8 +584,8 @@ NewOrder* TPCCLevelDB::insertNewOrder(int32_t w_id,int32_t d_id,int32_t o_id) {
   Slice *v = new Slice();
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
-  latestseq_->Insert(*k, 1);
+  memstore_->Put(*k, *v ,s);
+  latestseq_->Insert(*k, s);
   //printf("NO\n");
   return neworder;
 }
@@ -595,8 +595,8 @@ Order* TPCCLevelDB::insertOrder(const Order & order){
   Slice *v = marshallOrderValue(order);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
-  latestseq_->Insert(*k, 1);
+  memstore_->Put(*k, *v ,s);
+  latestseq_->Insert(*k, s);
   //printf("O\n");
   return const_cast<Order *>(&order);
 }
@@ -606,8 +606,8 @@ OrderLine* TPCCLevelDB::insertOrderLine(const OrderLine & orderline){
   Slice *v = marshallOrderLineValue(orderline);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
-  latestseq_->Insert(*k, 1);
+  memstore_->Put(*k, *v ,s);
+  latestseq_->Insert(*k, s);
   //printf("OL\n");
   return const_cast<OrderLine *>(&orderline);
 }
@@ -617,8 +617,8 @@ void TPCCLevelDB::insertItem(const Item& item) {
   Slice *v = marshallItemValue(item);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
-  latestseq_->Insert(*k, 1);
+  memstore_->Put(*k, *v ,s);
+  latestseq_->Insert(*k, s);
   //printf("I \n");
 }
 
@@ -627,8 +627,8 @@ void TPCCLevelDB::insertStock(const Stock & stock){
   Slice *v = marshallStockValue(stock);
   ValueType t = kTypeValue;
   SequenceNumber s = 1;
-  memstore_->Add(s, t, *k, *v);
-  latestseq_->Insert(*k, 1);
+  memstore_->Put(*k, *v ,s);
+  latestseq_->Insert(*k, s);
   //printf("S\n");
 }
 

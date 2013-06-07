@@ -2,13 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include "db/txskiplist.h"
 #include <string>
 #include "util/random.h"
 #include "db/hashtable.h"
-#include "db/memtable.h"
 #include "tpccdb.h"
 #include "port/port.h"
 #include "util/mutexlock.h"
+
+
 
 namespace leveldb {
 
@@ -18,9 +20,9 @@ class TPCCLevelDB : public TPCCDB {
   uint32_t warehouse_num;
   port::Mutex* storemutex;
   HashTable *latestseq_ ;
-  MemTable *memstore_ ;	
+  TXSkiplist* memstore_ ;	
 
-  TPCCLevelDB(uint32_t w_num, HashTable* ht, MemTable* store, port::Mutex* mutex); 
+  TPCCLevelDB(uint32_t w_num, HashTable* ht, TXSkiplist* store, port::Mutex* mutex); 
   TPCCLevelDB();
   
   void insertWarehouse(const Warehouse & warehouse);
