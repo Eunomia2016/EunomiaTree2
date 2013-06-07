@@ -395,6 +395,35 @@ Stock TPCCLevelDB::unmarshallStockValue(std::string& value) {
   return s;
 }
 
+
+/*
+char* TPCCLevelDB::getS_DATA(std::string& value) {
+  char *v = const_cast<char *>(value.c_str());
+  v += 264;
+  char *c = new char[51];
+  memcpy(c, v, 3);
+  return c;
+}
+
+char** TPCCLevelDB::getS_DIST(std::string& value) {
+  char *v = const_cast<char *>(value.c_str());
+  v += 4;
+  char **c = new char*[10];
+  for (int i = 0; i < 10; i++) {
+  	c[i] = new char[25];
+  	memcpy(c[i], v, 25);
+	v += 25;
+  }
+  return c;
+}
+
+int32_t TPCCLevelDB::getS_QUANTITY(std::string& value) {
+  char *v = const_cast<char *>(value.c_str());
+  int32_t *i = reinterpret_cast<int32_t *>(v);
+  return *i;
+}
+*/
+
 Slice TPCCLevelDB::marshallItemkey(int32_t i_id) {
   char* key = new char[9];
   memcpy(key, "ITEM_", 5);
@@ -427,36 +456,6 @@ Slice TPCCLevelDB::marshallItemValue(Item i) {
 }
 
 
-/*
-char* TPCCLevelDB::getS_DATA(std::string& value) {
-  char *v = const_cast<char *>(value.c_str());
-  v += 264;
-  char *c = new char[51];
-  memcpy(c, v, 3);
-  return c;
-}
-
-char** TPCCLevelDB::getS_DIST(std::string& value) {
-  char *v = const_cast<char *>(value.c_str());
-  v += 4;
-  char **c = new char*[10];
-  for (int i = 0; i < 10; i++) {
-  	c[i] = new char[25];
-  	memcpy(c[i], v, 25);
-	v += 25;
-  }
-  return c;
-}
-
-int32_t TPCCLevelDB::getS_QUANTITY(std::string& value) {
-  char *v = const_cast<char *>(value.c_str());
-  int32_t *i = reinterpret_cast<int32_t *>(v);
-  return *i;
-}
-*/
-
-
-
 Item TPCCLevelDB::unmarshallItemValue(std::string &value) {
   Item i;
   char *v = const_cast<char *>(value.c_str());
@@ -473,6 +472,48 @@ Item TPCCLevelDB::unmarshallItemValue(std::string &value) {
   memcpy(i.i_data, v, 51);
 
   return i;
+}
+
+//OrderLine
+Slice marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32_t ol_o_id, int32_t ol_number){
+  char* key = new char[26];
+  memcpy(key, "ORDERLINE_", 10);
+  EncodeInt32_t(key + 10, ol_o_id);
+  EncodeInt32_t(key + 14, ol_d_id);
+  EncodeInt32_t(key + 18, ol_w_id);
+  EncodeInt32_t(key + 22, ol_number);
+  Slice k(key);
+  return k;
+}
+
+Slice marshallOrderLineValue(OrderLine line){
+  char* value = new char[84];
+  char* start = value;
+	
+  int length = sizeof(uint32_t);			//0
+  EncodeInt32_t(start, line.ol_i_id);
+  start += length;
+
+  EncodeInt32_t(start, line.ol_supply_w_id);//4
+  start += length;
+
+  length = sizeof(line.ol_delivery_d);		//8
+  memcpy(start, line.ol_delivery_d, length);
+  start += length;
+  
+  length = sizeof(uint32_t);				//23
+  EncodeInt32_t(start, line.ol_quantity);
+  start += length;
+
+  EncodeFloat(start, line.ol_amount);		//27
+  start += length;
+
+  length = sizeof(line.ol_dist_info);		//31
+  memcpy(start, line.ol_dist_info, length);
+  start += length;
+
+  Slice v(value);
+  return v;
 }
 
 //Insert Tuples
@@ -498,16 +539,7 @@ bool TPCCLevelDB::newOrder(int32_t warehouse_id, int32_t district_id, int32_t cu
     if (!result) {
         return false;
     }
-
-    // Process all remote warehouses
-    WarehouseSet warehouses = newOrderRemoteWarehouses(warehouse_id, items);
-    for (WarehouseSet::const_iterator i = warehouses.begin(); i != warehouses.end(); ++i) {
-        std::vector<int32_t> quantities;
-        result = newOrderRemote(warehouse_id, *i, items, &quantities, undo);
-        assert(result);
-        newOrderCombine(quantities, output);
-    }
-
+	
     return true;
 }
 
@@ -527,8 +559,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   Status w_s;
   std::string *w_value = new std::string();
   tx.Get(w_key, w_value, &w_s);
-  float w_tax = getW_TAX(*w_value);
-  output->w_tax = w_tax;
+  output->w_tax = getW_TAX(*w_value);
   
   //--------------------------------------------------------------------------
   //The row in the DISTRICT table with matching D_W_ID and D_ ID is selected, 
@@ -623,9 +654,14 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	Status i_s;
 	std::string *i_value = new std::string();
 	int found = tx.Get(i_key, i_value, &i_s);
-	if (!found) tx.Abort();
+	if (!found) {
+		strcpy(output->status, NewOrderOutput::INVALID_ITEM_STATUS);
+		tx.Abort();
+	}
 	Item item = unmarshallItemValue(*i_value);
-	
+	assert(sizeof(output->items[i].i_name) == sizeof(item.i_name));
+    memcpy(output->items[i].i_name, item.i_name, sizeof(output->items[i].i_name));
+	output->items[i].i_price = item.i_price;
 	
 	//-------------------------------------------------------------------------
 	//The row in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals OL_SUPPLY_W_ID) is selected. 
@@ -644,6 +680,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
     if (s.s_quantity > (items[i].ol_quantity + 10))
 	  s.s_quantity -= items[i].ol_quantity;
 	else s.s_quantity = s.s_quantity - items[i].ol_quantity + 91;
+	output->items[i].s_quantity = s.s_quantity;
 	s.s_ytd += items[i].ol_quantity;
 	s.s_order_cnt++;
 	if (items[i].ol_supply_w_id != warehouse_id) 
@@ -655,9 +692,10 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	//The amount for the item in the order (OL_AMOUNT) is computed as: OL_QUANTITY * I_PRICE
 	//The strings in I_DATA and S_DATA are examined. If they both include the string "ORIGINAL", 
 	//the brand-generic field for that item is set to "B", otherwise, the brand-generic field is set to "G".
-	//-------------------------------------------------------------------------
-    line.ol_amount = items[i].ol_quantity * item.i_price;    
-    
+	//-------------------------------------------------------------------------  
+    output->items[i].ol_amount = static_cast<float>(items[i].ol_quantity) * item.i_price;
+    line.ol_amount = output->items[i].ol_amount;
+        
 	bool stock_is_original = (strstr(s.s_data, "ORIGINAL") != NULL);
     if (stock_is_original && strstr(item.i_data, "ORIGINAL") != NULL) {
 	  output->items[i].brand_generic = NewOrderOutput::ItemInfo::BRAND;
@@ -675,10 +713,22 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
     line.ol_i_id = items[i].i_id;
     line.ol_supply_w_id = items[i].ol_supply_w_id;
     line.ol_quantity = items[i].ol_quantity;
-	line.ol_delivery_d[0] = '\0';
     assert(sizeof(line.ol_dist_info) == sizeof(s.s_dist[district_id]));
     memcpy(line.ol_dist_info, s.s_dist[district_id], sizeof(line.ol_dist_info));
+	Slice l_key = marshallOrderLineKey(line.ol_w_id, line.ol_d_id, line.ol_o_id, line.ol_number);
+	Slice l_value = marshallOrderLineValue(line);
+	tx.Add(t, l_key, l_value);
+
+	//-------------------------------------------------------------------------
+	//The total-amount for the complete order is computed as: 
+	//sum(OL_AMOUNT) * (1 - C_DISCOUNT) * (1 + W_TAX + D_TAX)
+	//-------------------------------------------------------------------------
+	output->total += line.ol_amount;
+	
   }
+
+  //output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
+  return tx.End();
   
 }
 

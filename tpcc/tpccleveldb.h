@@ -54,6 +54,8 @@ class TPCCLevelDB : public TPCCDB {
   Slice marshallItemkey(int32_t i_id);
   Slice marshallItemValue(Item i);
   Item unmarshallItemValue(std::string& value);
+  Slice marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32_t ol_o_id, int32_t ol_number);
+  Slice marshallOrderLineValue(OrderLine line);
   //char* getS_DATA(std::string& value);
   //char** getS_DIST(std::string& value);
 };
