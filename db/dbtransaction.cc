@@ -50,7 +50,7 @@ void  DBTransaction::ReadSet::Resize() {
   
   void DBTransaction::ReadSet::Add(uint64_t hash, uint64_t oldeseq, uint64_t *ptr)
   {
-
+	if (max_length < elems) printf("ELEMS %d MAX %d\n", elems, max_length);
 	assert(elems <= max_length);
 	
 	if(elems == max_length)
@@ -409,13 +409,17 @@ void  DBTransaction::WriteSet::Resize() {
 
 	Status res;
 	//may be not found, should wait for a while
-
+	int count = 0;
 	do{
 		
-		storemutex->Lock();
+		storemutex->Lock();//printf("Get lock\n");
 		res = txdb_->Get(key, value, seq);
 		storemutex->Unlock();
-		
+		count++;
+		if (count > 100) {
+			printf("Not found %s\n", key);
+			count = 0;
+		}
 	}while(res.IsNotFound());
 
 	// step 3. put into the read set
