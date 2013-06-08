@@ -415,11 +415,11 @@ void  DBTransaction::WriteSet::Resize() {
 		storemutex->Lock();//printf("Get lock\n");
 		res = txdb_->Get(key, value, seq);
 		storemutex->Unlock();
-		count++;
-		if (count > 100) {
+	/*	count++;
+		if (count > 1000) {
 			printf("Not found %s\n", key);
-			count = 0;
-		}
+			return false;
+		}*/
 	}while(res.IsNotFound());
 
 	// step 3. put into the read set

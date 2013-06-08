@@ -158,11 +158,14 @@ int32_t TPCCLevelDB::getD_NEXT_O_ID(std::string& value) {
   return *i;
 }
 
-std::string TPCCLevelDB::updateD_NEXT_O_ID(std::string& value, int32_t id) {
+std::string* TPCCLevelDB::updateD_NEXT_O_ID(std::string& value, int32_t id) {
   char *v = const_cast<char *>(value.c_str());
-  v += 95;
-  EncodeInt32_t(v, id);
-  return std::string(v);
+  char *newv = new char[99];
+  memcpy(newv, v, 99);
+  newv += 95;
+  EncodeInt32_t(newv, id);
+  std::string *s = new std::string(newv);
+  return s;
 }
 
 /*
@@ -687,7 +690,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //printf("found %d\n", found);
   output->d_tax = getD_TAX(*d_value);
   output->o_id = getD_NEXT_O_ID(*d_value);
-  *d_value = updateD_NEXT_O_ID(*d_value, output->o_id + 1);
+  d_value = updateD_NEXT_O_ID(*d_value, output->o_id + 1);
   Slice *d_v = new Slice(*d_value);
   tx.Add(t, *d_key, *d_v);
 
@@ -755,6 +758,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //-------------------------------------------------------------------------
 
   //printf("Step 5\n");
+  
   OrderLine line;
   line.ol_o_id = output->o_id;
   line.ol_d_id = district_id;
