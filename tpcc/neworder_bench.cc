@@ -2,6 +2,11 @@
 #include <climits>
 #include <cstdio>
 #include <inttypes.h>
+#include <string>
+
+#include "leveldb/env.h"
+#include "port/port_posix.h"
+#include "leveldb/slice.h"
 
 #include "tpcc/clock.h"
 #include "tpcc/randomgenerator.h"
@@ -11,7 +16,228 @@
 #include "tpcc/tpccleveldb.h"
 
 static const int NUM_TRANSACTIONS = 1000000;
+static int NUM_WAREHOUSE = 1;
 
+namespace leveldb {
+
+
+
+class Stats {
+ private:
+  double start_;
+  double finish_;
+  double seconds_;
+  int done_;
+  int next_report_;
+  int64_t bytes_;
+  double last_op_finish_;
+  std::string message_;
+
+ public:
+  Stats() { Start(); }
+
+  void Start() {
+    next_report_ = 100;
+    last_op_finish_ = start_;
+    done_ = 0;
+    bytes_ = 0;
+    seconds_ = 0;
+    start_ = leveldb::Env::Default()->NowMicros();
+    finish_ = start_;
+    message_.clear();
+  }
+
+  void Merge(const Stats& other) {
+    done_ += other.done_;
+    bytes_ += other.bytes_;
+    seconds_ += other.seconds_;
+    if (other.start_ < start_) start_ = other.start_;
+    if (other.finish_ > finish_) finish_ = other.finish_;
+
+    // Just keep the messages from one thread
+    if (message_.empty()) message_ = other.message_;
+  }
+
+  void Stop() {
+    finish_ = leveldb::Env::Default()->NowMicros();
+    seconds_ = (finish_ - start_) * 1e-6;
+  }
+
+  void FinishedSingleOp() {
+    
+    done_++;
+    if (done_ >= next_report_) {
+      if      (next_report_ < 1000)   next_report_ += 100;
+      else if (next_report_ < 5000)   next_report_ += 500;
+      else if (next_report_ < 10000)  next_report_ += 1000;
+      else if (next_report_ < 50000)  next_report_ += 5000;
+      else if (next_report_ < 100000) next_report_ += 10000;
+      else if (next_report_ < 500000) next_report_ += 50000;
+      else                            next_report_ += 100000;
+      //fprintf(stderr, "... finished %d ops%30s\r", done_, "");
+      //fflush(stderr);
+    }
+  }
+
+  void Report(const leveldb::Slice& name) {
+    // Pretend at least one op was done in case we are running a benchmark
+    // that does not call FinishedSingleOp().
+    if (done_ < 1) done_ = 1;
+
+    fprintf(stdout, "%-12s : %11.3f micros/op;\n",
+            name.ToString().c_str(),
+            seconds_ * 1e6 / done_);
+    
+    fflush(stdout);
+  }
+};
+
+struct SharedState {
+  port::Mutex mu;
+  port::CondVar cv;
+  int total;
+
+  // Each thread goes through the following states:
+  //    (1) initializing
+  //    (2) waiting for others to be initialized
+  //    (3) running
+  //    (4) done
+
+  int num_initialized;
+  int num_done;
+  bool start;
+
+  SharedState() : cv(&mu) { }
+};
+
+// Per-thread state for concurrent executions of the same benchmark.
+struct ThreadState {
+  int tid;             // 0..n-1 when running in n threads
+  Stats stats;
+  SharedState* shared;
+
+  ThreadState(int index)
+      : tid(index) {
+  }
+};
+
+class Benchmark {
+
+
+ private:	
+  TPCCLevelDB* tables;
+  SystemClock* clock;
+  tpcc::NURandC cLoad;
+  
+ 
+  struct ThreadArg {
+    Benchmark* bm;
+    SharedState* shared;
+    ThreadState* thread;
+    void (Benchmark::*method)(ThreadState*);
+  };
+
+ public:
+
+  Benchmark(TPCCLevelDB* t, SystemClock* c, tpcc::NURandC cl){
+  	 tables = t;
+	 clock = c;
+	 cLoad = cl;
+  }
+
+
+  static void ThreadBody(void* v) {
+    ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+    SharedState* shared = arg->shared;
+    ThreadState* thread = arg->thread;
+    {
+      MutexLock l(&shared->mu);
+      shared->num_initialized++;
+      if (shared->num_initialized >= shared->total) {
+        shared->cv.SignalAll();
+      }
+      while (!shared->start) {
+        shared->cv.Wait();
+      }
+    }
+  
+    thread->stats.Start();
+    (arg->bm->*(arg->method))(thread);
+    thread->stats.Stop();
+  
+    {
+  	  MutexLock l(&shared->mu);
+  	  shared->num_done++;
+  	  if (shared->num_done >= shared->total) {
+  	    shared->cv.SignalAll();
+  	  }
+  	}
+  }
+  
+
+  void RunBenchmark(int n, Slice name, void (Benchmark::*method)(ThreadState*)) {
+  	
+	printf("Running... \n");
+	SharedState shared;
+    shared.total = n;
+    shared.num_initialized = 0;
+    shared.num_done = 0;
+    shared.start = false;
+
+    ThreadArg* arg = new ThreadArg[n];
+    for (int i = 0; i < n; i++) {
+      arg[i].bm = this;
+      arg[i].method = method;
+      arg[i].shared = &shared;
+      arg[i].thread = new ThreadState(i);
+      arg[i].thread->shared = &shared;
+      Env::Default()->StartThread(ThreadBody, &arg[i]);
+    }
+
+    shared.mu.Lock();
+    while (shared.num_initialized < n) {
+      shared.cv.Wait();
+    }
+
+	double start_ = leveldb::Env::Default()->NowMicros();
+    shared.start = true;
+    shared.cv.SignalAll();
+    while (shared.num_done < n) {
+      shared.cv.Wait();
+    }
+    shared.mu.Unlock();
+	double end_ = leveldb::Env::Default()->NowMicros() - start_;
+	
+    for (int i = 1; i < n; i++) {
+      arg[0].thread->stats.Merge(arg[i].thread->stats);
+    }
+    //arg[0].thread->stats.Report(name);
+
+    for (int i = 0; i < n; i++) {
+      delete arg[i].thread;
+    }
+    delete[] arg;
+
+	printf("Throughput %g\n", NUM_TRANSACTIONS * NUM_WAREHOUSE / end_  * 1e6);
+  }
+
+  void doNewOrder(ThreadState* thread) {
+  	// Change the constants for run
+    tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+    random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
+
+    // Client owns all the parameters
+    TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
+            District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
+
+    for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
+        client.doNewOrder();
+		thread->stats.FinishedSingleOp();
+		printf("Thread %d commit %d\n", thread->tid, i);
+    }
+  }
+};
+}
 int main(int argc, const char* argv[]) {
 	
     if (argc != 2) {
@@ -33,6 +259,8 @@ int main(int argc, const char* argv[]) {
         exit(1);
     }
 
+    NUM_WAREHOUSE = num_warehouses;
+	
     //TPCCTables* tables = new TPCCTables();
     leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
     SystemClock* clock = new SystemClock();
@@ -57,26 +285,13 @@ int main(int argc, const char* argv[]) {
     int64_t end = clock->getMicroseconds();
     printf("%"PRId64" ms\n", (end - begin + 500)/1000);
 
-    // Change the constants for run
-    random = new tpcc::RealRandomGenerator();
-    random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
+    leveldb::Slice name("neworder");
+    leveldb::Benchmark b(tables, clock, cLoad);
+	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
 
-    // Client owns all the parameters
-    TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(num_warehouses),
-            District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
-    printf("Running... \n");
-    fflush(stdout);
-    begin = clock->getMicroseconds();
-    for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
-        client.doNewOrder();
-		printf("commit %d\n", i);
-    }
-    end = clock->getMicroseconds();
-    int64_t microseconds = end - begin;
-    printf("%d transactions in %"PRId64" ms = %f txns/s\n", NUM_TRANSACTIONS,
-            (microseconds + 500)/1000, NUM_TRANSACTIONS / (double) microseconds * 1000000.0);
 
-	printf("Hello World\n");
+
+	//printf("Hello World\n");
     return 0;
 }
 

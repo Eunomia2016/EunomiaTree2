@@ -158,11 +158,14 @@ int32_t TPCCLevelDB::getD_NEXT_O_ID(std::string& value) {
   return *i;
 }
 
-std::string TPCCLevelDB::updateD_NEXT_O_ID(std::string& value, int32_t id) {
+std::string* TPCCLevelDB::updateD_NEXT_O_ID(std::string& value, int32_t id) {
   char *v = const_cast<char *>(value.c_str());
-  v += 95;
-  EncodeInt32_t(v, id);
-  return std::string(v);
+  char *newv = new char[99];
+  memcpy(newv, v, 99);
+  newv += 95;
+  EncodeInt32_t(newv, id);
+  std::string *s = new std::string(newv);
+  return s;
 }
 
 /*
@@ -372,28 +375,28 @@ Slice* TPCCLevelDB::marshallStockValue(Stock s) {
   return v;
 }
 
-Stock TPCCLevelDB::unmarshallStockValue(std::string& value) {
-  Stock s;
+Stock* TPCCLevelDB::unmarshallStockValue(std::string& value) {
+  Stock *s = new Stock();
   char *v = const_cast<char *>(value.c_str());
   
-  s.s_quantity = *reinterpret_cast<int32_t *>(v); 
+  s->s_quantity = *reinterpret_cast<int32_t *>(v); 
   v += 4;  
   
   for (int i = 0; i < 10; i++) {
-  	memcpy(s.s_dist[i], v, 25);
+  	memcpy(s->s_dist[i], v, 25);
 	v += 25;
   }
 
-  s.s_ytd = *reinterpret_cast<int32_t *>(v);
+  s->s_ytd = *reinterpret_cast<int32_t *>(v);
   v += 4;
 
-  s.s_order_cnt = *reinterpret_cast<int32_t *>(v);
+  s->s_order_cnt = *reinterpret_cast<int32_t *>(v);
   v += 4;
 
-  s.s_remote_cnt = *reinterpret_cast<int32_t *>(v);
+  s->s_remote_cnt = *reinterpret_cast<int32_t *>(v);
   v += 4;
 
-  memcpy(s.s_data, v, 51);
+  memcpy(s->s_data, v, 51);
   
   return s;
 }
@@ -651,7 +654,7 @@ bool TPCCLevelDB::newOrder(int32_t warehouse_id, int32_t district_id, int32_t cu
 bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_t customer_id,
         const std::vector<NewOrderItem>& items, const char* now,
         NewOrderOutput* output, TPCCUndo** undo) {
-  printf("NewOrderHome start\n");
+  //printf("NewOrderHome start\n");
   DBTransaction tx(latestseq_, memstore_, storemutex);
   ValueType t = kTypeValue;
   while(true) {
@@ -661,32 +664,33 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //--------------------------------------------------------------------------
   //The row in the WAREHOUSE table with matching W_ID is selected and W_TAX, the warehouse tax rate, is retrieved. 
   //--------------------------------------------------------------------------
-  printf("Step 1\n");
+  //printf("Step 1\n");
   Slice *w_key = marshallWarehouseKey(warehouse_id);
   Status w_s;
  // printf("Step 1 get w %d\n", warehouse_id);
   std::string *w_value = new std::string();  
   bool found = tx.Get(*w_key, w_value, &w_s);
-  printf("found %d\n", found);
+  //printf("found %d\n", found);
   output->w_tax = getW_TAX(*w_value);
-  delete w_key->data_;
-  delete w_key;
-  delete w_value;
+  //delete[] w_key->data_;
+  //delete w_key;
+  //delete w_value;
   
   //--------------------------------------------------------------------------
   //The row in the DISTRICT table with matching D_W_ID and D_ ID is selected, 
   //D_TAX, the district tax rate, is retrieved, 
   //and D_NEXT_O_ID, the next available order number for the district, is retrieved and incremented by one.
   //--------------------------------------------------------------------------
-  printf("Step 2\n");
+  //printf("Step 2\n");
   Slice *d_key = marshallDistrictKey(warehouse_id, district_id);
   Status d_s;
   std::string *d_value = new std::string();
+  printf("District %d\n", district_id);
   found = tx.Get(*d_key, d_value, &d_s);
-  printf("found %d\n", found);
+  //printf("found %d\n", found);
   output->d_tax = getD_TAX(*d_value);
   output->o_id = getD_NEXT_O_ID(*d_value);
-  *d_value = updateD_NEXT_O_ID(*d_value, output->o_id + 1);
+  d_value = updateD_NEXT_O_ID(*d_value, output->o_id + 1);
   Slice *d_v = new Slice(*d_value);
   tx.Add(t, *d_key, *d_v);
 
@@ -695,17 +699,17 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //and C_DISCOUNT, the customer's discount rate, C_LAST, the customer's last name, 
   //and C_CREDIT, the customer's credit status, are retrieved.
   //--------------------------------------------------------------------------
-  printf("Step 3\n");
+  //printf("Step 3\n");
   Slice *c_key = marshallCustomerKey(warehouse_id, district_id, customer_id);
   Status c_s;
   std::string *c_value = new std::string();
   found = tx.Get(*c_key, c_value, &c_s);
-  printf("found %d\n", found);
+  //printf("found %d\n", found);
   output->c_discount = getC_DISCOUNT(*c_value);
   memcpy(output->c_last, getC_LAST(*c_value), sizeof(output->c_last));
   memcpy(output->c_credit, getC_CREDIT(*c_value), sizeof(output->c_credit));
-  delete c_key->data_;
-  delete c_key;
+//  delete c_key->data_;
+//  delete c_key;
 
   //-------------------------------------------------------------------------- 
   //A new row is inserted into both the NEW-ORDER table and the ORDER table to reflect the creation of the new order.
@@ -715,7 +719,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //--------------------------------------------------------------------------
 
   // Check if this is an all local transaction
-  printf("Step 4\n");
+  //printf("Step 4\n");
   bool all_local = true;
   for (int i = 0; i < items.size(); ++i) {
     if (items[i].ol_supply_w_id != warehouse_id) {
@@ -723,7 +727,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
       break;
     }
   }
-  printf("all_local %d\n", all_local);
+  //printf("all_local %d\n", all_local);
   
   Order order;
   order.o_w_id = warehouse_id;
@@ -753,7 +757,8 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //For each O_OL_CNT item on the order:
   //-------------------------------------------------------------------------
 
-  printf("Step 5\n");
+  //printf("Step 5\n");
+  
   OrderLine line;
   line.ol_o_id = output->o_id;
   line.ol_d_id = district_id;
@@ -767,17 +772,18 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	//and I_PRICE, the price of the item, I_NAME, the name of the item, and I_DATA are retrieved. 
 	//If I_ID has an unused value, a "not-found" condition is signaled, resulting in a rollback of the database transaction.	
 	//-------------------------------------------------------------------------
-	printf("Step 6\n");
+	//printf("Step 6\n");
 	Slice *i_key = marshallItemkey(items[i].i_id);
 	Status i_s;
 	std::string *i_value = new std::string();
 	bool found = tx.Get(*i_key, i_value, &i_s);
-	printf("found %d %d\n", i, found);
-	delete i_key->data_;
-	delete i_key;
+	//printf("found %d %d\n", i, found);
+	//delete i_key->data_;
+	//delete i_key;
 	if (!found) {
 		strcpy(output->status, NewOrderOutput::INVALID_ITEM_STATUS);
 		tx.Abort();
+		return false;
 	}
 	Item item = unmarshallItemValue(*i_value);
 	assert(sizeof(output->items[i].i_name) == sizeof(item.i_name));
@@ -793,23 +799,25 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	//S_YTD is increased by OL_QUANTITY and S_ORDER_CNT is incremented by 1. 
 	//If the order-line is remote, then S_REMOTE_CNT is incremented by 1.
 	//-------------------------------------------------------------------------
-	printf("Step 7\n");
+	//printf("Step 7\n");
 	Slice *s_key = marshallStockKey(items[i].ol_supply_w_id, items[i].i_id);
 	Status s_s;
     std::string *s_value = new std::string();
-	printf("Item id %d\n", items[i].i_id);
+	if (items[i].i_id > 100000) 
+	  printf("Unused key!\n");
+	//printf("Item id %d %d\n", items[i].ol_supply_w_id, items[i].i_id);
     found = tx.Get(*s_key, s_value, &s_s);
-	printf("found %d %d\n", i, found);
-	Stock s = unmarshallStockValue(*s_value);    
-    if (s.s_quantity > (items[i].ol_quantity + 10))
-	  s.s_quantity -= items[i].ol_quantity;
-	else s.s_quantity = s.s_quantity - items[i].ol_quantity + 91;
-	output->items[i].s_quantity = s.s_quantity;
-	s.s_ytd += items[i].ol_quantity;
-	s.s_order_cnt++;
+	//printf("found %d %d\n", i, found);
+	Stock *s = unmarshallStockValue(*s_value);    
+    if (s->s_quantity > (items[i].ol_quantity + 10))
+	  s->s_quantity -= items[i].ol_quantity;
+	else s->s_quantity = s->s_quantity - items[i].ol_quantity + 91;
+	output->items[i].s_quantity = s->s_quantity;
+	s->s_ytd += items[i].ol_quantity;
+	s->s_order_cnt++;
 	if (items[i].ol_supply_w_id != warehouse_id) 
-	  s.s_remote_cnt++;
-	Slice *s_v =  marshallStockValue(s);
+	  s->s_remote_cnt++;
+	Slice *s_v =  marshallStockValue(*s);
 	tx.Add(t, *s_key, *s_v);
 
 	//-------------------------------------------------------------------------
@@ -820,7 +828,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
     output->items[i].ol_amount = static_cast<float>(items[i].ol_quantity) * item.i_price;
     line.ol_amount = output->items[i].ol_amount;
         
-	bool stock_is_original = (strstr(s.s_data, "ORIGINAL") != NULL);
+	bool stock_is_original = (strstr(s->s_data, "ORIGINAL") != NULL);
     if (stock_is_original && strstr(item.i_data, "ORIGINAL") != NULL) {
 	  output->items[i].brand_generic = NewOrderOutput::ItemInfo::BRAND;
 	} else {
@@ -837,12 +845,12 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
     line.ol_i_id = items[i].i_id;
     line.ol_supply_w_id = items[i].ol_supply_w_id;
     line.ol_quantity = items[i].ol_quantity;
-    assert(sizeof(line.ol_dist_info) == sizeof(s.s_dist[district_id]));
-    memcpy(line.ol_dist_info, s.s_dist[district_id], sizeof(line.ol_dist_info));
+    assert(sizeof(line.ol_dist_info) == sizeof(s->s_dist[district_id]));
+    memcpy(line.ol_dist_info, s->s_dist[district_id], sizeof(line.ol_dist_info));
 	Slice *l_key = marshallOrderLineKey(line.ol_w_id, line.ol_d_id, line.ol_o_id, line.ol_number);
 	Slice *l_value = marshallOrderLineValue(line);
 	tx.Add(t, *l_key, *l_value);
-
+	//delete s;
 	//-------------------------------------------------------------------------
 	//The total-amount for the complete order is computed as: 
 	//sum(OL_AMOUNT) * (1 - C_DISCOUNT) * (1 + W_TAX + D_TAX)
@@ -852,9 +860,9 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   }
   
   output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
-  printf("Try commit\n");
+  //printf("Try commit\n");
   bool b = tx.End();
-  printf("At last %d\n",b);
+  //printf("At last %d\n",b);
   if (b) break;
   }
   return true;

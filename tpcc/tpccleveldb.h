@@ -51,7 +51,7 @@ class TPCCLevelDB : public TPCCDB {
   Slice* marshallDistrictValue(const District& d);
   float getD_TAX(std::string& value);
   int32_t getD_NEXT_O_ID(std::string& value);
-  std::string updateD_NEXT_O_ID(std::string& value, int32_t id);
+  std::string* updateD_NEXT_O_ID(std::string& value, int32_t id);
   Slice* marshallCustomerKey(int32_t c_w_id, int32_t c_d_id, int32_t c_id);
   Slice* marshallCustomerValue(const Customer& c);
   float getC_DISCOUNT(std::string& value);
@@ -62,7 +62,7 @@ class TPCCLevelDB : public TPCCDB {
   Slice* marshallNewOrderKey(const NewOrder& no);
   Slice* marshallStockKey(int32_t s_w_id, int32_t s_i_id);
   Slice* marshallStockValue(Stock s);
-  Stock unmarshallStockValue(std::string& value);
+  Stock* unmarshallStockValue(std::string& value);
   Slice* marshallItemkey(int32_t i_id);
   Slice* marshallItemValue(Item i);
   Item unmarshallItemValue(std::string& value);
