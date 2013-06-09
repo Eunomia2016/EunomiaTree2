@@ -407,6 +407,10 @@ void  DBTransaction::WriteSet::Resize() {
 
 	seq = *node->seqaddr;
 
+	//This is an empty node (garbage)
+	if(seq == 0)
+		return false;
+	
 	Status res;
 	//may be not found, should wait for a while
 
