@@ -355,7 +355,6 @@ void  DBTransaction::WriteSet::Resize() {
 	
 	HashTable::Node* node = latestseq_->GetNodeWithInsert(key);
 	
-	
 	//write the key value into local buffer
 	//count++;
 //	if(count == 1 || count == 300)

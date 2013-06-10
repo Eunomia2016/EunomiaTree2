@@ -50,12 +50,6 @@ class HashTable {
   {
 	  Node* h;
 	  port::SpinLock* spinlock;
-	  Head(){
-		spinlock = new port::SpinLock();
-	  }
-	  ~Head(){
-		delete spinlock;
-	  }
   };
 
   struct SeqNumber

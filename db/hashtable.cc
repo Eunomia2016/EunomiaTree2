@@ -20,6 +20,12 @@ HashTable::HashTable() : length_(0), elems_(0), list_(NULL) {
 
 HashTable::~HashTable() {
 	delete arena_;
+
+	for (uint32_t i = 0; i < length_; i++) {
+	
+	  delete list_[i].spinlock;
+	}
+	
 	delete[] list_;	
 }
 
@@ -32,14 +38,20 @@ void HashTable::Resize()
 	  new_length *= 2;
 	}
 
-	seqs = reinterpret_cast<SeqNumber*>
+	//seqs = reinterpret_cast<SeqNumber*>
 		(arena_->AllocateAligned(new_length * sizeof(SeqNumber)));
-	seqIndex = 0;
+	//seqIndex = 0;
 	
 	Head* new_list = new Head[new_length];
+	for (uint32_t i = 0; i < new_length; i++) {
+
+	  new_list[i].spinlock = new port::SpinLock();
+
+	}
 	
 	uint32_t count = 0;
 	for (uint32_t i = 0; i < length_; i++) {
+	  
 	  Node* h = list_[i].h;
 	  while (h != NULL) {
 		Node* next = h->next;
@@ -50,8 +62,11 @@ void HashTable::Resize()
 		h = next;
 		count++;
 	  }
+
+	  delete list_[i].spinlock;
 	}
 	assert(elems_ == count);
+	  
 	delete[] list_;
 	list_ = new_list;
 	length_ = new_length;
