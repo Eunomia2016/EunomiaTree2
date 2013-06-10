@@ -30,7 +30,8 @@ class HashTable {
   
   struct Node 
   {
-	  uint64_t *seqaddr;
+//	  uint64_t *seqaddr;
+	  uint64_t seq;
 	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
 	  Node* next;  
 	  
@@ -45,7 +46,7 @@ class HashTable {
   struct SeqNumber
   {
 	  uint64_t seq;
-	  char padding[56];
+//	  char padding[56];
   };
 
 

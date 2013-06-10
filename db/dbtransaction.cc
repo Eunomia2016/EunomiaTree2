@@ -368,7 +368,7 @@ void  DBTransaction::WriteSet::Resize() {
 //	if(count == 1 || count == 300)
 	//	printf("seqaddr %lx\n", node->seqaddr);
 	
-	writeset->Add(type, key, value, node->seqaddr);
+	writeset->Add(type, key, value, &node->seq);
   }
 
   //FIXME: value should use slice instead of string !!!
@@ -405,7 +405,7 @@ void  DBTransaction::WriteSet::Resize() {
 		return false;
 	}
 
-	seq = *node->seqaddr;
+	seq = node->seq;
 
 	//This is an empty node (garbage)
 	if(seq == 0)
@@ -429,7 +429,7 @@ void  DBTransaction::WriteSet::Resize() {
 	}while(res.IsNotFound());
 
 	// step 3. put into the read set
-	readset->Add(node->hash, seq, node->seqaddr);
+	readset->Add(node->hash, seq, &node->seq);
 	
 	return true;
   }
@@ -438,8 +438,8 @@ void  DBTransaction::WriteSet::Resize() {
 	
 
 	//writeset->PrintHashTable();	
-	//RTMScope rtm(&rtmProf);
-	MutexLock mu(storemutex);
+	RTMScope rtm(&rtmProf);
+	//MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))
