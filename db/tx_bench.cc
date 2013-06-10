@@ -221,12 +221,12 @@ private:
 		   //printf("DoWrite %d\n", total_count);
 			while(total_count > 0) {
 				
-				int64_t oldv = XADD64(&total_count, -1);
+				int64_t oldv = XADD64(&total_count, -1000);
 				if(oldv <= 0)
 					   break;
 
 				
-				for (int i =0; i < 1; i++) {		   
+				for (int i =0; i < 1000; i++) {		   
 				/*	Key k;
 					if(seq)
 						k = MakeKey(tid,seqNum++);
