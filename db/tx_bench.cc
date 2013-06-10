@@ -11,7 +11,6 @@
 #include "util/arena.h"
 #include "util/hash.h"
 #include "util/random.h"
-#include "util/testharness.h"
 #include <deque>
 #include <set>
 #include "port/port.h"

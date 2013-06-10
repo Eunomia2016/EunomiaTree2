@@ -79,6 +79,9 @@ Iterator* TXSkiplist::NewIterator() {
 Status TXSkiplist::Put(const Slice& key,
 					   const Slice& value, uint64_t seq)
 {
+
+	Table::ThreadLocalInit();
+	
 	size_t key_size = key.size();
   	size_t val_size = value.size();
   	size_t internal_key_size = key_size + 8;
@@ -86,7 +89,7 @@ Status TXSkiplist::Put(const Slice& key,
       VarintLength(internal_key_size) + internal_key_size +
       VarintLength(val_size) + val_size;
 	
-  	char* buf = arena_.Allocate(encoded_len);
+  	char* buf = (char *)malloc(encoded_len);
   	char* p = EncodeVarint32(buf, internal_key_size);
   	memcpy(p, key.data(), key_size);
   	p += key_size;
@@ -103,6 +106,9 @@ Status TXSkiplist::Put(const Slice& key,
 Status TXSkiplist::Get(const Slice& key,
 					   std::string* value, uint64_t seq)
 {
+
+	  Table::ThreadLocalInit();
+	  
 	  size_t key_size = key.size();
   	  size_t internal_key_size = key_size + 8;
   	  const size_t encoded_len = VarintLength(internal_key_size) + internal_key_size;
@@ -154,6 +160,8 @@ Status TXSkiplist::Get(const Slice& key,
 
 Status TXSkiplist::Delete(const Slice& key, uint64_t seq) 
 {
+	Table::ThreadLocalInit();
+	
 	return Status::NotFound(Slice());
 }
 
@@ -161,6 +169,7 @@ Status TXSkiplist::Delete(const Slice& key, uint64_t seq)
 
 void TXSkiplist::DumpTXSkiplist()
 {
+
   Table::Iterator iter(&table_);
   iter.SeekToFirst();
   while(iter.Valid()) {
@@ -172,10 +181,12 @@ void TXSkiplist::DumpTXSkiplist()
 	uint64_t seq = tag>>8;
 	Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
 
-	printf("Key %s ", k);
+	mutex_.Lock();
+	printf("Key %s ", k.ToString().c_str());
 	printf("Seq %ld ", seq);
-	printf("Value %s \n", v);
-
+	printf("Value %s", v.ToString().c_str());
+	printf("\n");
+	mutex_.Unlock();
 	iter.Next();
   }
 }

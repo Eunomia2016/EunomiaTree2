@@ -100,6 +100,25 @@ class Mutex {
   void operator=(const Mutex&);
 };
 
+
+class SpinLock {
+ public:
+  SpinLock();
+  ~SpinLock();
+
+  void Lock();
+  void Unlock();
+  void AssertHeld() { }
+
+ private:
+  pthread_spinlock_t lock_;
+
+  // No copying
+  SpinLock(const SpinLock&);
+  void operator=(const SpinLock&);
+};
+
+
 class CondVar {
  public:
   explicit CondVar(Mutex* mu);

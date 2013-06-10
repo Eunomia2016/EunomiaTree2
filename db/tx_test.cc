@@ -251,52 +251,48 @@ class Benchmark {
 		//printf("start %d\n",tid);
 		
 		bool fail = false;
-		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
+		for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
+
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
-			while (b==false) {
-			tx.Begin();
-			
-			for (int j=1; j<4; j++) {
-	 			char* key = new char[100];
-				snprintf(key, sizeof(key), "%d", j);
-				Slice k(key);
-	
-				char* value = new char[100];
-				snprintf(value, sizeof(value), "%d", i);
-				Slice *v = new leveldb::Slice(value);
+			while (b == false) {
+				tx.Begin();
+				
+				for (int j=1; j<4; j++) {
+		 			char* key = new char[100];
+					snprintf(key, sizeof(key), "%d", j);
+					Slice k(key);
+		
+					char* value = new char[100];
+					snprintf(value, sizeof(value), "%d", i);
+					Slice *v = new leveldb::Slice(value);
 
-				//printf("Insert %s ", key);
-				//printf(" Value %s\n", value);
-				tx.Add(t, k, *v);			
-			}
-			b = tx.End();
-			//if (b==true)printf("%d\n", i);
+					tx.Add(t, k, *v);			
+				}
+				b = tx.End();
+
 			}
 			
 			DBTransaction tx1(seqs, store, mutex);
-			b =false;
-			while (b==false) {
-			tx1.Begin();
-			
-			for (int j=1; j<4; j++) {
-				char* key = new char[100];
-				snprintf(key, sizeof(key), "%d", j);
-				Slice k(key);
+			b = false;
+			while (b == false) {
+				tx1.Begin();
 				
+				for (int j = 1; j < 4; j++) {
+					
+					char* key = new char[100];
+					snprintf(key, sizeof(key), "%d", j);
+					Slice k(key);
+					
 
-				Status s;
-				//printf("Read begin %d\n",j);
-				tx1.Get(k, &(str[j-1]), &s);
-				//printf("Tid %d get %s %s\n",tid,key,&str[j-1]);
-			}						
-			b = tx1.End();
-			//if (b==true)printf("%d\n", i);
+					Status s;
+					tx1.Get(k, &(str[j-1]), &s);
+				
+				}						
+				b = tx1.End();
+			
 			}
-			//assert(str[0]==str[1]);
-			//assert(str[1]==str[2]);
-			//if (!(str[0]==str[1])) printf("0f\n");
-			//if (str[1]!=str[2]) printf("1f\n");
+			
 			if (!(str[0]==str[1])){
 				printf("Key 1 has value %s, Key 2 has value %s, not equal\n",str[0].c_str(),str[1].c_str());
 				fail = true;

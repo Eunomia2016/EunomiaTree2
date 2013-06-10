@@ -416,14 +416,16 @@ void  DBTransaction::WriteSet::Resize() {
 	int count = 0;
 	do{
 		
-		storemutex->Lock();//printf("Get lock\n");
 		res = txdb_->Get(key, value, seq);
-		storemutex->Unlock();
-	/*	count++;
+/*
+		count++;
 		if (count > 1000) {
-			printf("Not found %s\n", key);
+			printf("Not found seq %ld  key %s \n",seq, key);
+			TXSkiplist* sl = (TXSkiplist*)txdb_;
+			sl->DumpTXSkiplist();
 			return false;
-		}*/
+		}
+		*/
 	}while(res.IsNotFound());
 
 	// step 3. put into the read set
@@ -436,8 +438,8 @@ void  DBTransaction::WriteSet::Resize() {
 	
 
 	//writeset->PrintHashTable();	
-	//RTMScope rtm(&rtmProf);
-	MutexLock mu(storemutex);
+	RTMScope rtm(&rtmProf);
+	//MutexLock mu(storemutex);
 	
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))
@@ -456,9 +458,7 @@ void  DBTransaction::WriteSet::Resize() {
   
   void DBTransaction::GlobalCommit() {
 	//commit the local write set into the memory storage		
-	storemutex->Lock();
 	writeset->Commit(txdb_);
-	storemutex->Unlock();
 	
 	if(readset != NULL) {
 		delete readset;

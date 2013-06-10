@@ -56,8 +56,12 @@ private:
   
 
   KeyComparator comparator_;
+  //FIXME: this should be thread safe
   Arena arena_;
   Table table_;
+
+ //for debug
+  port::Mutex mutex_;
 
 };
 

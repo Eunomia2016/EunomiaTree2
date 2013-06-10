@@ -107,7 +107,7 @@ inline void MemoryBarrier() {
 // AtomicPointer built using platform-specific MemoryBarrier()
 #if defined(LEVELDB_HAVE_MEMORY_BARRIER)
 class AtomicPointer {
- private:
+ public:
   void* rep_;
  public:
   AtomicPointer() { }

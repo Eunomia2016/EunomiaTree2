@@ -58,8 +58,7 @@ class LockfreeSkipList {
   explicit LockfreeSkipList(Comparator cmp, Arena* arena);
   ~LockfreeSkipList();
 
-  static void ThreadLocalInit(Arena* arena);
-  static void ThreadLocalClear();
+  static void ThreadLocalInit();
   static void GlobalClear();
 
   // Insert key into the list.
@@ -115,6 +114,7 @@ class LockfreeSkipList {
   //Thread local variable for scalability purpose
   // Read/written only by Insert().
   static __thread Random* rnd_;
+  static __thread bool localinit_;
   static __thread Arena* arena_;    // Arena used for allocations of nodes
   static std::vector<Arena*> arenas_collector;
   static port::SpinLock ac_lock; // protect the arenas_collector
@@ -388,11 +388,15 @@ template<typename Key, class Comparator>
 LockfreeSkipList<Key,Comparator>::~LockfreeSkipList()
 {
   //TODO should free all local arenas
+  GlobalClear();
   delete head_;
 }
 
 template<typename Key, class Comparator>
 __thread Random* LockfreeSkipList<Key,Comparator>::rnd_ = NULL;
+
+template<typename Key, class Comparator>
+__thread bool LockfreeSkipList<Key,Comparator>::localinit_ = false;
 
 template<typename Key, class Comparator>
 __thread Arena* LockfreeSkipList<Key,Comparator>::arena_ = NULL;
@@ -404,22 +408,17 @@ template<typename Key, class Comparator>
 port::SpinLock LockfreeSkipList<Key,Comparator>::ac_lock;
 
 template<typename Key, class Comparator>
-void LockfreeSkipList<Key,Comparator>::ThreadLocalInit(Arena* arena) {
-	rnd_ = new Random(0xdeadbeef);
+void LockfreeSkipList<Key,Comparator>::ThreadLocalInit() {
 
-	if(arena == NULL) {
+	if(localinit_ == false) {
+		rnd_ = new Random(0xdeadbeef);
 		arena_ = new Arena();
 		ac_lock.Lock();
 		arenas_collector.push_back(arena_);
 		ac_lock.Unlock();
+		localinit_ = true;
 	}
-	else
-		arena_ = arena;
-}
 
-template<typename Key, class Comparator>
-void LockfreeSkipList<Key,Comparator>::ThreadLocalClear() {
-	delete rnd_;
 }
 
 
