@@ -326,6 +326,9 @@ private:
 	  
 	  void RunBenchmark(int n,
 						void (Benchmark::*method)(ThreadState*)) {
+
+		int64_t totaltxs = total_count;
+		
 		SharedState shared;
 		shared.total = n;
 		shared.num_initialized = 0;
@@ -355,28 +358,15 @@ private:
 		shared.start = true;
 		printf("Send Start Signal\n");
 		shared.cv.SignalAll();
-//		std::cout << "Startup Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
-		
+
+		double start = leveldb::Env::Default()->NowMicros();
+
 		while (shared.num_done < n) {
 		  shared.cv.Wait();
 		}
 		shared.mu.Unlock();
-		/*
-		uint64_t seq;
-		ValueType t = kTypeValue;
-		char* key = new char[100];
-		snprintf(key, sizeof(key), "%d", 1);
-		leveldb::Slice k(key);
 
-		seqs.Lookup(k, (void **)&seq);
-		printf("lastest seq num %d\n", seq);
-
-		LookupKey lkey(k, seq);
-		std::string val;
-		Status s;
-		store->Get(lkey, &val, &s);
-		printf("Value %s\n", val.c_str());
-		*/
+		double end = leveldb::Env::Default()->NowMicros();
 
 		printf(" ...... Iterate  MemStore ......\n");
 		leveldb::Iterator* iter = store->NewIterator();
@@ -391,20 +381,14 @@ private:
 		}
 
 		printf("MemStore Total %d\n", count);
+		printf("Throughput %lf txs/s\n", totaltxs * 1000000 / (end - start));
 
-		//printf(" ...... Iterate  Seq Hash Table ......");
-		//seqs.PrintHashTable();
+		printf("Total Run Time : %lf ms\n", (end - start)/1000);
+
 		
-		/*
-		if(method == &Benchmark::WriteRandom || method == &Benchmark::WriteSeq)
-			printf("Total Write Run Time : %lf ms\n", (shared.end_time - shared.start_time)/1000);
-		else
-			printf("Total Read Run Time : %lf ms\n", (shared.end_time - shared.start_time)/1000);
-		*/
-		/*
 		for (int i = 0; i < n; i++) {
-		  //printf("Thread[%d] Run Time %lf ms\n", i, arg[i].thread->time/1000);
-		}*/
+		  printf("Thread[%d] Run Time %lf ms\n", i, arg[i].thread->time/1000);
+		}
 
 		int conflict = 0;
 		int falseConflict = 0;
