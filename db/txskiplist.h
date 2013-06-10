@@ -8,8 +8,9 @@
 #include <string>
 #include "txdb.h"
 #include "db/dbformat.h"
-#include "db/skiplist.h"
 #include "util/arena.h"
+#include "db/lockfreeSkiplist.h"
+
 
 namespace leveldb {
 
@@ -49,7 +50,7 @@ class TXSkiplist : public TXDB {
     int operator()(const char* a, const char* b) const;
   };
 
-  typedef SkipList<const char*, KeyComparator> Table;
+  typedef LockfreeSkipList<const char*, KeyComparator> Table;
 
 private:
   
