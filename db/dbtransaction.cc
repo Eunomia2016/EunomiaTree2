@@ -352,16 +352,9 @@ void  DBTransaction::WriteSet::Resize() {
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
   	//Get the seq addr from the hashtable
-	storemutex->Lock();
 	
-	HashTable::Node* node = latestseq_->GetNode(key);
+	HashTable::Node* node = latestseq_->GetNodeWithInsert(key);
 	
-	if ( NULL == node) {
-//		printf("Insert %d\n", count);
-		node = latestseq_->Insert(key, 0); //insert an empty node
-	}
-	
-	storemutex->Unlock();
 	
 	//write the key value into local buffer
 	//count++;

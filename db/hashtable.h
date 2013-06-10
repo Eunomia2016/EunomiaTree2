@@ -22,6 +22,8 @@
 #include "leveldb/slice.h"
 #include <stdlib.h>
 #include "util/rtm_arena.h"
+#include "util/rtm_arena.h"
+#include "port/port.h"
 
 namespace leveldb {
 
@@ -43,6 +45,19 @@ class HashTable {
 	}
   };
 
+
+  struct Head 
+  {
+	  Node* h;
+	  port::SpinLock* spinlock;
+	  Head(){
+		spinlock = new port::SpinLock();
+	  }
+	  ~Head(){
+		delete spinlock;
+	  }
+  };
+
   struct SeqNumber
   {
 	  uint64_t seq;
@@ -59,31 +74,24 @@ class HashTable {
   bool GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr);
   
   void UpdateWithHash(uint64_t hash, uint64_t seq);
-
-  Node* NewNode(const Slice & key);
   
-  HashTable::Node* Insert(const Slice& key, uint64_t seq);
-  
-  bool Lookup(const Slice& key, uint64_t *seq_ptr);
   
   Node* GetNode(const Slice& key);
-  
-  bool Update(const Slice& key, uint64_t seq);
+  Node* GetNodeWithInsert(const Slice& key);
+  Node* Insert(const Slice& key, uint64_t seq);
   
   void PrintHashTable();
 
 
-  //remove a node, but doesn't deref 
-  Node* Remove(const Slice& key, uint32_t hash);
   
-  Node* InsertNode(Node* h);
-  
-  public:
+  private:
   	
 
   int length_;
   int elems_;
-  Node** list_;
+  Head* list_;
+  
+ // Node** list_;
 
   int seqIndex;
   SeqNumber* seqs;
@@ -92,31 +100,10 @@ class HashTable {
   
   
   void Resize();
-  uint32_t HashSlice(const Slice& s);
-  Node** FindNode(const Slice& key, uint32_t hash); 
+  Node* NewNode(const Slice & key);
+  uint64_t HashSlice(const Slice& s);
 
- public:
- 	class Iterator {
-   	  public:
-      // Initialize an iterator over the specified list.
-      // The returned iterator is not valid.
-      explicit Iterator(const HashTable* htable);
-
-      // Returns true iff the iterator is positioned at a valid node.
-      bool Next();
-
-      // Advances to the next position.
-      // REQUIRES: Valid()
-      HashTable::Node* Current();
-
-     private:
-      const HashTable* htable;
-	  Node* current;
-	  int slotIndex;
-    // Intentionally copyable
-    };
-  	
-};
+ };
 
 }  // namespace leveldb
 

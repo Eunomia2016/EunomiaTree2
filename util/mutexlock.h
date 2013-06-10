@@ -35,6 +35,24 @@ class SCOPED_LOCKABLE MutexLock {
   void operator=(const MutexLock&);
 };
 
+
+class SCOPED_LOCKABLE MutexSpinLock {
+ public:
+  explicit MutexSpinLock(port::SpinLock *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
+      : mu_(mu)  {
+    this->mu_->Lock();
+  }
+  ~MutexSpinLock() UNLOCK_FUNCTION() { this->mu_->Unlock(); }
+
+ private:
+  port::SpinLock *const mu_;
+  // No copying allowed
+  MutexSpinLock(const MutexSpinLock&);
+  void operator=(const MutexSpinLock&);
+};
+
+
+
 }  // namespace leveldb
 
 

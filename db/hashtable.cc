@@ -23,6 +23,7 @@ HashTable::~HashTable() {
 	delete[] list_;	
 }
 
+
 void HashTable::Resize() 
 {
 	uint32_t new_length = 16384000; //16M
@@ -35,17 +36,17 @@ void HashTable::Resize()
 		(arena_->AllocateAligned(new_length * sizeof(SeqNumber)));
 	seqIndex = 0;
 	
-	Node** new_list = new Node*[new_length];
-	memset(new_list, 0, sizeof(new_list[0]) * new_length);
+	Head* new_list = new Head[new_length];
+	
 	uint32_t count = 0;
 	for (uint32_t i = 0; i < length_; i++) {
-	  Node* h = list_[i];
+	  Node* h = list_[i].h;
 	  while (h != NULL) {
 		Node* next = h->next;
 		uint32_t hash = h->hash;
-		Node** ptr = &new_list[hash & (new_length - 1)];
-		h->next = *ptr;
-		*ptr = h;
+		Head ptr = new_list[hash & (new_length - 1)];
+		h->next = ptr.h;
+		ptr.h = h;
 		h = next;
 		count++;
 	  }
@@ -56,10 +57,18 @@ void HashTable::Resize()
 	length_ = new_length;
   }
 
+uint64_t HashTable::HashSlice(const Slice& s)
+{
+	return Hash(s.data(), s.size(), 0);
+}
+
 bool HashTable::GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr)
 {
 	uint64_t max = 0;
-	Node* ptr = list_[hash & (length_ - 1)];
+	Head slot = list_[hash & (length_ - 1)];
+
+	MutexSpinLock(slot.spinlock);
+	Node* ptr = slot.h;
 	
     while (ptr != NULL) {
 
@@ -82,7 +91,11 @@ bool HashTable::GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr)
 void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
 {
 	uint64_t max = 0;
-	Node* ptr = list_[hash & (length_ - 1)];
+	
+	Head slot = list_[hash & (length_ - 1)];
+
+	MutexSpinLock(slot.spinlock);
+	Node* ptr = slot.h;
 	
     while (ptr != NULL) {
 
@@ -93,11 +106,108 @@ void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
     }
 }
 
+HashTable::Node* HashTable::GetNode(const Slice& key) 
+{
+
+	uint64_t hash = HashSlice(key);
+	Head slot = list_[hash & (length_ - 1)];
+	
+	MutexSpinLock(slot.spinlock);
+	Node* ptr = slot.h;
+	
+    while (ptr != NULL &&
+           (ptr->hash != hash || key != ptr->Getkey())) {
+      ptr = ptr->next;
+    }
+    return ptr;
+	
+}
+
+HashTable::Node* HashTable::GetNodeWithInsert(const Slice& key) 
+{
+
+	uint64_t hash = HashSlice(key);
+	Head slot = list_[hash & (length_ - 1)];
+	
+	MutexSpinLock(slot.spinlock);
+	Node* ptr = slot.h;
+	
+    while (ptr != NULL &&
+           (ptr->hash != hash || key != ptr->Getkey())) {
+      ptr = ptr->next;
+    }
+
+	if(ptr == NULL) {
+		//insert an empty node
+		ptr = NewNode(key);
+		ptr->seq = 0;
+		ptr->next = NULL;
+		ptr->hash = hash;
+
+		ptr->next = slot.h;
+    	slot.h = ptr;
+	}
+    return ptr;
+	
+}
+
+
+HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq) 
+{
+
+	uint64_t hash = HashSlice(key);
+	Head slot = list_[hash & (length_ - 1)];
+	Node* ptr = NewNode(key);
+	
+	MutexSpinLock(slot.spinlock);
+
+	
+	ptr->seq = 0;
+	ptr->next = NULL;
+	ptr->hash = HashSlice(key);
+	ptr->next = slot.h;
+    slot.h = ptr;
+	
+    return ptr;
+	
+}
+
+
+
+
+
+void HashTable::PrintHashTable() 
+{
+	int count = 0;
+    int i = 0;
+	
+    for(; i < length_; i++) {
+		
+		printf("slot [%d] : ", i);
+		Head slot = list_[i];
+
+		MutexSpinLock(slot.spinlock);
+		Node* ptr = slot.h;
+		
+        while (ptr != NULL) {
+			count++;
+	   		printf("Hash: %ld, Seq: %ld  ",  ptr->hash, ptr->seq);
+           ptr = ptr->next;
+        }
+		printf("\n");
+    }
+
+	printf(" Hash Table Elements %d\n", count);
+}
+
+
 
 HashTable::Node* HashTable::NewNode(const Slice & key)
 {
-	Node* e = reinterpret_cast<Node*>(arena_->AllocateAligned(
-      sizeof(Node) + (key.size() - 1)));
+	//Node* e = reinterpret_cast<Node*>(arena_->AllocateAligned(
+      //sizeof(Node) + (key.size() - 1)));
+
+	Node* e = reinterpret_cast<Node*>(malloc(sizeof(Node) + (key.size() - 1)));
 
 	e->key_length = key.size();
 	memcpy(e->key_contents, key.data(), key.size());
@@ -105,162 +215,7 @@ HashTable::Node* HashTable::NewNode(const Slice & key)
     return e;
 }
 
-HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
-{
-	uint64_t temp;
-	if (Lookup(key, &temp)) printf("Equal Insert key len %d key %s\n", key.size(), key);
-	seqs[seqIndex].seq = seq;
-	
-	Node* e = NewNode(key);
-	e->seq = seq;
-//	e->seqaddr = &seqs[seqIndex].seq;
-	e->next = NULL;
-	e->hash = HashSlice(key);   
-
-	seqIndex++;
-//	printf("seqIndex %d\n", seqIndex);
-    InsertNode(e);
-	
-    return e;
-}
-
-
-HashTable::Node* HashTable::Remove(const Slice& key, uint32_t hash) 
-{
-    Node** ptr = FindNode(key, hash);
-    Node* result = *ptr;
-    if (result != NULL) {
-      *ptr = result->next;
-      //--elems_;
-    }
-    return result;
-
-}
-
-
-bool HashTable::Update(const Slice& key,  uint64_t seq) 
-{
-    Node** ptr = FindNode(key, HashSlice(key));
-    assert(ptr != NULL && *ptr != NULL);
-
-    (*ptr)->seq = seq;
-//    *(*ptr)->seqaddr = seq;
-	
-    return true;
-}
-
-
-bool HashTable::Lookup(const Slice& key, uint64_t *seq_ptr) 
-{
-    Node** ptr = FindNode(key, HashSlice(key));
-    if(ptr == NULL || *ptr == NULL)
-	return false;
-	*seq_ptr = (*ptr)->seq;
-//    *seq_ptr = *(*ptr)->seqaddr;
-    return true;
-}
-
-HashTable::Node* HashTable::GetNode(const Slice& key) 
-{
-    Node** ptr = FindNode(key, HashSlice(key));
-    if(ptr == NULL || *ptr == NULL)
-		return NULL;
-	
-    return *ptr;
-}
-
-
-void HashTable::PrintHashTable() 
-{
-	int count = 0;
-    int i = 0;
-    for(; i < length_; i++) {
-	printf("slot [%d] : ", i);
-        Node** ptr = &list_[i];
-        while (*ptr != NULL) {
-			count++;
-	   printf("Hash: %ld, Seq: %ld  ",  (*ptr)->hash, (*ptr)->seq);
-           ptr = &(*ptr)->next;
-        }
-	printf("\n");
-    }
-
-	printf(" Hash Table Elements %d\n", count);
-}
-
-HashTable::Iterator::Iterator(const HashTable* htable)
-{
-	this->htable = htable;
-	slotIndex = -1;
-	current = NULL;
-}
-
-// Advances to the next position
-bool HashTable::Iterator::Next()
-{
-	if(slotIndex >= htable->length_)
-		return false;
-
-	if (current == NULL || current->next == NULL) {
-		slotIndex++;
-		while( slotIndex < htable->length_ 
-			&& htable->list_[slotIndex] == NULL)
-			slotIndex++;
-
-		//printf("slotIndex %d length_ %d\n", slotIndex, htable->length_);
-
-		if(slotIndex >= htable->length_)
-			return false;
-	
-		current = htable->list_[slotIndex];
-		return true;
-	} 
-	else if (current->next != NULL) {
-		current = current->next;
-		return true;
-	}
-	
-}
-
-   
-HashTable::Node* HashTable::Iterator::Current() 
-{
-	return current;
-}
-
-uint32_t HashTable::HashSlice(const Slice& s) 
-{
-    return Hash(s.data(), s.size(), 0);
-}
-
-HashTable::Node* HashTable::InsertNode(Node* h) 
-{
-	Node* ptr = list_[h->hash & (length_ - 1)];
-	
-    h->next = ptr;
-    list_[h->hash & (length_ - 1)] = h;
-	
-        
-    ++elems_;
-    if (elems_ > length_) {
-      // Since each cache entry is fairly large, we aim for a small
-      // average linked list length (<= 1).
-      printf("resize\n");
-      Resize();
-    }
-    
-    return ptr;  
-}
 
 
 
-HashTable::Node** HashTable::FindNode(const Slice& key, uint32_t hash) 
-{
-    Node** ptr = &list_[hash & (length_ - 1)];
-    while (*ptr != NULL &&
-           ((*ptr)->hash != hash || key != (*ptr)->Getkey())) {
-      ptr = &(*ptr)->next;
-    }
-    return ptr;
-}
 }
