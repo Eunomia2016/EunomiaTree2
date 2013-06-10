@@ -146,6 +146,10 @@ private:
 	  int count;
 	  int falseConflict;
 	  int conflict;
+	  double addT;
+	  double getT;
+	  double valT;
+	  double comT;
 	  double time;
 	  Random rnd;         // Has different seeds for different threads
 
@@ -154,6 +158,10 @@ private:
 	        rnd(1000 + index) {
 	 		falseConflict = 0;
 			conflict = 0;
+			addT = 0;
+			getT = 0;
+			valT = 0;
+			comT = 0;
 	  }
 	  
 	};
@@ -225,7 +233,6 @@ private:
 				if(oldv <= 0)
 					   break;
 
-				
 				for (int i =0; i < 1000; i++) {		   
 				/*	Key k;
 					if(seq)
@@ -233,7 +240,14 @@ private:
 					else
 						k = MakeKey(tid, thread->rnd.Next());*/
 				//	printf("Exec %d\n", i+1);
-	
+
+					double addT = 0;
+					double getT = 0;
+					double valT = 0;
+					double comT = 0;
+					double startT = 0;
+					double endT = 0;
+					
 					DBTransaction tx(&seqs, store, &mutex);
 					int conflict = 0;
 					
@@ -248,19 +262,36 @@ private:
 					while( !done ) {
 						tx.Begin();
 						//first write tuples
+						startT = leveldb::Env::Default()->NowMicros();
 						for(int i = 0; i < wnum; i++) {
 							snprintf(kc, sizeof(kc), "%d", thread->rnd.Next());
 							leveldb::Slice k(kc);
 							tx.Add(t, k, k);
 						}
+						endT = leveldb::Env::Default()->NowMicros();
+						addT +=  endT - startT;
 
 						for(int i = 0; i < rnum; i++) {
 							snprintf(kc, sizeof(kc), "%d", thread->rnd.Next());
 							leveldb::Slice k(kc);
 							tx.Get(k, &str, &s);
 						}
+
+						startT = leveldb::Env::Default()->NowMicros();
+						getT +=  startT - endT;
+
+						done = tx.Validation();
+
+						endT = leveldb::Env::Default()->NowMicros();
+						valT +=  endT - startT;
+
+						if(done)
+							tx.GlobalCommit();
+
+						startT = leveldb::Env::Default()->NowMicros();
+						comT +=  startT - endT;
 						
-						done = tx.End();
+						//done = tx.End();
 						
 						if( !done )
 							conflict++;
@@ -270,6 +301,10 @@ private:
 					
 					thread->conflict += conflict;
 					thread->falseConflict += tx.rtmProf.abortCounts;
+					thread->addT += addT;
+					thread->getT += getT;
+					thread->valT += valT;
+					thread->comT += comT;
 					
 					delete kc;
 					delete vc;
@@ -392,12 +427,23 @@ private:
 
 		int conflict = 0;
 		int falseConflict = 0;
+		double addT = 0;
+		double getT = 0;
+		double valT = 0;
+		double comT = 0;
+		
 		for (int i = 0; i < n; i++) {
 		 	conflict += arg[i].thread->conflict;
 			falseConflict += arg[i].thread->falseConflict;
+			addT += arg[i].thread->addT;
+			getT += arg[i].thread->getT;
+			valT += arg[i].thread->valT;
+			comT += arg[i].thread->comT;
 		}
 
 		printf("Conflict %d FalseConflict %d\n", conflict, falseConflict);
+		printf("Get Time %lf ms Add Time %lf ms Validate Time %lf ms Commit Time %lf ms\n", 
+			getT/1000, addT/1000, valT/1000, comT/1000);
 		
 		for (int i = 0; i < n; i++) {
 		  delete arg[i].thread;
