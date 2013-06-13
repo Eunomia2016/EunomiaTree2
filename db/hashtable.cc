@@ -177,7 +177,7 @@ HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 	MutexSpinLock(slot->spinlock);
 
 	
-	ptr->seq = 0;
+	ptr->seq = seq;
 	ptr->next = NULL;
 	ptr->hash = HashSlice(key);
 	ptr->next = slot->h;

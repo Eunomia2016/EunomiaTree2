@@ -3,13 +3,14 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "db/hashtable_template.h"
+#include "db/dbtransaction_template.h"
+#include "db/lockfreeSkiplist.h"
 #include <set>
 #include "leveldb/env.h"
 #include "leveldb/comparator.h"
 #include "util/arena.h"
 #include "util/hash.h"
 #include "util/random.h"
-#include "util/testharness.h"
 
 namespace leveldb {
 
@@ -52,16 +53,16 @@ class KeyComparator : public leveldb::Comparator {
   
   };
 
-class KeyHash : public leveldb::HashFunction
-{
-public:
+  class KeyHash : public leveldb::HashFunction
+  {
+  public:
 	
 	virtual uint64_t hash(uint64_t& k)
 	{
 		return k;
 	}
 
-};
+  };
 
 }
 
@@ -70,13 +71,25 @@ int main(int argc, char** argv) {
   leveldb::KeyHash kh;
   leveldb::KeyComparator cmp;
   leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> ht(kh, cmp);
+  leveldb::LockfreeSkipList<leveldb::Key, leveldb::KeyComparator> ls(cmp, NULL);
 
+  ls.ThreadLocalInit();
+  
+  leveldb::DBTransaction<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> tx(&ht, &ls, cmp);
+
+  leveldb::ValueType t = leveldb::kTypeValue;
+
+  tx.Begin();
+  
   for(int i = 0; i < 10; i++) {
-  	uint64_t* k = new uint64_t();
+	uint64_t *k = new uint64_t();
 	*k = i;
-  	ht.GetNodeWithInsert(k);
+	tx.Add(t, k);
   }
 
+  tx.End();
+
+  ls.PrintList();
   ht.PrintHashTable();
   return 1;
 }
