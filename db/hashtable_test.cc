@@ -4,6 +4,7 @@
 
 #include "db/hashtable_template.h"
 #include "db/dbtransaction_template.h"
+#include "db/txmemstore_template.h"
 #include "db/lockfreeSkiplist.h"
 #include <set>
 #include "leveldb/env.h"
@@ -70,6 +71,22 @@ int main(int argc, char** argv) {
 	
   leveldb::KeyHash kh;
   leveldb::KeyComparator cmp;
+  leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> memstore(cmp);
+
+  uint64_t *k;
+  
+  for(int i = 0; i < 10; i++) {
+	k = new uint64_t();
+	*k = 1;
+	memstore.Put(k, k, i);
+  }
+
+  uint64_t seq;
+  memstore.GetMaxSeq(k, &seq);
+  printf("Seq %d\n", seq);
+  memstore.DumpTXMemStore();
+  
+  /*
   leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> ht(kh, cmp);
   leveldb::LockfreeSkipList<leveldb::Key, leveldb::KeyComparator> ls(cmp, NULL);
 
@@ -90,6 +107,7 @@ int main(int argc, char** argv) {
   tx.End();
 
   ls.PrintList();
-  ht.PrintHashTable();
+  ht.PrintHashTable();*/
+  
   return 1;
 }
