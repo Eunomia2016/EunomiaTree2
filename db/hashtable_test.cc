@@ -56,7 +56,7 @@ class KeyHash : public leveldb::HashFunction
 {
 public:
 	
-	virtual uint64_t hash(const Key& k)
+	virtual uint64_t hash(uint64_t& k)
 	{
 		return k;
 	}
@@ -71,6 +71,12 @@ int main(int argc, char** argv) {
   leveldb::KeyComparator cmp;
   leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> ht(kh, cmp);
 
-  
+  for(int i = 0; i < 10; i++) {
+  	uint64_t* k = new uint64_t();
+	*k = i;
+  	ht.GetNodeWithInsert(k);
+  }
+
+  ht.PrintHashTable();
   return 1;
 }

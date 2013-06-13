@@ -25,12 +25,14 @@
 #include "util/rtm_arena.h"
 #include "util/rtm_arena.h"
 #include "port/port.h"
+#include "util/mutexlock.h"
+
 
 namespace leveldb {
 
 class HashFunction {
 	template <typename T>
-	uint64_t hash(const T&){return 0;}
+	uint64_t hash(T&){return 0;}
 };
 
 template<typename Key, class HashFunction, class Comparator>
@@ -73,8 +75,8 @@ class HashTable {
   int elems_;
   Head* list_;
 
-  Comparator const compare_;
-  HashFunction const hashfunc_;
+  Comparator compare_;
+  HashFunction hashfunc_;
   
   void Resize();
   Node* NewNode(Key* key);
@@ -108,7 +110,7 @@ HashTable<Key, HashFunction, Comparator>::~HashTable() {
 template<typename Key, class HashFunction, class Comparator>
 void HashTable<Key, HashFunction, Comparator>::Resize() 
 {
-	uint32_t new_length = 16384000; //16M
+	uint32_t new_length = 16; //16M
 	
 	while (new_length < elems_) {
 	  new_length *= 2;
@@ -219,10 +221,10 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 {
 
 	uint64_t hash = hashfunc_.hash(*k);
-	Head slot = list_[hash & (length_ - 1)];
+	Head *slot = &list_[hash & (length_ - 1)];
 	
-	MutexSpinLock(slot.spinlock);
-	Node* ptr = slot.h;
+	MutexSpinLock(slot->spinlock);
+	Node* ptr = slot->h;
 	
     while (ptr != NULL &&
            (ptr->hash != hash || compare_(*ptr->key, *k) != 0)) {
@@ -236,8 +238,8 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 		ptr->next = NULL;
 		ptr->hash = hash;
 
-		ptr->next = slot.h;
-    	slot.h = ptr;
+		ptr->next = slot->h;
+    	slot->h = ptr;
 	}
     return ptr;
 	
@@ -250,7 +252,7 @@ HashTable<Key, HashFunction, Comparator>::Insert(const Key* k, uint64_t seq)
 {
 
 	uint64_t hash = hashfunc_.hash(*k);
-	Head slot = list_[hash & (length_ - 1)];
+	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(k);
 	
 	MutexSpinLock(slot.spinlock);
@@ -259,8 +261,8 @@ HashTable<Key, HashFunction, Comparator>::Insert(const Key* k, uint64_t seq)
 	ptr->seq = 0;
 	ptr->next = NULL;
 	ptr->hash = hash;
-	ptr->next = slot.h;
-    slot.h = ptr;
+	ptr->next = slot->h;
+    slot->h = ptr;
 	
     return ptr;
 	

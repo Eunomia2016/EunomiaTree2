@@ -142,10 +142,10 @@ HashTable::Node* HashTable::GetNodeWithInsert(const Slice& key)
 {
 
 	uint64_t hash = HashSlice(key);
-	Head slot = list_[hash & (length_ - 1)];
+	Head *slot = &list_[hash & (length_ - 1)];
 	
-	MutexSpinLock(slot.spinlock);
-	Node* ptr = slot.h;
+	MutexSpinLock(slot->spinlock);
+	Node* ptr = slot->h;
 	
     while (ptr != NULL &&
            (ptr->hash != hash || key != ptr->Getkey())) {
@@ -159,8 +159,8 @@ HashTable::Node* HashTable::GetNodeWithInsert(const Slice& key)
 		ptr->next = NULL;
 		ptr->hash = hash;
 
-		ptr->next = slot.h;
-    	slot.h = ptr;
+		ptr->next = slot->h;
+    	slot->h = ptr;
 	}
     return ptr;
 	
@@ -171,17 +171,17 @@ HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 {
 
 	uint64_t hash = HashSlice(key);
-	Head slot = list_[hash & (length_ - 1)];
+	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(key);
 	
-	MutexSpinLock(slot.spinlock);
+	MutexSpinLock(slot->spinlock);
 
 	
 	ptr->seq = 0;
 	ptr->next = NULL;
 	ptr->hash = HashSlice(key);
-	ptr->next = slot.h;
-    slot.h = ptr;
+	ptr->next = slot->h;
+    slot->h = ptr;
 	
     return ptr;
 	
