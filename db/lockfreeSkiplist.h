@@ -373,10 +373,8 @@ LockfreeSkipList<Key,Comparator>::LockfreeSkipList(Comparator cmp, Arena* arena)
       max_height_(reinterpret_cast<void*>(1)) {
 
   //The thread local arena may be not intitialized, so we use the system allocator
-  char* mem = (char *)malloc(sizeof(Node) + sizeof(port::AtomicPointer) * (kMaxHeight - 1));
-  
-  head_ = new (mem) Node(0);
-  
+  head_ = reinterpret_cast<Node*>(malloc(sizeof(Node) + sizeof(port::AtomicPointer) * (kMaxHeight - 1)));
+ 
   for (int i = 0; i < kMaxHeight; i++) {
     head_->SetNext(i, NULL);
   }
@@ -725,8 +723,8 @@ size_t LockfreeSkipList<Key,Comparator>::Insert(const Key& key) {
 
 		if(succ == succs[i])
 		{	
-			assert(preds[i]->key == NULL || compare_(preds[i]->key, key) < 0);
-			assert(succs[i] == NULL || compare_(key, succs[i]->key) < 0);
+	//		assert(compare_(preds[i]->key, key) < 0);
+	//		assert(succs[i] == NULL || compare_(key, succs[i]->key) < 0);
 			//printf("Insert %dth Node %lx Addr %lx Height %d\n", gcount, x->key, x, height);
 	//		if(tmp != NULL)
 		//		printf("     %dth Node %lx Addr %lx Height %d\n", 41, tmp->key, tmp, height);

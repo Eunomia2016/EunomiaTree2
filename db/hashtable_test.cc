@@ -4,6 +4,7 @@
 
 #include "db/hashtable_template.h"
 #include "db/dbtransaction_template.h"
+#include "db/txmemstore_template.h"
 #include "db/lockfreeSkiplist.h"
 #include <set>
 #include "leveldb/env.h"
@@ -19,7 +20,7 @@ typedef uint64_t Key;
 
 class KeyComparator : public leveldb::Comparator {
     public:
-	int operator()(const Key& a, const Key& b) const {
+	int operator()(Key& a, Key& b) const {
 		if (a < b) {
 	      return -1;
 	    } else if (a > b) {
@@ -67,15 +68,40 @@ class KeyComparator : public leveldb::Comparator {
 }
 
 int main(int argc, char** argv) {
-	
+
+  /*
+  for(int i = 0; i < 10; i++) {
+	k = new uint64_t();
+	*k = i;
+	memstore.Put(k, k, i);
+  }
+
+  for(int i = 0; i < 10; i++) {
+	k = new uint64_t();
+	*k = i;
+	uint64_t* v;
+	leveldb::Status s = memstore.Get(k, &v, i*i);
+	if(s.IsNotFound())
+		printf(" Not Found\n");
+//	printf("Get %ld\n", *v);
+  }
+  
+  uint64_t seq;
+  memstore.GetMaxSeq(k, &seq);
+  printf("Seq %d\n", seq);
+  memstore.DumpTXMemStore();
+  */
+
   leveldb::KeyHash kh;
   leveldb::KeyComparator cmp;
-  leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> ht(kh, cmp);
-  leveldb::LockfreeSkipList<leveldb::Key, leveldb::KeyComparator> ls(cmp, NULL);
+  leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> memstore(cmp);
 
-  ls.ThreadLocalInit();
+  uint64_t *k;
+  leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> ht(kh, cmp);
   
-  leveldb::DBTransaction<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> tx(&ht, &ls, cmp);
+  leveldb::DBTransaction
+  	<leveldb::Key, leveldb::Key, 
+  	leveldb::KeyHash, leveldb::KeyComparator> tx(&ht, &memstore, cmp);
 
   leveldb::ValueType t = leveldb::kTypeValue;
 
@@ -84,12 +110,31 @@ int main(int argc, char** argv) {
   for(int i = 0; i < 10; i++) {
 	uint64_t *k = new uint64_t();
 	*k = i;
-	tx.Add(t, k);
+	tx.Add(t, k, k);
+	uint64_t *v;
+	leveldb::Status s;
+	tx.Get(k, &v, &s);
+	printf("Get %ld %s\n", *v, s.ToString().c_str());
   }
 
   tx.End();
 
-  ls.PrintList();
+
+  tx.Begin();
+  
+  for(int i = 0; i < 10; i++) {
+	uint64_t *k = new uint64_t();
+	*k = i;
+	uint64_t *v;
+	leveldb::Status s;
+	tx.Get(k, &v, &s);
+	printf("Get %ld %s\n", *v, s.ToString().c_str());
+  }
+
+  tx.End();
+  
+
   ht.PrintHashTable();
+  
   return 1;
 }
