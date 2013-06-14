@@ -119,7 +119,7 @@ class Benchmark {
 		port::Mutex *mutex = arg->mutex;
 		int num = shared->total;
 		ValueType t = kTypeValue;
-		std::string *str  = new std::string[num];
+		Slice *str  = new Slice[num];
 		//printf("start %d\n",tid);
 		bool fail = false;
 		
@@ -169,7 +169,7 @@ class Benchmark {
 				}
 				bool e = true;
 				for (int j=0;j<num-1; j++) {
-					e = e && (str[j]==str[j+1]);
+					e = e && (str[j].compare(str[j+1])==0);
 				}
 				
 				//assert(!e); 
@@ -211,11 +211,11 @@ class Benchmark {
 			snprintf(key, sizeof(key), "%d", 1);
 			Slice k(key);
 			Status s;
-			std::string str;
+			Slice str;
 			tx.Get(k, &str, &s);
 	
 			char* value = new char[100];
-			snprintf(value, sizeof(value), "%d", atoi(str.c_str())+1);
+			snprintf(value, sizeof(value), "%d", atoi(str.data())+1);
 			Slice *v = new leveldb::Slice(value);
 
 			//printf("Insert %s ", key);
@@ -245,7 +245,7 @@ class Benchmark {
 		port::Mutex *mutex = arg->mutex;
 
 		ValueType t = kTypeValue;
-		std::string *str  = new std::string[3];
+		Slice *str  = new Slice[3];
 
 		//printf("In tid %lx\n", arg);
 		//printf("start %d\n",tid);
@@ -293,13 +293,13 @@ class Benchmark {
 			
 			}
 			
-			if (!(str[0]==str[1])){
-				printf("Key 1 has value %s, Key 2 has value %s, not equal\n",str[0].c_str(),str[1].c_str());
+			if (!(str[0].compare(str[1])==0)){
+				printf("Key 1 has value %s, Key 2 has value %s, not equal\n",str[0].data(),str[1].data());
 				fail = true;
 				break;
 			}
-			if (!(str[1]==str[2])) {
-				printf("Key 2 has value %s, Key 3 has value %s, not equal\n",str[1].c_str(),str[2].c_str());
+			if (!(str[1].compare(str[2])==0)) {
+				printf("Key 2 has value %s, Key 3 has value %s, not equal\n",str[1].data(),str[2].data());
 				fail = true;
 				break;
 			}
@@ -389,9 +389,9 @@ class Benchmark {
 			snprintf(key, sizeof(key), "%d", 1);
 			Slice k(key);
 			Status s;
-			std::string str;
+			Slice str;
 			tx.Get(k, &str, &s);
-			result = atoi(str.c_str());
+			result = atoi(str.data());
 			//printf("result %d\n",result);
 			b = tx.End();
 			}
@@ -408,7 +408,7 @@ class Benchmark {
 				Slice k(key);
 				bool found = false;
 				uint64_t seq = 0;
-				found = seqs->Lookup(key, &seq);
+				found = seqs->GetMaxWithHash(seqs->HashSlice(key), &seq);
 				//assert(found);
 				if (!found) {
 					printf("Key %d is not found in the hashtable\nconsistency fail!\n",i);
@@ -418,7 +418,7 @@ class Benchmark {
 
 
 				found = false;
-				std::string value;
+				Slice value;
 				Status s; 
 				int j = 0;
 				uint64_t mseq = 0;

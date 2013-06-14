@@ -76,7 +76,7 @@ class HashTable {
   
   void PrintHashTable();
 
-
+  uint64_t HashSlice(const Slice& s);
   
   private:
   	
@@ -95,7 +95,7 @@ class HashTable {
   
   void Resize();
   Node* NewNode(const Slice & key);
-  uint64_t HashSlice(const Slice& s);
+  
 
  };
 
