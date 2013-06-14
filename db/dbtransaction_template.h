@@ -484,11 +484,10 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 
   if ( NULL == node) {
 	//even not found, still need to put the k into read set to avoid concurrent insertion
-	readset->Add(node->hash, seq, (uint64_t *)0);
+	readset->Add(latestseq_->hashfunc_.hash(*key), seq, (uint64_t *)0);
 	*s = Status::NotFound(Slice());
 	return false;
   }
-
   seq = node->seq;
 
   //This is an empty node (garbage)

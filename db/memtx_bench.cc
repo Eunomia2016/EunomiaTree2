@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-
 #include "db/hashtable_template.h"
 #include "db/dbtransaction_template.h"
 #include "db/txmemstore_template.h"
+
 #include "util/mutexlock.h"
 #include <set>
 #include "leveldb/env.h"
@@ -53,7 +53,6 @@ private:
 	//leveldb::ScalaSkipList ssl;
 	class KeyComparator : public leveldb::Comparator {
     public:
-   
 	int operator()(const uint64_t& a, const uint64_t& b) const {
 		if (a < b) {
 	      return -1;
@@ -63,28 +62,74 @@ private:
 	      return 0;
 	    }
 	}
-
 	virtual int Compare(const Slice& a, const Slice& b) const {
 		assert(0);
+		return 0;
 	}
-
 	virtual const char* Name()  const {
 		assert(0);
 		return 0;
-	};
-
-   virtual void FindShortestSeparator(
-      std::string* start,
-      const Slice& limit)  const {
-		assert(0);
-
 	}
-  
+   virtual void FindShortestSeparator(std::string* start, const Slice& limit) const {
+		assert(0);
+	}
    virtual void FindShortSuccessor(std::string* key)  const {
 		assert(0);
-
 	}
-  
+
+  };
+
+  class KeyHash : public HashFunction
+  {
+    public:
+		
+	uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
+	{
+		const uint64_t m = 0xc6a4a7935bd1e995;
+		const int r = 47;
+	
+		uint64_t h = seed ^ (len * m);
+	
+		const uint64_t * data = (const uint64_t *)key;
+		const uint64_t * end = data + (len/8);
+	
+		while(data != end)
+		{
+			uint64_t k = *data++;
+	
+			k *= m; 
+			k ^= k >> r; 
+			k *= m; 
+			
+			h ^= k;
+			h *= m; 
+		}
+	
+		const unsigned char * data2 = (const unsigned char*)data;
+	
+		switch(len & 7)
+		{
+		case 7: h ^= uint64_t(data2[6]) << 48;
+		case 6: h ^= uint64_t(data2[5]) << 40;
+		case 5: h ^= uint64_t(data2[4]) << 32;
+		case 4: h ^= uint64_t(data2[3]) << 24;
+		case 3: h ^= uint64_t(data2[2]) << 16;
+		case 2: h ^= uint64_t(data2[1]) << 8;
+		case 1: h ^= uint64_t(data2[0]);
+				h *= m;
+		};
+	 
+		h ^= h >> r;
+		h *= m;
+		h ^= h >> r;
+	
+		return h;
+	} 
+	virtual uint64_t hash(uint64_t& key)
+	{
+		return MurmurHash64A((void *)&key, 8, 0);
+	}
+
   };
 
    int64_t total_count;
@@ -92,9 +137,11 @@ private:
    int64_t write_count;
    
    KeyComparator comparator;
+   KeyHash hashfunc;
 
-   HashTable seqs;
-   TXSkiplist* store;
+   leveldb::TXMemStore<Key, Key, KeyComparator> memstore;
+   leveldb::HashTable<Key, KeyHash, KeyComparator> hashtable;
+ 
    port::Mutex mutex;
 	
 private:
@@ -111,8 +158,6 @@ private:
 	static Key MakeKey(uint64_t k, uint64_t g) {
 		assert(sizeof(Key) == sizeof(uint64_t));
 		assert(g <= 0xffffffffu);
-		//return ((k << 40) | (g << 8) | (HashNumbers(k, g) & 0xff));
-		//return ((k << 40) | (g));
 		return (g << 16 | k);
 	}
 		
@@ -226,13 +271,7 @@ private:
 				if(oldv <= 0)
 					   break;
 
-				for (int i =0; i < 1000; i++) {		   
-				/*	Key k;
-					if(seq)
-						k = MakeKey(tid,seqNum++);
-					else
-						k = MakeKey(tid, thread->rnd.Next());*/
-				//	printf("Exec %d\n", i+1);
+				for (int i =0; i < 1000; i++) {
 
 					double addT = 0;
 					double getT = 0;
@@ -240,8 +279,10 @@ private:
 					double comT = 0;
 					double startT = 0;
 					double endT = 0;
-					
-					DBTransaction tx(&seqs, store, &mutex);
+
+					leveldb::DBTransaction<Key, Key, KeyHash, KeyComparator> tx(
+  						&hashtable, &memstore, comparator);
+				
 					int conflict = 0;
 					
 					ValueType t = kTypeValue;
@@ -249,25 +290,27 @@ private:
 					char* vc = new char[100];
 					
 					leveldb::Status s;
-					std::string str;
+					Slice str;
 					bool done = false;
 					
 					while( !done ) {
 						tx.Begin();
 						//first write tuples
 						startT = leveldb::Env::Default()->NowMicros();
+						uint64_t *k ;
 						for(int i = 0; i < wnum; i++) {
-							snprintf(kc, sizeof(kc), "%d", thread->rnd.Next());
-							leveldb::Slice k(kc);
+							k = new uint64_t();
+							*k = thread->rnd.Next();
 							tx.Add(t, k, k);
 						}
 						endT = leveldb::Env::Default()->NowMicros();
 						addT +=  endT - startT;
 
 						for(int i = 0; i < rnum; i++) {
-							snprintf(kc, sizeof(kc), "%d", thread->rnd.Next());
-							leveldb::Slice k(kc);
-							tx.Get(k, &str, &s);
+							k = new uint64_t();
+							*k = thread->rnd.Next();
+							uint64_t *v;
+							tx.Get(k, &v, &s);
 						}
 
 						startT = leveldb::Env::Default()->NowMicros();
@@ -307,50 +350,15 @@ private:
 		}
 
 
-	   void ReadRandom(ThreadState* thread) {
- 	   	  DoRead(thread, false);
-	   }
-
-	   void ReadSeq(ThreadState* thread) {
- 	   	  DoRead(thread, true);
-	   }
-
-	   
-	   void DoRead(ThreadState* thread, bool seq) {
-	   
-		   int tid = thread->tid;
-		   int seqNum = 0;
-		   
-		   while(total_count > 0) {
-
-			   uint64_t oldv = XADD64(&total_count, -1000);
-			   
-			   if(oldv <= 0)
-			   	   break;
-			   
-			   for (int i =0; i < 1000; i++) {
-	    		   
-				   Key k;
-				   if(seq)
-				   	 k = MakeKey(tid,seqNum++);
-				   else
-				   	 k = MakeKey(tid, thread->rnd.Next());
-
-			   }
-		   }
-		 }
-
 	public:
 
-	  Benchmark(): total_count(FLAGS_num), read_count(FLAGS_rdnum), write_count(FLAGS_wtnum)
+	  Benchmark(): 
+	  	total_count(FLAGS_num), read_count(FLAGS_rdnum), 
+		write_count(FLAGS_wtnum), memstore(comparator), hashtable(hashfunc, comparator)
 	  {
-		leveldb::Options options;
-		leveldb::InternalKeyComparator cmp(options.comparator);
-	
-		store = new leveldb::TXSkiplist(cmp);
 	  }
 	  
-	  ~Benchmark() {delete store;}
+	  ~Benchmark() {}
 	  
 	  void RunBenchmark(int n,
 						void (Benchmark::*method)(ThreadState*)) {
@@ -397,18 +405,8 @@ private:
 		double end = leveldb::Env::Default()->NowMicros();
 
 		printf(" ...... Iterate  MemStore ......\n");
-		leveldb::Iterator* iter = store->NewIterator();
-		iter->SeekToFirst();
-		int count = 0;
-	
-		while(iter->Valid()) {		
-			count++;
-		//	printf("Key: %s  ", iter->key());
-		//	printf("Value: %s \n", iter->value());
-			iter->Next();
-		}
+		memstore.DumpTXMemStore();
 
-		printf("MemStore Total %d\n", count);
 		printf("Throughput %lf txs/s\n", totaltxs * 1000000 / (end - start));
 
 		printf("Total Run Time : %lf ms\n", (end - start)/1000);
@@ -455,10 +453,8 @@ private:
 	  Slice name = FLAGS_benchmarks;
 	  if (name == Slice("seq")) {
         wmethod = &Benchmark::WriteSeq;
-		rmethod = &Benchmark::ReadSeq;
       } else if (name == Slice("random")) {
         wmethod = &Benchmark::WriteRandom;
-		rmethod = &Benchmark::ReadRandom;
       } else {
 		std::cout << "Wrong benchmake name " << name.ToString() << std::endl; 
 		return;
