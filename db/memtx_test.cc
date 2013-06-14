@@ -360,7 +360,6 @@ class Benchmark {
   				leveldb::KeyHash, leveldb::KeyComparator> tx1(seqs, store, *cmp);
 			b = false;
 			while (b == false) {
-				printf("Tid %d Iter %d\n",tid,i);
 				tx1.Begin();
 				
 				for (int j = 1; j < 4; j++) {
@@ -370,11 +369,11 @@ class Benchmark {
 					uint64_t *value = &str[j-1];					
 					Status s;
 					tx1.Get(key, &value, &s);
-					printf("Get\n");
+
 				
 				}						
 				b = tx1.End();
-				printf("Tid %d Iter %d\n",tid,i);
+
 			}
 			
 			if (!(str[0]==str[1])){
@@ -477,8 +476,13 @@ class Benchmark {
 			//printf("result %d\n",result);
 			b = tx.End();
 			}
-			if (result != (FLAGS_txs*num)) printf("Get %d instead of %d from the counter\ncounter fail!\n",result,FLAGS_txs*num);
-			//assert();
+			if (result != (FLAGS_txs*num)) {
+				printf("Get %d instead of %d from the counter\ncounter fail!\n",result,FLAGS_txs*num);
+				printf("HashTable\n");
+				seqs->PrintHashTable();
+				printf("MemStore\n");
+				store->DumpTXMemStore();
+			}
 			else printf("CounterTest pass!\n");
 		 }
 		 else if (name == Slice("consistency")) {

@@ -107,7 +107,7 @@ public:
 	ReadSet* readset;
 	WriteSet *writeset;
 	
-	port::Mutex* storemutex;
+	static port::Mutex storemutex;
 	HashTable<Key, HashFunction, Comparator> *latestseq_ ;
 	TXMemStore<Key, Value, Comparator> *txdb_ ;
 
@@ -116,6 +116,9 @@ public:
   	bool Validation();
 	void GlobalCommit();
 };
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+port::Mutex DBTransaction<Key, Value, HashFunction, Comparator>::storemutex;
 
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
@@ -381,14 +384,12 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Print()
   }
 }
 
-
 template<typename Key, typename Value, class HashFunction, class Comparator>
 DBTransaction<Key, Value, HashFunction, Comparator>::DBTransaction(
 HashTable<Key, HashFunction, Comparator>* ht, 
 TXMemStore<Key, Value, Comparator>* store, Comparator comp)
 {
   //get the globle store and versions passed by the parameter
-  storemutex = new port::Mutex();
   latestseq_ = ht;
   txdb_ = store;
 
@@ -529,7 +530,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 //writeset->PrintHashTable();	
  //RTMScope rtm(&rtmProf);
- MutexLock mu(storemutex);
+ MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_))
