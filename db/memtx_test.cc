@@ -353,13 +353,14 @@ class Benchmark {
 					tx.Add(t, key, value);			
 				}
 				b = tx.End();
-
+				
 			}
 			
 			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx1(seqs, store, *cmp);
 			b = false;
 			while (b == false) {
+				printf("Tid %d Iter %d\n",tid,i);
 				tx1.Begin();
 				
 				for (int j = 1; j < 4; j++) {
@@ -372,7 +373,7 @@ class Benchmark {
 				
 				}						
 				b = tx1.End();
-			
+				printf("Tid %d Iter %d\n",tid,i);
 			}
 			
 			if (!(str[0]==str[1])){
@@ -386,7 +387,7 @@ class Benchmark {
 				break;
 			}
 			
-			//printf("Tid %d Iter %d\n",tid,i);
+			
 
 		}
 		{
