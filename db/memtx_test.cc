@@ -353,7 +353,7 @@ class Benchmark {
 					tx.Add(t, key, value);			
 				}
 				b = tx.End();
-				
+
 			}
 			
 			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
@@ -370,6 +370,7 @@ class Benchmark {
 					uint64_t *value = &str[j-1];					
 					Status s;
 					tx1.Get(key, &value, &s);
+					printf("Get\n");
 				
 				}						
 				b = tx1.End();

@@ -357,8 +357,10 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Commit(
 {
   //commit the local write set into the memory storage
   //should holde the mutex of memstore
-  for(int i = 0; i < elems; i++)
+  for(int i = 0; i < elems; i++) {
 	memstore->Put(kvs[i].key, kvs[i].val, seqs[i].wseq);
+	//printf("Put key %ld Value %ld Seq %ld\n", *kvs[i].key, *kvs[i].val, seqs[i].wseq);
+  }
   
 }
 
@@ -505,6 +507,13 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 	
 	res = txdb_->Get(key, value, seq);
 
+	count ++;
+	if(count > 1000) {
+		printf("Too Many Time Get Failure key %ld seq %ld\n", *key, seq);
+		txdb_->DumpTXMemStore();
+		exit(1);
+	}
+		
    }while(res.IsNotFound());
 
 // step 3. put into the read set

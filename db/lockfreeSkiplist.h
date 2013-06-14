@@ -691,7 +691,8 @@ size_t LockfreeSkipList<Key,Comparator>::Insert(const Key& key) {
   Node* x = FindGreaterOrEqual(key, preds);
 
   if(x != NULL && Equal(key, x->key))
-  	return 0;
+	return 0;
+
   
   assert(x == NULL || !Equal(key, x->key));
 

@@ -58,7 +58,7 @@ class TXMemStore{
 		  else
 		    return 0;
 		}
-			
+		return r;
 	}
 
 	int operator()(const TableKey& a, const TableKey& b) const 
@@ -72,6 +72,7 @@ class TXMemStore{
 		  else
 		    return 0;
 		}
+		return r;
 			
 	}
 	
