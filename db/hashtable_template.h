@@ -55,6 +55,7 @@ class HashTable {
 	  port::SpinLock* spinlock;
   };
 
+  
   HashTable(HashFunction hf, Comparator cmp);
   virtual ~HashTable();
   bool GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr);
@@ -67,7 +68,7 @@ class HashTable {
   
   void PrintHashTable();
 
-
+  HashFunction hashfunc_;
   
   private:
   	
@@ -76,7 +77,7 @@ class HashTable {
   Head* list_;
 
   Comparator compare_;
-  HashFunction hashfunc_;
+  
   
   void Resize();
   Node* NewNode(Key* key);

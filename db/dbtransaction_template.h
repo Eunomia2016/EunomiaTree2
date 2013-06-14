@@ -7,6 +7,8 @@
 
 #include <string>
 #include "leveldb/db.h"
+#include "util/rtm.h"
+
 #include "db/dbformat.h"
 #include "db/hashtable_template.h"
 #include "port/port_posix.h"
@@ -484,11 +486,10 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 
   if ( NULL == node) {
 	//even not found, still need to put the k into read set to avoid concurrent insertion
-	readset->Add(node->hash, seq, (uint64_t *)0);
+	readset->Add(latestseq_->hashfunc_.hash(*key), seq, (uint64_t *)0);
 	*s = Status::NotFound(Slice());
 	return false;
   }
-
   seq = node->seq;
 
   //This is an empty node (garbage)
@@ -518,8 +519,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
- //RTMScope rtm(&rtmProf);
-  MutexLock mu(storemutex);
+ RTMScope rtm(&rtmProf);
+ //MutexLock mu(storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_))
