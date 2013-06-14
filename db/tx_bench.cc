@@ -44,6 +44,15 @@ __inline__ int64_t XADD64(int64_t* addr, int64_t val) {
     return val;
 }
 
+#define CPUFREQ 3400000000
+
+unsigned long Read_tsc(void)
+{
+      unsigned a, d;
+      __asm __volatile("rdtsc":"=a"(a), "=d"(d));
+      return ((unsigned long)a) | (((unsigned long) d) << 32);
+}
+
 
 class Benchmark {
 
@@ -146,11 +155,11 @@ private:
 	  int count;
 	  int falseConflict;
 	  int conflict;
-	  double addT;
-	  double getT;
-	  double valT;
-	  double comT;
-	  double time;
+	  uint64_t addT;
+	  uint64_t getT;
+	  uint64_t valT;
+	  uint64_t comT;
+	  uint64_t time;
 	  Random rnd;         // Has different seeds for different threads
 
 	  ThreadState(int index)
@@ -241,12 +250,12 @@ private:
 						k = MakeKey(tid, thread->rnd.Next());*/
 				//	printf("Exec %d\n", i+1);
 
-					double addT = 0;
-					double getT = 0;
-					double valT = 0;
-					double comT = 0;
-					double startT = 0;
-					double endT = 0;
+					uint64_t addT = 0;
+					uint64_t getT = 0;
+					uint64_t valT = 0;
+					uint64_t comT = 0;
+					uint64_t startT = 0;
+					uint64_t endT = 0;
 					
 					DBTransaction tx(&seqs, store, &mutex);
 					int conflict = 0;
@@ -262,13 +271,13 @@ private:
 					while( !done ) {
 						tx.Begin();
 						//first write tuples
-						startT = leveldb::Env::Default()->NowMicros();
+						startT = Read_tsc();
 						for(int i = 0; i < wnum; i++) {
 							snprintf(kc, sizeof(kc), "%d", thread->rnd.Next());
 							leveldb::Slice k(kc);
 							tx.Add(t, k, k);
 						}
-						endT = leveldb::Env::Default()->NowMicros();
+						endT = Read_tsc();
 						addT +=  endT - startT;
 
 						for(int i = 0; i < rnum; i++) {
@@ -277,18 +286,18 @@ private:
 							tx.Get(k, &str, &s);
 						}
 
-						startT = leveldb::Env::Default()->NowMicros();
+						startT = Read_tsc();
 						getT +=  startT - endT;
 
 						done = tx.Validation();
 
-						endT = leveldb::Env::Default()->NowMicros();
+						endT = Read_tsc();
 						valT +=  endT - startT;
 
 						if(done)
 							tx.GlobalCommit();
 
-						startT = leveldb::Env::Default()->NowMicros();
+						startT = Read_tsc();
 						comT +=  startT - endT;
 						
 						//done = tx.End();
@@ -427,10 +436,10 @@ private:
 
 		int conflict = 0;
 		int falseConflict = 0;
-		double addT = 0;
-		double getT = 0;
-		double valT = 0;
-		double comT = 0;
+		uint64_t addT = 0;
+		uint64_t getT = 0;
+		uint64_t valT = 0;
+		uint64_t comT = 0;
 		
 		for (int i = 0; i < n; i++) {
 		 	conflict += arg[i].thread->conflict;
@@ -442,8 +451,8 @@ private:
 		}
 
 		printf("Conflict %d FalseConflict %d\n", conflict, falseConflict);
-		printf("Get Time %lf ms Add Time %lf ms Validate Time %lf ms Commit Time %lf ms\n", 
-			getT/1000, addT/1000, valT/1000, comT/1000);
+		printf("Get %ld ms  Add %ld ms Validate %ld ms  Commit %ld ms\n", 
+			getT * 1000/CPUFREQ, addT * 1000/CPUFREQ, valT * 1000/CPUFREQ, comT * 1000/CPUFREQ);
 		
 		for (int i = 0; i < n; i++) {
 		  delete arg[i].thread;
