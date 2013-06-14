@@ -5,7 +5,6 @@
 #include "db/hashtable_template.h"
 #include "db/dbtransaction_template.h"
 #include "db/txmemstore_template.h"
-#include "db/lockfreeSkiplist.h"
 #include <set>
 #include "leveldb/env.h"
 #include "leveldb/comparator.h"
