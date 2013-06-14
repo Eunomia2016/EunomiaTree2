@@ -212,23 +212,20 @@ class Benchmark {
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b = false;
 			while (b==false) {
-			tx.Begin();
-			uint64_t* key = new uint64_t(); 
-			*key = tid;
-			uint64_t* value = new uint64_t(); 
-			*value = 1;
-			
-			tx.Add(t, key, value);
-	
-			uint64_t* key1 = new uint64_t(); 
-			*key1 = (tid+1) % num;
-			uint64_t* value1 = new uint64_t(); 
-			*value1 = 2;
-			tx.Add(t, key1, value1);
-			
-			b = tx.End();
+				tx.Begin();
+				uint64_t* key = new uint64_t(); 
+				*key = tid;
+				uint64_t* value = new uint64_t(); 
+				*value = 1;
+				tx.Add(t, key, value);
+		
+				uint64_t* key1 = new uint64_t(); 
+				*key1 = (tid+1) % num;
+				uint64_t* value1 = new uint64_t(); 
+				*value1 = 2;
+				tx.Add(t, key1, value1);
+				b = tx.End();
 			}
-			
 			
 			if (i % 10 == (tid%10) && i>10) {
 				leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
@@ -369,10 +366,10 @@ class Benchmark {
 					
 					uint64_t *key = new uint64_t();
 					*key = j;
-					uint64_t *value = &str[j-1];					
+					uint64_t *value;					
 					Status s;
 					tx1.Get(key, &value, &s);
-
+					str[j-1] = *value;
 				
 				}						
 				b = tx1.End();

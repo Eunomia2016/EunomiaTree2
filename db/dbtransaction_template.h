@@ -455,6 +455,7 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::Add(
 													ValueType type, Key* key, Value* value)
 {
+
 	//Get the seq addr from the hashtable
    typename HashTable<Key, HashFunction, Comparator>::Node* node 
    													= latestseq_->GetNodeWithInsert(key);
@@ -534,8 +535,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
- //RTMScope rtm(&rtmProf);
- MutexLock mu(&storemutex);
+ RTMScope rtm(&rtmProf);
+ //MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_)) {

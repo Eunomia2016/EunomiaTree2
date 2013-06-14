@@ -121,7 +121,7 @@ void HashTable<Key, HashFunction, Comparator>::Resize()
 	for (uint32_t i = 0; i < new_length; i++) {
 
 	  new_list[i].spinlock = new port::SpinLock();
-
+	  new_list[i].h = NULL;
 	}
 	
 	uint32_t count = 0;
@@ -223,12 +223,15 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 
 	uint64_t hash = hashfunc_.hash(*k);
 	Head *slot = &list_[hash & (length_ - 1)];
-	
+
 	MutexSpinLock(slot->spinlock);
+
 	Node* ptr = slot->h;
+
 	
     while (ptr != NULL &&
            (ptr->hash != hash || compare_(*ptr->key, *k) != 0)) {
+  
       ptr = ptr->next;
     }
 
@@ -241,6 +244,7 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 
 		ptr->next = slot->h;
     	slot->h = ptr;
+
 	}
     return ptr;
 	
@@ -258,9 +262,7 @@ HashTable<Key, HashFunction, Comparator>::Insert(Key* k, uint64_t seq)
 	
 	MutexSpinLock(slot.spinlock);
 
-	
 	ptr->seq = 0;
-	ptr->next = NULL;
 	ptr->hash = hash;
 	ptr->next = slot->h;
     slot->h = ptr;

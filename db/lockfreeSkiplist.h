@@ -385,8 +385,9 @@ LockfreeSkipList<Key,Comparator>::LockfreeSkipList(Comparator cmp, Arena* arena)
 template<typename Key, class Comparator>
 LockfreeSkipList<Key,Comparator>::~LockfreeSkipList()
 {
-  //TODO should free all local arenas
-  GlobalClear();
+  //FIXME: should not call static member clear function in the local clear construction
+  //GlobalClear();
+  
   delete head_;
 }
 
@@ -411,6 +412,7 @@ void LockfreeSkipList<Key,Comparator>::ThreadLocalInit() {
 	if(localinit_ == false) {
 		rnd_ = new Random(0xdeadbeef);
 		arena_ = new Arena();
+		//printf("new arena_ %lx\n", arena_);
 		ac_lock.Lock();
 		arenas_collector.push_back(arena_);
 		ac_lock.Unlock();
@@ -424,6 +426,7 @@ template<typename Key, class Comparator>
 void LockfreeSkipList<Key,Comparator>::GlobalClear() {
 
 	for(int i = 0 ; i < arenas_collector.size(); i++) {
+		//printf("delete arena %lx\n", arenas_collector[i]);
 		delete arenas_collector[i];
 	}
 }

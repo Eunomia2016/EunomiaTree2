@@ -352,14 +352,9 @@ void  DBTransaction::WriteSet::Resize() {
   void DBTransaction::Add(ValueType type, Slice& key, Slice& value)
   {
   	//Get the seq addr from the hashtable
-	
 	HashTable::Node* node = latestseq_->GetNodeWithInsert(key);
 	
-	//write the key value into local buffer
-	//count++;
-//	if(count == 1 || count == 300)
-	//	printf("seqaddr %lx\n", node->seqaddr);
-	
+	//write the key value into local buffer	
 	writeset->Add(type, key, value, &node->seq);
   }
 

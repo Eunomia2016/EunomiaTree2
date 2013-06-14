@@ -4,6 +4,8 @@
 
 #include "util/arena.h"
 #include <assert.h>
+#include <stdio.h>
+
 
 namespace leveldb {
 
@@ -16,6 +18,7 @@ Arena::Arena() {
 }
 
 Arena::~Arena() {
+ 
   for (size_t i = 0; i < blocks_.size(); i++) {
     delete[] blocks_[i];
   }
