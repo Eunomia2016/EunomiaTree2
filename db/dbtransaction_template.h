@@ -7,6 +7,8 @@
 
 #include <string>
 #include "leveldb/db.h"
+#include "util/rtm.h"
+
 #include "db/dbformat.h"
 #include "db/hashtable_template.h"
 #include "port/port_posix.h"
@@ -517,8 +519,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
- //RTMScope rtm(&rtmProf);
-  MutexLock mu(storemutex);
+ RTMScope rtm(&rtmProf);
+ //MutexLock mu(storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_))

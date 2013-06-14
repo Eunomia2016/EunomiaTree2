@@ -405,7 +405,7 @@ private:
 		double end = leveldb::Env::Default()->NowMicros();
 
 		printf(" ...... Iterate  MemStore ......\n");
-		memstore.DumpTXMemStore();
+//		memstore.DumpTXMemStore();
 
 		printf("Throughput %lf txs/s\n", totaltxs * 1000000 / (end - start));
 
