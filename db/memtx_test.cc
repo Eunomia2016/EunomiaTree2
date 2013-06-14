@@ -1,12 +1,13 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
+#include "db/hashtable_template.h"
+#include "db/dbtransaction_template.h"
+#include "db/txmemstore_template.h"
 
-#include "db/dbtransaction.h"
 #include "leveldb/env.h"
 #include "port/port.h"
 #include "util/mutexlock.h"
-#include "db/txskiplist.h"
 
 
 static int FLAGS_txs = 100;
@@ -18,6 +19,90 @@ static const char* FLAGS_benchmarks =
 	"consistency";
 
 namespace leveldb {
+
+typedef uint64_t Key;
+
+class KeyComparator : public leveldb::Comparator {
+    public:
+	int operator()(Key& a, Key& b) const {
+		if (a < b) {
+	      return -1;
+	    } else if (a > b) {
+	      return +1;
+	    } else {
+	      return 0;
+	    }
+	}
+
+	virtual int Compare(const Slice& a, const Slice& b) const {
+		assert(0);
+		return 0;
+	}
+
+	virtual const char* Name()  const {
+		assert(0);
+		return 0;
+	};
+
+   virtual void FindShortestSeparator(
+      std::string* start,
+      const Slice& limit)  const {
+		assert(0);
+
+	}
+  
+   virtual void FindShortSuccessor(std::string* key)  const {
+		assert(0);
+
+	}
+
+};
+
+class KeyHash : public leveldb::HashFunction  {
+
+    public:
+
+	uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )	{
+
+		const uint64_t m = 0xc6a4a7935bd1e995;
+		const int r = 47;
+		uint64_t h = seed ^ (len * m);
+		const uint64_t * data = (const uint64_t *)key;
+		const uint64_t * end = data + (len/8);
+
+		while(data != end)	{
+			uint64_t k = *data++;
+			k *= m; 
+			k ^= k >> r; 
+			k *= m; 	
+			h ^= k;
+			h *= m; 
+		}
+
+		const unsigned char * data2 = (const unsigned char*)data;
+
+		switch(len & 7)	{
+  		  case 7: h ^= uint64_t(data2[6]) << 48;
+		  case 6: h ^= uint64_t(data2[5]) << 40;
+		  case 5: h ^= uint64_t(data2[4]) << 32;
+		  case 4: h ^= uint64_t(data2[3]) << 24;
+		  case 3: h ^= uint64_t(data2[2]) << 16;
+		  case 2: h ^= uint64_t(data2[1]) << 8;
+		  case 1: h ^= uint64_t(data2[0]);
+		  		  h *= m;
+		};
+
+		h ^= h >> r;
+		h *= m;
+		h ^= h >> r;	
+
+		return h;
+	} 
+
+	virtual uint64_t hash(uint64_t& key)	{
+		return MurmurHash64A((void *)&key, 8, 0);
+	}
+};
 
 
 struct SharedState {
@@ -47,20 +132,21 @@ struct ThreadState {
 
 class Benchmark {
   private:
-	HashTable *seqs;
-	TXSkiplist* store;
-	port::Mutex *mutex;
+	HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs;
+	TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>* store;
+	KeyComparator *cmp;
   public:
-	Benchmark(HashTable *t, TXSkiplist *s , port::Mutex *m) {
+	Benchmark(HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *t, 
+		TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> *s , KeyComparator *c) {
 		seqs = t;
 		store = s;
-		mutex = m;
+		cmp = c;
 	}
 	struct ThreadArg {
 		ThreadState *thread;
-		HashTable *seqs;
-		TXSkiplist *store;
-		port::Mutex *mutex;
+		HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs;
+		TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> *store;
+		KeyComparator *cmp;
 		
 	};
 
@@ -68,35 +154,30 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		HashTable *seqs = arg->seqs;
-		TXSkiplist *store = arg->store;
-		port::Mutex *mutex = arg->mutex;
+		HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs = arg->seqs;
+		TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> *store = arg->store;
+		KeyComparator *cmp = arg->cmp;
 		
 		ValueType t = kTypeValue;
 		for (int i=tid; i<tid+FLAGS_txs*2; i+=2 ){
-			DBTransaction tx(seqs, store, mutex);
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b = false;
 			while (b==false) {
 			tx.Begin();
-		    char* key = new char[100];
-			snprintf(key, sizeof(key), "%d", i);
-			Slice k(key);
-			char* value = new char[100];
-			snprintf(value, sizeof(value), "%d", tid);
-			Slice *v = new leveldb::Slice(value);
-			tx.Add(t, k, *v);
+			uint64_t* key = new uint64_t(); 
+			*key = i;
+			uint64_t* value = new uint64_t(); 
+			*value = tid;
+			tx.Add(t, key, value);
 			//printf("tid %d iter %d\n",tid, i);
 				
+			uint64_t* key1 = new uint64_t(); 
+			*key1 = i + 1;
+			uint64_t* value1 = new uint64_t(); 
+			*value1 = tid;
+			tx.Add(t, key1, value1);
 
-			char* key1 = new char[100];
-			snprintf(key1, sizeof(key1), "%d", i+1);
-			Slice k1(key1);
-			char* value1 = new char[100];
-			snprintf(value1, sizeof(value1), "%d", tid);
-			Slice *v1 = new leveldb::Slice(value1);
-			tx.Add(t, k1, *v1);
-			
-		
 			b = tx.End();
 			//printf("tid %d iter %d\n",tid, i);	
 			}			
@@ -114,54 +195,55 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		HashTable *seqs = arg->seqs;
-		TXSkiplist *store = arg->store;
-		port::Mutex *mutex = arg->mutex;
+		HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs = arg->seqs;
+		TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> *store = arg->store;
+		KeyComparator *cmp = arg->cmp;
+		
 		int num = shared->total;
 		ValueType t = kTypeValue;
-		std::string *str  = new std::string[num];
+		uint64_t *str  = new uint64_t[num];
 		//printf("start %d\n",tid);
 		bool fail = false;
 		
 		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
-			DBTransaction tx(seqs, store, mutex);
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b = false;
 			while (b==false) {
 			tx.Begin();
-			char* key = new char[100];
-			snprintf(key, sizeof(key), "%d", tid);
-			Slice k(key);
-			char* value = new char[100];
-			snprintf(value, sizeof(value), "%d", 1);
-			Slice *v = new leveldb::Slice(value);
-			tx.Add(t, k, *v);		
-
-			char* key1 = new char[100];
-			snprintf(key1, sizeof(key1), "%d", (tid+1) % num);
-			Slice k1(key1);
-			char* value1 = new char[100];
-			snprintf(value1, sizeof(value1), "%d", 2);
-			Slice *v1 = new leveldb::Slice(value1);
-			tx.Add(t, k1, *v1);	
+			uint64_t* key = new uint64_t(); 
+			*key = tid;
+			uint64_t* value = new uint64_t(); 
+			*value = 1;
+			tx.Add(t, key, value);
+	
+			uint64_t* key1 = new uint64_t(); 
+			*key = (tid+1) % num;
+			uint64_t* value1 = new uint64_t(); 
+			*value = 2;
+			tx.Add(t, key1, value1);
 
 			b = tx.End();
 			}
 			
 
 			if (i % 10 == (tid%10) && i>10) {
-				DBTransaction tx1(seqs, store, mutex);
+				leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx1(seqs, store, *cmp);
 				b =false;
 				while (b==false) {
 				tx1.Begin();
 			
 				for (int j=0; j<num; j++) {
-					char* key = new char[100];
-					snprintf(key, sizeof(key), "%d", j);
-					Slice k(key);				
 
+					uint64_t *k = new uint64_t();
+					*k = j;
+					uint64_t *v = &str[j];
 					Status s;
+					tx.Get(k, &v, &s);
+					
 					//printf("Get %d\n",tid);
-					tx1.Get(k, &(str[j]), &s);
+					
 					//printf("Tid %d get %s %s\n",tid,key,&str[j]);
 				}						
 				b = tx1.End();
@@ -195,32 +277,34 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		HashTable *seqs = arg->seqs;
-		TXSkiplist *store = arg->store;
-		port::Mutex *mutex = arg->mutex;
+		HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs = arg->seqs;
+		TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> *store = arg->store;
+		KeyComparator *cmp = arg->cmp;
+		
 		//printf("start %d\n",tid);
 		ValueType t = kTypeValue;
 		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
-			DBTransaction tx(seqs, store, mutex);
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b = false;
 			while (b==false) {
 			tx.Begin();
 			
 			
-	 		char* key = new char[100];
-			snprintf(key, sizeof(key), "%d", 1);
-			Slice k(key);
-			Status s;
-			std::string str;
-			tx.Get(k, &str, &s);
-	
-			char* value = new char[100];
-			snprintf(value, sizeof(value), "%d", atoi(str.c_str())+1);
-			Slice *v = new leveldb::Slice(value);
+	 		uint64_t *k = new uint64_t();
+			*k = 1;
+			uint64_t *v;
+			leveldb::Status s;
+			tx.Get(k, &v, &s);
+
+			uint64_t *key = new uint64_t();
+			*key = 1;
+			uint64_t *value = new uint64_t();
+			*value = *v + 1;
 
 			//printf("Insert %s ", key);
 			//printf(" Value %s\n", value);
-			tx.Add(t, k, *v);			
+			tx.Add(t, key, value);			
 			
 			b = tx.End();
 			
@@ -240,12 +324,12 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		HashTable *seqs = arg->seqs;
-		TXSkiplist *store = arg->store;
-		port::Mutex *mutex = arg->mutex;
+		HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs = arg->seqs;
+		TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> *store = arg->store;
+		KeyComparator *cmp = arg->cmp;
 
 		ValueType t = kTypeValue;
-		std::string *str  = new std::string[3];
+		uint64_t* str  = new uint64_t[3];
 
 		//printf("In tid %lx\n", arg);
 		//printf("start %d\n",tid);
@@ -253,40 +337,38 @@ class Benchmark {
 		bool fail = false;
 		for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
 
-			DBTransaction tx(seqs, store, mutex);
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b = false;
 			while (b == false) {
 				tx.Begin();
 				
 				for (int j=1; j<4; j++) {
-		 			char* key = new char[100];
-					snprintf(key, sizeof(key), "%d", j);
-					Slice k(key);
-		
-					char* value = new char[100];
-					snprintf(value, sizeof(value), "%d", i);
-					Slice *v = new leveldb::Slice(value);
-
-					tx.Add(t, k, *v);			
+		 			
+					uint64_t *key = new uint64_t();
+					*key = j;
+					uint64_t *value = new uint64_t();
+					*value = i;
+		 			
+					tx.Add(t, key, value);			
 				}
 				b = tx.End();
 
 			}
 			
-			DBTransaction tx1(seqs, store, mutex);
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx1(seqs, store, *cmp);
 			b = false;
 			while (b == false) {
 				tx1.Begin();
 				
 				for (int j = 1; j < 4; j++) {
 					
-					char* key = new char[100];
-					snprintf(key, sizeof(key), "%d", j);
-					Slice k(key);
-					
-
+					uint64_t *key = new uint64_t();
+					*key = j;
+					uint64_t *value = &str[j-1];					
 					Status s;
-					tx1.Get(k, &(str[j-1]), &s);
+					tx1.Get(key, &value, &s);
 				
 				}						
 				b = tx1.End();
@@ -294,12 +376,12 @@ class Benchmark {
 			}
 			
 			if (!(str[0]==str[1])){
-				printf("Key 1 has value %s, Key 2 has value %s, not equal\n",str[0].c_str(),str[1].c_str());
+				printf("Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 				fail = true;
 				break;
 			}
 			if (!(str[1]==str[2])) {
-				printf("Key 2 has value %s, Key 3 has value %s, not equal\n",str[1].c_str(),str[2].c_str());
+				printf("Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 				fail = true;
 				break;
 			}
@@ -323,20 +405,18 @@ class Benchmark {
 		if (name == Slice("counter")) {
 			
 			ValueType t = kTypeValue;
-			DBTransaction tx(seqs, store, mutex);
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b =false;
 			while (b==false) {
 			tx.Begin();
 			
 			
-			char* key = new char[100];
-			snprintf(key, sizeof(key), "%d", 1);
-			Slice k(key);
-			char* value = new char[100];
-			snprintf(value, sizeof(value), "%d", 0);
-			Slice *v = new leveldb::Slice(value);
-
-			tx.Add(t, k, *v);				
+			uint64_t *key = new uint64_t();
+			*key = 1;
+			uint64_t *value = new uint64_t();
+			*value = 0;
+			tx.Add(t, key, value);				
 												
 			b = tx.End();
 			//if (b==true)printf("%d\n", i);
@@ -359,7 +439,7 @@ class Benchmark {
 		 	arg[i].thread = new ThreadState(i);
 			arg[i].seqs = seqs;
 			arg[i].store = store;
-			arg[i].mutex = mutex;
+			arg[i].cmp = cmp;
 			arg[i].thread->shared = &shared;
 			//printf("Out tid %lx\n", &arg[i]);
 			Env::Default()->StartThread(method, &arg[i]);
@@ -379,19 +459,19 @@ class Benchmark {
 		 else if (name == Slice("nocycle")) printf("NocycleTest pass!\n");
 		 else if (name == Slice("counter")) {
 		 	ValueType t = kTypeValue;
-		 	DBTransaction tx(seqs, store, mutex);
+		 	leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b =false; int result;
 			//printf("verify\n");
 			while (b==false) {
 			tx.Begin();			
 			
-			char* key = new char[100];
-			snprintf(key, sizeof(key), "%d", 1);
-			Slice k(key);
+			uint64_t* k = new uint64_t();
+			*k = 1;
 			Status s;
-			std::string str;
+			uint64_t *str;
 			tx.Get(k, &str, &s);
-			result = atoi(str.c_str());
+			result = *str;
 			//printf("result %d\n",result);
 			b = tx.End();
 			}
@@ -403,12 +483,12 @@ class Benchmark {
 		 	//printf("verify\n");
 		 	bool succ = true;
 		 	for (int i = 0; i< num-1+FLAGS_txs*2; i++) {
-				char* key = new char[100];
-				snprintf(key, sizeof(key), "%d", i);
-				Slice k(key);
+				uint64_t* key = new uint64_t();
+				*key = i;
 				bool found = false;
 				uint64_t seq = 0;
-				found = seqs->Lookup(key, &seq);
+				leveldb::KeyHash kh;
+				found = seqs->GetMaxWithHash(kh.hash(*key), &seq);
 				//assert(found);
 				if (!found) {
 					printf("Key %d is not found in the hashtable\nconsistency fail!\n",i);
@@ -426,16 +506,14 @@ class Benchmark {
 
 				do{
 					j++;
-					mutex->Lock();
-					founds = store->GetMaxSeq(key, &mseq);
-					mutex->Unlock();	
+					founds = store->GetMaxSeq(key, &mseq);	
 				}while(founds.IsNotFound() && j < 5);
 
 				
 				if (founds.IsNotFound()) {
 					printf("seq %ld\n", mseq);
 					printf("Key %d is not found in the memstore\nconsistency fail!\n",i);
-					store->DumpTXSkiplist();
+					//store->DumpTXSkiplist();
 					succ = false;
 					break;
 				}
@@ -478,8 +556,8 @@ int main(int argc, char**argv)
 
 	const char* benchmarks = FLAGS_benchmarks;
 	void (* method)(void* arg) = NULL;
-	leveldb::Options options;
-	leveldb::InternalKeyComparator cmp(options.comparator);
+	leveldb::KeyHash kh;
+  	leveldb::KeyComparator cmp;
     while (benchmarks != NULL) {
       const char* sep = strchr(benchmarks, ',');
       leveldb::Slice name;
@@ -503,11 +581,11 @@ int main(int argc, char**argv)
 	  	method = &leveldb::Benchmark::ConsistencyTest;
 	  }
 	  
-	  leveldb::HashTable seqs;
-	  leveldb::TXSkiplist* store = new leveldb::TXSkiplist(cmp);
-	  leveldb::port::Mutex mutex;
-	
-	  leveldb::Benchmark *benchmark = new leveldb::Benchmark(&seqs, store, &mutex);
+
+	  leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> store(cmp);
+  	  leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> seqs(kh, cmp);
+	  
+	  leveldb::Benchmark *benchmark = new leveldb::Benchmark(&seqs, &store, &cmp);
   	  benchmark->Run(method, name);
     }
 	

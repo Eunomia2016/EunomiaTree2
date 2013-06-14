@@ -6,8 +6,8 @@
 # Uncomment exactly one of the lines labelled (A), (B), and (C) below
 # to switch between compilation modes.
 
-#OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
-OPT ?= -g2              # (B) Debug mode, w/ full line-level debugging symbols
+OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
+#OPT ?= -g2              # (B) Debug mode, w/ full line-level debugging symbols
 # OPT ?= -O2 -g2 -DNDEBUG # (C) Profiling mode: opt, but w/debugging symbols
 #-----------------------------------------------
 
@@ -118,6 +118,9 @@ dbtransaction: db/dbtransaction.o $(LIBOBJECTS) $(TESTUTIL)
 
 tx_test: db/tx_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/tx_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
+memtx_test: db/memtx_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) db/memtx_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
 db_bench_sqlite3: doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL) -o $@ -lsqlite3 $(LIBS)
