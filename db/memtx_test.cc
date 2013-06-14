@@ -100,7 +100,8 @@ class KeyHash : public leveldb::HashFunction  {
 	} 
 
 	virtual uint64_t hash(uint64_t& key)	{
-		return MurmurHash64A((void *)&key, 8, 0);
+		return key;
+//		return MurmurHash64A((void *)&key, 8, 0);
 	}
 };
 
@@ -206,6 +207,7 @@ class Benchmark {
 		bool fail = false;
 		
 		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
+
 			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 			bool b = false;
@@ -215,22 +217,24 @@ class Benchmark {
 			*key = tid;
 			uint64_t* value = new uint64_t(); 
 			*value = 1;
+			
 			tx.Add(t, key, value);
 	
 			uint64_t* key1 = new uint64_t(); 
-			*key = (tid+1) % num;
+			*key1 = (tid+1) % num;
 			uint64_t* value1 = new uint64_t(); 
-			*value = 2;
+			*value1 = 2;
 			tx.Add(t, key1, value1);
-
+			
 			b = tx.End();
 			}
 			
-
+			
 			if (i % 10 == (tid%10) && i>10) {
 				leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx1(seqs, store, *cmp);
 				b =false;
+				
 				while (b==false) {
 				tx1.Begin();
 			
@@ -238,17 +242,16 @@ class Benchmark {
 
 					uint64_t *k = new uint64_t();
 					*k = j;
-					uint64_t *v = &str[j];
+					uint64_t *v;
 					Status s;
-					tx.Get(k, &v, &s);
+					tx1.Get(k, &v, &s);
+					str[j] = *v;
 					
-					//printf("Get %d\n",tid);
-					
-					//printf("Tid %d get %s %s\n",tid,key,&str[j]);
 				}						
 				b = tx1.End();
 			   
 				}
+
 				bool e = true;
 				for (int j=0;j<num-1; j++) {
 					e = e && (str[j]==str[j+1]);

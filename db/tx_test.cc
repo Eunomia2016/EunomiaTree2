@@ -124,6 +124,7 @@ class Benchmark {
 		bool fail = false;
 		
 		for (int i=tid*FLAGS_txs; i< (tid+1)*FLAGS_txs; i++ ) {
+			
 			DBTransaction tx(seqs, store, mutex);
 			bool b = false;
 			while (b==false) {
@@ -145,6 +146,7 @@ class Benchmark {
 			tx.Add(t, k1, *v1);	
 
 			b = tx.End();
+			printf("tid %d finish tx %d\n", tid, i);
 			}
 			
 
@@ -160,9 +162,9 @@ class Benchmark {
 					Slice k(key);				
 
 					Status s;
-					//printf("Get %d\n",tid);
+					printf("Get %d\n",tid);
 					tx1.Get(k, &(str[j]), &s);
-					//printf("Tid %d get %s %s\n",tid,key,&str[j]);
+					printf("Tid %d get %s %s\n",tid,key,&str[j]);
 				}						
 				b = tx1.End();
 			   

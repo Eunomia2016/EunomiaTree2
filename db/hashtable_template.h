@@ -289,7 +289,7 @@ void HashTable<Key, HashFunction, Comparator>::PrintHashTable()
 		
         while (ptr != NULL) {
 			count++;
-	   		printf("Hash: %ld, Seq: %ld  ",  ptr->hash, ptr->seq);
+	   		printf("Key %ld Hash: %ld, Seq: %ld  ",*ptr->key, ptr->hash, ptr->seq);
            ptr = ptr->next;
         }
 		printf("\n");

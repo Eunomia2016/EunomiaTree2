@@ -77,7 +77,7 @@ public:
 			uint64_t *seqptr; //pointer to the sequence number memory location
 		};
 		
-	  private:
+	  public:
 
 		int cacheset[64];
 		uint64_t cacheaddr[64][8];
@@ -125,7 +125,8 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::ReadSet() 
 {
 	max_length = 1024;
-	elems = 0;	seqs = new RSSeqPair[max_length];
+	elems = 0;	
+	seqs = new RSSeqPair[max_length];
  	 
 }
 
@@ -179,9 +180,10 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::Validate(
 for(int i = 0; i < elems; i++) {
 
 	if(seqs[i].seq != NULL 
-		&& seqs[i].oldseq != *seqs[i].seq)
+		&& seqs[i].oldseq != *seqs[i].seq) {
 		return false;
-	//printf("[%lx Get Validate] old seq %ld seq %ld\n", pthread_self(), seqs[i].oldseq, *seqs[i].seq);
+	}
+	
 	if(seqs[i].seq == NULL) {
 		
 		//doesn't read any thing
@@ -343,6 +345,7 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Lookup(
 									Key* key, ValueType* type, Value** val, Comparator& cmp) 
 {
+  
   for(int i = 0; i < elems; i++) {
 	if(cmp(*kvs[i].key , *key) == 0) {
 		*type = kvs[i].type;
@@ -350,7 +353,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Lookup(
 		return true;
 	}
   }
-
+ 
   return false;
 }
 
@@ -489,6 +492,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 
   if ( NULL == node) {
 	//even not found, still need to put the k into read set to avoid concurrent insertion
+//	printf("key %ld not found\n", *key);
+	//latestseq_->PrintHashTable();
 	readset->Add(latestseq_->hashfunc_.hash(*key), seq, (uint64_t *)0);
 	*s = Status::NotFound(Slice());
 	return false;
@@ -533,8 +538,10 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
  MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
-  if( !readset->Validate(latestseq_))
-    return false;
+  if( !readset->Validate(latestseq_)) {
+	return false;
+
+  }
 
 
   //step 2.  update the the seq set 
