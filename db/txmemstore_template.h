@@ -110,7 +110,6 @@ Status TXMemStore<Key, Value, Comparator>::Put(Key* k, Value* val, uint64_t seq)
   key.v = val;
   key.seq = seq;
 
-
   table_.Insert(key);
 
   return Status::OK();
@@ -138,7 +137,7 @@ Status TXMemStore<Key, Value, Comparator>::Get(Key* k, Value** val, uint64_t seq
 				  
 	  if(seq != res.seq)
 	    return Status::NotFound(Slice());
-	  
+
       *val = res.v;
 	  return Status::OK();
 

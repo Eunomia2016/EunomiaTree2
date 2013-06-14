@@ -61,9 +61,9 @@ class HashTable {
   void UpdateWithHash(uint64_t hash, uint64_t seq);
   
   
-  Node* GetNode(const Key* k);
+  Node* GetNode(Key* k);
   Node* GetNodeWithInsert(Key* k);
-  Node* Insert(const Key* k, uint64_t seq);
+  Node* Insert(Key* k, uint64_t seq);
   
   void PrintHashTable();
 
@@ -196,7 +196,7 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
 
 template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node*
-HashTable<Key, HashFunction, Comparator>::GetNode(const Key* k) 
+HashTable<Key, HashFunction, Comparator>::GetNode(Key* k) 
 {
 
 	uint64_t hash = hashfunc_.hash(*k);
@@ -248,7 +248,7 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 
 template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node* 
-HashTable<Key, HashFunction, Comparator>::Insert(const Key* k, uint64_t seq) 
+HashTable<Key, HashFunction, Comparator>::Insert(Key* k, uint64_t seq) 
 {
 
 	uint64_t hash = hashfunc_.hash(*k);

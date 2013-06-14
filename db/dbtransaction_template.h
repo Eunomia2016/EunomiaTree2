@@ -11,13 +11,13 @@
 #include "db/hashtable_template.h"
 #include "port/port_posix.h"
 #include "util/txprofile.h"
-#include "db/lockfreeSkiplist.h"
+#include "db/txmemstore_template.h"
 
 
 
 namespace leveldb {
 
-template<typename Key, class HashFunction, class Comparator>
+template<typename Key, typename Value, class HashFunction, class Comparator>
 class DBTransaction {
  public:
 
@@ -25,41 +25,40 @@ class DBTransaction {
 	int count;
 
 	DBTransaction(HashTable<Key, HashFunction, Comparator>* ht, 
-		LockfreeSkipList<Key, Comparator>* store, Comparator comp);
+		TXMemStore<Key, Value, Comparator>* store, Comparator comp);
 	
 	~DBTransaction();
 
 	void Begin();
 	bool Abort();
 	bool End();
-	void Add(ValueType type, Key* key);
-	bool Get(Key* key, Key* value, Status* s);
+	void Add(ValueType type, Key* key, Value* val);
+	bool Get(Key* key, Value** value, Status* s);
 
 	
 public:
 
  	class ReadSet {
 
-		struct RSSeqPair {
-			uint64_t oldseq; //seq got when read the value
-			uint64_t *seq; //pointer to the global memory location
-			uint64_t hash;
-		};
+	  struct RSSeqPair {
+	    uint64_t oldseq; //seq got when read the value
+	    uint64_t *seq; //pointer to the global memory location
+		uint64_t hash;
+	  };
 		
-		private:
-			int max_length;
-			int elems;
+	  private:
+	    int max_length;
+	    int elems;
 
-			RSSeqPair *seqs;
-
-			void Resize();
+	    RSSeqPair *seqs;
+	    void Resize();
 			
-		public:
-			ReadSet();
-			~ReadSet();			
-			void Add(uint64_t hash, uint64_t oldeseq, uint64_t *ptr);
-			bool Validate(HashTable<Key, HashFunction, Comparator>* ht);
-			void Print();
+	  public:
+	    ReadSet();
+	    ~ReadSet();			
+	    void Add(uint64_t hash, uint64_t oldeseq, uint64_t *ptr);
+	    bool Validate(HashTable<Key, HashFunction, Comparator>* ht);
+	    void Print();
 	};
 
 
@@ -68,6 +67,7 @@ public:
 		struct WSKV{
 			ValueType type; //seq got when read the value
 			Key *key; //pointer to the written key 
+			Value *val;
 		};
 		
 		struct WSSeqPair {
@@ -75,30 +75,30 @@ public:
 			uint64_t *seqptr; //pointer to the sequence number memory location
 		};
 		
-		private:
+	  private:
 
-			int cacheset[64];
-			uint64_t cacheaddr[64][8];
-			uint64_t cachetypes[64][8];
-			int max_length;
-			int elems;
+		int cacheset[64];
+		uint64_t cacheaddr[64][8];
+		uint64_t cachetypes[64][8];
+		int max_length;
+		int elems;
 
-			WSSeqPair *seqs;
-			WSKV *kvs;
+		WSSeqPair *seqs;
+		WSKV *kvs;
 
-			void Resize();
+		void Resize();
 			
-		public:
-			WriteSet();
-			~WriteSet();	
-			void TouchAddr(uint64_t addr, int type);
-			
-			void Add(ValueType type, Key* key, uint64_t *seqptr);
-			void UpdateGlobalSeqs();
-			bool Lookup(Key* key, ValueType* type, Key* val);
-			
-			void Commit(LockfreeSkipList<Key, Comparator> *memstore);
-			void Print();
+	  public:
+		WriteSet();
+		~WriteSet();	
+		void TouchAddr(uint64_t addr, int type);
+		
+		void Add(ValueType type, Key* key, Value* val, uint64_t* seqptr);
+		void UpdateGlobalSeqs();
+		bool Lookup(Key* key, ValueType* type, Value** val, Comparator& cmp);
+		
+		void Commit(TXMemStore<Key, Value, Comparator> *memstore);
+		void Print();
 	};
 
 //	HashTable *readset;
@@ -107,7 +107,7 @@ public:
 	
 	port::Mutex* storemutex;
 	HashTable<Key, HashFunction, Comparator> *latestseq_ ;
-	LockfreeSkipList<Key, Comparator> *txdb_ ;
+	TXMemStore<Key, Value, Comparator> *txdb_ ;
 
 	Comparator comp_;
 	
@@ -116,21 +116,21 @@ public:
 };
 
 
-template<typename Key, class HashFunction, class Comparator> 
-DBTransaction<Key, HashFunction, Comparator>::ReadSet::ReadSet() 
+template<typename Key, typename Value, class HashFunction, class Comparator>
+DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::ReadSet() 
 {
 	max_length = 1024;
 	elems = 0;	seqs = new RSSeqPair[max_length];
  	 
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-DBTransaction<Key, HashFunction, Comparator>::ReadSet::~ReadSet() {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::~ReadSet() {
 	delete[] seqs;	
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::ReadSet::Resize() {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::Resize() {
 	
   max_length = max_length * 2;
 
@@ -147,8 +147,9 @@ void DBTransaction<Key, HashFunction, Comparator>::ReadSet::Resize() {
 }
 
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::ReadSet::Add(uint64_t hash, uint64_t oldeseq, uint64_t *ptr)
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::Add(
+											uint64_t hash, uint64_t oldeseq, uint64_t *ptr)
 {
   if (max_length < elems) printf("ELEMS %d MAX %d\n", elems, max_length);
   assert(elems <= max_length);
@@ -164,9 +165,9 @@ void DBTransaction<Key, HashFunction, Comparator>::ReadSet::Add(uint64_t hash, u
   seqs[cur].hash = hash;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-bool DBTransaction<Key, HashFunction, Comparator>::ReadSet::Validate
-									(HashTable<Key, HashFunction, Comparator>* ht) {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+bool DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::Validate(
+ 											HashTable<Key, HashFunction, Comparator>* ht) {
 
 //This function should be protected by rtm or mutex
 
@@ -194,8 +195,8 @@ for(int i = 0; i < elems; i++) {
 return true;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::ReadSet::Print()
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::Print()
 {
   for(int i = 0; i < elems; i++) {
     printf("Key[%d] ", i);
@@ -207,8 +208,8 @@ void DBTransaction<Key, HashFunction, Comparator>::ReadSet::Print()
 }
 
 
-template<typename Key, class HashFunction, class Comparator> 
-DBTransaction<Key, HashFunction, Comparator>::WriteSet::WriteSet() {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::WriteSet() {
 
   max_length = 1024; //first allocate 1024 numbers
   elems = 0;
@@ -226,13 +227,13 @@ DBTransaction<Key, HashFunction, Comparator>::WriteSet::WriteSet() {
 
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-DBTransaction<Key, HashFunction, Comparator>::WriteSet::~WriteSet() {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::~WriteSet() {
 	//FIXME: Do nothing here
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::WriteSet::Resize() {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Resize() {
 	
   max_length = max_length * 2;
 
@@ -251,10 +252,11 @@ void DBTransaction<Key, HashFunction, Comparator>::WriteSet::Resize() {
   kvs = nkv;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::WriteSet::Add(ValueType type, Key* key, uint64_t *seqptr)
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Add(
+										ValueType type, Key* key,
+										Value* val, uint64_t *seqptr)
 {
-
   assert(elems <= max_length);
 
   if(elems == max_length) {
@@ -267,6 +269,7 @@ void DBTransaction<Key, HashFunction, Comparator>::WriteSet::Add(ValueType type,
   elems++;
 
   kvs[cur].key = key;
+  kvs[cur].val = val;
   kvs[cur].type = type;
 
   seqs[cur].seqptr = seqptr;
@@ -276,50 +279,44 @@ void DBTransaction<Key, HashFunction, Comparator>::WriteSet::Add(ValueType type,
 	
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::WriteSet::TouchAddr(uint64_t addr, int type)
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::TouchAddr(
+																	uint64_t addr, int type)
 {
 	
-	 uint64_t caddr = addr >> 12;
- int index = (int)((addr>>6)&0x3f);
+  uint64_t caddr = addr >> 12;
+  int index = (int)((addr>>6)&0x3f);
 
-//printf("addr %lx, paddr %lx, index %d\n", addr, caddr, index);
- for(int i = 0; i < 8; i++) {
+  for(int i = 0; i < 8; i++) {
 
-	//printf("set %d , index %d, paddr %lx\n", i, index, cacheaddr[index][i]);
-	
- 	if(cacheaddr[index][i] == caddr) {
-		//printf("!!!!!\n");
-		return;
+    if(cacheaddr[index][i] == caddr)
+	  return;
 
-	}
- }
+  }
  
- cacheset[index]++;
- static int count = 0;
- if( cacheset[index] > 8) {
- 	count++;
- 	printf("Cache Set [%d] Conflict type %d\n", index ,type );
+  cacheset[index]++;
+  static int count = 0;
+  if( cacheset[index] > 8) {
+    count++;
+    printf("Cache Set [%d] Conflict type %d\n", index ,type );
 	for(int i = 0; i < 8; i++) { 
-		printf("[%d][%lx] ", cachetypes[index][i], cacheaddr[index][i]);
+	  printf("[%d][%lx] ", cachetypes[index][i], cacheaddr[index][i]);
 	}
 	printf(" %d \n", count);
- }
+  }
 
- for(int i = 0; i < 8; i++) {
- 	if(cacheaddr[index][i] == 0) {
- 	  	cacheaddr[index][i] = caddr;
-		cachetypes[index][i] = type;
-			//		printf("XXX\n");
-		return;
+  for(int i = 0; i < 8; i++) {
+    if(cacheaddr[index][i] == 0) {
+ 	  cacheaddr[index][i] = caddr;
+	  cachetypes[index][i] = type;
+	  return;
  	}
- }
-
+  }
 }
 
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::WriteSet::UpdateGlobalSeqs() 
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::UpdateGlobalSeqs() 
 {
 
 //This function should be protected by rtm or mutex
@@ -337,13 +334,14 @@ void DBTransaction<Key, HashFunction, Comparator>::WriteSet::UpdateGlobalSeqs()
 
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-bool DBTransaction<Key, HashFunction, Comparator>::WriteSet::Lookup(Key* key, ValueType* type, Key* val) 
+template<typename Key, typename Value, class HashFunction, class Comparator>
+bool DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Lookup(
+									Key* key, ValueType* type, Value** val, Comparator& cmp) 
 {
   for(int i = 0; i < elems; i++) {
-	if(comp_(*kvs[i].key , *key) == 0) {
+	if(cmp(*kvs[i].key , *key) == 0) {
 		*type = kvs[i].type;
-		*val = *kvs[i].key;
+		*val = kvs[i].val;
 		return true;
 	}
   }
@@ -351,23 +349,21 @@ bool DBTransaction<Key, HashFunction, Comparator>::WriteSet::Lookup(Key* key, Va
   return false;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::WriteSet::Commit(LockfreeSkipList<Key, Comparator> *memstore) 
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Commit(
+											  TXMemStore<Key, Value, Comparator> *memstore) 
 {
-//commit the local write set into the memory storage
-//should holde the mutex of memstore
-
-  for(int i = 0; i < elems; i++) {
-	//printf("[%lx Commit] Insert Seq %ld Key %s\n", pthread_self(), 
-		//seqs[i].wseq, kvs[i].key->Getslice());
-	memstore->Insert(*kvs[i].key);
-  }
+  //commit the local write set into the memory storage
+  //should holde the mutex of memstore
+  for(int i = 0; i < elems; i++)
+	memstore->Put(kvs[i].key, kvs[i].val, seqs[i].wseq);
+  
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::WriteSet::Print()
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Print()
 {
-for(int i = 0; i < elems; i++) {
+  for(int i = 0; i < elems; i++) {
 	/*
 	printf("Key[%d] ", i);
 	if(seqs[i].seq != NULL) {
@@ -378,16 +374,16 @@ for(int i = 0; i < elems; i++) {
 	printf("key %s  ", keys[i]->Getslice());
 	printf("hash %ld\n", hashes[i]);
 	*/
-}
+  }
 }
 
 
-template<typename Key, class HashFunction, class Comparator> 
-DBTransaction<Key, HashFunction, Comparator>::DBTransaction(
+template<typename Key, typename Value, class HashFunction, class Comparator>
+DBTransaction<Key, Value, HashFunction, Comparator>::DBTransaction(
 HashTable<Key, HashFunction, Comparator>* ht, 
-LockfreeSkipList<Key, Comparator>* store, Comparator comp)
+TXMemStore<Key, Value, Comparator>* store, Comparator comp)
 {
-//get the globle store and versions passed by the parameter
+  //get the globle store and versions passed by the parameter
   storemutex = new port::Mutex();
   latestseq_ = ht;
   txdb_ = store;
@@ -398,23 +394,23 @@ LockfreeSkipList<Key, Comparator>* store, Comparator comp)
   count = 0;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-DBTransaction<Key, HashFunction, Comparator>::~DBTransaction()
+template<typename Key, typename Value, class HashFunction, class Comparator>
+DBTransaction<Key, Value, HashFunction, Comparator>::~DBTransaction()
 {
   //clear all the data
   if(readset != NULL) {
-	delete readset;
-	readset = NULL;
+    delete readset;
+    readset = NULL;
   }
  
   if(writeset != NULL) {
-	delete writeset;
-	writeset = NULL;
+    delete writeset;
+    writeset = NULL;
   }	
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::Begin()
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::Begin()
 {
 //reset the local read set and write set
   if(readset != NULL) {
@@ -431,14 +427,14 @@ void DBTransaction<Key, HashFunction, Comparator>::Begin()
   writeset = new WriteSet();
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-bool DBTransaction<Key, HashFunction, Comparator>::Abort()
+template<typename Key, typename Value, class HashFunction, class Comparator>
+bool DBTransaction<Key, Value, HashFunction, Comparator>::Abort()
 {
   return false;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-bool DBTransaction<Key, HashFunction, Comparator>::End()
+template<typename Key, typename Value, class HashFunction, class Comparator>
+bool DBTransaction<Key, Value, HashFunction, Comparator>::End()
 {
   if( !Validation())
     return false;
@@ -447,23 +443,26 @@ bool DBTransaction<Key, HashFunction, Comparator>::End()
   return true;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::Add(ValueType type, Key* key)
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::Add(
+													ValueType type, Key* key, Value* value)
 {
 	//Get the seq addr from the hashtable
-   typename HashTable<Key, HashFunction, Comparator>::Node* node = latestseq_->GetNodeWithInsert(key);
+   typename HashTable<Key, HashFunction, Comparator>::Node* node 
+   													= latestseq_->GetNodeWithInsert(key);
     //write the key value into local buffer
-     writeset->Add(type, key, &node->seq);
+     writeset->Add(type, key, value, &node->seq);
 }
 
 
-template<typename Key, class HashFunction, class Comparator> 
-bool DBTransaction<Key, HashFunction, Comparator>::Get(Key* key, Key* value, Status* s)
+template<typename Key, typename Value, class HashFunction, class Comparator>
+bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
+														Key* key, Value** value, Status* s)
 {
   //step 1. First check if the <k,v> is in the write set
 	
   ValueType type;
-  if(writeset->Lookup(key, &type, value)) {
+  if(writeset->Lookup(key, &type, value, comp_)) {
 	//Found
 	switch (type) {
       case kTypeValue: {
@@ -486,35 +485,36 @@ bool DBTransaction<Key, HashFunction, Comparator>::Get(Key* key, Key* value, Sta
   if ( NULL == node) {
 	//even not found, still need to put the k into read set to avoid concurrent insertion
 	readset->Add(node->hash, seq, (uint64_t *)0);
+	*s = Status::NotFound(Slice());
 	return false;
   }
 
   seq = node->seq;
 
   //This is an empty node (garbage)
-  if(seq == 0)
+  if(seq == 0) {
+	*s = Status::NotFound(Slice());
 	return false;
+  }
 
   Status res;
   //may be not found, should wait for a while
   int count = 0;
   do{
-
-	//txdb_->
-	//FIXME: NOT REAL GET
 	
-//	res = txdb_->Get(key, value, seq);
+	res = txdb_->Get(key, value, seq);
 
    }while(res.IsNotFound());
 
 // step 3. put into the read set
   readset->Add(node->hash, seq, &node->seq);
 
+  *s = Status::OK();
   return true;
 }
 
-template<typename Key, class HashFunction, class Comparator> 
-bool DBTransaction<Key, HashFunction, Comparator>::Validation() {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
@@ -536,8 +536,8 @@ bool DBTransaction<Key, HashFunction, Comparator>::Validation() {
 
 
 
-template<typename Key, class HashFunction, class Comparator> 
-void DBTransaction<Key, HashFunction, Comparator>::GlobalCommit() {
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::GlobalCommit() {
 
   //commit the local write set into the memory storage		
   writeset->Commit(txdb_);
