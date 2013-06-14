@@ -256,7 +256,7 @@ private:
 					char* vc = new char[100];
 					
 					leveldb::Status s;
-					std::string str;
+					Slice str;
 					bool done = false;
 					
 					while( !done ) {
