@@ -251,8 +251,9 @@ int SkipList<Key,Comparator>::RandomHeight() {
 
 template<typename Key, class Comparator>
 bool SkipList<Key,Comparator>::KeyIsAfterNode(const Key& key, Node* n) const {
-  // NULL n is considered infinite
-  return (n != NULL) && (compare_(n->key, key) < 0);
+  // NULL n is considered infinite 
+  bool b = (n != NULL) && (compare_(n->key, key) < 0);
+  return b;
 }
 
 template<typename Key, class Comparator>
@@ -260,15 +261,12 @@ typename SkipList<Key,Comparator>::Node* SkipList<Key,Comparator>::FindGreaterOr
     const {
   Node* x = head_; 
   int level = GetMaxHeight() - 1;
-  //int count = 0;
   while (true) {
-  	//printf("%d\n",count++);
     Node* next = x->Next(level);
     if (KeyIsAfterNode(key, next)) {
       // Keep searching in this list
       x = next;
     } else {
-      //printf("level %d\n", level);
       if (prev != NULL) prev[level] = x;
       if (level == 0) {
         return next;

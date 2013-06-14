@@ -79,7 +79,7 @@ Iterator* TXSkiplist::NewIterator() {
 Status TXSkiplist::Put(const Slice& key,
 					   const Slice& value, uint64_t seq)
 {
-
+	//
 	Table::ThreadLocalInit();
 	
 	size_t key_size = key.size();
@@ -96,6 +96,7 @@ Status TXSkiplist::Put(const Slice& key,
   	EncodeFixed64(p, (seq << 8) | kTypeValue);
  	p += 8;
     p = EncodeVarint32(p, val_size);
+	//printf("Put\n");
     memcpy(p, value.data(), val_size);
     assert((p + val_size) - buf == encoded_len);
     table_.Insert(buf);
@@ -104,7 +105,7 @@ Status TXSkiplist::Put(const Slice& key,
 }
 
 Status TXSkiplist::Get(const Slice& key,
-					   std::string* value, uint64_t seq)
+					   Slice* value, uint64_t seq)
 {
 
 	  Table::ThreadLocalInit();
@@ -146,9 +147,9 @@ Status TXSkiplist::Get(const Slice& key,
 				return Status::NotFound(Slice());
 
 		  
-			Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
-	 		value->assign(v.data(), v.size());
-		  
+			*value = GetLengthPrefixedSlice(key_ptr + key_length);
+	 		//value->assign(v.data(), v.size());
+		    
 		  	return Status::OK();
 
 		}

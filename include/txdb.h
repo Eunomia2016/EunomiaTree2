@@ -21,9 +21,11 @@ class TXDB {
   //                   const Slice& value, uint64_t seq) = 0;
 
   virtual Status Get(const Slice& key,
-                     std::string* value, uint64_t seq) = 0;
+                     Slice* value, uint64_t seq) = 0;
   
-  virtual Status Delete(const Slice& key, uint64_t seq) = 0;
+  virtual Status Delete(const Slice& key, uint64_t seq) = 0; 
+
+  virtual Status GetMaxSeq(const Slice& key, uint64_t* seq) = 0;
 
 };
 

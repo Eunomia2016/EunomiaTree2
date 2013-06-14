@@ -78,7 +78,7 @@ void  DBTransaction::ReadSet::Resize() {
 			
 			//doesn't read any thing
 			uint64_t curseq = 0; //Here must initialized as 0
-
+			
 			//TODO: we can just use the hash to find the key
 			bool found = ht->GetMaxWithHash(seqs[i].hash, &curseq);
 			
@@ -267,7 +267,7 @@ void  DBTransaction::WriteSet::Resize() {
   void DBTransaction::WriteSet::Commit(TXDB *txdb) 
   {
 	//commit the local write set into the memory storage
-	//should holde the mutex of memstore
+	//should holde the mutex of memstore	
 	for(int i = 0; i < elems; i++) {
 		//printf("[%lx Commit] Insert Seq %ld Key %s\n", pthread_self(), 
 			//seqs[i].wseq, kvs[i].key->Getslice());
@@ -364,17 +364,17 @@ void  DBTransaction::WriteSet::Resize() {
   }
 
   //FIXME: value should use slice instead of string !!!
-  bool DBTransaction::Get(const Slice& key, std::string* value, Status* s)
+  bool DBTransaction::Get(const Slice& key, Slice* value, Status* s)
   {
   	//step 1. First check if the <k,v> is in the write set
   	
 	Slice val;
 	ValueType type;
-	if(writeset->Lookup(key, &type, &val)) {
+	if(writeset->Lookup(key, &type, value)) {
 		//Found
 		switch (type) {
           case kTypeValue: {
-          	value->assign(val.data(), val.size());
+          	//value->assign(val.data(), val.size());
           	return true;
           }
           case kTypeDeletion:
@@ -389,7 +389,7 @@ void  DBTransaction::WriteSet::Resize() {
 	uint64_t seq = 0;
 
 	HashTable::Node* node = latestseq_->GetNode(key);
-	
+
 	if ( NULL == node) {
 		//even not found, still need to put the k into read set to avoid concurrent insertion
 		readset->Add(Hash(key.data(), key.size(), 0), seq, (uint64_t *)0);
@@ -402,14 +402,14 @@ void  DBTransaction::WriteSet::Resize() {
 	//This is an empty node (garbage)
 	if(seq == 0)
 		return false;
-	
+
 	Status res;
 	//may be not found, should wait for a while
 	int count = 0;
 	do{
 		
 		res = txdb_->Get(key, value, seq);
-/*
+
 		count++;
 		if (count > 1000) {
 			printf("Not found seq %ld  key %s \n",seq, key);
@@ -417,7 +417,7 @@ void  DBTransaction::WriteSet::Resize() {
 			sl->DumpTXSkiplist();
 			return false;
 		}
-		*/
+		
 	}while(res.IsNotFound());
 
 	// step 3. put into the read set
@@ -427,7 +427,6 @@ void  DBTransaction::WriteSet::Resize() {
   }
 
   bool DBTransaction::Validation() {
-	
 
 	//writeset->PrintHashTable();	
 	RTMScope rtm(&rtmProf);
@@ -436,7 +435,6 @@ void  DBTransaction::WriteSet::Resize() {
 	//step 1. check if the seq has been changed (any one change the value after reading)
 	if( !readset->Validate(latestseq_))
 		return false;
-	
 	
 	//step 2.  update the the seq set 
 	//can't use the iterator because the cur node may be deleted 
@@ -450,6 +448,7 @@ void  DBTransaction::WriteSet::Resize() {
   
   void DBTransaction::GlobalCommit() {
 	//commit the local write set into the memory storage		
+
 	writeset->Commit(txdb_);
 	
 	if(readset != NULL) {

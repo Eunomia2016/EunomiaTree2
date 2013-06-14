@@ -29,7 +29,7 @@ class DBTransaction {
 	bool Abort();
 	bool End();
 	void Add(ValueType type, Slice& key, Slice& value);
-	bool Get(const Slice& key, std::string* value, Status* s);
+	bool Get(const Slice& key, Slice* value, Status* s);
 
 	
 public:

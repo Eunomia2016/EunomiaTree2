@@ -38,9 +38,9 @@ TPCCClient::TPCCClient(Clock* clock, tpcc::RandomGenerator* generator, TPCCDB* d
 }
 
 TPCCClient::~TPCCClient() {
-    delete clock_;
-    delete generator_;
-    delete db_;
+//    delete clock_;
+//    delete generator_;
+//    delete db_;
 }
 
 void TPCCClient::doStockLevel() {
@@ -119,7 +119,7 @@ bool TPCCClient::doNewOrder() {
 
     // 1% of transactions roll back
     bool rollback = generator_->number(1, 100) == 1;
-
+	//printf("C1\n");
     vector<NewOrderItem> items(ol_cnt);
     for (int i = 0; i < ol_cnt; ++i) {
         if (rollback && i+1 == ol_cnt) {
@@ -138,13 +138,18 @@ bool TPCCClient::doNewOrder() {
         }
         items[i].ol_quantity = generator_->number(1, MAX_OL_QUANTITY);
     }
-
-    char now[Clock::DATETIME_SIZE+1];
+	
+    char *now = new char[Clock::DATETIME_SIZE+1];
+	//printf("C2\n");
+	assert(clock_ !=NULL);
     clock_->getDateTimestamp(now);
+	//printf("C3\n");
     NewOrderOutput output;
+	//printf("C4\n");
     bool result = db_->newOrder(
             w_id, generateDistrict(), generateCID(), items, now, &output, NULL);
     assert(result == !rollback);
+	//printf("C5\n");
     return result;
 }
 

@@ -15,7 +15,7 @@
 #include "tpcc/tpcctables.h"
 #include "tpcc/tpccleveldb.h"
 
-static const int NUM_TRANSACTIONS = 1000000;
+static const int NUM_TRANSACTIONS = 10000;
 static int NUM_WAREHOUSE = 1;
 
 namespace leveldb {
@@ -96,7 +96,7 @@ struct SharedState {
   port::Mutex mu;
   port::CondVar cv;
   int total;
-
+  
   // Each thread goes through the following states:
   //    (1) initializing
   //    (2) waiting for others to be initialized
@@ -121,6 +121,16 @@ struct ThreadState {
   }
 };
 
+__inline__ int64_t XADD64(int64_t* addr, int64_t val) {
+    asm volatile(
+        "lock;xaddq %0, %1"
+        : "+a"(val), "+m"(*addr)
+        :
+        : "cc");
+
+    return val;
+}
+
 class Benchmark {
 
 
@@ -128,7 +138,7 @@ class Benchmark {
   TPCCLevelDB* tables;
   SystemClock* clock;
   tpcc::NURandC cLoad;
-  
+  int64_t total_count;
  
   struct ThreadArg {
     Benchmark* bm;
@@ -164,7 +174,7 @@ class Benchmark {
     thread->stats.Start();
     (arg->bm->*(arg->method))(thread);
     thread->stats.Stop();
-  
+    
     {
   	  MutexLock l(&shared->mu);
   	  shared->num_done++;
@@ -178,6 +188,8 @@ class Benchmark {
   void RunBenchmark(int n, Slice name, void (Benchmark::*method)(ThreadState*)) {
   	
 	printf("Running... \n");
+	total_count = NUM_TRANSACTIONS * NUM_WAREHOUSE;
+	
 	SharedState shared;
     shared.total = n;
     shared.num_initialized = 0;
@@ -230,10 +242,15 @@ class Benchmark {
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
 
-    for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
+    //for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
+    while (total_count > 0) {
+	  int64_t oldv = XADD64(&total_count, -1000);
+  	  if(oldv <= 0) break;
+	  
+	  for (int i =0; i < 1000; i++) {	
         client.doNewOrder();
 		thread->stats.FinishedSingleOp();
-		printf("Thread %d commit %d\n", thread->tid, i);
+	  }
     }
   }
 };
@@ -279,19 +296,19 @@ int main(int argc, const char* argv[]) {
             Customer::NUM_PER_DISTRICT, NewOrder::INITIAL_NUM_PER_DISTRICT);
     int64_t begin = clock->getMicroseconds();
     generator.makeItemsTable(tables);
-    for (int i = 0; i < num_warehouses; ++i) {
+   for (int i = 0; i < num_warehouses; ++i) {
         generator.makeWarehouse(tables, i+1);
     }
     int64_t end = clock->getMicroseconds();
     printf("%"PRId64" ms\n", (end - begin + 500)/1000);
 
-    leveldb::Slice name("neworder");
+     leveldb::Slice name("neworder");
     leveldb::Benchmark b(tables, clock, cLoad);
 	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
 
 
 
-	//printf("Hello World\n");
+	printf("Hello World\n");
     return 0;
 }
 

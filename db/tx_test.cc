@@ -391,7 +391,7 @@ class Benchmark {
 			Status s;
 			std::string str;
 			tx.Get(k, &str, &s);
-			result = atoi(str.c_str());
+			result = atoi(str.c_str());
 			//printf("result %d\n",result);
 			b = tx.End();
 			}

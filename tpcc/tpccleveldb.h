@@ -21,7 +21,7 @@ class TPCCLevelDB : public TPCCDB {
   port::Mutex* storemutex;
   HashTable *latestseq_ ;
   TXSkiplist* memstore_ ;	
-
+  int count;
   TPCCLevelDB(uint32_t w_num, HashTable* ht, TXSkiplist* store, port::Mutex* mutex); 
   TPCCLevelDB();
   
@@ -46,26 +46,26 @@ class TPCCLevelDB : public TPCCDB {
 
   Slice* marshallWarehouseKey(int32_t w_id);
   Slice* marshallWarehouseValue(const Warehouse& w);
-  float getW_TAX(std::string& value);
+  float getW_TAX(Slice& value);
   Slice* marshallDistrictKey(int32_t d_w_id, int32_t d_id);
   Slice* marshallDistrictValue(const District& d);
-  float getD_TAX(std::string& value);
-  int32_t getD_NEXT_O_ID(std::string& value);
-  std::string* updateD_NEXT_O_ID(std::string& value, int32_t id);
+  float getD_TAX(Slice& value);
+  int32_t getD_NEXT_O_ID(Slice& value);
+  Slice* updateD_NEXT_O_ID(Slice& value, int32_t id);
   Slice* marshallCustomerKey(int32_t c_w_id, int32_t c_d_id, int32_t c_id);
   Slice* marshallCustomerValue(const Customer& c);
-  float getC_DISCOUNT(std::string& value);
-  char* getC_LAST(std::string& value);
-  char* getC_CREDIT(std::string& value);
+  float getC_DISCOUNT(Slice& value);
+  char* getC_LAST(Slice& value);
+  char* getC_CREDIT(Slice& value);
   Slice* marshallOrderKey(int32_t o_w_id, int32_t o_d_id, int32_t o_id);
   Slice* marshallOrderValue(Order o);
   Slice* marshallNewOrderKey(const NewOrder& no);
   Slice* marshallStockKey(int32_t s_w_id, int32_t s_i_id);
   Slice* marshallStockValue(Stock s);
-  Stock* unmarshallStockValue(std::string& value);
+  Stock* unmarshallStockValue(Slice& value);
   Slice* marshallItemkey(int32_t i_id);
   Slice* marshallItemValue(Item i);
-  Item unmarshallItemValue(std::string& value);
+  Item* unmarshallItemValue(Slice& value);
   Slice* marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32_t ol_o_id, int32_t ol_number);
   Slice* marshallOrderLineValue(OrderLine line);
   //char* getS_DATA(std::string& value);
