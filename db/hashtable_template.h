@@ -111,7 +111,7 @@ HashTable<Key, HashFunction, Comparator>::~HashTable() {
 template<typename Key, class HashFunction, class Comparator>
 void HashTable<Key, HashFunction, Comparator>::Resize() 
 {
-	uint32_t new_length = 16; //16M
+	uint32_t new_length = 16384000; //16M
 	
 	while (new_length < elems_) {
 	  new_length *= 2;

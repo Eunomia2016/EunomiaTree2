@@ -272,6 +272,9 @@ private:
 		   int seqNum = 0;
 		   int rnum = read_count;
 		   int wnum = write_count;
+
+		   leveldb::DBTransaction<Key, Key, KeyHash, KeyComparator> tx(
+  						&hashtable, &memstore, comparator);
 		   
 		   //printf("DoWrite %d\n", total_count);
 			while(total_count > 0) {
@@ -288,9 +291,7 @@ private:
 					uint64_t comT = 0;
 					uint64_t startT = 0;
 					uint64_t endT = 0;
-
-					leveldb::DBTransaction<Key, Key, KeyHash, KeyComparator> tx(
-  						&hashtable, &memstore, comparator);
+					
 				
 					int conflict = 0;
 					

@@ -61,6 +61,7 @@ public:
 	    void Add(uint64_t hash, uint64_t oldeseq, uint64_t *ptr);
 	    bool Validate(HashTable<Key, HashFunction, Comparator>* ht);
 	    void Print();
+		void Reset();
 	};
 
 
@@ -101,6 +102,7 @@ public:
 		
 		void Commit(TXMemStore<Key, Value, Comparator> *memstore);
 		void Print();
+		void Reset();
 	};
 
 //	HashTable *readset;
@@ -129,6 +131,13 @@ DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::ReadSet()
 	seqs = new RSSeqPair[max_length];
  	 
 }
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::Reset() 
+{
+	elems = 0;
+}
+
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::~ReadSet() {
@@ -258,6 +267,20 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Resize() {
   seqs = nss;
   kvs = nkv;
 }
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Reset() 
+{
+	elems = 0;
+	for(int i = 0; i < 64; i++) {
+	    cacheset[i] = 0;
+		for(int j = 0; j < 8; j++) {
+			cacheaddr[i][j] = 0;
+			cachetypes[i][j] = 0;
+		}
+    }
+}
+
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Add(
@@ -396,8 +419,8 @@ TXMemStore<Key, Value, Comparator>* store, Comparator comp)
   latestseq_ = ht;
   txdb_ = store;
 
-  readset = NULL;
-  writeset = NULL;
+  readset = new ReadSet();
+  writeset = new WriteSet();
 
   count = 0;
 }
@@ -406,33 +429,16 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 DBTransaction<Key, Value, HashFunction, Comparator>::~DBTransaction()
 {
   //clear all the data
-  if(readset != NULL) {
     delete readset;
-    readset = NULL;
-  }
- 
-  if(writeset != NULL) {
-    delete writeset;
-    writeset = NULL;
-  }	
-}
+    delete writeset;	
+}	
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::Begin()
 {
 //reset the local read set and write set
-  if(readset != NULL) {
-	delete readset;
-	readset = NULL;
-  }
-
-  if(writeset != NULL) {
-	delete writeset;
-	writeset = NULL;
-  }
-
-  readset = new ReadSet();
-  writeset = new WriteSet();
+  readset->Reset();
+  writeset->Reset();
 }
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
@@ -535,8 +541,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
- RTMScope rtm(&rtmProf);
- //MutexLock mu(&storemutex);
+ //RTMScope rtm(&rtmProf);
+ MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_)) {
@@ -560,17 +566,8 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::GlobalCommit() {
 
   //commit the local write set into the memory storage		
   writeset->Commit(txdb_);
-
-  if(readset != NULL) {
-    delete readset;
-    readset = NULL;
-  }
-
-  if(writeset != NULL) {
-    delete writeset;
-    writeset = NULL;
-  }
-
+  writeset->Reset();
+  readset->Reset();
 }
 
 
