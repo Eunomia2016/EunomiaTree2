@@ -16,6 +16,7 @@
 #error unsupported data size
 #endif
 
+
 static __inline__ void glue(atomic_inc, DATA_BITS)(DATA_TYPE *p) {
     asm volatile(
         LOCK_PREFIX "inc"str(SUFFIX)" %0"

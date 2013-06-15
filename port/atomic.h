@@ -1,5 +1,5 @@
-#ifndef _ATOMIC_H
-#define _ATOMIC_H
+#ifndef LEVELDB_ATOMIC_H
+#define LEVELDB_ATOMIC_H
 
 #include <stdint.h>
 
@@ -53,18 +53,17 @@ static __inline__ uint8_t atomic_cmpxchg8b(uint32_t *memp,
 }
 
 #define DATA_BITS 8
-#include "atomic-template.h"
+#include "port/atomic-template.h"
 
 #define DATA_BITS 16
-#include "atomic-template.h"
+#include "port/atomic-template.h"
 
 #define DATA_BITS 32
-#include "atomic-template.h"
+#include "port/atomic-template.h"
 
-#if (__LP64__== 1)
 #define DATA_BITS 64
-#include "atomic-template.h"
-#endif
+#include "port/atomic-template.h"
+
 
 #endif /* _ATOMIC_H */
 

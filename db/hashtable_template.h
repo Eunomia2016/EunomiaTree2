@@ -26,6 +26,7 @@
 #include "util/rtm_arena.h"
 #include "port/port.h"
 #include "util/mutexlock.h"
+#include "util/rwlock.h"
 
 
 namespace leveldb {
@@ -52,7 +53,8 @@ class HashTable {
   struct Head 
   {
 	  Node* h;
-	  port::SpinLock* spinlock;
+	  //port::SpinLock* spinlock;
+	  RWLock rwlock;
   };
 
   
@@ -102,7 +104,7 @@ HashTable<Key, HashFunction, Comparator>::~HashTable() {
 
 	for (uint32_t i = 0; i < length_; i++) {
 	
-	  delete list_[i].spinlock;
+	  //delete list_[i].spinlock;
 	}
 	
 	delete[] list_;	
@@ -120,7 +122,7 @@ void HashTable<Key, HashFunction, Comparator>::Resize()
 	Head* new_list = new Head[new_length];
 	for (uint32_t i = 0; i < new_length; i++) {
 
-	  new_list[i].spinlock = new port::SpinLock();
+//	  new_list[i].spinlock = new port::SpinLock();
 	  new_list[i].h = NULL;
 	}
 	
@@ -138,7 +140,7 @@ void HashTable<Key, HashFunction, Comparator>::Resize()
 		count++;
 	  }
 
-	  delete list_[i].spinlock;
+//	  delete list_[i].spinlock;
 	}
 	assert(elems_ == count);
 	  
@@ -154,7 +156,9 @@ bool HashTable<Key, HashFunction, Comparator>::GetMaxWithHash(uint64_t hash, uin
 	uint64_t max = 0;
 	Head slot = list_[hash & (length_ - 1)];
 
-	MutexSpinLock(slot.spinlock);
+	//MutexSpinLock(slot.spinlock);
+	slot.rwlock.StartRead();
+	
 	Node* ptr = slot.h;
 	
     while (ptr != NULL) {
@@ -167,11 +171,15 @@ bool HashTable<Key, HashFunction, Comparator>::GetMaxWithHash(uint64_t hash, uin
       ptr = ptr->next;
     }
 
-	if(max == 0)
+	if(max == 0) {
+		slot.rwlock.EndRead();
 		return false;
+	}
 
 	*seq_ptr = max;
 
+	slot.rwlock.EndRead();
+	
 	return true;
 }
 
@@ -182,7 +190,10 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
 	
 	Head slot = list_[hash & (length_ - 1)];
 
-	MutexSpinLock(slot.spinlock);
+	//MutexSpinLock(slot.spinlock);
+	
+	slot.rwlock.StartRead();
+	
 	Node* ptr = slot.h;
 	
     while (ptr != NULL) {
@@ -192,6 +203,8 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
 	  
       ptr = ptr->next;
     }
+
+	slot.rwlock.EndRead();
 }
 
 
@@ -204,13 +217,17 @@ HashTable<Key, HashFunction, Comparator>::GetNode(Key* k)
 	
 	Head slot = list_[hash & (length_ - 1)];
 	
-	MutexSpinLock(slot.spinlock);
+	//MutexSpinLock(slot.spinlock);
+	
+	slot.rwlock.StartRead();
 	Node* ptr = slot.h;
 	
     while (ptr != NULL &&
            (ptr->hash != hash || compare_(*ptr->key, *k) != 0)) {
       ptr = ptr->next;
     }
+	
+	slot.rwlock.EndRead();
     return ptr;
 	
 }
@@ -224,8 +241,9 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 	uint64_t hash = hashfunc_.hash(*k);
 	Head *slot = &list_[hash & (length_ - 1)];
 
-	MutexSpinLock(slot->spinlock);
-
+	//MutexSpinLock(slot->spinlock);
+	slot->rwlock.StartWrite();
+	
 	Node* ptr = slot->h;
 
 	
@@ -246,6 +264,9 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
     	slot->h = ptr;
 
 	}
+
+	slot->rwlock.EndWrite();
+	
     return ptr;
 	
 }
@@ -260,12 +281,16 @@ HashTable<Key, HashFunction, Comparator>::Insert(Key* k, uint64_t seq)
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(k);
 	
-	MutexSpinLock(slot.spinlock);
+	//MutexSpinLock(slot.spinlock);
+	
+	slot->rwlock.StartWrite();
 
 	ptr->seq = 0;
 	ptr->hash = hash;
 	ptr->next = slot->h;
     slot->h = ptr;
+
+	slot->rwlock.EndWrite();
 	
     return ptr;
 	
@@ -286,7 +311,7 @@ void HashTable<Key, HashFunction, Comparator>::PrintHashTable()
 		printf("slot [%d] : ", i);
 		Head slot = list_[i];
 
-		MutexSpinLock(slot.spinlock);
+		//MutexSpinLock(slot.spinlock);
 		Node* ptr = slot.h;
 		
         while (ptr != NULL) {
