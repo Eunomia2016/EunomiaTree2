@@ -154,12 +154,12 @@ template<typename Key, class HashFunction, class Comparator>
 bool HashTable<Key, HashFunction, Comparator>::GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr)
 {
 	uint64_t max = 0;
-	Head slot = list_[hash & (length_ - 1)];
+	Head *slot = &list_[hash & (length_ - 1)];
 
 	//MutexSpinLock(slot.spinlock);
-	slot.rwlock.StartRead();
+	slot->rwlock.StartRead();
 	
-	Node* ptr = slot.h;
+	Node* ptr = slot->h;
 	
     while (ptr != NULL) {
 
@@ -172,13 +172,13 @@ bool HashTable<Key, HashFunction, Comparator>::GetMaxWithHash(uint64_t hash, uin
     }
 
 	if(max == 0) {
-		slot.rwlock.EndRead();
+		slot->rwlock.EndRead();
 		return false;
 	}
 
 	*seq_ptr = max;
 
-	slot.rwlock.EndRead();
+	slot->rwlock.EndRead();
 	
 	return true;
 }
@@ -188,13 +188,13 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
 {
 	uint64_t max = 0;
 	
-	Head slot = list_[hash & (length_ - 1)];
+	Head *slot = &list_[hash & (length_ - 1)];
 
 	//MutexSpinLock(slot.spinlock);
 	
-	slot.rwlock.StartRead();
+	slot->rwlock.StartRead();
 	
-	Node* ptr = slot.h;
+	Node* ptr = slot->h;
 	
     while (ptr != NULL) {
 
@@ -204,7 +204,7 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
       ptr = ptr->next;
     }
 
-	slot.rwlock.EndRead();
+	slot->rwlock.EndRead();
 }
 
 
@@ -215,19 +215,19 @@ HashTable<Key, HashFunction, Comparator>::GetNode(Key k)
 
 	uint64_t hash = hashfunc_.hash(k);
 	
-	Head slot = list_[hash & (length_ - 1)];
+	Head *slot = &list_[hash & (length_ - 1)];
 	
 	//MutexSpinLock(slot.spinlock);
 	
-	slot.rwlock.StartRead();
-	Node* ptr = slot.h;
+	slot->rwlock.StartRead();
+	Node* ptr = slot->h;
 	
     while (ptr != NULL &&
            (ptr->hash != hash || compare_(ptr->key, k) != 0)) {
       ptr = ptr->next;
     }
 	
-	slot.rwlock.EndRead();
+	slot->rwlock.EndRead();
     return ptr;
 	
 }
