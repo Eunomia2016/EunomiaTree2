@@ -1,6 +1,8 @@
 #include "port/atomic.h"
 #include "util/rwlock.h"
 #include <assert.h>
+#include <stdio.h>
+
 
 /* For various reader-writer lock algorithms, refer to
  * http://www.cs.rochester.edu/research/synchronization/pseudocode/rw.html
@@ -20,7 +22,7 @@ namespace leveldb {
 
 void RWLock::StartWrite() {
     uint16_t tmp;
-    
+    printf("Try to hold write lock %d\n", counter);
     while (1) {
         /* If there is someone in the critical section (CS) */
         if (counter & TBB_CRITICAL) {
@@ -35,9 +37,12 @@ void RWLock::StartWrite() {
         /* Try to acquire lock. If previous readers caused spin, pending bit is
          * set and no one will clear it. */
         tmp = counter & TBB_WPENDING;
-        if (atomic_cmpxchg16((uint16_t *)&counter, tmp, TBB_WRITER) == tmp)
+        if (atomic_cmpxchg16((uint16_t *)&counter, tmp, TBB_WRITER) == tmp) {
+			printf("Hold Write lock %d\n", counter);
             return;
+		}
     }
+	
     /* Since readers are optimistic, it's possible we get non 0 here. */
     /*assert((*(uint16_t *)l & ~(TBB_WPENDING | TBB_WRITER)) == 0);*/
 }
@@ -60,20 +65,24 @@ void RWLock::EndWrite() {
 
 void RWLock::StartRead() {
     uint16_t lval;
+	printf("Try to hold read lock %d\n", counter);
     while (1) {
         /* If there's no writer or pending writer */
         if (! (counter & (TBB_WPENDING | TBB_WRITER))) {
             lval = atomic_fetch_and_add16((uint16_t *)&counter, TBB_RINC);
             /* If no writer cuts in before we xadd, we can enter CS since writers
              * will see a non zero reader count and wait */
-            if (! (lval & (TBB_WPENDING | TBB_WRITER)))
+            if (! (lval & (TBB_WPENDING | TBB_WRITER))) {
+				printf("Hold read lock %d\n", counter);
                 return;
+			}
             /* Otherwise, restore the read counter.
              * We can also spin wait the writer here, and it would perfer reader
              * a little more. */
             atomic_add16((uint16_t *)&counter, -TBB_RINC);
         }
     }
+	
     /*assert((*(uint16_t *)l & TBB_WRITER) == 0);*/
 }
 

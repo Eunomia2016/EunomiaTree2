@@ -24,7 +24,7 @@ typedef uint64_t Key;
 
 class KeyComparator : public leveldb::Comparator {
     public:
-	int operator()(Key& a, Key& b) const {
+	int operator()(const Key& a, const Key& b) const {
 		if (a < b) {
 	      return -1;
 	    } else if (a > b) {
@@ -170,14 +170,14 @@ class Benchmark {
 			*key = i;
 			uint64_t* value = new uint64_t(); 
 			*value = tid;
-			tx.Add(t, key, value);
+			tx.Add(t, *key, value);
 			//printf("tid %d iter %d\n",tid, i);
 				
 			uint64_t* key1 = new uint64_t(); 
 			*key1 = i + 1;
 			uint64_t* value1 = new uint64_t(); 
 			*value1 = tid;
-			tx.Add(t, key1, value1);
+			tx.Add(t, *key1, value1);
 
 			b = tx.End();
 			//printf("tid %d iter %d\n",tid, i);	
@@ -217,13 +217,13 @@ class Benchmark {
 				*key = tid;
 				uint64_t* value = new uint64_t(); 
 				*value = 1;
-				tx.Add(t, key, value);
+				tx.Add(t, *key, value);
 		
 				uint64_t* key1 = new uint64_t(); 
 				*key1 = (tid+1) % num;
 				uint64_t* value1 = new uint64_t(); 
 				*value1 = 2;
-				tx.Add(t, key1, value1);
+				tx.Add(t, *key1, value1);
 				b = tx.End();
 			}
 			
@@ -241,7 +241,7 @@ class Benchmark {
 					*k = j;
 					uint64_t *v;
 					Status s;
-					tx1.Get(k, &v, &s);
+					tx1.Get(*k, &v, &s);
 					str[j] = *v;
 					
 				}						
@@ -295,7 +295,7 @@ class Benchmark {
 			*k = 1;
 			uint64_t *v;
 			leveldb::Status s;
-			tx.Get(k, &v, &s);
+			tx.Get(*k, &v, &s);
 
 			uint64_t *key = new uint64_t();
 			*key = 1;
@@ -304,7 +304,7 @@ class Benchmark {
 
 			//printf("Insert %s ", key);
 			//printf(" Value %s\n", value);
-			tx.Add(t, key, value);			
+			tx.Add(t, *key, value);			
 			
 			b = tx.End();
 			
@@ -350,7 +350,7 @@ class Benchmark {
 					uint64_t *value = new uint64_t();
 					*value = i;
 		 			
-					tx.Add(t, key, value);			
+					tx.Add(t, *key, value);			
 				}
 				b = tx.End();
 
@@ -368,7 +368,7 @@ class Benchmark {
 					*key = j;
 					uint64_t *value;					
 					Status s;
-					tx1.Get(key, &value, &s);
+					tx1.Get(*key, &value, &s);
 					str[j-1] = *value;
 				
 				}						
@@ -417,7 +417,7 @@ class Benchmark {
 			*key = 1;
 			uint64_t *value = new uint64_t();
 			*value = 0;
-			tx.Add(t, key, value);				
+			tx.Add(t, *key, value);				
 												
 			b = tx.End();
 			//if (b==true)printf("%d\n", i);
@@ -471,7 +471,7 @@ class Benchmark {
 			*k = 1;
 			Status s;
 			uint64_t *str;
-			tx.Get(k, &str, &s);
+			tx.Get(*k, &str, &s);
 			result = *str;
 			//printf("result %d\n",result);
 			b = tx.End();
@@ -512,7 +512,7 @@ class Benchmark {
 
 				do{
 					j++;
-					founds = store->GetMaxSeq(key, &mseq);	
+					founds = store->GetMaxSeq(*key, &mseq);	
 				}while(founds.IsNotFound() && j < 5);
 
 				
