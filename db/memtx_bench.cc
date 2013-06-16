@@ -311,16 +311,14 @@ private:
 						for(int i = 0; i < wnum; i++) {
 							k = new uint64_t();
 							*k = thread->rnd.Next();
-							tx.Add(t, k, k);
+							tx.Add(t, *k, k);
 						}
 						endT = Read_tsc();
 						addT +=  endT - startT;
 
 						for(int i = 0; i < rnum; i++) {
-							k = new uint64_t();
-							*k = thread->rnd.Next();
 							uint64_t *v;
-							tx.Get(k, &v, &s);
+							tx.Get(thread->rnd.Next(), &v, &s);
 						}
 
 						startT = Read_tsc();

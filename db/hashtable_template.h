@@ -46,7 +46,7 @@ class HashTable {
 	  uint64_t seq;
 	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
 	  Node* next; 
-	  Key* key;
+	  Key key;
   };
 
 
@@ -64,9 +64,9 @@ class HashTable {
   void UpdateWithHash(uint64_t hash, uint64_t seq);
   
   
-  Node* GetNode(Key* k);
-  Node* GetNodeWithInsert(Key* k);
-  Node* Insert(Key* k, uint64_t seq);
+  Node* GetNode(Key k);
+  Node* GetNodeWithInsert(Key k);
+  Node* Insert(Key k, uint64_t seq);
   
   void PrintHashTable();
 
@@ -82,7 +82,7 @@ class HashTable {
   
   
   void Resize();
-  Node* NewNode(Key* key);
+  Node* NewNode(Key key);
 
  };
 
@@ -210,10 +210,10 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
 
 template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node*
-HashTable<Key, HashFunction, Comparator>::GetNode(Key* k) 
+HashTable<Key, HashFunction, Comparator>::GetNode(Key k) 
 {
 
-	uint64_t hash = hashfunc_.hash(*k);
+	uint64_t hash = hashfunc_.hash(k);
 	
 	Head slot = list_[hash & (length_ - 1)];
 	
@@ -223,7 +223,7 @@ HashTable<Key, HashFunction, Comparator>::GetNode(Key* k)
 	Node* ptr = slot.h;
 	
     while (ptr != NULL &&
-           (ptr->hash != hash || compare_(*ptr->key, *k) != 0)) {
+           (ptr->hash != hash || compare_(ptr->key, k) != 0)) {
       ptr = ptr->next;
     }
 	
@@ -235,10 +235,10 @@ HashTable<Key, HashFunction, Comparator>::GetNode(Key* k)
 
 template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node* 
-HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
+HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key k)
 {
 
-	uint64_t hash = hashfunc_.hash(*k);
+	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
 
 	//MutexSpinLock(slot->spinlock);
@@ -248,7 +248,7 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 
 	
     while (ptr != NULL &&
-           (ptr->hash != hash || compare_(*ptr->key, *k) != 0)) {
+           (ptr->hash != hash || compare_(ptr->key, k) != 0)) {
   
       ptr = ptr->next;
     }
@@ -274,10 +274,10 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key* k)
 
 template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node* 
-HashTable<Key, HashFunction, Comparator>::Insert(Key* k, uint64_t seq) 
+HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq) 
 {
 
-	uint64_t hash = hashfunc_.hash(*k);
+	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(k);
 	
@@ -316,7 +316,7 @@ void HashTable<Key, HashFunction, Comparator>::PrintHashTable()
 		
         while (ptr != NULL) {
 			count++;
-	   		printf("Key %ld Hash: %ld, Seq: %ld  ",*ptr->key, ptr->hash, ptr->seq);
+	   		printf("Key %ld Hash: %ld, Seq: %ld  ",ptr->key, ptr->hash, ptr->seq);
            ptr = ptr->next;
         }
 		printf("\n");
@@ -329,7 +329,7 @@ void HashTable<Key, HashFunction, Comparator>::PrintHashTable()
 
 template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node* 
-HashTable<Key, HashFunction, Comparator>::NewNode(Key* k)
+HashTable<Key, HashFunction, Comparator>::NewNode(Key k)
 {
 	Node* e = new Node();
 	e->key = k;

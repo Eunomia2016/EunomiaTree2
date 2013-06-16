@@ -34,8 +34,8 @@ class DBTransaction {
 	void Begin();
 	bool Abort();
 	bool End();
-	void Add(ValueType type, Key* key, Value* val);
-	bool Get(Key* key, Value** value, Status* s);
+	void Add(ValueType type, Key key, Value* val);
+	bool Get(Key key, Value** value, Status* s);
 
 	
 public:
@@ -69,7 +69,7 @@ public:
 		
 		struct WSKV{
 			ValueType type; //seq got when read the value
-			Key *key; //pointer to the written key 
+			Key key; //pointer to the written key 
 			Value *val;
 		};
 		
@@ -96,9 +96,9 @@ public:
 		~WriteSet();	
 		void TouchAddr(uint64_t addr, int type);
 		
-		void Add(ValueType type, Key* key, Value* val, uint64_t* seqptr);
+		void Add(ValueType type, Key key, Value* val, uint64_t* seqptr);
 		void UpdateGlobalSeqs();
-		bool Lookup(Key* key, ValueType* type, Value** val, Comparator& cmp);
+		bool Lookup(Key key, ValueType* type, Value** val, Comparator& cmp);
 		
 		void Commit(TXMemStore<Key, Value, Comparator> *memstore);
 		void Print();
@@ -284,7 +284,7 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Reset()
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Add(
-										ValueType type, Key* key,
+										ValueType type, Key key,
 										Value* val, uint64_t *seqptr)
 {
   assert(elems <= max_length);
@@ -366,11 +366,11 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::UpdateGlobal
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Lookup(
-									Key* key, ValueType* type, Value** val, Comparator& cmp) 
+									Key key, ValueType* type, Value** val, Comparator& cmp) 
 {
   
   for(int i = 0; i < elems; i++) {
-	if(cmp(*kvs[i].key , *key) == 0) {
+	if(cmp(kvs[i].key , key) == 0) {
 		*type = kvs[i].type;
 		*val = kvs[i].val;
 		return true;
@@ -459,7 +459,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::End()
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::Add(
-													ValueType type, Key* key, Value* value)
+													ValueType type, Key key, Value* value)
 {
 
 	//Get the seq addr from the hashtable
@@ -472,7 +472,7 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::Add(
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
-														Key* key, Value** value, Status* s)
+														Key key, Value** value, Status* s)
 {
   //step 1. First check if the <k,v> is in the write set
 	
@@ -501,7 +501,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 	//even not found, still need to put the k into read set to avoid concurrent insertion
 //	printf("key %ld not found\n", *key);
 	//latestseq_->PrintHashTable();
-	readset->Add(latestseq_->hashfunc_.hash(*key), seq, (uint64_t *)0);
+	readset->Add(latestseq_->hashfunc_.hash(key), seq, (uint64_t *)0);
 	*s = Status::NotFound(Slice());
 	return false;
   }
@@ -522,7 +522,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 
 	count ++;
 	if(count > 1000) {
-		printf("Too Many Time Get Failure key %ld seq %ld\n", *key, seq);
+		printf("Too Many Time Get Failure key %ld seq %ld\n", key, seq);
 		txdb_->DumpTXMemStore();
 		exit(1);
 	}

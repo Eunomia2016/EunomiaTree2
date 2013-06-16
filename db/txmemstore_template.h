@@ -22,15 +22,15 @@ class TXMemStore{
   TXMemStore(Comparator comparator);
   ~TXMemStore();
 
-  Status Put(Key* k, Value* val, uint64_t seq);
-  Status Get(Key* k, Value** val, uint64_t seq);
-  Status Delete(Key* k, uint64_t seq);
-  Status GetMaxSeq(Key* k, uint64_t* seq);
+  Status Put(Key k, Value* val, uint64_t seq);
+  Status Get(Key k, Value** val, uint64_t seq);
+  Status Delete(Key k, uint64_t seq);
+  Status GetMaxSeq(Key k, uint64_t* seq);
   void DumpTXMemStore();
 
 
   struct TableKey {
-  	Key* k;
+  	Key k;
 	Value* v;
 	uint64_t seq;
   };
@@ -49,7 +49,7 @@ class TXMemStore{
   
 	int Compare(const TableKey& a, const TableKey& b) const 
 	{
-		int r = user_comparator_(*a.k, *b.k);
+		int r = user_comparator_(a.k, b.k);
 		if(r == 0) {
 		  if(a.seq > b.seq)
 		    return -1;
@@ -63,7 +63,7 @@ class TXMemStore{
 
 	int operator()(const TableKey& a, const TableKey& b) const 
 	{
-		int r = user_comparator_(*a.k, *b.k);
+		int r = user_comparator_(a.k, b.k);
 		if(r == 0) {
 		  if(a.seq > b.seq)
 		    return -1;
@@ -101,7 +101,7 @@ template<typename Key, typename Value, class Comparator>
 TXMemStore<Key, Value, Comparator>::~TXMemStore(){}
 
 template<typename Key, typename Value, class Comparator> 
-Status TXMemStore<Key, Value, Comparator>::Put(Key* k, Value* val, uint64_t seq)
+Status TXMemStore<Key, Value, Comparator>::Put(Key k, Value* val, uint64_t seq)
 {
 
   Table::ThreadLocalInit();
@@ -117,7 +117,7 @@ Status TXMemStore<Key, Value, Comparator>::Put(Key* k, Value* val, uint64_t seq)
 }
 
 template<typename Key, typename Value, class Comparator> 
-Status TXMemStore<Key, Value, Comparator>::Get(Key* k, Value** val, uint64_t seq)
+Status TXMemStore<Key, Value, Comparator>::Get(Key k, Value** val, uint64_t seq)
 {
 
   Table::ThreadLocalInit();
@@ -134,7 +134,7 @@ Status TXMemStore<Key, Value, Comparator>::Get(Key* k, Value** val, uint64_t seq
 	
 	TableKey res = iter.key();
 	Status s;
-	if (comparator_.user_comparator_(*k, *res.k) == 0) {
+	if (comparator_.user_comparator_(k, res.k) == 0) {
 				  
 	  if(seq != res.seq)
 	    return Status::NotFound(Slice());
@@ -149,7 +149,7 @@ Status TXMemStore<Key, Value, Comparator>::Get(Key* k, Value** val, uint64_t seq
 
 
 template<typename Key, typename Value, class Comparator> 
-Status TXMemStore<Key, Value, Comparator>::Delete(Key* k, uint64_t seq)
+Status TXMemStore<Key, Value, Comparator>::Delete(Key k, uint64_t seq)
 {
   Table::ThreadLocalInit();
   assert(0);
@@ -157,7 +157,7 @@ Status TXMemStore<Key, Value, Comparator>::Delete(Key* k, uint64_t seq)
 }
 
 template<typename Key, typename Value, class Comparator> 
-Status TXMemStore<Key, Value, Comparator>::GetMaxSeq(Key* k, uint64_t* seq)
+Status TXMemStore<Key, Value, Comparator>::GetMaxSeq(Key k, uint64_t* seq)
 {
   Table::ThreadLocalInit();
 
@@ -172,7 +172,7 @@ Status TXMemStore<Key, Value, Comparator>::GetMaxSeq(Key* k, uint64_t* seq)
   if (iter.Valid()) {
     TableKey res = iter.key();
 
-  	if (comparator_.user_comparator_(*k, *res.k) == 0) {
+  	if (comparator_.user_comparator_(k, res.k) == 0) {
 	  *seq = res.seq;
   	  return Status::OK();
     }
@@ -190,7 +190,7 @@ void TXMemStore<Key, Value, Comparator>::DumpTXMemStore()
 	  while(iter.Valid()) {
 		TableKey k = iter.key();
 		mutex_.Lock();
-		printf("Key %ld ", *k.k);
+		printf("Key %ld ", k.k);
 		printf("Value %ld ", *k.v);
 		printf("Seq %ld", k.seq);
 		printf("\n");
