@@ -22,7 +22,7 @@ namespace leveldb {
 
 void RWLock::StartWrite() {
     uint16_t tmp;
-    printf("Try to hold write lock %d\n", counter);
+   // printf("Try to hold write lock %d\n", counter);
     while (1) {
         /* If there is someone in the critical section (CS) */
         if (counter & TBB_CRITICAL) {
@@ -38,7 +38,7 @@ void RWLock::StartWrite() {
          * set and no one will clear it. */
         tmp = counter & TBB_WPENDING;
         if (atomic_cmpxchg16((uint16_t *)&counter, tmp, TBB_WRITER) == tmp) {
-			printf("Hold Write lock %d\n", counter);
+	//		printf("Hold Write lock %d\n", counter);
             return;
 		}
     }
@@ -65,7 +65,7 @@ void RWLock::EndWrite() {
 
 void RWLock::StartRead() {
     uint16_t lval;
-	printf("Try to hold read lock %d\n", counter);
+//	printf("Try to hold read lock %d\n", counter);
     while (1) {
         /* If there's no writer or pending writer */
         if (! (counter & (TBB_WPENDING | TBB_WRITER))) {
@@ -73,7 +73,7 @@ void RWLock::StartRead() {
             /* If no writer cuts in before we xadd, we can enter CS since writers
              * will see a non zero reader count and wait */
             if (! (lval & (TBB_WPENDING | TBB_WRITER))) {
-				printf("Hold read lock %d\n", counter);
+		//		printf("Hold read lock %d\n", counter);
                 return;
 			}
             /* Otherwise, restore the read counter.
