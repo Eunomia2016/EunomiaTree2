@@ -71,10 +71,10 @@ void TPCCGenerator::makeItemsTable(TPCCDB* tables) {
     set<int> original_rows = selectUniqueIds(random_, num_items_/10, 1, num_items_);
 
     for (int i = 1; i <= num_items_; ++i) {
-        Item item;
+        Item *item = new Item();
         bool is_original = original_rows.find(i) != original_rows.end();
-        generateItem(i, is_original, &item);
-        tables->insertItem(item);
+        generateItem(i, is_original, item);
+        tables->insertItem(*item);
     }
 }
 
@@ -227,10 +227,10 @@ void TPCCGenerator::makeStock(TPCCDB* tables, int32_t w_id) {
     set<int> selected_rows = selectUniqueIds(random_, num_items_/10, 1, num_items_);
 
     for (int i = 1; i <= num_items_; ++i) {
-        Stock s;
+        Stock *s = new Stock();
         bool is_original = selected_rows.find(i) != selected_rows.end();
-        generateStock(i, w_id, is_original, &s);
-        tables->insertStock(s);
+        generateStock(i, w_id, is_original, s);
+        tables->insertStock(*s);
     }
 }
 
@@ -240,27 +240,27 @@ void TPCCGenerator::makeWarehouse(TPCCDB* tables, int32_t w_id) {
 }
 
 void TPCCGenerator::makeWarehouseWithoutStock(TPCCDB* tables, int32_t w_id) {
-    Warehouse w;
-    generateWarehouse(w_id, &w);
-    tables->insertWarehouse(w);
+    Warehouse *w = new Warehouse();
+    generateWarehouse(w_id, w);
+    tables->insertWarehouse(*w);
 
     for (int d_id = 1; d_id <= districts_per_warehouse_; ++d_id) {
-        District d;
-        generateDistrict(d_id, w_id, &d);
-        tables->insertDistrict(d);
+        District *d = new District();
+        generateDistrict(d_id, w_id, d);
+        tables->insertDistrict(*d);
 
         // Select 10% of the customers to have bad credit
         set<int> selected_rows = selectUniqueIds(random_, customers_per_district_/10, 1,
                 customers_per_district_);
         for (int c_id = 1; c_id <= customers_per_district_; ++c_id) {
-            Customer c;
+            Customer *c = new Customer();
             bool bad_credit = selected_rows.find(c_id) != selected_rows.end();
-            generateCustomer(c_id, d_id, w_id, bad_credit, &c);
-            tables->insertCustomer(c);
+            generateCustomer(c_id, d_id, w_id, bad_credit, c);
+            tables->insertCustomer(*c);
 
-            History h;
-            generateHistory(c_id, d_id, w_id, &h);
-            tables->insertHistory(h);
+            History *h = new History();
+            generateHistory(c_id, d_id, w_id, h);
+            tables->insertHistory(*h);
         }
 
         // TODO: TPC-C 4.3.3.1. says that this should be a permutation of [1, 3000]. But since it is
@@ -270,15 +270,15 @@ void TPCCGenerator::makeWarehouseWithoutStock(TPCCDB* tables, int32_t w_id) {
         for (int o_id = 1; o_id <= customers_per_district_; ++o_id) {
             // The last new_orders_per_district_ orders are new
             bool new_order = customers_per_district_ - new_orders_per_district_ < o_id;
-            Order o;
-            generateOrder(o_id, permutation[o_id-1], d_id, w_id, new_order, &o);
-            tables->insertOrder(o);
+            Order *o = new Order();
+            generateOrder(o_id, permutation[o_id-1], d_id, w_id, new_order, o);
+            tables->insertOrder(*o);
 
             // Generate each OrderLine for the order
-            for (int ol_number = 1; ol_number <= o.o_ol_cnt; ++ol_number) {
-                OrderLine line;
-                generateOrderLine(ol_number, o_id, d_id, w_id, new_order, &line);
-                tables->insertOrderLine(line);
+            for (int ol_number = 1; ol_number <= o->o_ol_cnt; ++ol_number) {
+                OrderLine *line = new OrderLine();
+                generateOrderLine(ol_number, o_id, d_id, w_id, new_order, line);
+                tables->insertOrderLine(*line);
             }
 
             if (new_order) {
