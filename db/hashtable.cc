@@ -33,7 +33,7 @@ HashTable::~HashTable() {
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 1; //16M
+	uint32_t new_length = 16384000; //16M
 	
 	while (new_length < elems_) {
 	  new_length *= 2;
@@ -200,7 +200,7 @@ HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq)
 	
 	//slot->rwlock.StartWrite();
 
-	ptr->seq = 0;
+	ptr->seq = seq;
 	ptr->hash = hash;
 	
 retry:
