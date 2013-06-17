@@ -53,7 +53,7 @@ class RTMScope {
 			
 			
 			localprofile.localRecordAbortStatus(stat);
-			if(retry > 10000){
+			if(retry > 100000){
 				localprofile.reportAbortStatus();
 				int i = 0;
 				for(i = 0; i < rcur; i++) {

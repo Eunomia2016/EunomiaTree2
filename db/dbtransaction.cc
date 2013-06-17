@@ -392,7 +392,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 	if ( NULL == node) {
 		//even not found, still need to put the k into read set to avoid concurrent insertion
-		readset->Add(Hash(key.data(), key.size(), 0), seq, (uint64_t *)0);
+		readset->Add(MurmurHash64A(key.data(), key.size(), 0), seq, (uint64_t *)0);
 		
 		return false;
 	}
