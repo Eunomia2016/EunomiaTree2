@@ -146,7 +146,7 @@ class Benchmark {
 			tx.Add(t, k1, *v1);	
 
 			b = tx.End();
-			printf("tid %d finish tx %d\n", tid, i);
+//			printf("tid %d finish tx %d\n", tid, i);
 			}
 			
 
@@ -162,9 +162,9 @@ class Benchmark {
 					Slice k(key);				
 
 					Status s;
-					printf("Get %d\n",tid);
+	//				printf("Get %d\n",tid);
 					tx1.Get(k, &(str[j]), &s);
-					printf("Tid %d get %s %s\n",tid,key,&str[j]);
+		//			printf("Tid %d get %s %s\n",tid,key,&str[j]);
 				}						
 				b = tx1.End();
 			   
@@ -213,11 +213,15 @@ class Benchmark {
 			snprintf(key, sizeof(key), "%d", 1);
 			Slice k(key);
 			Status s;
-			Slice str;
-			tx.Get(k, &str, &s);
+			Slice sli;
+			tx.Get(k, &sli, &s);
 	
 			char* value = new char[100];
-			snprintf(value, sizeof(value), "%d", atoi(str.data())+1);
+
+			std::string str;
+			str.assign(sli.data(), sli.size());
+			
+			snprintf(value, sizeof(value), "%d", atoi(str.c_str())+1);
 			Slice *v = new leveldb::Slice(value);
 
 			//printf("Insert %s ", key);
@@ -334,9 +338,10 @@ class Benchmark {
 			char* key = new char[100];
 			snprintf(key, sizeof(key), "%d", 1);
 			Slice k(key);
-			char* value = new char[100];
-			snprintf(value, sizeof(value), "%d", 0);
-			Slice *v = new leveldb::Slice(value);
+			char* value = new char[4];
+			
+			EncodeFixed32(value, 0);
+			Slice *v = new leveldb::Slice(value, 4);
 
 			tx.Add(t, k, *v);				
 												
@@ -397,7 +402,11 @@ class Benchmark {
 			//printf("result %d\n",result);
 			b = tx.End();
 			}
-			if (result != (FLAGS_txs*num)) printf("Get %d instead of %d from the counter\ncounter fail!\n",result,FLAGS_txs*num);
+			if (result != (FLAGS_txs*num)){ printf("Get %d instead of %d from the counter\ncounter fail!\n",result,FLAGS_txs*num);
+
+				seqs->PrintHashTable();
+				store->DumpTXSkiplist();
+			}
 			//assert();
 			else printf("CounterTest pass!\n");
 		 }

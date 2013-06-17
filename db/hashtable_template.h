@@ -67,7 +67,7 @@ class HashTable {
   Node* GetNode(Key k);
   Node* GetNodeWithInsert(Key k);
   Node* Insert(Key k, uint64_t seq);
-  
+  Node* InsertInRTM(Key k, uint64_t seq);
   void PrintHashTable();
 
   HashFunction hashfunc_;
@@ -299,6 +299,40 @@ HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq)
 
 	ptr->seq = 0;
 	ptr->hash = hash;
+	
+retry:
+	ptr->next = slot->h;
+
+	uint64_t curv = atomic_cmpxchg64((uint64_t*)&slot->h, 
+											(uint64_t)ptr->next, (uint64_t)ptr);
+	
+    if( (uint64_t)ptr->next != curv)
+		goto retry;
+	
+	//slot->rwlock.EndWrite();
+	
+    return ptr;
+	
+}
+
+
+template<typename Key, class HashFunction, class Comparator>
+typename HashTable<Key, HashFunction, Comparator>::Node* 
+HashTable<Key, HashFunction, Comparator>::InsertInRTM(Key k, uint64_t seq) 
+{
+	
+	//This Function is not lock free, should invoked in the rtm protection
+	
+	uint64_t hash = hashfunc_.hash(k);
+	Head *slot = &list_[hash & (length_ - 1)];
+	Node* ptr = NewNode(k);
+	
+	//MutexSpinLock(slot.spinlock);
+	
+	//slot->rwlock.StartWrite();
+
+	ptr->seq = 0;
+	ptr->hash = hash;
 	ptr->next = slot->h;
 	
     slot->h = ptr;
@@ -308,7 +342,6 @@ HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq)
     return ptr;
 	
 }
-
 
 
 

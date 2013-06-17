@@ -338,6 +338,7 @@ void  DBTransaction::WriteSet::Resize() {
 	//reset the local read set and write set
 	readset->Reset();
 	writeset->Reset();
+	
   }
 
   bool DBTransaction::Abort()

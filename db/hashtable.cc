@@ -8,6 +8,7 @@
 
 #include "db/hashtable.h"
 #include "port/port.h"
+#include "port/atomic.h"
 #include "util/hash.h"
 #include "util/mutexlock.h"
 
@@ -23,7 +24,7 @@ HashTable::~HashTable() {
 
 	for (uint32_t i = 0; i < length_; i++) {
 	
-	  delete list_[i].spinlock;
+//	  delete list_[i].spinlock;
 	}
 	
 	delete[] list_;	
@@ -32,7 +33,7 @@ HashTable::~HashTable() {
 
 void HashTable::Resize() 
 {
-	uint32_t new_length = 16384000; //16M
+	uint32_t new_length = 1; //16M
 	
 	while (new_length < elems_) {
 	  new_length *= 2;
@@ -45,7 +46,7 @@ void HashTable::Resize()
 	Head* new_list = new Head[new_length];
 	for (uint32_t i = 0; i < new_length; i++) {
 
-	  new_list[i].spinlock = new port::SpinLock();
+//	  new_list[i].spinlock = new port::SpinLock();
 
 	}
 	
@@ -63,7 +64,7 @@ void HashTable::Resize()
 		count++;
 	  }
 
-	  delete list_[i].spinlock;
+//	  delete list_[i].spinlock;
 	}
 	assert(elems_ == count);
 	  
@@ -82,7 +83,7 @@ bool HashTable::GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr)
 	uint64_t max = 0;
 	Head slot = list_[hash & (length_ - 1)];
 
-	MutexSpinLock(slot.spinlock);
+	//MutexSpinLock(slot.spinlock);
 	Node* ptr = slot.h;
 	
     while (ptr != NULL) {
@@ -109,7 +110,7 @@ void HashTable::UpdateWithHash(uint64_t hash, uint64_t seq)
 	
 	Head slot = list_[hash & (length_ - 1)];
 
-	MutexSpinLock(slot.spinlock);
+	//MutexSpinLock(slot.spinlock);
 	Node* ptr = slot.h;
 	
     while (ptr != NULL) {
@@ -127,7 +128,7 @@ HashTable::Node* HashTable::GetNode(const Slice& key)
 	uint64_t hash = HashSlice(key);
 	Head slot = list_[hash & (length_ - 1)];
 	
-	MutexSpinLock(slot.spinlock);
+	//MutexSpinLock(slot.spinlock);
 	Node* ptr = slot.h;
 	
     while (ptr != NULL &&
@@ -143,49 +144,80 @@ HashTable::Node* HashTable::GetNodeWithInsert(const Slice& key)
 
 	uint64_t hash = HashSlice(key);
 	Head *slot = &list_[hash & (length_ - 1)];
-	
-	MutexSpinLock(slot->spinlock);
+	Node* tmp = NewNode(key);
+	//MutexSpinLock(slot->spinlock);
+	//slot->rwlock.StartWrite();
+
+retry:
+
 	Node* ptr = slot->h;
+	uint64_t oldv = (uint64_t)ptr;
 	
-    while (ptr != NULL &&
-           (ptr->hash != hash || key != ptr->Getkey())) {
-      ptr = ptr->next;
-    }
+	while (ptr != NULL &&
+		   (ptr->hash != hash || ptr->Getkey() != key)) {
+  
+	  ptr = ptr->next;
+	}
 
 	if(ptr == NULL) {
 		//insert an empty node
-		ptr = NewNode(key);
+		ptr = tmp;
 		ptr->seq = 0;
 		ptr->next = NULL;
 		ptr->hash = hash;
-
 		ptr->next = slot->h;
-    	slot->h = ptr;
+
+		uint64_t curv = atomic_cmpxchg64((uint64_t*)&slot->h, 
+											(uint64_t)oldv, (uint64_t)ptr);
+
+		if( oldv != curv)
+			goto retry;
+
+	} else {
+	
+		delete tmp;
+		
 	}
-    return ptr;
+
+	//slot->rwlock.EndWrite();
+	
+	return ptr;
 	
 }
+
 
 
 HashTable::Node* HashTable::Insert(const Slice& key, uint64_t seq) 
 {
-
+	
+	//This Function is not lock free, should invoked in the rtm protection
+	
 	uint64_t hash = HashSlice(key);
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(key);
 	
-	MutexSpinLock(slot->spinlock);
+	//MutexSpinLock(slot.spinlock);
+	
+	//slot->rwlock.StartWrite();
 
+	ptr->seq = 0;
+	ptr->hash = hash;
 	
-	ptr->seq = seq;
-	ptr->next = NULL;
-	ptr->hash = HashSlice(key);
+retry:
 	ptr->next = slot->h;
-    slot->h = ptr;
+
+	uint64_t curv = atomic_cmpxchg64((uint64_t*)&slot->h, 
+											(uint64_t)ptr->next, (uint64_t)ptr);
 	
-    return ptr;
+	if( (uint64_t)ptr->next != curv)
+		goto retry;
+	
+	//slot->rwlock.EndWrite();
+	
+	return ptr;
 	
 }
+
 
 
 
@@ -201,7 +233,7 @@ void HashTable::PrintHashTable()
 		printf("slot [%d] : ", i);
 		Head slot = list_[i];
 
-		MutexSpinLock(slot.spinlock);
+		//MutexSpinLock(slot.spinlock);
 		Node* ptr = slot.h;
 		
         while (ptr != NULL) {
