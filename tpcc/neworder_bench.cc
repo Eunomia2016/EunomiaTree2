@@ -188,7 +188,7 @@ class Benchmark {
   void RunBenchmark(int n, Slice name, void (Benchmark::*method)(ThreadState*)) {
   	
 	printf("Running... \n");
-	total_count = NUM_TRANSACTIONS * NUM_WAREHOUSE;
+	total_count = NUM_TRANSACTIONS;
 	
 	SharedState shared;
     shared.total = n;
@@ -230,7 +230,8 @@ class Benchmark {
     }
     delete[] arg;
 
-	printf("Throughput %g\n", NUM_TRANSACTIONS * NUM_WAREHOUSE / end_  * 1e6);
+	printf("Throughput %g tx/sec\n", NUM_TRANSACTIONS / end_  * 1e6);
+	//printf("Write records %d . Read records %d .", tables->wcount, tables->rcount );
   }
 
   void doNewOrder(ThreadState* thread) {
@@ -241,7 +242,8 @@ class Benchmark {
     // Client owns all the parameters
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
-
+	client.bindWarehouseDistrict(thread->tid + 1, 0);
+	
     //for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
     while (total_count > 0) {
 	  int64_t oldv = XADD64(&total_count, -1000);
@@ -296,7 +298,7 @@ int main(int argc, const char* argv[]) {
             Customer::NUM_PER_DISTRICT, NewOrder::INITIAL_NUM_PER_DISTRICT);
     int64_t begin = clock->getMicroseconds();
     generator.makeItemsTable(tables);
-   for (int i = 0; i < num_warehouses; ++i) {
+    for (int i = 0; i < num_warehouses; ++i) {
         generator.makeWarehouse(tables, i+1);
     }
     int64_t end = clock->getMicroseconds();

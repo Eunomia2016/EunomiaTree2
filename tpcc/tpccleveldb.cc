@@ -437,7 +437,7 @@ int32_t TPCCLevelDB::getS_QUANTITY(std::string& value) {
 }
 */
 
-Slice* TPCCLevelDB::marshallItemkey(int32_t i_id) {
+Slice* TPCCLevelDB::marshallItemKey(int32_t i_id) {
   char* key = new char[9];
   memcpy(key, "ITEM_", 5);
   EncodeInt32_t(key + 5, i_id);
@@ -538,16 +538,17 @@ Slice* TPCCLevelDB::marshallOrderLineValue(OrderLine line){
 }*/
 
 TPCCLevelDB::TPCCLevelDB() {
-  count = 0;
+  wcount = 0; rcount = 0;
   Options options;
   InternalKeyComparator cmp(options.comparator);
   latestseq_ = new HashTable();
   memstore_ = new leveldb::TXSkiplist(cmp);
   storemutex =  new port::Mutex();
+
 }
 
 TPCCLevelDB::TPCCLevelDB(uint32_t w_num, HashTable* ht, TXSkiplist* store, port::Mutex* mutex) {
-  count = 0;
+  wcount = 0; rcount = 0;
   warehouse_num = w_num;
   storemutex = mutex;
   latestseq_ = ht;
@@ -571,9 +572,9 @@ void TPCCLevelDB::insertDistrict(const District& district){
   SequenceNumber s = 1;
   memstore_->Put(*k, *v ,s);
   latestseq_->Insert(*k, 1);
-  HashTable::Node* node = latestseq_->GetNode(*k);
-  assert(node != NULL);
-  assert(node->seq != 0);
+//  HashTable::Node* node = latestseq_->GetNode(*k);
+//  assert(node != NULL);
+//  assert(node->seq != 0);
   //printf("D\n");
 }
 
@@ -632,7 +633,7 @@ OrderLine* TPCCLevelDB::insertOrderLine(const OrderLine & orderline){
 
 void TPCCLevelDB::insertItem(const Item& item) {
  //if (item.i_id >=70000) return;
-  Slice *k = marshallItemkey(item.i_id);
+  Slice *k = marshallItemKey(item.i_id);
  // Slice *v = marshallItemValue(item);
   Slice *v = new Slice();
   ValueType t = kTypeValue;
@@ -642,8 +643,8 @@ void TPCCLevelDB::insertItem(const Item& item) {
   latestseq_->Insert(*k, s);
 
   
- Status i_s;
- std::string *i_value = new std::string();
+ //Status i_s;
+ //std::string *i_value = new std::string();
 
   //if (item.i_id >=60000  && item.i_id<=80000) printf("I %d\n", item.i_id);
 }
@@ -677,6 +678,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //printf("NewOrderHome start\n");
   //count++;
   DBTransaction tx(latestseq_, memstore_, storemutex);
+  
   ValueType t = kTypeValue;
   while(true) {
   tx.Begin();
@@ -700,6 +702,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
  // printf("Step 1 get w %d\n", warehouse_id);
   Slice *w_value = new Slice();  
   bool found = tx.Get(*w_key, w_value, &w_s);
+  //rcount++;
   //printf("found %d\n", found);
   output->w_tax = getW_TAX(*w_value);
   //delete[] w_key->data_;
@@ -715,7 +718,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   Slice *d_key = marshallDistrictKey(warehouse_id, district_id);
   Status d_s;
   Slice *d_value = new Slice();
-
+/*
   char * d = const_cast<char *>(d_key->data());
   int32_t *i = reinterpret_cast<int32_t *>(d + 9);
   if (*i != district_id) {
@@ -723,10 +726,11 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   }
   assert(*i == district_id)	;
 			
-
+*/
   //printf("---1\n");
   //printf("District %d %d\n", district_id, warehouse_id);
   found = tx.Get(*d_key, d_value, &d_s);
+  //rcount++;
   //if (!found) 
   assert(found);
   //printf("found %d\n", found);
@@ -738,6 +742,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   //if (count > 60000) printf("---3\n");
   
   tx.Add(t, *d_key, *d_v);
+  //wcount++;
   //if (count > 60000) printf("---4\n");
   //-------------------------------------------------------------------------- 
   //The row in the CUSTOMER table with matching C_W_ID, C_D_ID, and C_ID is selected 
@@ -749,6 +754,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   Status c_s;
   Slice *c_value = new Slice();
   found = tx.Get(*c_key, c_value, &c_s);
+  //rcount++;
   //printf("found %d\n", found);
   output->c_discount = getC_DISCOUNT(*c_value);
   memcpy(output->c_last, getC_LAST(*c_value), sizeof(output->c_last));
@@ -784,10 +790,10 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   order.o_all_local = all_local ? 1 : 0;
   strcpy(order.o_entry_d, now);
   assert(strlen(order.o_entry_d) == DATETIME_SIZE);
-  //Order* o = insertOrder(order);
   Slice *o_key = marshallOrderKey(order.o_w_id, order.o_d_id, order.o_id);
   Slice *o_value = marshallOrderValue(order);
   tx.Add(t, *o_key, *o_value);
+  //wcount++;
   
   NewOrder no;
   no.no_w_id = warehouse_id;
@@ -796,7 +802,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
   Slice *no_key = marshallNewOrderKey(no);
   Slice *no_value = new Slice();
   tx.Add(t, *no_key, *no_value);
-
+  //wcount++;
 
   //-------------------------------------------------------------------------
   //For each O_OL_CNT item on the order:
@@ -818,11 +824,12 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	//If I_ID has an unused value, a "not-found" condition is signaled, resulting in a rollback of the database transaction.	
 	//-------------------------------------------------------------------------
 	//printf("Step 6\n");
-	Slice *i_key = marshallItemkey(items[i].i_id);
+	Slice *i_key = marshallItemKey(items[i].i_id);
 	Status i_s;
 	Slice *i_value = new Slice();
 	
 	bool found = tx.Get(*i_key, i_value, &i_s);
+	//rcount++;
 	if (!found && items[i].i_id <=100000) {
 		printf("Item %d\n", items[i].i_id);
 		assert(found);
@@ -854,10 +861,11 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	Slice *s_key = marshallStockKey(items[i].ol_supply_w_id, items[i].i_id);
 	Status s_s;
     Slice *s_value = new Slice();
-	if (items[i].i_id > 100000) 
-	  printf("Unused key!\n");
+	//if (items[i].i_id > 100000) 
+	//  printf("Unused key!\n");
 	//printf("Item id %d %d\n", items[i].ol_supply_w_id, items[i].i_id);
     found = tx.Get(*s_key, s_value, &s_s);
+	//rcount++;
 	//printf("found %d %d\n", i, found);
 	Stock *s = unmarshallStockValue(*s_value);    
     if (s->s_quantity > (items[i].ol_quantity + 10))
@@ -870,7 +878,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	  s->s_remote_cnt++;
 	Slice *s_v =  marshallStockValue(*s);
 	tx.Add(t, *s_key, *s_v);
-
+    //wcount++;
 	//-------------------------------------------------------------------------
 	//The amount for the item in the order (OL_AMOUNT) is computed as: OL_QUANTITY * I_PRICE
 	//The strings in I_DATA and S_DATA are examined. If they both include the string "ORIGINAL", 
@@ -901,6 +909,7 @@ bool TPCCLevelDB::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_
 	Slice *l_key = marshallOrderLineKey(line.ol_w_id, line.ol_d_id, line.ol_o_id, line.ol_number);
 	Slice *l_value = marshallOrderLineValue(line);
 	tx.Add(t, *l_key, *l_value);
+	//wcount++;
 	//delete s;
 	//-------------------------------------------------------------------------
 	//The total-amount for the complete order is computed as: 

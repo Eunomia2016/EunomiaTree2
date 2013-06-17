@@ -21,7 +21,9 @@ class TPCCLevelDB : public TPCCDB {
   port::Mutex* storemutex;
   HashTable *latestseq_ ;
   TXSkiplist* memstore_ ;	
-  int count;
+
+  int wcount;
+  int rcount;
   TPCCLevelDB(uint32_t w_num, HashTable* ht, TXSkiplist* store, port::Mutex* mutex); 
   TPCCLevelDB();
   
@@ -63,7 +65,7 @@ class TPCCLevelDB : public TPCCDB {
   Slice* marshallStockKey(int32_t s_w_id, int32_t s_i_id);
   Slice* marshallStockValue(Stock s);
   Stock* unmarshallStockValue(Slice& value);
-  Slice* marshallItemkey(int32_t i_id);
+  Slice* marshallItemKey(int32_t i_id);
   Slice* marshallItemValue(Item i);
   Item* unmarshallItemValue(Slice& value);
   Slice* marshallOrderLineKey(int32_t ol_w_id, int32_t ol_d_id, int32_t ol_o_id, int32_t ol_number);
