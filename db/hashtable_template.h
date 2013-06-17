@@ -297,7 +297,7 @@ HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq)
 	
 	//slot->rwlock.StartWrite();
 
-	ptr->seq = 0;
+	ptr->seq = seq;
 	ptr->hash = hash;
 	
 retry:

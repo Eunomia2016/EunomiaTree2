@@ -499,7 +499,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 
   if ( NULL == node) {
 	//even not found, still need to put the k into read set to avoid concurrent insertion
-//	printf("key %ld not found\n", *key);
+	//printf("key %ld not found\n", key);
 	//latestseq_->PrintHashTable();
 	readset->Add(latestseq_->hashfunc_.hash(key), seq, (uint64_t *)0);
 	*s = Status::NotFound(Slice());
@@ -543,8 +543,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
- RTMScope rtm(&rtmProf);
- //MutexLock mu(&storemutex);
+ //RTMScope rtm(&rtmProf);
+ MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_)) {

@@ -133,6 +133,7 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertWarehouse(const Warehouse & warehouse) {
   	int64_t key = makeWarehouseKey(warehouse.w_id);
+	//printf("insert w_key %d\n", key);
 	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&warehouse);
 	ValueType t = kTypeValue;
@@ -240,9 +241,10 @@ namespace leveldb {
         NewOrderOutput* output, TPCCUndo** undo) {
     
 	ValueType t = kTypeValue;
-	while(true) {
-	  leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+	while(true) {
+	  
 	  tx.Begin();
 	  output->status[0] = '\0';
 	  //Cheat
@@ -256,33 +258,42 @@ namespace leveldb {
   	  //--------------------------------------------------------------------------
   	  //The row in the WAREHOUSE table with matching W_ID is selected and W_TAX, the warehouse tax rate, is retrieved. 
   	  //--------------------------------------------------------------------------
-
+	  //printf("Step 1\n");
 	  int64_t w_key = makeWarehouseKey(warehouse_id);
+	  //printf("w_key %d\n", w_key);
   	  Status w_s;
 	  uint64_t *w_value;  
  	  bool found = tx.Get(w_key, &w_value, &w_s);
 	  assert(found);
-	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
+	  
+	  Warehouse *w = reinterpret_cast<Warehouse *>(*w_value);
+	  //printf("1.1 %x\n", *w_value);
 	  output->w_tax = w->w_tax;
+	  //printf("1.2\n");
 
 	  //--------------------------------------------------------------------------
   	  //The row in the DISTRICT table with matching D_W_ID and D_ ID is selected, 
 	  //D_TAX, the district tax rate, is retrieved, 
   	  //and D_NEXT_O_ID, the next available order number for the district, is retrieved and incremented by one.
   	  //--------------------------------------------------------------------------
-
+	  //printf("Step 2\n");
 	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
   	  Status d_s;
   	  uint64_t *d_value;
   	  found = tx.Get(d_key, &d_value, &d_s);
 	  assert(found);
-	  District *d = reinterpret_cast<District *>(d_value);
+	  //printf("2.1\n");
+	  assert(*d_value != 0);
+	  District *d = reinterpret_cast<District *>(*d_value);
+	  //printf("2.2\n");
 	  output->d_tax = d->d_tax;
+	  
 	  output->o_id = d->d_next_o_id;
-
+      
   	  District *newd = new District();
 	  updateDistrict(newd, d);
-	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
+	  uint64_t *d_v = new uint64_t();
+	  *d_v = reinterpret_cast<uint64_t>(newd);
 	  tx.Add(t, d_key, d_v);
 
 
@@ -291,14 +302,16 @@ namespace leveldb {
 	  //and C_DISCOUNT, the customer's discount rate, C_LAST, the customer's last name, 
   	  //and C_CREDIT, the customer's credit status, are retrieved.
   	  //--------------------------------------------------------------------------
-	  
+	  //printf("Step 3\n");
 	  uint64_t c_key = makeCustomerKey(warehouse_id, district_id, customer_id);
   	  Status c_s;
   	  uint64_t *c_value;
 	  found = tx.Get(c_key, &c_value, &c_s);
  	  assert(found);
-	  Customer *c = reinterpret_cast<Customer *>(c_value);
+	  Customer *c = reinterpret_cast<Customer *>(*c_value);
+	  //printf("3.1\n");
   	  output->c_discount = c->c_discount;
+	  //printf("3.2\n");
   	  memcpy(output->c_last, c->c_last, sizeof(output->c_last));
   	  memcpy(output->c_credit, c->c_credit, sizeof(output->c_credit));
 
@@ -310,6 +323,7 @@ namespace leveldb {
   	  //--------------------------------------------------------------------------
 
 	  // Check if this is an all local transaction
+	  //printf("Step 4\n");
 	  bool all_local = true;
 	  for (int i = 0; i < items.size(); ++i) {
     	if (items[i].ol_supply_w_id != warehouse_id) {
@@ -317,7 +331,8 @@ namespace leveldb {
     	  break;
     	}
   	  }
-  
+
+  	  //printf("Step 5\n");
 	  Order *order = new Order();
 	  order->o_w_id = warehouse_id;
 	  order->o_d_id = district_id;
@@ -329,10 +344,12 @@ namespace leveldb {
 	  strcpy(order->o_entry_d, now);
   	  assert(strlen(order->o_entry_d) == DATETIME_SIZE);
 	  uint64_t o_key = makeOrderKey(warehouse_id, district_id, order->o_id);
-	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order);
+	  uint64_t *o_value = new uint64_t();
+	  *o_value = reinterpret_cast<uint64_t>(order);
 	  tx.Add(t, o_key, o_value);
   
-  	  NewOrder *no = new NewOrder();
+	  //printf("Step 6\n");
+	  NewOrder *no = new NewOrder();
   	  no->no_w_id = warehouse_id;
 	  no->no_d_id = district_id;
 	  no->no_o_id = output->o_id;
@@ -343,7 +360,7 @@ namespace leveldb {
 	  //-------------------------------------------------------------------------
   	  //For each O_OL_CNT item on the order:
   	  //-------------------------------------------------------------------------
-
+	  //printf("Step 7\n");
   	  OrderLine *line = new OrderLine();
 	  line->ol_o_id = output->o_id;
 	  line->ol_d_id = district_id;
@@ -358,7 +375,7 @@ namespace leveldb {
 		//and I_PRICE, the price of the item, I_NAME, the name of the item, and I_DATA are retrieved. 
 		//If I_ID has an unused value, a "not-found" condition is signaled, resulting in a rollback of the database transaction.	
 		//-------------------------------------------------------------------------
-		
+		//printf("Step 8\n");
 		uint64_t i_key = makeItemKey(items[i].i_id);
 		Status i_s;
 		uint64_t *i_value;
@@ -373,7 +390,7 @@ namespace leveldb {
 	 	  tx.Abort();
 	  	  return false;
 		}
-		Item *item = reinterpret_cast<Item *>(i_value);
+		Item *item = reinterpret_cast<Item *>(*i_value);
 		assert(sizeof(output->items[i].i_name) == sizeof(item->i_name));
 	    memcpy(output->items[i].i_name, item->i_name, sizeof(output->items[i].i_name));
 		output->items[i].i_price = item->i_price;
@@ -388,18 +405,19 @@ namespace leveldb {
 		//S_YTD is increased by OL_QUANTITY and S_ORDER_CNT is incremented by 1. 
 		//If the order-line is remote, then S_REMOTE_CNT is incremented by 1.
 		//-------------------------------------------------------------------------
-
+		//printf("Step 9\n");
 		uint64_t s_key = makeStockKey(items[i].ol_supply_w_id, items[i].i_id);
 		Status s_s;
     	uint64_t *s_value;
 	    //if (items[i].i_id > 100000) printf("Unused key!\n");
 	    found = tx.Get(s_key, &s_value, &s_s);
 		assert(found);
-		Stock *s = reinterpret_cast<Stock *>(s_value);  
+		Stock *s = reinterpret_cast<Stock *>(*s_value);  
 		Stock *news = new Stock();
 		updateStock(news, s, &items[i], warehouse_id);
 		output->items[i].s_quantity = news->s_quantity;
-		uint64_t *s_v =  reinterpret_cast<uint64_t *>(s);
+		uint64_t *s_v = new uint64_t();
+		*s_v = reinterpret_cast<uint64_t>(s);
 		tx.Add(t, s_key, s_v);
 
 		//-------------------------------------------------------------------------
@@ -407,7 +425,7 @@ namespace leveldb {
 		//The strings in I_DATA and S_DATA are examined. If they both include the string "ORIGINAL", 
 		//the brand-generic field for that item is set to "B", otherwise, the brand-generic field is set to "G".
 		//-------------------------------------------------------------------------  
-		
+		//printf("Step 10\n");
     	output->items[i].ol_amount = static_cast<float>(items[i].ol_quantity) * item->i_price;
 	    line->ol_amount = output->items[i].ol_amount;
         
@@ -424,7 +442,7 @@ namespace leveldb {
 		//OL_NUMBER is set to a unique value within all the ORDER-LINE rows that have the same OL_O_ID value, 
 		//and OL_DIST_INFO is set to the content of S_DIST_xx, where xx represents the district number (OL_D_ID)
 		//-------------------------------------------------------------------------
-		
+		//printf("Step 11\n");
 		line->ol_number = i + 1;
 	    line->ol_i_id = items[i].i_id;
     	line->ol_supply_w_id = items[i].ol_supply_w_id;
@@ -432,7 +450,8 @@ namespace leveldb {
     	assert(sizeof(line->ol_dist_info) == sizeof(s->s_dist[district_id]));
     	memcpy(line->ol_dist_info, s->s_dist[district_id], sizeof(line->ol_dist_info));
 		uint64_t l_key = makeOrderLineKey(line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
-		uint64_t *l_value = reinterpret_cast<uint64_t *>(line);
+		uint64_t *l_value = new uint64_t();
+		*l_value = reinterpret_cast<uint64_t>(line);
 		tx.Add(t, l_key, l_value);
 
 
@@ -440,12 +459,13 @@ namespace leveldb {
 		//The total-amount for the complete order is computed as: 
 		//sum(OL_AMOUNT) * (1 - C_DISCOUNT) * (1 + W_TAX + D_TAX)
 		//-------------------------------------------------------------------------
+		//printf("Step 12\n");
 		output->total += line->ol_amount;
 		
 	  }
-
+	
 	  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
- 
+ 	  //printf("Step 13\n");
  	  bool b = tx.End();  
   	  if (b) break;
   	}
