@@ -27,7 +27,7 @@
 #include "port/port.h"
 #include "util/mutexlock.h"
 #include "util/rwlock.h"
-
+#include "port/atomic.h"
 
 namespace leveldb {
 
@@ -54,7 +54,7 @@ class HashTable {
   {
 	  Node* h;
 	  //port::SpinLock* spinlock;
-	  RWLock rwlock;
+	  //RWLock rwlock;
   };
 
   
@@ -67,7 +67,7 @@ class HashTable {
   Node* GetNode(Key k);
   Node* GetNodeWithInsert(Key k);
   Node* Insert(Key k, uint64_t seq);
-  
+  Node* InsertInRTM(Key k, uint64_t seq);
   void PrintHashTable();
 
   HashFunction hashfunc_;
@@ -157,7 +157,7 @@ bool HashTable<Key, HashFunction, Comparator>::GetMaxWithHash(uint64_t hash, uin
 	Head *slot = &list_[hash & (length_ - 1)];
 
 	//MutexSpinLock(slot.spinlock);
-	slot->rwlock.StartRead();
+	//slot->rwlock.StartRead();
 	
 	Node* ptr = slot->h;
 	
@@ -172,13 +172,13 @@ bool HashTable<Key, HashFunction, Comparator>::GetMaxWithHash(uint64_t hash, uin
     }
 
 	if(max == 0) {
-		slot->rwlock.EndRead();
+		//slot->rwlock.EndRead();
 		return false;
 	}
 
 	*seq_ptr = max;
 
-	slot->rwlock.EndRead();
+	//slot->rwlock.EndRead();
 	
 	return true;
 }
@@ -192,7 +192,7 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
 
 	//MutexSpinLock(slot.spinlock);
 	
-	slot->rwlock.StartRead();
+	//slot->rwlock.StartRead();
 	
 	Node* ptr = slot->h;
 	
@@ -204,7 +204,7 @@ void HashTable<Key, HashFunction, Comparator>::UpdateWithHash(uint64_t hash, uin
       ptr = ptr->next;
     }
 
-	slot->rwlock.EndRead();
+	//slot->rwlock.EndRead();
 }
 
 
@@ -219,7 +219,7 @@ HashTable<Key, HashFunction, Comparator>::GetNode(Key k)
 	
 	//MutexSpinLock(slot.spinlock);
 	
-	slot->rwlock.StartRead();
+	//slot->rwlock.StartRead();
 	Node* ptr = slot->h;
 	
     while (ptr != NULL &&
@@ -227,7 +227,7 @@ HashTable<Key, HashFunction, Comparator>::GetNode(Key k)
       ptr = ptr->next;
     }
 	
-	slot->rwlock.EndRead();
+	//slot->rwlock.EndRead();
     return ptr;
 	
 }
@@ -240,12 +240,14 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key k)
 
 	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
-
+	Node* tmp = NewNode(k);
 	//MutexSpinLock(slot->spinlock);
-	slot->rwlock.StartWrite();
-	
-	Node* ptr = slot->h;
+	//slot->rwlock.StartWrite();
 
+retry:
+
+	Node* ptr = slot->h;
+	uint64_t oldv = (uint64_t)ptr;
 	
     while (ptr != NULL &&
            (ptr->hash != hash || compare_(ptr->key, k) != 0)) {
@@ -255,17 +257,25 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key k)
 
 	if(ptr == NULL) {
 		//insert an empty node
-		ptr = NewNode(k);
+		ptr = tmp;
 		ptr->seq = 0;
 		ptr->next = NULL;
 		ptr->hash = hash;
-
 		ptr->next = slot->h;
-    	slot->h = ptr;
 
+		uint64_t curv = atomic_cmpxchg64((uint64_t*)&slot->h, 
+											(uint64_t)oldv, (uint64_t)ptr);
+
+		if( oldv != curv)
+			goto retry;
+
+	} else {
+	
+		delete tmp;
+		
 	}
 
-	slot->rwlock.EndWrite();
+	//slot->rwlock.EndWrite();
 	
     return ptr;
 	
@@ -276,26 +286,62 @@ template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node* 
 HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq) 
 {
-
+	
+	//This Function is not lock free, should invoked in the rtm protection
+	
 	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(k);
 	
 	//MutexSpinLock(slot.spinlock);
 	
-	slot->rwlock.StartWrite();
+	//slot->rwlock.StartWrite();
 
 	ptr->seq = 0;
 	ptr->hash = hash;
+	
+retry:
 	ptr->next = slot->h;
-    slot->h = ptr;
 
-	slot->rwlock.EndWrite();
+	uint64_t curv = atomic_cmpxchg64((uint64_t*)&slot->h, 
+											(uint64_t)ptr->next, (uint64_t)ptr);
+	
+    if( (uint64_t)ptr->next != curv)
+		goto retry;
+	
+	//slot->rwlock.EndWrite();
 	
     return ptr;
 	
 }
 
+
+template<typename Key, class HashFunction, class Comparator>
+typename HashTable<Key, HashFunction, Comparator>::Node* 
+HashTable<Key, HashFunction, Comparator>::InsertInRTM(Key k, uint64_t seq) 
+{
+	
+	//This Function is not lock free, should invoked in the rtm protection
+	
+	uint64_t hash = hashfunc_.hash(k);
+	Head *slot = &list_[hash & (length_ - 1)];
+	Node* ptr = NewNode(k);
+	
+	//MutexSpinLock(slot.spinlock);
+	
+	//slot->rwlock.StartWrite();
+
+	ptr->seq = 0;
+	ptr->hash = hash;
+	ptr->next = slot->h;
+	
+    slot->h = ptr;
+
+	//slot->rwlock.EndWrite();
+	
+    return ptr;
+	
+}
 
 
 

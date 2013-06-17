@@ -475,7 +475,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 														Key key, Value** value, Status* s)
 {
   //step 1. First check if the <k,v> is in the write set
-	
+
   ValueType type;
   if(writeset->Lookup(key, &type, value, comp_)) {
 	//Found
@@ -516,16 +516,18 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
   Status res;
   //may be not found, should wait for a while
   int count = 0;
+
   do{
 	
 	res = txdb_->Get(key, value, seq);
 
 	count ++;
+	/*
 	if(count > 1000) {
 		printf("Too Many Time Get Failure key %ld seq %ld\n", key, seq);
 		txdb_->DumpTXMemStore();
 		exit(1);
-	}
+	}*/
 		
    }while(res.IsNotFound());
 
@@ -541,8 +543,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
- //RTMScope rtm(&rtmProf);
- MutexLock mu(&storemutex);
+ RTMScope rtm(&rtmProf);
+ //MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_)) {

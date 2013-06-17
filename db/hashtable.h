@@ -49,7 +49,7 @@ class HashTable {
   struct Head 
   {
 	  Node* h;
-	  port::SpinLock* spinlock;
+	  //port::SpinLock* spinlock;
   };
 
   struct SeqNumber

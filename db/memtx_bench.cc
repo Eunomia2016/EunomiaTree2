@@ -344,7 +344,6 @@ private:
 					}
 					
 					thread->conflict += conflict;
-					thread->falseConflict += tx.rtmProf.abortCounts;
 					thread->addT += addT;
 					thread->getT += getT;
 					thread->valT += valT;
@@ -354,6 +353,9 @@ private:
 					delete vc;
 				}		
 			}
+
+			
+			thread->falseConflict += tx.rtmProf.abortCounts;
 	
 		}
 

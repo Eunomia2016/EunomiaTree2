@@ -234,7 +234,10 @@ private:
 		   int seqNum = 0;
 		   int rnum = read_count;
 		   int wnum = write_count;
+
 		   
+		   DBTransaction tx(&seqs, store, &mutex);
+
 		   //printf("DoWrite %d\n", total_count);
 			while(total_count > 0) {
 				
@@ -257,7 +260,6 @@ private:
 					uint64_t startT = 0;
 					uint64_t endT = 0;
 					
-					DBTransaction tx(&seqs, store, &mutex);
 					int conflict = 0;
 					
 					ValueType t = kTypeValue;
@@ -309,7 +311,6 @@ private:
 					}
 					
 					thread->conflict += conflict;
-					thread->falseConflict += tx.rtmProf.abortCounts;
 					thread->addT += addT;
 					thread->getT += getT;
 					thread->valT += valT;
@@ -319,6 +320,9 @@ private:
 					delete vc;
 				}		
 			}
+
+			
+			thread->falseConflict += tx.rtmProf.abortCounts;
 	
 		}
 

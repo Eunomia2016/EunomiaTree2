@@ -66,6 +66,7 @@ public:
 			void Add(uint64_t hash, uint64_t oldeseq, uint64_t *ptr);
 			bool Validate(HashTable* ht);
 			void Print();
+			void Reset();
 	};
 
 
@@ -106,6 +107,7 @@ public:
 			
 			void Commit(TXDB *memstore);
 			void Print();
+			void Reset();
 	};
 
 //	HashTable *readset;
