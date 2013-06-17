@@ -521,11 +521,12 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 	res = txdb_->Get(key, value, seq);
 
 	count ++;
+	/*
 	if(count > 1000) {
 		printf("Too Many Time Get Failure key %ld seq %ld\n", key, seq);
 		txdb_->DumpTXMemStore();
 		exit(1);
-	}
+	}*/
 		
    }while(res.IsNotFound());
 
@@ -541,8 +542,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
 //writeset->PrintHashTable();	
- //RTMScope rtm(&rtmProf);
- MutexLock mu(&storemutex);
+ RTMScope rtm(&rtmProf);
+ //MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_)) {
