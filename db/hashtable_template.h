@@ -286,7 +286,9 @@ template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node* 
 HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq) 
 {
-
+	
+	//This Function is not lock free, should invoked in the rtm protection
+	
 	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(k);
@@ -298,8 +300,6 @@ HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq)
 	ptr->seq = 0;
 	ptr->hash = hash;
 	ptr->next = slot->h;
-
-	barrier();
 	
     slot->h = ptr;
 

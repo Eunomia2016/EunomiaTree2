@@ -475,7 +475,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 														Key key, Value** value, Status* s)
 {
   //step 1. First check if the <k,v> is in the write set
-	
+
   ValueType type;
   if(writeset->Lookup(key, &type, value, comp_)) {
 	//Found
@@ -516,6 +516,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
   Status res;
   //may be not found, should wait for a while
   int count = 0;
+
   do{
 	
 	res = txdb_->Get(key, value, seq);

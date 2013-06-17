@@ -104,6 +104,11 @@ void  DBTransaction::ReadSet::Resize() {
   }
 
 
+  void DBTransaction::ReadSet::Reset() 
+  {
+	elems = 0;
+  }
+  
   DBTransaction::WriteSet::WriteSet() {
 
 	max_length = 1024; //first allocate 1024 numbers
@@ -112,6 +117,7 @@ void  DBTransaction::ReadSet::Resize() {
 	seqs = new WSSeqPair[max_length];
 	kvs = new WSKV[max_length];
 
+/*
 	for(int i = 0; i < 64; i++) {
 		cacheset[i] = 0;
 		for(int j = 0; j < 8; j++) {
@@ -119,7 +125,7 @@ void  DBTransaction::ReadSet::Resize() {
 			cachetypes[i][j] = 0;
 		}
 	}
-
+*/
   }
 
   DBTransaction::WriteSet::~WriteSet() {
@@ -291,6 +297,20 @@ void  DBTransaction::WriteSet::Resize() {
 	}
   }
 
+  void DBTransaction::WriteSet::Reset() 
+  {
+	elems = 0;
+
+	/*
+	for(int i = 0; i < 64; i++) {
+		cacheset[i] = 0;
+		for(int j = 0; j < 8; j++) {
+			cacheaddr[i][j] = 0;
+			cachetypes[i][j] = 0;
+		}
+	}
+   */
+  }
   
   DBTransaction::DBTransaction(HashTable* ht, TXDB* db, port::Mutex* mutex)
   {
@@ -299,8 +319,8 @@ void  DBTransaction::WriteSet::Resize() {
 	latestseq_ = ht;
 	txdb_ = db;
 
-	readset = NULL;
-	writeset = NULL;
+	readset = new ReadSet();
+	writeset = new WriteSet();
 
 	count = 0;
   }
@@ -308,32 +328,16 @@ void  DBTransaction::WriteSet::Resize() {
   DBTransaction::~DBTransaction()
   {
 	//clear all the data
-	if(readset != NULL) {
-		delete readset;
-		readset = NULL;
-	}
-	
-	if(writeset != NULL) {
-		delete writeset;
-		writeset = NULL;
-	}	
+	delete readset;
+	delete writeset;
+		
   }
 
   void DBTransaction::Begin()
   {
 	//reset the local read set and write set
-	if(readset != NULL) {
-		delete readset;
-		readset = NULL;
-	}
-	
-	if(writeset != NULL) {
-		delete writeset;
-		writeset = NULL;
-	}
-
-	readset = new ReadSet();
-	writeset = new WriteSet();
+	readset->Reset();
+	writeset->Reset();
   }
 
   bool DBTransaction::Abort()
@@ -445,17 +449,6 @@ void  DBTransaction::WriteSet::Resize() {
 	//commit the local write set into the memory storage		
 
 	writeset->Commit(txdb_);
-	
-	if(readset != NULL) {
-		delete readset;
-		readset = NULL;
-	}
-	
-	if(writeset != NULL) {
-		delete writeset;
-		writeset = NULL;
-	}
-	
   }
 
 }  // namespace leveldb
