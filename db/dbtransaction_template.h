@@ -554,16 +554,33 @@ writeset->UpdateGlobalSeqs();
   
 
 //writeset->PrintHashTable();	
+ 
 int lockv = slock.Trylock();
-if(lockv == 1)
+if(lockv == 1) {
  RTMScope rtm(&rtmProf);
  //MutexLock mu(&storemutex);
 
 
   //step 1. check if the seq has been changed (any one change the value after reading)
+  if( !readset->Validate(latestseq_)) { 
+	return false;
+
+  }
+
+
+  //step 2.  update the the seq set 
+  //can't use the iterator because the cur node may be deleted 
+  writeset->UpdateGlobalSeqs(); 
+  return true;
+  
+}else{
+  //MutexLock mu(&storemutex);
+
+
+  //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_)) {
-  	if(lockv == 0)
-		slock.Unlock();
+  	 
+	slock.Unlock();
 	return false;
 
   }
@@ -573,10 +590,11 @@ if(lockv == 1)
   //can't use the iterator because the cur node may be deleted 
   writeset->UpdateGlobalSeqs();
 
-  if(lockv == 0)
-	slock.Unlock();
+  slock.Unlock();
 
   return true;
+  
+}
 
 }
 
