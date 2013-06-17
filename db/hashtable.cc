@@ -75,7 +75,7 @@ void HashTable::Resize()
 
 uint64_t HashTable::HashSlice(const Slice& s)
 {
-	return Hash(s.data(), s.size(), 0);
+	return MurmurHash64A(s.data(), s.size(), 0);
 }
 
 bool HashTable::GetMaxWithHash(uint64_t hash, uint64_t *seq_ptr)

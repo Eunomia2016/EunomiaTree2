@@ -13,6 +13,7 @@
 namespace leveldb {
 
 extern uint32_t Hash(const char* data, size_t n, uint32_t seed);
+extern uint64_t MurmurHash64A ( const char* key, int len, unsigned int seed);
 
 }
 
