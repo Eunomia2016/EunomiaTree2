@@ -17,7 +17,7 @@ namespace leveldb {
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
     int32_t did = d_id + (w_id * District::NUM_PER_WAREHOUSE);
     assert(did >= 0);
-	int64_t id = 1 << 50 | static_cast<int64_t>(did);
+	int64_t id = (int64_t)1 << 50 | static_cast<int64_t>(did);
     return id;
   }
 
@@ -28,7 +28,7 @@ namespace leveldb {
     int32_t cid = (w_id * District::NUM_PER_WAREHOUSE + d_id)
             * Customer::NUM_PER_DISTRICT + c_id;
     assert(cid >= 0);
-	int64_t id = 2 << 50 | static_cast<int64_t>(cid);
+	int64_t id = (int64_t)2 << 50 | static_cast<int64_t>(cid);
     return id;
   }
 
@@ -44,7 +44,7 @@ namespace leveldb {
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	assert(id > 0);
-	id = 4 << 50 | id;
+	id = (int64_t)4 << 50 | id;
     
     return id;
   }
@@ -57,7 +57,7 @@ namespace leveldb {
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	assert(id > 0);
-	id = 5 << 50 | id;
+	id = (int64_t)5 << 50 | id;
     
     return id;
   }
@@ -73,12 +73,12 @@ namespace leveldb {
     int32_t olid = ((o_id * District::NUM_PER_WAREHOUSE + d_id)
             * Warehouse::MAX_WAREHOUSE_ID + w_id) * Order::MAX_OL_CNT + number;
     assert(olid >= 0);
-	int64_t id = 6 << 50 | static_cast<int64_t>(olid);
+	int64_t id = (int64_t)6 << 50 | static_cast<int64_t>(olid);
     return id;
   }
 
   static int64_t makeItemKey(int32_t i_id) {
-  	int64_t id = 7 << 50 | static_cast<int64_t>(i_id);
+  	int64_t id = (int64_t)7 << 50 | static_cast<int64_t>(i_id);
 	return id;
   }
 
@@ -87,7 +87,7 @@ namespace leveldb {
     assert(1 <= s_id && s_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
     int32_t sid = s_id + (w_id * Stock::NUM_STOCK_PER_WAREHOUSE);
     assert(sid >= 0);
-	int64_t id = 8 << 50 | static_cast<int64_t>(sid);
+	int64_t id = (int64_t)8 << 50 | static_cast<int64_t>(sid);
     return id;
   }
 
@@ -107,7 +107,7 @@ namespace leveldb {
 	newd->d_next_o_id = oldd->d_next_o_id + 1;
   }
 
-  static void updateStock(Stock *news, Stock *olds, NewOrderItem *item, int32_t warehouse_id) {
+  static void updateStock(Stock *news, Stock *olds, const NewOrderItem *item, int32_t warehouse_id) {
   	if (olds->s_quantity > (item->ol_quantity + 10))
 	  news->s_quantity = olds->s_quantity - item->ol_quantity;
 	else news->s_quantity = olds->s_quantity - item->ol_quantity + 91;		
@@ -127,7 +127,7 @@ namespace leveldb {
   TPCCTxMemStore::TPCCTxMemStore() {
   	cmp = new KeyComparator();
 	store = new TXMemStore<Key, Value, leveldb::KeyComparator>(*cmp);
-	KeyHash kh = new KeyHash();
+	KeyHash *kh = new KeyHash();
 	seqs = new HashTable<Key, KeyHash, KeyComparator>(*kh, *cmp);
   }
 
@@ -142,8 +142,8 @@ namespace leveldb {
   }
 
   void TPCCTxMemStore::insertDistrict(const District & district) {
-  	int64_t key = makeDistrictKey(district.w_id, district.d_id);
-	uint64_t value = new uint64_t();
+  	int64_t key = makeDistrictKey(district.d_w_id, district.d_id);
+	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&district);
 	ValueType t = kTypeValue;
   	SequenceNumber s = 1;
@@ -152,8 +152,8 @@ namespace leveldb {
   }
 
   void TPCCTxMemStore::insertCustomer(const Customer & customer) {
-  	int64_t key = makeCustomerKey(custormer.w_id, customer.d_id, customer.c_id);
-	uint64_t value = new uint64_t();
+  	int64_t key = makeCustomerKey(customer.c_w_id, customer.c_d_id, customer.c_id);
+	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&customer);
 	ValueType t = kTypeValue;
   	SequenceNumber s = 1;
@@ -161,13 +161,13 @@ namespace leveldb {
   	seqs->Insert(key, s);
   }
 
-  void TPCCTxMemStore::insertHistory(const History & history) {
-  	return;
+  History* TPCCTxMemStore::insertHistory(const History & history) {
+  	return NULL;
   }
 
   void TPCCTxMemStore::insertItem(const Item & item) {
   	int64_t key = makeItemKey(item.i_id);
-	uint64_t value = new uint64_t();
+	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&item);
 	ValueType t = kTypeValue;
   	SequenceNumber s = 1;
@@ -176,8 +176,8 @@ namespace leveldb {
   }
 
   void TPCCTxMemStore::insertStock(const Stock & stock) {
-  	int64_t key = makeStockKey(stock.w_id, stock.s_id);
-	uint64_t value = new uint64_t();
+  	int64_t key = makeStockKey(stock.s_w_id, stock.s_i_id);
+	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&stock);
 	ValueType t = kTypeValue;
   	SequenceNumber s = 1;
@@ -185,38 +185,41 @@ namespace leveldb {
   	seqs->Insert(key, s);
   }
 
-  void TPCCTxMemStore::insertOrder(const Order & order) {
-  	int64_t key = makeOrderKey(order.w_id, order.d_id, order.o_id);
-	uint64_t value = new uint64_t();
+  Order* TPCCTxMemStore::insertOrder(const Order & order) {
+  	int64_t key = makeOrderKey(order.o_w_id, order.o_d_id, order.o_id);
+	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&order);
 	ValueType t = kTypeValue;
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
+	return const_cast<Order *>(&order);
   }
 
-  void TPCCTxMemStore::insertOrderLine(const OrderLine & orderline) {
-  	int64_t key = makeOrderLineKey(orderline.w_id, orderline.d_id, orderline.o_id, orderline.number);
-	uint64_t value = new uint64_t();
+  OrderLine* TPCCTxMemStore::insertOrderLine(const OrderLine & orderline) {
+  	int64_t key = makeOrderLineKey(orderline.ol_w_id, orderline.ol_d_id, orderline.ol_o_id, orderline.ol_number);
+	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&orderline);
 	ValueType t = kTypeValue;
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
+	return const_cast<OrderLine *>(&orderline);
   }
 
-  void TPCCTxMemStore::insertNewOrder(int32_t w_id,int32_t d_id,int32_t o_id) {
+  NewOrder* TPCCTxMemStore::insertNewOrder(int32_t w_id,int32_t d_id,int32_t o_id) {
   	int64_t key = makeOrderKey(w_id, d_id, o_id);
-	NewOrder neworder = new NewOrder();
+	NewOrder *neworder = new NewOrder();
 	neworder->no_w_id = w_id;
 	neworder->no_d_id = d_id;
 	neworder->no_o_id = o_id;
-	uint64_t value = new uint64_t();
+	uint64_t *value = new uint64_t();
 	*value = reinterpret_cast<uint64_t>(&neworder);
 	ValueType t = kTypeValue;
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
+	return neworder;
   }
 
 
@@ -238,7 +241,7 @@ namespace leveldb {
     
 	ValueType t = kTypeValue;
 	while(true) {
-	  leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+	  leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 	  tx.Begin();
 	  output->status[0] = '\0';
@@ -259,7 +262,7 @@ namespace leveldb {
 	  uint64_t *w_value;  
  	  bool found = tx.Get(w_key, &w_value, &w_s);
 	  assert(found);
-	  Warehouse *w = reinterpret_cast<Warehouse *>w_value;
+	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
 	  output->w_tax = w->w_tax;
 
 	  //--------------------------------------------------------------------------
@@ -273,13 +276,13 @@ namespace leveldb {
   	  uint64_t *d_value;
   	  found = tx.Get(d_key, &d_value, &d_s);
 	  assert(found);
-	  District *d = reinterpret_cast<District *>w_value;
+	  District *d = reinterpret_cast<District *>(d_value);
 	  output->d_tax = d->d_tax;
 	  output->o_id = d->d_next_o_id;
 
   	  District *newd = new District();
 	  updateDistrict(newd, d);
-	  uint64_t *d_v = reinterpret_cast<uint64_t *>newd;
+	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
 	  tx.Add(t, d_key, d_v);
 
 
@@ -292,9 +295,9 @@ namespace leveldb {
 	  uint64_t c_key = makeCustomerKey(warehouse_id, district_id, customer_id);
   	  Status c_s;
   	  uint64_t *c_value;
-	  found = tx.Get(*c_key, &c_value, &c_s);
+	  found = tx.Get(c_key, &c_value, &c_s);
  	  assert(found);
-	  Customer *c = reinterpret_cast<Customer *>c_value;
+	  Customer *c = reinterpret_cast<Customer *>(c_value);
   	  output->c_discount = c->c_discount;
   	  memcpy(output->c_last, c->c_last, sizeof(output->c_last));
   	  memcpy(output->c_credit, c->c_credit, sizeof(output->c_credit));
@@ -334,14 +337,14 @@ namespace leveldb {
 	  no->no_d_id = district_id;
 	  no->no_o_id = output->o_id;
 	  uint64_t no_key = makeNewOrderKey(warehouse_id, district_id, no->no_o_id);
-	  Slice *no_value = new Slice();
+	  uint64_t *no_value = new uint64_t();
 	  tx.Add(t, no_key, no_value);
 
 	  //-------------------------------------------------------------------------
   	  //For each O_OL_CNT item on the order:
   	  //-------------------------------------------------------------------------
 
-  	  OrderLine line = new OrderLine();
+  	  OrderLine *line = new OrderLine();
 	  line->ol_o_id = output->o_id;
 	  line->ol_d_id = district_id;
 	  line->ol_w_id = warehouse_id;
@@ -429,7 +432,7 @@ namespace leveldb {
     	assert(sizeof(line->ol_dist_info) == sizeof(s->s_dist[district_id]));
     	memcpy(line->ol_dist_info, s->s_dist[district_id], sizeof(line->ol_dist_info));
 		uint64_t l_key = makeOrderLineKey(line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
-		uint64_t *l_value = reinterpret_cast<OrderLine *>(line);
+		uint64_t *l_value = reinterpret_cast<uint64_t *>(line);
 		tx.Add(t, l_key, l_value);
 
 
@@ -437,7 +440,7 @@ namespace leveldb {
 		//The total-amount for the complete order is computed as: 
 		//sum(OL_AMOUNT) * (1 - C_DISCOUNT) * (1 + W_TAX + D_TAX)
 		//-------------------------------------------------------------------------
-		output->total += line.ol_amount;
+		output->total += line->ol_amount;
 		
 	  }
 
@@ -451,59 +454,59 @@ namespace leveldb {
   }
 
 //not used yet
-bool TPCCLevelDB::newOrderRemote(int32_t home_warehouse, int32_t remote_warehouse,
+bool TPCCTxMemStore::newOrderRemote(int32_t home_warehouse, int32_t remote_warehouse,
             const std::vector<NewOrderItem>& items, std::vector<int32_t>* out_quantities,
             TPCCUndo** undo){
   return false;
 }
 
-int32_t TPCCLevelDB::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
+int32_t TPCCTxMemStore::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
   return 0;
 }
-void TPCCLevelDB::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
+void TPCCTxMemStore::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
   return;
 }
-void TPCCLevelDB::orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output){
+void TPCCTxMemStore::orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output){
   return;
 }
 
-void TPCCLevelDB::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
 		  PaymentOutput* output, TPCCUndo** undo) {
   return;
 }
-void TPCCLevelDB::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, const char* c_last, float h_amount, const char* now,
 		  PaymentOutput* output, TPCCUndo** undo) {
   return;
 }
-void TPCCLevelDB::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+void TPCCTxMemStore::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, int32_t c_id, float h_amount, const char* now,
 		  PaymentOutput* output, TPCCUndo** undo){
   return;
 }
-void TPCCLevelDB::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+void TPCCTxMemStore::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, int32_t c_id, float h_amount, PaymentOutput* output,
 		  TPCCUndo** undo){
   return;
 }
-void TPCCLevelDB::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+void TPCCTxMemStore::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, const char* c_last, float h_amount, PaymentOutput* output,
 		  TPCCUndo** undo){
   return;
 }
-void TPCCLevelDB::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
+void TPCCTxMemStore::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
 		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo){
   return;
 }
-bool TPCCLevelDB::hasWarehouse(int32_t warehouse_id){
+bool TPCCTxMemStore::hasWarehouse(int32_t warehouse_id){
   return true;
 }
 	
-void TPCCLevelDB::applyUndo(TPCCUndo* undo){
+void TPCCTxMemStore::applyUndo(TPCCUndo* undo){
   return;
 }
-void TPCCLevelDB::freeUndo(TPCCUndo* undo){
+void TPCCTxMemStore::freeUndo(TPCCUndo* undo){
   return;
 }
 

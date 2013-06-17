@@ -13,7 +13,8 @@
 #include "tpcc/tpccclient.h"
 #include "tpcc/tpccgenerator.h"
 #include "tpcc/tpcctables.h"
-#include "tpcc/tpccleveldb.h"
+//#include "tpcc/tpccleveldb.h"
+#include "tpcc/tpcctxmemstore.h"
 
 static const int NUM_TRANSACTIONS = 10000;
 static int NUM_WAREHOUSE = 1;
@@ -135,7 +136,7 @@ class Benchmark {
 
 
  private:	
-  TPCCLevelDB* tables;
+  TPCCDB* tables;
   SystemClock* clock;
   tpcc::NURandC cLoad;
   int64_t total_count;
@@ -149,7 +150,7 @@ class Benchmark {
 
  public:
 
-  Benchmark(TPCCLevelDB* t, SystemClock* c, tpcc::NURandC cl){
+  Benchmark(TPCCDB* t, SystemClock* c, tpcc::NURandC cl){
   	 tables = t;
 	 clock = c;
 	 cLoad = cl;
@@ -281,7 +282,8 @@ int main(int argc, const char* argv[]) {
     NUM_WAREHOUSE = num_warehouses;
 	
     //TPCCTables* tables = new TPCCTables();
-    leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
+    //leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
+    TPCCDB* tables = new leveldb::TPCCTxMemStore();
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.

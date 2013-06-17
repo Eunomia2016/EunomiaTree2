@@ -7,11 +7,6 @@
 #include "db/dbtransaction_template.h"
 #include "db/txmemstore_template.h"
 
-#include <string>
-#include "util/random.h"
-#include "db/hashtable.h"
-#include "port/port.h"
-#include "util/mutexlock.h"
 #include "tpccdb.h"
 
 
@@ -20,7 +15,7 @@ namespace leveldb {
 typedef int64_t Key;
 typedef uint64_t Value;
 
-class KeyComparator : public leveldb::Comparator {
+class KeyComparator : public Comparator {
     public:
 	int operator()(const Key& a, const Key& b) const {
 		if (a < b) {
@@ -56,7 +51,7 @@ class KeyComparator : public leveldb::Comparator {
 
 };
 
-class KeyHash : public leveldb::HashFunction  {
+class KeyHash : public HashFunction  {
 
     public:
 
@@ -97,7 +92,7 @@ class KeyHash : public leveldb::HashFunction  {
 		return h;
 	} 
 
-	virtual uint64_t hash(uint64_t& key)	{
+	virtual int64_t hash(int64_t& key)	{
 		return key;
 //		return MurmurHash64A((void *)&key, 8, 0);
 	}
@@ -106,7 +101,7 @@ class KeyHash : public leveldb::HashFunction  {
 class TPCCTxMemStore : public TPCCDB {
  public :
   HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs;
-  TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>* store;
+  TXMemStore<leveldb::Key, leveldb::Value, leveldb::KeyComparator>* store;
   KeyComparator *cmp;
 
   TPCCTxMemStore();
