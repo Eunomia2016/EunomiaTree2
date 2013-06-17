@@ -13,6 +13,7 @@
 #include "db/hashtable_template.h"
 #include "port/port_posix.h"
 #include "util/txprofile.h"
+#include "util/spinlock.h"
 #include "db/txmemstore_template.h"
 
 
@@ -110,6 +111,8 @@ public:
 	WriteSet *writeset;
 	
 	static port::Mutex storemutex;
+	static SpinLock slock;
+	
 	HashTable<Key, HashFunction, Comparator> *latestseq_ ;
 	TXMemStore<Key, Value, Comparator> *txdb_ ;
 
@@ -121,6 +124,10 @@ public:
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 port::Mutex DBTransaction<Key, Value, HashFunction, Comparator>::storemutex;
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+SpinLock DBTransaction<Key, Value, HashFunction, Comparator>::slock;
+
 
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
@@ -542,12 +549,20 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 
+readset->Validate(latestseq_);
+writeset->UpdateGlobalSeqs();
+  
+
 //writeset->PrintHashTable();	
+int lockv = slock.Trylock();
+if(lockv == 1)
  RTMScope rtm(&rtmProf);
  //MutexLock mu(&storemutex);
 
   //step 1. check if the seq has been changed (any one change the value after reading)
   if( !readset->Validate(latestseq_)) {
+  	if(lockv == 0)
+		slock.Unlock();
 	return false;
 
   }
@@ -556,6 +571,9 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
   //step 2.  update the the seq set 
   //can't use the iterator because the cur node may be deleted 
   writeset->UpdateGlobalSeqs();
+
+  if(lockv == 0)
+	slock.Unlock();
 
   return true;
 

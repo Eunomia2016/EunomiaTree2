@@ -13,8 +13,8 @@
 #include "tpcc/tpccclient.h"
 #include "tpcc/tpccgenerator.h"
 #include "tpcc/tpcctables.h"
-//#include "tpcc/tpccleveldb.h"
-#include "tpcc/tpcctxmemstore.h"
+#include "tpcc/tpccleveldb.h"
+//#include "tpcc/tpcctxmemstore.h"
 
 static const int NUM_TRANSACTIONS = 1000000;
 static int NUM_WAREHOUSE = 1;
@@ -282,8 +282,8 @@ int main(int argc, const char* argv[]) {
     NUM_WAREHOUSE = num_warehouses;
 	
     //TPCCTables* tables = new TPCCTables();
-    //leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
-    TPCCDB* tables = new leveldb::TPCCTxMemStore();
+    leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
+    //TPCCDB* tables = new leveldb::TPCCTxMemStore();
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.

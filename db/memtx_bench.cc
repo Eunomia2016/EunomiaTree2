@@ -94,7 +94,7 @@ private:
 		
 	virtual uint64_t hash(uint64_t& key)
 	{
-		return MurmurHash64A((void *)&key, 8, 0);
+		return MurmurHash64A((char *)&key, 8, 0);
 	}
 
   };
@@ -314,7 +314,7 @@ private:
 
 			
 			thread->falseConflict += tx.rtmProf.abortCounts;
-	
+			tx.rtmProf.reportAbortStatus();
 		}
 
 
