@@ -363,9 +363,9 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::UpdateGlobal
     seqs[i].wseq++;
     *seqs[i].seqptr = seqs[i].wseq;
 
-//	TouchAddr((uint64_t)&seqs[i].wseq, 1);
-//	TouchAddr((uint64_t)&seqs[i].seqptr, 2);
-//	TouchAddr((uint64_t)seqs[i].seqptr, 3);
+	TouchAddr((uint64_t)&seqs[i].wseq, 1);
+	TouchAddr((uint64_t)&seqs[i].seqptr, 2);
+	TouchAddr((uint64_t)seqs[i].seqptr, 3);
 	
   }
 
@@ -555,46 +555,22 @@ writeset->UpdateGlobalSeqs();
 
 //writeset->PrintHashTable();	
  
-int lockv = slock.Trylock();
-if(lockv == 1) {
  RTMScope rtm(&rtmProf);
  //MutexLock mu(&storemutex);
 
 
-  //step 1. check if the seq has been changed (any one change the value after reading)
-  if( !readset->Validate(latestseq_)) { 
+ //step 1. check if the seq has been changed (any one change the value after reading)
+ if( !readset->Validate(latestseq_)) { 
 	return false;
+ }
 
-  }
 
+ //step 2.  update the the seq set 
+ //can't use the iterator because the cur node may be deleted 
+ writeset->UpdateGlobalSeqs(); 
 
-  //step 2.  update the the seq set 
-  //can't use the iterator because the cur node may be deleted 
-  writeset->UpdateGlobalSeqs(); 
-  return true;
+ return true;
   
-}else{
-  //MutexLock mu(&storemutex);
-
-
-  //step 1. check if the seq has been changed (any one change the value after reading)
-  if( !readset->Validate(latestseq_)) {
-  	 
-	slock.Unlock();
-	return false;
-
-  }
-
-
-  //step 2.  update the the seq set 
-  //can't use the iterator because the cur node may be deleted 
-  writeset->UpdateGlobalSeqs();
-
-  slock.Unlock();
-
-  return true;
-  
-}
 
 }
 
