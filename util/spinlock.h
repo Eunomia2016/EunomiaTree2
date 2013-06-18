@@ -8,7 +8,7 @@ namespace leveldb {
 
 class SpinLock  {
 
-private:
+public:
   //0: free, 1: busy
   volatile uint16_t lock;
 

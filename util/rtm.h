@@ -38,7 +38,7 @@ class RTMScope {
 		} else {
 
 			
-			retry++; 
+			//retry++; 
 			/*
 			if(retry >1000 & retry <= 1100) {
 				pthread_yield();
@@ -51,7 +51,7 @@ class RTMScope {
 			}
 			*/
 			
-			
+			/*
 			localprofile.localRecordAbortStatus(stat);
 			if(retry > 100000){
 				localprofile.reportAbortStatus();
@@ -66,7 +66,7 @@ class RTMScope {
 				exit(1);
 				retry = 0;
 			}
-			
+			*/
 			continue;
 		}
 	}
@@ -91,8 +91,8 @@ class RTMScope {
 
 	_xend ();
 	//access the global profile info outside the transaction scope
-	if(globalprof != NULL)
-		globalprof->MergeLocalStatus(localprofile);
+	//if(globalprof != NULL)
+		//globalprof->MergeLocalStatus(localprofile);
 
   }
 

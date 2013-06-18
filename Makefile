@@ -6,8 +6,8 @@
 # Uncomment exactly one of the lines labelled (A), (B), and (C) below
 # to switch between compilation modes.
 
-OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
-#OPT ?= -g2              # (B) Debug mode, w/ full line-level debugging symbols
+#OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
+OPT ?= -g2              # (B) Debug mode, w/ full line-level debugging symbols
 # OPT ?= -O2 -g2 -DNDEBUG # (C) Profiling mode: opt, but w/debugging symbols
 #-----------------------------------------------
 
@@ -110,6 +110,10 @@ neworder_bench: tpcc/neworder_bench.o $(LIBOBJECTS) $(TESTUTIL)
 
 memtx_bench: db/memtx_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/memtx_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
+rtm_test: db/rtm_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) db/rtm_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
 
 
 tx_bench: db/tx_bench.o $(LIBOBJECTS) $(TESTUTIL)

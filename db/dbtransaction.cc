@@ -81,7 +81,7 @@ void  DBTransaction::ReadSet::Resize() {
 			
 			//TODO: we can just use the hash to find the key
 			bool found = ht->GetMaxWithHash(seqs[i].hash, &curseq);
-			
+
 			if(seqs[i].oldseq != curseq) {
 				assert(found);
 				return false;
