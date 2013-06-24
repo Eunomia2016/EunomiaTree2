@@ -72,7 +72,7 @@ class HashTable {
 
   HashFunction hashfunc_;
   
-  private:
+  public:
   	
   int length_;
   int elems_;

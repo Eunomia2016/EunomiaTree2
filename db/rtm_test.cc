@@ -21,10 +21,14 @@
 #include <vector>
 
 #define CPUFREQ 3400000000
-#define ARRAYSIZE 256*1024
+#define ARRAYSIZE 256*1024*1024
+#define L1SIZE 32*1024*1024
+#define L2SIZE 256*1024*1024
 
 static const char* FLAGS_benchmarks ="rtm,"
-	"lock";
+	"lock,"
+	"native,"
+	"bar";
 
 static int FLAGS_num = 1000000;
 static int FLAGS_threads = 1;
@@ -65,6 +69,7 @@ private:
    int64_t read_count;
    int64_t write_count;
    int *array;
+   char *tmparray;
    SpinLock slock;
    RTMProfile gprof;
 	
@@ -127,7 +132,8 @@ private:
 		ThreadState* thread = arg->thread;
 		{
 		  MutexLock l(&shared->mu);
-		 
+          
+				
 		  shared->num_initialized++;
 		  if (shared->num_initialized >= shared->total) {
 			shared->cv.SignalAll();
@@ -136,17 +142,19 @@ private:
 			shared->cv.Wait();
 		  }
 		}
-
-		double start = leveldb::Env::Default()->NowMicros();
+        
+		
 		if(shared->start_time == 0)
-			shared->start_time = start;
+			shared->start_time =  leveldb::Env::Default()->NowMicros();
 
+		uint64_t start = Read_tsc();
+		
 		(arg->bm->*(arg->method))(thread);
 		//std::cout << thread->tid << std::endl;
-
-		double end = leveldb::Env::Default()->NowMicros();
-		shared->end_time = end;
-		thread->time = end - start;
+		uint64_t end = Read_tsc();
+		
+		shared->end_time = leveldb::Env::Default()->NowMicros();
+		thread->time = (end - start) * 1000 / CPUFREQ;
 
 		
 		{
@@ -158,65 +166,235 @@ private:
 		}
 	  }
 
-	   
+	   void Warmup(ThreadState* thread) {
+
+		//warm up
+		 for(int index = thread->tid*ARRAYSIZE/4; index < write_count ; index++) {
+			array[index] = index;
+		 }
+	   }
+	   	 
 	   void RTMWrite(ThreadState* thread) {
 
-		  
+		  Warmup(thread);
 		  int tid = thread->tid;
 		  int seqNum = 0;
 		  int rnum = read_count;
 		  int wnum = write_count;
+		  unsigned stat;
 		  int index = 0;
-				 
-		  while(total_count > 0) {
-						  
-			int64_t oldv = XADD64(&total_count, -1000);
-			if(oldv <= 0)
-				break;
-		  
+		  int retry = 0;
+
+		  uint64_t befabort = 0;
+		  uint64_t aftabort = 0;
+
+		  uint64_t start = 0;
+		  uint64_t end = 0;
+		  uint64_t totalTime = 0;
+		  int count = 0;
+		  uint64_t comTime = 0;
+		  uint64_t execTime = 0;
+		  uint64_t begTime = 0;
+		  uint64_t befBegin = 0;
+		  uint64_t aftBegin = 0;
+
+		   start = Read_tsc();
+
+		   while(total_count > 0) {
+				
+				int64_t oldv = XADD64(&total_count, -1000);
+				if(oldv <= 0)
+					   break;
+				
 			for (int i =0; i < 1000; i++) {
+tag:			
+	          
+			  stat = _xbegin ();
+			  
+			  if (stat == _XBEGIN_STARTED) {
+			  	
+			    for(int index = tid*ARRAYSIZE/4; index < wnum ; index++) {
+				  array[index] = index;
+			    }
+			
+			   
+			  _xend();
 
-			  RTMScope rtm(&gprof);
-			  for(array[tid] = 0; array[tid] < wnum; array[tid]++) {
-//					index++;
-					array[array[tid]] = array[tid];
+				count++;
+			  } else {
+
+				retry++;
+				goto tag;
 			  }
-
+			  
 			}
 
 		  }
-
-		  gprof.reportAbortStatus();
+		  end = Read_tsc();
+		  totalTime += end - start;
+			  
+		  printf("RTM Average Cycle %ld\n", totalTime / count);
+		  printf("RTM Retry Count %d\n", retry);
+		  printf("RTM Succ Count %d\n", count);
+		 // printf("Commit Cycle %ld\n", (comTime / count));
+		 //printf("Start Cycle %ld\n", (begTime / count));
+		 // printf("Compute Cycle %ld\n", (execTime / count));
 
 	   }
 
 
+       
+       void NativeWrite(ThreadState* thread){
+
+		  Warmup(thread);
+		  int tid = thread->tid;
+		  int seqNum = 0;
+		  int rnum = read_count;
+		  int wnum = write_count;
+		  unsigned stat;
+		  int index = 0;
+		  int retry = 0;
+
+		  uint64_t befabort = 0;
+		  uint64_t aftabort = 0;
+
+		  uint64_t start = 0;
+		  uint64_t end = 0;
+		  uint64_t totalTime = 0;
+		  int count = 0;
+		  uint64_t comTime = 0;
+
+		 start = Read_tsc();
+
+		  while(total_count > 0) {
+				
+				int64_t oldv = XADD64(&total_count, -1000);
+				if(oldv <= 0)
+					   break;
+		
+		  for (int i =0; i < 1000; i++) {
+			
+		  	  for(int index = tid*ARRAYSIZE/4; index < wnum ; index++) {
+				  array[index] = index;
+			    }
+		
+			  count++;
+			 
+			  
+			}
+
+		  }
+		  end = Read_tsc();
+		  totalTime += end - start;
+		  printf("Native Average Cycle %ld\n", totalTime / count);
+		  printf("Native Succ Count %d\n", count);		  
+
+	   }
+	   
 	   void LockWrite(ThreadState* thread) {
-		  
+		   Warmup(thread);
+
 		  
 		  int tid = thread->tid;
 		  int seqNum = 0;
 		  int rnum = read_count;
 		  int wnum = write_count;
+		  unsigned stat;
 		  int index = 0;
-				 
-		  while(total_count > 0) {
-						  
-			int64_t oldv = XADD64(&total_count, -1000);
-			if(oldv <= 0)
-				break;
+		  int retry = 0;
 
-			for (int i =0; i < 1000; i++) {
+		  uint64_t befabort = 0;
+		  uint64_t aftabort = 0;
+
+		  uint64_t start = 0;
+		  uint64_t end = 0;
+		  uint64_t totalTime = 0;
+		  int count = 0;
+		  uint64_t comTime = 0;
+		  
+		  uint64_t total_cycle = 10000;
+		  
+		 start = Read_tsc();
+
+		  while(total_count > 0) {
+				
+				int64_t oldv = XADD64(&total_count, -1000);
+				if(oldv <= 0)
+					   break;
+		
+		  for (int i =0; i < 1000; i++) {
+
+			  uint64_t beg = 0;
 			  slock.Lock();
-			  for(array[tid] = 0; array[tid] < wnum; array[tid]++) {
-//					index++;
-					array[array[tid]] = array[tid];
-			  }
+		  	  //for(int index = tid*ARRAYSIZE/4; index < wnum ; index++) {
+				//  array[index] = index;
+			    //}
+			  beg = Read_tsc();
+			  while((Read_tsc() - beg) < (total_cycle/4*3));
+	
 			  slock.Unlock();
 
+			  beg = Read_tsc();
+			  while((Read_tsc() - beg) < (total_cycle/4));
+
+			  count++;
+			  
 			}
 
 		  }
+		  end = Read_tsc();
+		  totalTime += end - start;
+		  printf("Lock Average Cycle %ld\n", totalTime / count);
+		  printf("Lock Succ Count %d\n", count);		  
+
+	   }
+
+
+	    void BarWrite(ThreadState* thread) {
+
+		  Warmup(thread);
+		  int tid = thread->tid;
+		  int seqNum = 0;
+		  int rnum = read_count;
+		  int wnum = write_count;
+		  unsigned stat;
+		  int index = 0;
+		  int retry = 0;
+
+		  uint64_t befabort = 0;
+		  uint64_t aftabort = 0;
+
+		  uint64_t start = 0;
+		  uint64_t end = 0;
+		  uint64_t totalTime = 0;
+		  int count = 0;
+		  uint64_t comTime = 0;
+
+		 start = Read_tsc();
+
+		   while(total_count > 0) {
+
+//				printf("total_count %d\n", total_count);
+				int64_t oldv = XADD64(&total_count, -1000);
+				if(oldv <= 0)
+					   break;
+				
+		  for (int i =0; i < 1000; i++) {
+
+			  
+		  	  for(int index = tid*ARRAYSIZE/4; index < wnum ; index++) {
+				  array[index] = index;
+			    }
+		
+			  count++;
+			  mb();
+			  
+			}
+		  }
+		  end = Read_tsc();
+		  totalTime += end - start;
+		  printf("Bar Average Cycle %ld\n", totalTime / count);
+		  printf("Bar Succ Count %d\n", count);		  
 
 	   }
 
@@ -227,7 +405,11 @@ private:
 	  	total_count(FLAGS_num), read_count(FLAGS_rdnum), 
 		write_count(FLAGS_wtnum)
 	  {
+
+	    tmparray = new char[L1SIZE];
+	
 	  	array = new int[ARRAYSIZE];
+		
 		for( int i = 0; i < ARRAYSIZE; i++)
 			array[i] = 0;
 	  }
@@ -237,7 +419,7 @@ private:
 	  void RunBenchmark(int n,
 						void (Benchmark::*method)(ThreadState*)) {
 
-		int64_t totaltxs = total_count;
+		total_count = FLAGS_num;
 		
 		SharedState shared;
 		shared.total = n;
@@ -278,6 +460,14 @@ private:
 
 		double end = leveldb::Env::Default()->NowMicros();
 
+
+		printf("Total Run Time : %lf ms\n", (end - start)/1000);
+
+		
+		for (int i = 0; i < n; i++) {
+		  printf("Thread[%d] Run Time %lf ms\n", i, arg[i].thread->time/1000);
+		}
+/*
 		printf(" ...... Iterate  MemStore ......\n");
 //		memstore.DumpTXMemStore();
 
@@ -309,7 +499,7 @@ private:
 		printf("Conflict %d FalseConflict %d\n", conflict, falseConflict);
 		printf("Get %ld ms  Add %ld ms Validate %ld ms  Commit %ld ms\n", 
 			getT * 1000/CPUFREQ, addT * 1000/CPUFREQ, valT * 1000/CPUFREQ, comT * 1000/CPUFREQ);
-		
+	*/	
 		for (int i = 0; i < n; i++) {
 		  delete arg[i].thread;
 		}
@@ -341,17 +531,21 @@ private:
 	        method = &Benchmark::RTMWrite;
 	      } else if (name == Slice("lock")) {
 	        method = &Benchmark::LockWrite;
-	      } else {
+	      } else if (name == Slice("native")) {
+	        method = &Benchmark::NativeWrite;
+		  } else if (name == Slice("bar")) {
+	        method = &Benchmark::BarWrite;
+		  } else {
 	        printf("Wrong benchmark name %s\n", name.ToString().c_str());
 			return;
 		  }
 
 		  double start = leveldb::Env::Default()->NowMicros();
 		  total_count = FLAGS_num;
-		  printf("slock %d\n", slock.lock);
+
 	      RunBenchmark(num_threads, method);
-		  printf("slock %d\n", slock.lock);
-	      std::cout << name.ToString() << " total Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
+
+//	      std::cout << name.ToString() << " total Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
 
 	  	}
 	  
