@@ -237,11 +237,11 @@ private:
 		   //printf("DoWrite %d\n", total_count);
 			while(total_count > 0) {
 				
-				int64_t oldv = XADD64(&total_count, -1000);
+				int64_t oldv = XADD64(&total_count, -1);
 				if(oldv <= 0)
 					   break;
 
-				for (int i =0; i < 1000; i++) {
+				for (int i =0; i < 1; i++) {
 
 					uint64_t addT = 0;
 					uint64_t getT = 0;
@@ -274,11 +274,32 @@ private:
 						endT = Read_tsc();
 						addT +=  endT - startT;
 
+						typename leveldb::DBTransaction<Key, Key, KeyHash, KeyComparator>::Batch batchs[256];
+							
 						for(int i = 0; i < rnum; i++) {
 							uint64_t *v;
-							tx.Get(thread->rnd.Next(), &v, &s);
+							//tx.Get(thread->rnd.Next(), &v, &s);
+							batchs[i].key = thread->rnd.Next();
+							batchs[i].value = (uint64_t **)i;
+							batchs[i].s = &s;
+							
 						}
+						printf("Before Sort ");
+						for(int i = 0; i < rnum; i++) 
+						{
+							printf("Elem[%d] key %ld value %ld\n", 
+								i, batchs[i].key, (uint64_t)batchs[i].value);
+						}
+						tx.GetBatch(batchs,rnum);
 
+
+						printf("After Sort ");
+						for(int i = 0; i < rnum; i++) 
+						{
+							printf("Elem[%d] key %ld value %ld\n", 
+								i, batchs[i].key, (uint64_t)batchs[i].value);
+						}
+						
 						startT = Read_tsc();
 						getT +=  startT - endT;
 
