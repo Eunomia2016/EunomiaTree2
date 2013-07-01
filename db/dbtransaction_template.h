@@ -36,11 +36,26 @@ class DBTransaction {
 	bool Abort();
 	bool End();
 	void Add(ValueType type, Key key, Value* val);
+
+	struct Batch {
+	  Key key;
+	  Value** value;
+	  Status* s;
+	};
+	
 	bool Get(Key key, Value** value, Status* s);
+	void GetBatch(Batch keys[], int num);
+
+	
+	inline void Swap(Batch bat[], int i, int j);
+	inline int PartitionBatch(Batch bat[], int left, int right, int pivotIndex);
+	inline void SortBatch(Batch bat[], int left, int right);
 
 	
 public:
 
+	
+	
  	class ReadSet {
 
 	  struct RSSeqPair {
@@ -474,6 +489,58 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::Add(
    													= latestseq_->GetNodeWithInsert(key);
     //write the key value into local buffer
      writeset->Add(type, key, value, &node->seq);
+}
+
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+inline void DBTransaction<Key, Value, HashFunction, Comparator>::Swap(Batch bat[], int i, int j)
+{
+	if( i == j)
+		return;
+	Batch tmp = bat[i];
+	bat[i] = bat[j];
+	bat[j] = tmp;
+}
+
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+int DBTransaction<Key, Value, HashFunction, Comparator>::PartitionBatch(Batch bat[], int left, int right, int pivotIndex)
+{
+	Batch pivotValue = bat[pivotIndex];
+	bat[pivotIndex] = bat[right];
+	bat[right] = pivotValue;
+
+	int storeIndex = left;
+	
+	for(int i = left; i < right; i++) {
+		if(comp_(bat[i].key, pivotValue.key)<=0) {
+			Swap(bat, storeIndex, i);
+			storeIndex++;
+		}
+	}
+
+	Swap(bat, right, storeIndex);
+	return storeIndex;
+}
+
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::SortBatch(Batch bat[], int left, int right)
+{
+	if(left < right) {
+		int pivotIndex = (left + right)/2;
+		int pivotNewIndex = PartitionBatch(bat, left, right, pivotIndex);
+		SortBatch(bat, left, pivotNewIndex - 1);
+		SortBatch(bat, pivotNewIndex + 1, right);
+	}
+}
+
+
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::GetBatch(Batch keys[], int num)
+{
+	SortBatch(keys, 0, num - 1);
 }
 
 
