@@ -3,6 +3,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "tpcc/tpcctxmemstore.h"
+#include <algorithm>
 
 
 namespace leveldb {
@@ -32,8 +33,12 @@ namespace leveldb {
     return id;
   }
 
-  static int64_t makeHistoryKey() {
-  	return 3;
+  static int64_t makeHistoryKey(int32_t h_c_id, int32_t h_c_d_id, int32_t h_c_w_id, int32_t h_d_id, int32_t h_w_id) {
+  	int32_t cid = (h_c_w_id * District::NUM_PER_WAREHOUSE + h_c_d_id)
+            * Customer::NUM_PER_DISTRICT + h_c_id;
+	int32_t did = h_d_id + (h_w_id * District::NUM_PER_WAREHOUSE);
+	int64_t id = (int64_t)3 << 50 | static_cast<int64_t>(cid) << 20 | static_cast<int64_t>(did);
+  	return id;
   }
 
   static int64_t makeNewOrderKey(int32_t w_id, int32_t d_id, int32_t o_id) {
@@ -67,11 +72,8 @@ namespace leveldb {
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
     assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID);
     assert(1 <= number && number <= Order::MAX_OL_CNT);
-    // TODO: This may be bad for locality since o_id is in the most significant position. However,
-    // Order status fetches all rows for one (w_id, d_id, o_id) tuple, so it may be fine,
-    // but stock level fetches order lines for a range of (w_id, d_id, o_id) values
-    int32_t olid = ((o_id * District::NUM_PER_WAREHOUSE + d_id)
-            * Warehouse::MAX_WAREHOUSE_ID + w_id) * Order::MAX_OL_CNT + number;
+  
+    int32_t olid = makeOrderKey(w_id, d_id, o_id) * Order::MAX_OL_CNT + number; 
     assert(olid >= 0);
 	int64_t id = (int64_t)6 << 50 | static_cast<int64_t>(olid);
     return id;
@@ -91,6 +93,19 @@ namespace leveldb {
     return id;
   }
 
+  static void updateWarehouseYtd(Warehouse* neww, Warehouse* oldw, float h_amount){
+	memcpy(neww->w_name, oldw->w_name, 11);
+	memcpy(neww->w_street_1, oldw->w_street_1, 21);
+	memcpy(neww->w_street_2, oldw->w_street_2, 21);
+	memcpy(neww->w_city, oldw->w_city, 21);
+	memcpy(neww->w_state, neww->w_state, 3);
+	memcpy(neww->w_zip, oldw->w_zip, 10);
+
+	neww->w_tax = oldw->w_tax;
+
+	neww->w_ytd = oldw->w_ytd + h_amount;
+  }
+
   static void updateDistrict(District *newd, District *oldd ) {
   	memcpy(newd->d_city, oldd->d_city, 21);
 	memcpy(newd->d_zip, oldd->d_zip, 10);
@@ -106,7 +121,88 @@ namespace leveldb {
 
 	newd->d_next_o_id = oldd->d_next_o_id + 1;
   }
+  static void updateDistrictYtd(District * newd, District * oldd, float h_amount) {
+  	memcpy(newd->d_city, oldd->d_city, 21);
+	memcpy(newd->d_zip, oldd->d_zip, 10);
+	memcpy(newd->d_name, oldd->d_name, 11);
+	memcpy(newd->d_state, oldd->d_state, 3);
+	memcpy(newd->d_street_1, oldd->d_street_1, 21);
+	memcpy(newd->d_street_2, oldd->d_street_2, 21);
 
+	newd->d_tax = oldd->d_tax;
+	newd->d_w_id = oldd->d_w_id;
+	newd->d_id = oldd->d_id;
+	newd->d_next_o_id = oldd->d_next_o_id;
+	newd->d_ytd = oldd->d_ytd + h_amount;	
+  }
+
+  static void updateCustomer(Customer *newc, Customer *oldc, float h_amount, 
+  									int32_t warehouse_id, int32_t district_id) {
+  	memcpy(newc->c_first, oldc->c_first, 17);
+	memcpy(newc->c_middle, oldc->c_middle, 3);
+	memcpy(newc->c_last, oldc->c_last, 17);
+	memcpy(newc->c_street_1, oldc->c_street_1, 21);
+	memcpy(newc->c_street_2, oldc->c_street_2, 21);
+	memcpy(newc->c_city, oldc->c_city, 21);
+	memcpy(newc->c_zip, oldc->c_zip, 10);
+	memcpy(newc->c_state, oldc->c_state, 3);
+	memcpy(newc->c_phone, oldc->c_phone, 17);
+	memcpy(newc->c_since, oldc->c_since, 15);
+	memcpy(newc->c_credit, oldc->c_credit, 3);
+	
+
+	newc->c_credit_lim = oldc->c_credit_lim;
+	newc->c_discount = oldc->c_discount;
+	newc->c_delivery_cnt = oldc->c_delivery_cnt;
+
+	newc->c_balance = oldc->c_balance - h_amount;
+	newc->c_ytd_payment = oldc->c_ytd_payment + h_amount;
+	newc->c_payment_cnt = oldc->c_payment_cnt + 1;
+
+	if (strcmp(oldc->c_credit, Customer::BAD_CREDIT) == 0) {
+	  static const int HISTORY_SIZE = Customer::MAX_DATA+1;
+      char history[HISTORY_SIZE];
+      int characters = snprintf(history, HISTORY_SIZE, "(%d, %d, %d, %d, %d, %.2f)\n",
+                oldc->c_id, oldc->c_d_id, oldc->c_w_id, district_id, warehouse_id, h_amount);
+      assert(characters < HISTORY_SIZE);
+
+      // Perform the insert with a move and copy
+      int current_keep = static_cast<int>(strlen(oldc->c_data));
+      if (current_keep + characters > Customer::MAX_DATA) {
+         current_keep = Customer::MAX_DATA - characters;
+      }
+      assert(current_keep + characters <= Customer::MAX_DATA);
+      memcpy(newc->c_data+characters, oldc->c_data, current_keep);
+      memcpy(newc->c_data, history, characters);
+      newc->c_data[characters + current_keep] = '\0';
+      assert(strlen(newc->c_data) == characters + current_keep);
+	}
+	else memcpy(newc->c_data, oldc->c_data, 501);
+  }
+
+  static void updateCustomerDelivery(Customer * newc, Customer * oldc, float ol_amount) {
+  	memcpy(newc->c_first, oldc->c_first, 17);
+	memcpy(newc->c_middle, oldc->c_middle, 3);
+	memcpy(newc->c_last, oldc->c_last, 17);
+	memcpy(newc->c_street_1, oldc->c_street_1, 21);
+	memcpy(newc->c_street_2, oldc->c_street_2, 21);
+	memcpy(newc->c_city, oldc->c_city, 21);
+	memcpy(newc->c_zip, oldc->c_zip, 10);
+	memcpy(newc->c_state, oldc->c_state, 3);
+	memcpy(newc->c_phone, oldc->c_phone, 17);
+	memcpy(newc->c_since, oldc->c_since, 15);
+	memcpy(newc->c_credit, oldc->c_credit, 3);
+	memcpy(newc->c_data, oldc->c_data, 501);
+
+	newc->c_credit_lim = oldc->c_credit_lim;
+	newc->c_discount = oldc->c_discount;
+	newc->c_ytd_payment = oldc->c_ytd_payment;
+	newc->c_payment_cnt = oldc->c_payment_cnt;
+	
+	newc->c_balance = oldc->c_balance + ol_amount;
+	newc->c_delivery_cnt = oldc->c_delivery_cnt + 1;
+  }
+  
   static void updateStock(Stock *news, Stock *olds, const NewOrderItem *item, int32_t warehouse_id) {
   	if (olds->s_quantity > (item->ol_quantity + 10))
 	  news->s_quantity = olds->s_quantity - item->ol_quantity;
@@ -122,6 +218,27 @@ namespace leveldb {
 
 	news->s_i_id = olds->s_i_id;
 	news->s_w_id = olds->s_w_id;
+  }
+
+  static void updateOrder(Order *newo, Order *oldo, int32_t carrier_id) {
+  	memcpy(newo->o_entry_d, oldo->o_entry_d, 15);
+
+	newo->o_c_id = oldo->o_c_id;
+	newo->o_ol_cnt = oldo->o_ol_cnt;
+	newo->o_all_local = oldo->o_all_local;
+
+	newo->o_carrier_id = carrier_id;
+  }
+
+  static void updateOrderLine(OrderLine *newol, OrderLine *oldol, const char* now) {
+  	memcpy(newol->ol_dist_info, oldol->ol_dist_info, 25);
+
+	newol->ol_i_id = oldol->ol_i_id;
+	newol->ol_supply_w_id = oldol->ol_supply_w_id;
+	newol->ol_quantity = oldol->ol_quantity;
+	newol->ol_amount = oldol->ol_amount;
+
+	memcpy(newol->ol_delivery_d, now, 15);
   }
   
   TPCCTxMemStore::TPCCTxMemStore() {
@@ -473,6 +590,348 @@ namespace leveldb {
     return true;
   }
 
+  #define COPY_ADDRESS(src, dest, prefix) \
+	  Address::copy( \
+			  dest->prefix ## street_1, dest->prefix ## street_2, dest->prefix ## city, \
+			  dest->prefix ## state, dest->prefix ## zip,\
+			  src->prefix ## street_1, src->prefix ## street_2, src->prefix ## city, \
+			  src->prefix ## state, src->prefix ## zip)
+
+  void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+		  int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
+		  PaymentOutput* output, TPCCUndo** undo) {  
+    ValueType t = kTypeValue;
+    leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+    while(true) {
+	  //printf("1\n");
+	  tx.Begin();
+	  //printf("2\n");
+	  //-------------------------------------------------------------------------
+	  //The row in the WAREHOUSE table with matching W_ID is selected. 
+	  //W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, and W_ZIP are retrieved 
+	  //and W_YTD, the warehouse's year-to-date balance, is increased by H_ AMOUNT.
+	  //-------------------------------------------------------------------------
+	  
+	  int64_t w_key = makeWarehouseKey(warehouse_id);
+	  //printf("w_key %d\n", w_key);
+  	  Status w_s;
+	  uint64_t *w_value;  
+ 	  bool found = tx.Get(w_key, &w_value, &w_s);
+	  assert(found);
+	  Warehouse *w = reinterpret_cast<Warehouse *>(*w_value);
+	  Warehouse *neww = new Warehouse();
+	  updateWarehouseYtd(neww, w, h_amount);
+	  uint64_t *w_v = new uint64_t();
+	  *w_v = reinterpret_cast<uint64_t>(neww);
+	  tx.Add(t, w_key, w_v);
+
+	  COPY_ADDRESS(neww, output, w_);
+
+	  //-------------------------------------------------------------------------
+	  //The row in the DISTRICT table with matching D_W_ID and D_ID is selected. 
+	  //D_NAME, D_STREET_1, D_STREET_2, D_CITY, D_STATE, and D_ZIP are retrieved 
+	  //and D_YTD, the district's year-to-date balance, is increased by H_AMOUNT.
+	  //-------------------------------------------------------------------------
+
+	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
+  	  Status d_s;
+  	  uint64_t *d_value;
+  	  found = tx.Get(d_key, &d_value, &d_s);
+	  assert(found);
+	  //printf("2.1\n");
+	  assert(*d_value != 0);
+	  District *d = reinterpret_cast<District *>(*d_value);      
+	  District *newd = new District();
+	  updateDistrictYtd(newd, d, h_amount);
+	  uint64_t *d_v = new uint64_t();
+	  *d_v = reinterpret_cast<uint64_t>(newd);
+	  tx.Add(t, d_key, d_v);
+
+	  COPY_ADDRESS(newd, output, d_);
+
+	  //-------------------------------------------------------------------------
+	  //the row in the CUSTOMER table with matching C_W_ID, C_D_ID and C_ID is selected. 
+	  //C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, 
+	  //C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, and C_BALANCE are retrieved. 
+	  //C_BALANCE is decreased by H_AMOUNT. C_YTD_PAYMENT is increased by H_AMOUNT. 
+	  //C_PAYMENT_CNT is incremented by 1.
+	  //If the value of C_CREDIT is equal to "BC", then C_DATA is also retrieved 
+	  //and C_ID, C_D_ID, C_W_ID, D_ID, W_ID, and H_AMOUNT, are inserted at the left of the C_DATA field
+	  //-------------------------------------------------------------------------
+
+	  uint64_t c_key = makeCustomerKey(c_warehouse_id, c_district_id, customer_id);
+  	  Status c_s;
+  	  uint64_t *c_value;
+	  found = tx.Get(c_key, &c_value, &c_s);
+ 	  assert(found);
+	  Customer *c = reinterpret_cast<Customer *>(*c_value);
+	  Customer *newc = new Customer();
+	  updateCustomer(newc, c, h_amount, warehouse_id, district_id);
+	  uint64_t *c_v = new uint64_t();
+	  *c_v = reinterpret_cast<uint64_t>(newc);
+	  tx.Add(t, c_key, c_v);
+
+	  output->c_credit_lim = newc->c_credit_lim;
+      output->c_discount = newc->c_discount;
+      output->c_balance = newc->c_balance;
+    #define COPY_STRING(dest, src, field) memcpy(dest->field, src->field, sizeof(src->field))
+      COPY_STRING(output, newc, c_first);
+      COPY_STRING(output, newc, c_middle);
+      COPY_STRING(output, newc, c_last);
+      COPY_ADDRESS(newc, output, c_);
+      COPY_STRING(output, newc, c_phone);
+      COPY_STRING(output, newc, c_since);
+      COPY_STRING(output, newc, c_credit);
+      COPY_STRING(output, newc, c_data);
+    #undef COPY_STRING
+
+
+	  //-------------------------------------------------------------------------
+	  //H_DATA is built by concatenating W_NAME and D_NAME separated by 4 spaces.
+	  //A new row is inserted into the HISTORY table with H_C_ID = C_ID, H_C_D_ID = C_D_ID, H_C_W_ID =
+	  //C_W_ID, H_D_ID = D_ID, and H_W_ID = W_ID.
+	  //-------------------------------------------------------------------------
+
+	  uint64_t h_key = makeHistoryKey(customer_id, c_district_id, c_warehouse_id, district_id, warehouse_id);
+	  History *h = new History();
+      h->h_amount = h_amount;
+      strcpy(h->h_date, now);
+      strcpy(h->h_data, w->w_name);
+      strcat(h->h_data, "    ");
+      strcat(h->h_data, d->d_name);
+      uint64_t *h_v = new uint64_t();
+	  *h_v = reinterpret_cast<uint64_t>(h);
+	  tx.Add(t, h_key, h_v);
+
+	  //printf("3\n");
+	  bool b = tx.End();  
+  	  if (b) break;
+    }
+    return;
+  }
+  #undef COPY_ADDRESS
+
+  void TPCCTxMemStore::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
+	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+    while(true) {
+	 
+	  tx.Begin();
+
+	  //-------------------------------------------------------------------------
+	  //the row in the CUSTOMER table with matching C_W_ID, C_D_ID, and C_ID is selected 
+	  //and C_BALANCE, C_FIRST, C_MIDDLE, and C_LAST are retrieved.
+	  //-------------------------------------------------------------------------
+	  uint64_t c_key = makeCustomerKey(warehouse_id, district_id, customer_id);
+  	  Status c_s;
+  	  uint64_t *c_value;
+	  bool found = tx.Get(c_key, &c_value, &c_s);
+ 	  assert(found);
+	  Customer *c = reinterpret_cast<Customer *>(*c_value);
+
+	  output->c_id = customer_id;
+	  // retrieve from customer: balance, first, middle, last
+	  output->c_balance = c->c_balance;
+	  strcpy(output->c_first, c->c_first);
+	  strcpy(output->c_middle, c->c_middle);
+	  strcpy(output->c_last, c->c_last);
+
+	  
+	  //-------------------------------------------------------------------------
+	  //The row in the ORDER table with matching O_W_ID (equals C_W_ID), O_D_ID (equals C_D_ID), O_C_ID
+	  //(equals C_ID), and with the largest existing O_ID, is selected. This is the most recent order placed by that customer. 
+	  //O_ID, O_ENTRY_D, and O_CARRIER_ID are retrieved.
+	  //-------------------------------------------------------------------------
+	  //uint64_t o_key = makeOrderKey(warehouse_id, district_id, 100000000);
+	  //Status o_s;
+	  
+      bool b = tx.End();  
+  	  if (b) break;
+    }
+    return;
+  }
+
+  int32_t TPCCTxMemStore::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
+	
+	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+					leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+	int num_distinct = 0;
+	
+	while(true) {
+		 
+	  tx.Begin();
+		 
+	  //-------------------------------------------------------------------------
+	  //The row in the DISTRICT table with matching D_W_ID and D_ID is selected and D_NEXT_O_ID is retrieved.
+	  //-------------------------------------------------------------------------
+	  
+	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
+	  Status d_s;
+  	  uint64_t *d_value;
+	  bool found = tx.Get(d_key, &d_value, &d_s);
+	  assert(found);
+      District *d = reinterpret_cast<District *>(*d_value);   
+	  int32_t o_id = d->d_next_o_id;
+
+	  //-------------------------------------------------------------------------
+	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals W_ID), OL_D_ID (equals D_ID), 
+	  //and OL_O_ID (lower than D_NEXT_O_ID and greater than or equal to D_NEXT_O_ID minus 20) are selected.
+	  //-------------------------------------------------------------------------
+	  int i = o_id - 20;
+	  std::vector<int32_t> s_i_ids;
+      // Average size is more like ~30.
+      s_i_ids.reserve(300);
+	  for (; i < o_id; i++) {
+	  	for (int j = 1; j < 16; j++) {
+		  int64_t ol_key = makeOrderLineKey(warehouse_id, district_id, i, j);
+		  Status ol_s;
+		  uint64_t *ol_value;
+		  bool found = tx.Get(ol_key, &ol_value, &ol_s);
+		  if (!found) break;
+		  OrderLine *ol = reinterpret_cast<OrderLine *>(*ol_value);   
+		  //-------------------------------------------------------------------------
+		  //All rows in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals W_ID) 
+		  //from the list of distinct item numbers and with S_QUANTITY lower than threshold are counted (giving low_stock).
+		  //-------------------------------------------------------------------------
+
+		  int32_t s_i_id = ol->ol_i_id;
+		  int64_t s_key = makeStockKey(warehouse_id, s_i_id);
+		  Status s_s;
+		  uint64_t *s_value;
+		  found = tx.Get(s_key, &s_value, &s_s);
+		  Stock *s = reinterpret_cast<Stock *>(*s_value);
+		  if (s->s_quantity < threshold) 
+		  	s_i_ids.push_back(s_i_id);
+		  
+	  	}
+	  }
+
+	  std::sort(s_i_ids.begin(), s_i_ids.end());
+      
+      int32_t last = -1;  // NOTE: This relies on -1 being an invalid s_i_id
+      for (size_t i = 0; i < s_i_ids.size(); ++i) {
+        if (s_i_ids[i] != last) {
+          last = s_i_ids[i];
+          num_distinct += 1;
+        }
+      }    
+
+	  bool b = tx.End();  
+  	  if (b) break;
+	}
+	return num_distinct;
+  }
+
+  void TPCCTxMemStore::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
+		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo){
+
+	ValueType t = kTypeValue;
+	ValueType td = kTypeDeletion;
+    leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+	while (true) {
+	  tx.Begin();
+		
+  	  for (int32_t d_id = 1; d_id <= District::NUM_PER_WAREHOUSE; ++d_id) {
+	    //-------------------------------------------------------------------------
+	    //The row in the NEW-ORDER table with matching NO_W_ID (equals W_ID) and NO_D_ID (equals D_ID) 
+	    //and with the lowest NO_O_ID value is selected.
+	    //-------------------------------------------------------------------------
+	    int32_t no_id = 1;
+	    NewOrder *no = NULL;
+	    while (no_id <= 100000000) {
+	  	  int64_t no_key = makeNewOrderKey(warehouse_id, d_id, no_id);
+	  	  Status no_s;
+	  	  uint64_t *no_value;
+	  	  bool found = tx.Get(no_key, &no_value, &no_s);
+		  if (!found) {
+		    no_id++;
+		    continue;
+		  }
+
+		  //-------------------------------------------------------------------------
+		  //The selected row in the NEW-ORDER table is deleted.
+		  //-------------------------------------------------------------------------
+	  	  tx.Add(td, no_key, no_value);
+		  break;
+	    }
+	  
+	    if (no == NULL || no->no_d_id != d_id || no->no_w_id != warehouse_id) {
+          // No orders for this district
+          // TODO: 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it (???)
+          continue;
+        }
+		
+		DeliveryOrderInfo order;
+        order.d_id = d_id;
+        order.o_id = no_id;
+        orders->push_back(order);
+
+		//-------------------------------------------------------------------------
+		//The row in the ORDER table with matching O_W_ID (equals W_ ID), O_D_ID (equals D_ID), and O_ID (equals NO_O_ID) is selected, 
+		//O_C_ID, the customer number, is retrieved, and O_CARRIER_ID is updated.
+		//-------------------------------------------------------------------------
+
+		int64_t o_key = makeOrderKey(warehouse_id, d_id, no_id);
+		Status o_s;
+		uint64_t *o_value;
+		bool found = tx.Get(o_key, &o_value, &o_s);
+		Order *o = reinterpret_cast<Order *>(*o_value);
+		assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
+		Order *newo = new Order();		
+		updateOrder(newo, o, carrier_id);
+		uint64_t *o_v = new uint64_t();
+		*o_v = reinterpret_cast<uint64_t>(newo);
+		tx.Add(t, o_key, o_v);
+		int32_t c_id = o->o_c_id;
+
+		//-------------------------------------------------------------------------
+		//All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID), and OL_O_ID (equals O_ID) are selected. 
+		//All OL_DELIVERY_D, the delivery dates, are updated to the current system time as returned by the operating system 
+		//and the sum of all OL_AMOUNT is retrieved.
+		//-------------------------------------------------------------------------
+		float sum_ol_amount = 0;
+		for (int32_t ol_number = 1; ol_number < 16; ol_number++) {
+		  int64_t ol_key = makeOrderLineKey(warehouse_id, d_id, no_id, ol_number);
+		  Status ol_s;
+		  uint64_t *ol_value;
+		  bool found = tx.Get(ol_key, &ol_value, &ol_s);
+		  OrderLine *ol = reinterpret_cast<OrderLine *>(*ol_value);
+		  OrderLine *newol = new OrderLine();
+		  updateOrderLine(newol, ol, now);
+		  uint64_t *ol_v = new uint64_t();
+		  *ol_v = reinterpret_cast<uint64_t>(newol);
+		  tx.Add(t, ol_key, ol_v);
+		  sum_ol_amount += ol->ol_amount;
+		}
+
+		//-------------------------------------------------------------------------
+		//The row in the CUSTOMER table with matching C_W_ID (equals W_ID), C_D_ID (equals D_ID), and C_ID (equals O_C_ID) is selected 
+		//and C_BALANCE is increased by the sum of all order-line amounts (OL_AMOUNT) previously retrieved. 
+		//C_DELIVERY_CNT is incremented by 1.
+		//-------------------------------------------------------------------------
+
+		int64_t c_key = makeCustomerKey(warehouse_id, d_id, c_id);
+		Status c_s;
+		uint64_t *c_value;
+		found = tx.Get(c_key, &c_value, &c_s);
+		Customer *c = reinterpret_cast<Customer *>(*c_value);
+		Customer *newc = new Customer();
+		updateCustomerDelivery(newc, c, sum_ol_amount);
+		uint64_t *c_v = new uint64_t();
+		*c_v = reinterpret_cast<uint64_t>(newc);
+		tx.Add(t, c_key, c_v);
+		
+	  }
+
+	  bool b = tx.End();  
+  	  if (b) break;
+	}
+	
+    return;
+  }
+
 //not used yet
 bool TPCCTxMemStore::newOrderRemote(int32_t home_warehouse, int32_t remote_warehouse,
             const std::vector<NewOrderItem>& items, std::vector<int32_t>* out_quantities,
@@ -480,19 +939,9 @@ bool TPCCTxMemStore::newOrderRemote(int32_t home_warehouse, int32_t remote_wareh
   return false;
 }
 
-int32_t TPCCTxMemStore::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
-  return 0;
-}
-void TPCCTxMemStore::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
-  return;
-}
-void TPCCTxMemStore::orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output){
-  return;
-}
 
-void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
-		  int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
-		  PaymentOutput* output, TPCCUndo** undo) {
+
+void TPCCTxMemStore::orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output){
   return;
 }
 void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
@@ -500,6 +949,7 @@ void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t 
 		  PaymentOutput* output, TPCCUndo** undo) {
   return;
 }
+
 void TPCCTxMemStore::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, int32_t c_id, float h_amount, const char* now,
 		  PaymentOutput* output, TPCCUndo** undo){
@@ -515,10 +965,7 @@ void TPCCTxMemStore::paymentRemote(int32_t warehouse_id, int32_t district_id, in
 		  TPCCUndo** undo){
   return;
 }
-void TPCCTxMemStore::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
-		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo){
-  return;
-}
+
 bool TPCCTxMemStore::hasWarehouse(int32_t warehouse_id){
   return true;
 }

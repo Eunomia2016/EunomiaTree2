@@ -13,8 +13,8 @@
 #include "tpcc/tpccclient.h"
 #include "tpcc/tpccgenerator.h"
 #include "tpcc/tpcctables.h"
-#include "tpcc/tpccleveldb.h"
-//#include "tpcc/tpcctxmemstore.h"
+//#include "tpcc/tpccleveldb.h"
+#include "tpcc/tpcctxmemstore.h"
 
 static const int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
@@ -235,6 +235,28 @@ class Benchmark {
 	//printf("Write records %d . Read records %d .", tables->wcount, tables->rcount );
   }
 
+  void doOne(ThreadState* thread) {
+  	// Change the constants for run
+    tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+    random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
+
+    // Client owns all the parameters
+    TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
+            District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
+	client.bindWarehouseDistrict(thread->tid + 1, 0);
+	
+    //for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
+    while (total_count > 0) {
+	  int64_t oldv = XADD64(&total_count, -1000);
+  	  if(oldv <= 0) break;
+	  
+	  for (int i =0; i < 1000; i++) {	
+        client.doOne();
+		thread->stats.FinishedSingleOp();
+	  }
+    }
+  }
+
   void doNewOrder(ThreadState* thread) {
   	// Change the constants for run
     tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
@@ -282,8 +304,8 @@ int main(int argc, const char* argv[]) {
     NUM_WAREHOUSE = num_warehouses;
 	
     //TPCCTables* tables = new TPCCTables();
-    leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
-    //TPCCDB* tables = new leveldb::TPCCTxMemStore();
+    //leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
+    TPCCDB* tables = new leveldb::TPCCTxMemStore();
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.
@@ -308,8 +330,8 @@ int main(int argc, const char* argv[]) {
 
      leveldb::Slice name("neworder");
     leveldb::Benchmark b(tables, clock, cLoad);
+	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doOne);
 	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
-
 
 
 	printf("Hello World\n");
