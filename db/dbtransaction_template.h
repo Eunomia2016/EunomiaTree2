@@ -41,6 +41,7 @@ class DBTransaction {
 	  Key key;
 	  Value** value;
 	  Status* s;
+	  uint64_t seq;
 	};
 	
 	bool Get(Key key, Value** value, Status* s);
@@ -378,9 +379,9 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::UpdateGlobal
     seqs[i].wseq++;
     *seqs[i].seqptr = seqs[i].wseq;
 
-	TouchAddr((uint64_t)&seqs[i].wseq, 1);
-	TouchAddr((uint64_t)&seqs[i].seqptr, 2);
-	TouchAddr((uint64_t)seqs[i].seqptr, 3);
+	//TouchAddr((uint64_t)&seqs[i].wseq, 1);
+	//TouchAddr((uint64_t)&seqs[i].seqptr, 2);
+	//TouchAddr((uint64_t)seqs[i].seqptr, 3);
 	
   }
 
@@ -410,7 +411,7 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Commit(
   //should holde the mutex of memstore
   for(int i = 0; i < elems; i++) {
 	memstore->Put(kvs[i].key, kvs[i].val, seqs[i].wseq);
-	//printf("Put key %ld Value %ld Seq %ld\n", *kvs[i].key, *kvs[i].val, seqs[i].wseq);
+	//printf("Put key %ld Value %ld Seq %ld\n", kvs[i].key, *kvs[i].val, seqs[i].wseq);
   }
   
 }
@@ -540,7 +541,48 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::SortBatch(Batch bat[],
 template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::GetBatch(Batch keys[], int num)
 {
+	//1. sort the batch
 	SortBatch(keys, 0, num - 1);
+
+	//2. get the version in batch
+	for(int i = 0 ; i < num; i++) {
+		typename HashTable<Key, HashFunction, Comparator>::Node* node 
+			= latestseq_->GetNode(keys[i].key);
+		if ( NULL == node) {
+			keys[i].seq = 0;
+			readset->Add(latestseq_->hashfunc_.hash(keys[i].key), 0, (uint64_t *)0);
+  		} else {
+  		 	keys[i].seq = node->seq;
+			readset->Add(node->hash, keys[i].seq, &node->seq);
+		}
+	}
+
+	//3. get the value in batch
+	int count = 0;
+	for(int i = 0 ; i < num; i++) {
+		if(keys[i].seq == 0) {
+			*keys[i].s = Status::NotFound(Slice());
+		}
+		else {
+			Status res;
+			
+			do{
+				
+				if(count > 10000) {
+					printf("Key %ld seq %d count %d\n", keys[i].key, keys[i].seq, count); 
+					//latestseq_->PrintHashTable();
+					//txdb_->DumpTXMemStore();
+					//exit(1);
+					count = 0;
+				}
+				count++;
+				res = txdb_->Get(keys[i].key, keys[i].value, keys[i].seq);
+				
+		    }while(res.IsNotFound());
+			*keys[i].s = Status::OK();
+		}
+	}
+	
 }
 
 
@@ -614,10 +656,6 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
-
-
-readset->Validate(latestseq_);
-writeset->UpdateGlobalSeqs();
   
 
 //writeset->PrintHashTable();	

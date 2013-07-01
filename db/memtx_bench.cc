@@ -281,7 +281,7 @@ private:
 							//tx.Get(thread->rnd.Next(), &v, &s);
 							batchs[i].key = thread->rnd.Next();
 							batchs[i].value = (uint64_t **)i;
-							//batchs[i].s = (uint64_t *)i;
+							batchs[i].s = &s;
 							
 						}
 						printf("Before Sort ");

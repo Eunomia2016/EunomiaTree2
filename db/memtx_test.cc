@@ -400,6 +400,97 @@ class Benchmark {
 		}
 
 	}
+
+
+	static void EqualBatchTest(void* v) {
+		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+		int tid = (arg->thread)->tid;
+		SharedState *shared = arg->thread->shared;
+		HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs = arg->seqs;
+		TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> *store = arg->store;
+		KeyComparator *cmp = arg->cmp;
+
+		ValueType t = kTypeValue;
+		uint64_t* str  = new uint64_t[3];
+
+		//printf("In tid %lx\n", arg);
+		//printf("start %d\n",tid);
+		
+		bool fail = false;
+		for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
+
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+			bool b = false;
+			while (b == false) {
+				tx.Begin();
+				
+				for (int j=1; j<4; j++) {
+		 			
+					uint64_t *key = new uint64_t();
+					*key = j;
+					uint64_t *value = new uint64_t();
+					*value = i;
+		 			
+					tx.Add(t, *key, value);			
+				}
+				b = tx.End();
+
+			}
+			
+			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx1(seqs, store, *cmp);
+
+			typename leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
+  				leveldb::KeyHash, leveldb::KeyComparator>::Batch bat[3];
+
+			uint64_t *value[3];
+			Status stats[3];
+			
+			b = false;
+			int count = 0;
+			while (b == false) {
+				
+				tx1.Begin();
+				
+				for (int j = 0; j < 3; j++) {
+					bat[j].key = j + 1;
+					bat[j].value = &value[j];
+					bat[j].s = &stats[j];
+				}
+				tx1.GetBatch(bat, 3);
+				
+				b = tx1.End();
+				
+			}
+
+			
+			
+			if (!(*value[0]==*value[1])){
+				printf("Key 1 has value %d, Key 2 has value %d, not equal\n",*value[0],*value[1]);
+				fail = true;
+				break;
+			}
+			if (!(*value[1]==*value[2])) {
+				printf("Key 2 has value %d, Key 3 has value %d, not equal\n",*value[1],*value[2]);
+				fail = true;
+				break;
+			}
+			
+			
+
+		}
+		{
+		  MutexLock l(&shared->mu);
+		  if (fail) shared->fail = fail;
+		  shared->num_done++;
+		  if (shared->num_done >= shared->total) {
+			shared->cv.SignalAll();
+		  }
+		}
+
+	}
+	
 	void Run(void (*method)(void* arg), Slice name ) {
 		int num = FLAGS_threads;
 		printf("%s start\n", name.ToString().c_str());				 		
@@ -457,6 +548,7 @@ class Benchmark {
 		 	printf("%s fail!\n", name.ToString().c_str());	
 		 }else {
 		 if (name == Slice("equal")) printf("EqualTest pass!\n");
+		 if (name == Slice("equalbatch")) printf("EqualBatchTest pass!\n");
 		 else if (name == Slice("nocycle")) printf("NocycleTest pass!\n");
 		 else if (name == Slice("counter")) {
 		 	ValueType t = kTypeValue;
@@ -576,7 +668,9 @@ int main(int argc, char**argv)
       }
 	  if (name == leveldb::Slice("equal")){
         method = &leveldb::Benchmark::EqualTest;
-      } 
+      } if (name == leveldb::Slice("equalbatch")){
+        method = &leveldb::Benchmark::EqualBatchTest;
+      }
 	  else if (name == leveldb::Slice("counter")) {
 	  	method = &leveldb::Benchmark::CounterTest;
 	  }
