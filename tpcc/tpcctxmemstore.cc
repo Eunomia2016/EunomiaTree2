@@ -248,6 +248,11 @@ namespace leveldb {
 	seqs = new HashTable<Key, KeyHash, KeyComparator>(*kh, *cmp);
   }
 
+  TPCCTxMemStore::~TPCCTxMemStore() {
+  	delete store;
+	delete seqs;
+  }
+  
   void TPCCTxMemStore::insertWarehouse(const Warehouse & warehouse) {
   	int64_t key = makeWarehouseKey(warehouse.w_id);
 	//printf("insert w_key %d\n", key);
@@ -743,9 +748,40 @@ namespace leveldb {
 	  //(equals C_ID), and with the largest existing O_ID, is selected. This is the most recent order placed by that customer. 
 	  //O_ID, O_ENTRY_D, and O_CARRIER_ID are retrieved.
 	  //-------------------------------------------------------------------------
-	  //uint64_t o_key = makeOrderKey(warehouse_id, district_id, 100000000);
-	  //Status o_s;
-	  
+/*	  Order *o = NULL; int o_id;
+	  for (o_id = Order::MAX_ORDER_ID; o_id > 0; o_id--) {
+	    uint64_t o_key = makeOrderKey(warehouse_id, district_id, o_id);
+		Status o_s;
+		uint64_t *o_value;
+		bool found = tx.Get(o_key, &o_value, &o_s);
+		if (!found) continue;
+		o = reinterpret_cast<Order *>(*o_value);
+		if (o->o_c_id == customer_id) break;
+	  }
+	  output->o_id = o_id;
+      output->o_carrier_id = o->o_carrier_id;
+      strcpy(output->o_entry_d, o->o_entry_d);
+*/	  
+	  //-------------------------------------------------------------------------
+	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID),
+	  //and OL_O_ID (equals O_ID) are selected and the corresponding sets of OL_I_ID, OL_SUPPLY_W_ID,
+	  //OL_QUANTITY, OL_AMOUNT, and OL_DELIVERY_D are retrieved.
+	  //-------------------------------------------------------------------------
+/*
+	  output->lines.resize(o->o_ol_cnt);
+      for (int32_t line_number = 1; line_number <= o->o_ol_cnt; ++line_number) {
+		uint64_t ol_key = makeOrderLineKey(warehouse_id, district_id, o_id, line_number);
+		Status ol_s;
+		uint64_t *ol_value;
+		bool found = tx.Get(ol_key, &ol_value, &ol_s);
+        OrderLine* line = reinterpret_cast<OrderLine *>(*ol_value);
+        output->lines[line_number-1].ol_i_id = line->ol_i_id;
+        output->lines[line_number-1].ol_supply_w_id = line->ol_supply_w_id;
+        output->lines[line_number-1].ol_quantity = line->ol_quantity;
+        output->lines[line_number-1].ol_amount = line->ol_amount;
+        strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
+      }
+*/
       bool b = tx.End();  
   	  if (b) break;
     }
@@ -778,7 +814,7 @@ namespace leveldb {
 	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals W_ID), OL_D_ID (equals D_ID), 
 	  //and OL_O_ID (lower than D_NEXT_O_ID and greater than or equal to D_NEXT_O_ID minus 20) are selected.
 	  //-------------------------------------------------------------------------
-	  int i = o_id - 20;
+/*	  int i = o_id - 20;
 	  std::vector<int32_t> s_i_ids;
       // Average size is more like ~30.
       s_i_ids.reserve(300);
@@ -816,7 +852,7 @@ namespace leveldb {
           num_distinct += 1;
         }
       }    
-
+*/
 	  bool b = tx.End();  
   	  if (b) break;
 	}

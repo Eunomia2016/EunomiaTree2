@@ -105,7 +105,7 @@ class TPCCTxMemStore : public TPCCDB {
   KeyComparator *cmp;
 
   TPCCTxMemStore();
-
+  ~TPCCTxMemStore();
   
   void insertWarehouse(const Warehouse & warehouse);
   void insertItem(const Item& item);

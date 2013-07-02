@@ -666,8 +666,8 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
 //writeset->PrintHashTable();	
  
- RTMScope rtm(&rtmProf);
- //MutexLock mu(&storemutex);
+ //RTMScope rtm(&rtmProf);
+ MutexLock mu(&storemutex);
 
 
  //step 1. check if the seq has been changed (any one change the value after reading)

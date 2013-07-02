@@ -159,11 +159,11 @@ void TPCCClient::doOne() {
     // See TPC-C 5.2.4 (page 68).
     int x = generator_->number(1, 100);
     if (x <= 4) { // 4%
-//        doStockLevel();
+        doStockLevel();
     } else if (x <= 8) {  // 4%
 //        doDelivery();
     } else if (x <= 12) {  // 4%
-//        doOrderStatus();
+        doOrderStatus();
     } else if (x <= 12+43) { // 43%
         doPayment();
     } else {  // 45%

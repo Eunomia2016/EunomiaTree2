@@ -328,12 +328,12 @@ int main(int argc, const char* argv[]) {
     int64_t end = clock->getMicroseconds();
     printf("%"PRId64" ms\n", (end - begin + 500)/1000);
 
-     leveldb::Slice name("neworder");
+    leveldb::Slice name("neworder");
     leveldb::Benchmark b(tables, clock, cLoad);
 	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doOne);
 	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
 
-
+	delete tables;
 	printf("Hello World\n");
     return 0;
 }
