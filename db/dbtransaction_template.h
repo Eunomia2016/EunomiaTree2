@@ -379,9 +379,11 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::UpdateGlobal
     seqs[i].wseq++;
     *seqs[i].seqptr = seqs[i].wseq;
 
-	//TouchAddr((uint64_t)&seqs[i].wseq, 1);
-	//TouchAddr((uint64_t)&seqs[i].seqptr, 2);
-	//TouchAddr((uint64_t)seqs[i].seqptr, 3);
+
+//	TouchAddr((uint64_t)&seqs[i].wseq, 1);
+//	TouchAddr((uint64_t)&seqs[i].seqptr, 2);
+//	TouchAddr((uint64_t)seqs[i].seqptr, 3);
+
 	
   }
 
@@ -657,6 +659,10 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
+
+
+//readset->Validate(latestseq_);
+//writeset->UpdateGlobalSeqs();
   
 
 //writeset->PrintHashTable();	
