@@ -80,7 +80,7 @@ class TXMemStore{
 
   typedef LockfreeSkipList<TableKey, TableKeyComparator> Table;
 
-private:
+public:
   
 
   TableKeyComparator comparator_;
@@ -122,6 +122,8 @@ Status TXMemStore<Key, Value, Comparator>::Get(Key k, Value** val, uint64_t seq)
 
   Table::ThreadLocalInit();
 
+//  printf("get key %ld seq %ld\n", k, seq);
+  
   TableKey key;
   key.k = k;
   key.v = NULL;

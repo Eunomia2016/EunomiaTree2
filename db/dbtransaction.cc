@@ -414,7 +414,7 @@ void  DBTransaction::WriteSet::Resize() {
 		if (count > 1000) {
 			printf("Not found seq %ld  key %s \n",seq, key);
 			TXSkiplist* sl = (TXSkiplist*)txdb_;
-			sl->DumpTXSkiplist();
+//			sl->DumpTXSkiplist();
 			return false;
 		}
 		

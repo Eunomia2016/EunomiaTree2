@@ -14,8 +14,11 @@ static int FLAGS_txs = 100;
 static int FLAGS_threads = 4;
 static const char* FLAGS_benchmarks =
 	"equal,"
+	"equalbatch,"
 	"counter,"
+	"counterbatch,"
 	"nocycle,"
+	"nocyclebatch,"
 	"consistency";
 
 namespace leveldb {
@@ -152,6 +155,8 @@ class Benchmark {
 	};
 
 	static void ConsistencyTest(void* v) {
+		
+		leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
@@ -193,6 +198,8 @@ class Benchmark {
 	}
 	
 	static void NocycleTest(void* v) {
+
+		leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
@@ -274,6 +281,8 @@ class Benchmark {
 		}
 	}
 	static void CounterTest(void* v) {
+
+		leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
@@ -321,6 +330,8 @@ class Benchmark {
 	}
 	
 	static void EqualTest(void* v) {
+
+		leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
@@ -403,6 +414,8 @@ class Benchmark {
 
 
 	static void NocycleBatchTest(void* v) {
+
+		leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
@@ -492,6 +505,8 @@ class Benchmark {
 	}
 	
     static void CounterBatchTest(void* v) {
+
+		leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
@@ -546,6 +561,8 @@ class Benchmark {
 	}
 	
 	static void EqualBatchTest(void* v) {
+
+		leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
@@ -638,7 +655,7 @@ class Benchmark {
 		int num = FLAGS_threads;
 		printf("%s start\n", name.ToString().c_str());				 		
 		if (name == Slice("counter") || name == Slice("counterbatch")) {
-			
+			leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator>::Table::ForceThreadLocalClear();
 			ValueType t = kTypeValue;
 			leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
@@ -651,9 +668,11 @@ class Benchmark {
 			*key = 1;
 			uint64_t *value = new uint64_t();
 			*value = 0;
+			
 			tx.Add(t, *key, value);				
 												
 			b = tx.End();
+			
 			//if (b==true)printf("%d\n", i);
 			}
 			//printf("init \n");
@@ -695,6 +714,7 @@ class Benchmark {
 		 else if (name == Slice("nocycle")) printf("NocycleTest pass!\n");
 		 else if (name == Slice("nocyclebatch")) printf("NocycleBatchTest pass!\n");
 		 else if (name == Slice("counter") || name == Slice("counterbatch")) {
+		 	
 		 	ValueType t = kTypeValue;
 		 	leveldb::DBTransaction<leveldb::Key, leveldb::Key, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
@@ -832,6 +852,17 @@ int main(int argc, char**argv)
 	  
 
 	  leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> store(cmp);
+/*
+	  for(int i = 0; i < 17; i++)
+	  {
+	  	uint64_t *v;
+	    store.Get(i-1, &v, i-1);
+		store.Put(i, (uint64_t *)&i, i);
+	  }
+	  benchmarks = NULL;
+*/
+	
+	
   	  leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> seqs(kh, cmp);
 	  
 	  leveldb::Benchmark *benchmark = new leveldb::Benchmark(&seqs, &store, &cmp);

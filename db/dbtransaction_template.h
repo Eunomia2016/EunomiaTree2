@@ -411,7 +411,7 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Commit(
   //should holde the mutex of memstore
   for(int i = 0; i < elems; i++) {
 	memstore->Put(kvs[i].key, kvs[i].val, seqs[i].wseq);
-	//printf("Put key %ld Value %ld Seq %ld\n", kvs[i].key, *kvs[i].val, seqs[i].wseq);
+    //printf("Put key %ld Value %ld Seq %ld\n", kvs[i].key, *kvs[i].val, seqs[i].wseq);
   }
   
 }
@@ -572,7 +572,8 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::GetBatch(Batch keys[],
 					printf("Key %ld seq %d count %d\n", keys[i].key, keys[i].seq, count); 
 					//latestseq_->PrintHashTable();
 					//txdb_->DumpTXMemStore();
-					//exit(1);
+					txdb_->table_.PrintList();
+					exit(1);
 					count = 0;
 				}
 				count++;
