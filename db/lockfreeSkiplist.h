@@ -313,7 +313,7 @@ bool LockfreeSkipList<Key,Comparator>::KeyIsAfterNode(const Key& key, Node* n) c
 template<typename Key, class Comparator>
 typename LockfreeSkipList<Key,Comparator>::Node* LockfreeSkipList<Key,Comparator>::FindGreaterOrEqual(const Key& key, Node** prev)
     const {
-
+/*
   if((curNode_ != NULL) && (compare_(curNode_->key, key) == 0)) {
 
 	if (prev != NULL) {
@@ -333,15 +333,15 @@ typename LockfreeSkipList<Key,Comparator>::Node* LockfreeSkipList<Key,Comparator
   
   Node* x = curNode_;
   int level = curNode_->height - 1;
-
-  //if(curNode_ != head_)
- 	// printf("cur key %ld height %d\n", curNode_->key.k, level+1);
   
   if (prev != NULL && curNode_ != head_) {
   	for(int i = 0; i < GetMaxHeight(); i++)
 	  	prev[i] = curPreds_[i];
   }
+*/
 
+  Node* x = head_;
+  int level = GetMaxHeight() - 1;
 
   while (true) {
     Node* next = x->Next(level);
@@ -352,15 +352,18 @@ typename LockfreeSkipList<Key,Comparator>::Node* LockfreeSkipList<Key,Comparator
     } else {
       if (prev != NULL) 
 	  	prev[level] = x;
-	  
-	  curPreds_[level] = x;
+	    curPreds_[level] = x;
 	  
       if (level == 0) {
 	  	curNode_ = next;
         return next;
       } else {
         // Switch to next list
-        level--;
+       	level--;
+		if(KeyIsAfterNode(key, curPreds_[level]) 
+			&& KeyIsAfterNode(curPreds_[level]->key, x))
+			x = curPreds_[level];
+			
       }
     }
   }

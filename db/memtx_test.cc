@@ -853,20 +853,26 @@ int main(int argc, char**argv)
 
 	  leveldb::TXMemStore<leveldb::Key, leveldb::Key, leveldb::KeyComparator> store(cmp);
 /*
-	  for(int i = 0; i < 17; i++)
+	  double start = leveldb::Env::Default()->NowMicros();
+	  
+	  for(int i = 0; i < 1000000; i++)
 	  {
 	  	uint64_t *v;
 	    store.Get(i-1, &v, i-1);
 		store.Put(i, (uint64_t *)&i, i);
 	  }
+
+	  double end = leveldb::Env::Default()->NowMicros();
 	  benchmarks = NULL;
+	  printf("Total Time %lf\n", (end - start));
 */
-	
+		
 	
   	  leveldb::HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> seqs(kh, cmp);
 	  
 	  leveldb::Benchmark *benchmark = new leveldb::Benchmark(&seqs, &store, &cmp);
-  	  benchmark->Run(method, name);
+
+	  benchmark->Run(method, name);
     }
 	
 
