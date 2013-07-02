@@ -419,6 +419,10 @@ inline void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::SwapW
 	WSKV tmp = kvs[i];
 	kvs[i] = kvs[j];
 	kvs[j] = tmp;
+
+	WSSeqPair stmp = seqs[i];
+	seqs[i] = seqs[j];
+	seqs[j] = stmp;
 }
 
 
@@ -426,9 +430,8 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 int DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::PartitionWS(int left, int right, int pivotIndex)
 {
 	WSKV pivotValue = kvs[pivotIndex];
-	kvs[pivotIndex] = kvs[right];
-	kvs[right] = pivotValue;
-
+	SwapWS(pivotIndex, right);
+	
 	int storeIndex = left;
 	
 	for(int i = left; i < right; i++) {
@@ -461,7 +464,9 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Commit(
 {
   //commit the local write set into the memory storage
   //should holde the mutex of memstore
+  
   SortWS(0, elems - 1);
+  
   for(int i = 0; i < elems; i++) {
 	memstore->Put(kvs[i].key, kvs[i].val, seqs[i].wseq);
     //printf("Put key %ld Value %ld Seq %ld\n", kvs[i].key, *kvs[i].val, seqs[i].wseq);
