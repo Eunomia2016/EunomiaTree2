@@ -20,6 +20,8 @@
 
 namespace leveldb {
 
+#define SORTWRITESET 0
+
 template<typename Key, typename Value, class HashFunction, class Comparator>
 class DBTransaction {
  public:
@@ -462,11 +464,11 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Commit(
 											  TXMemStore<Key, Value, Comparator> *memstore) 
 {
-  //commit the local write set into the memory storage
-  //should holde the mutex of memstore
-  
+
+#if SORTWRITESET 
   SortWS(0, elems - 1);
-  
+#endif
+
   for(int i = 0; i < elems; i++) {
 	memstore->Put(kvs[i].key, kvs[i].val, seqs[i].wseq);
     //printf("Put key %ld Value %ld Seq %ld\n", kvs[i].key, *kvs[i].val, seqs[i].wseq);
@@ -673,9 +675,6 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
   typename HashTable<Key, HashFunction, Comparator>::Node* node = latestseq_->GetNode(key);
 
   if ( NULL == node) {
-	//even not found, still need to put the k into read set to avoid concurrent insertion
-	//printf("key %ld not found\n", key);
-	//latestseq_->PrintHashTable();
 	readset->Add(latestseq_->hashfunc_.hash(key), seq, (uint64_t *)0);
 	*s = Status::NotFound(Slice());
 	return false;
@@ -697,12 +696,6 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 	res = txdb_->Get(key, value, seq);
 
 	count ++;
-	/*
-	if(count > 1000) {
-		printf("Too Many Time Get Failure key %ld seq %ld\n", key, seq);
-		txdb_->DumpTXMemStore();
-		exit(1);
-	}*/
 		
    }while(res.IsNotFound());
 
@@ -716,12 +709,6 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
-
-//readset->Validate(latestseq_);
-//writeset->UpdateGlobalSeqs();
-  
-
-//writeset->PrintHashTable();	
  
  //RTMScope rtm(&rtmProf);
  MutexLock mu(&storemutex);

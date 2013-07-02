@@ -42,7 +42,7 @@
 namespace leveldb {
 
 class Arena;
-
+#define LocalCursor 0
 
 
 template<typename Key, class Comparator>
@@ -326,18 +326,24 @@ typename LockfreeSkipList<Key,Comparator>::Node* LockfreeSkipList<Key,Comparator
     } else {
       if (prev != NULL) 
 	  	prev[level] = x;
-	    curPreds_[level] = x;
 	  
+#if LocalCursor	
+	    curPreds_[level] = x;
+#endif
+
       if (level == 0) {
 	  	curNode_ = next;
         return next;
       } else {
         // Switch to next list
        	level--;
+		
+#if LocalCursor	
 		if(KeyIsAfterNode(key, curPreds_[level]) 
 			&& KeyIsAfterNode(curPreds_[level]->key, x))
 			x = curPreds_[level];
-			
+#endif	
+
       }
     }
   }
