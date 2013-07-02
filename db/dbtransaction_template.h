@@ -105,18 +105,23 @@ public:
 
 		WSSeqPair *seqs;
 		WSKV *kvs;
+		Comparator comp_;
 
 		void Resize();
 			
 	  public:
-		WriteSet();
+		WriteSet(Comparator comp_);
 		~WriteSet();	
 		void TouchAddr(uint64_t addr, int type);
 		
 		void Add(ValueType type, Key key, Value* val, uint64_t* seqptr);
 		void UpdateGlobalSeqs();
 		bool Lookup(Key key, ValueType* type, Value** val, Comparator& cmp);
-		
+
+		inline void SwapWS(int i, int j);
+		inline int PartitionWS(int left, int right, int pivotIndex);
+		inline void SortWS(int left, int right);
+	
 		void Commit(TXMemStore<Key, Value, Comparator> *memstore);
 		void Print();
 		void Reset();
@@ -248,8 +253,9 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::ReadSet::Print()
 
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
-DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::WriteSet() {
+DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::WriteSet(Comparator comp) {
 
+  this->comp_ = comp;
   max_length = 1024; //first allocate 1024 numbers
   elems = 0;
 
@@ -406,14 +412,59 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Lookup(
 }
 
 template<typename Key, typename Value, class HashFunction, class Comparator>
+inline void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::SwapWS(int i, int j)
+{
+	if( i == j)
+		return;
+	WSKV tmp = kvs[i];
+	kvs[i] = kvs[j];
+	kvs[j] = tmp;
+}
+
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+int DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::PartitionWS(int left, int right, int pivotIndex)
+{
+	WSKV pivotValue = kvs[pivotIndex];
+	kvs[pivotIndex] = kvs[right];
+	kvs[right] = pivotValue;
+
+	int storeIndex = left;
+	
+	for(int i = left; i < right; i++) {
+		if(comp_(kvs[i].key, pivotValue.key)<=0) {
+			SwapWS(storeIndex, i);
+			storeIndex++;
+		}
+	}
+
+	SwapWS(right, storeIndex);
+	return storeIndex;
+}
+
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
+void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::SortWS(int left, int right)
+{
+	if(left < right) {
+		int pivotIndex = (left + right)/2;
+		int pivotNewIndex = PartitionWS(left, right, pivotIndex);
+		SortWS(left, pivotNewIndex - 1);
+		SortWS(pivotNewIndex + 1, right);
+	}
+}
+
+
+template<typename Key, typename Value, class HashFunction, class Comparator>
 void DBTransaction<Key, Value, HashFunction, Comparator>::WriteSet::Commit(
 											  TXMemStore<Key, Value, Comparator> *memstore) 
 {
   //commit the local write set into the memory storage
   //should holde the mutex of memstore
+  SortWS(0, elems - 1);
   for(int i = 0; i < elems; i++) {
 	memstore->Put(kvs[i].key, kvs[i].val, seqs[i].wseq);
-	//printf("Put key %ld Value %ld Seq %ld\n", kvs[i].key, *kvs[i].val, seqs[i].wseq);
+    //printf("Put key %ld Value %ld Seq %ld\n", kvs[i].key, *kvs[i].val, seqs[i].wseq);
   }
   
 }
@@ -445,7 +496,7 @@ TXMemStore<Key, Value, Comparator>* store, Comparator comp)
   txdb_ = store;
 
   readset = new ReadSet();
-  writeset = new WriteSet();
+  writeset = new WriteSet(comp);
 
   count = 0;
 }
@@ -574,7 +625,8 @@ void DBTransaction<Key, Value, HashFunction, Comparator>::GetBatch(Batch keys[],
 					printf("Key %ld seq %d count %d\n", keys[i].key, keys[i].seq, count); 
 					//latestseq_->PrintHashTable();
 					//txdb_->DumpTXMemStore();
-					//exit(1);
+					txdb_->table_.PrintList();
+					exit(1);
 					count = 0;
 				}
 				count++;

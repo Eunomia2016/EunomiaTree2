@@ -265,17 +265,9 @@ private:
 						tx.Begin();
 						//first write tuples
 						startT = Read_tsc();
-						uint64_t *k ;
-						for(int i = 0; i < wnum; i++) {
-							k = new uint64_t();
-							*k = thread->rnd.Next();
-							tx.Add(t, *k, k);
-						}
-						endT = Read_tsc();
-						addT +=  endT - startT;
-
+						
 						typename leveldb::DBTransaction<Key, Key, KeyHash, KeyComparator>::Batch batchs[256];
-							
+						uint64_t *k ;
 						for(int i = 0; i < rnum; i++) {
 							uint64_t *v;
 							//tx.Get(thread->rnd.Next(), &v, &s);
@@ -284,33 +276,28 @@ private:
 							batchs[i].s = &s;
 							
 						}
-						printf("Before Sort ");
-						for(int i = 0; i < rnum; i++) 
-						{
-							printf("Elem[%d] key %ld value %ld\n", 
-								i, batchs[i].key, (uint64_t)batchs[i].value);
-						}
 						tx.GetBatch(batchs,rnum);
+						
+						endT = Read_tsc();
+						getT +=  endT - startT;
 
-
-						printf("After Sort ");
-						for(int i = 0; i < rnum; i++) 
-						{
-							printf("Elem[%d] key %ld value %ld\n", 
-								i, batchs[i].key, (uint64_t)batchs[i].value);
+						for(int i = 0; i < wnum; i++) {
+							k = new uint64_t();
+							*k = thread->rnd.Next();
+							tx.Add(t, *k, k);
 						}
 						
 						startT = Read_tsc();
-						getT +=  startT - endT;
+						addT +=  startT - endT;
 
 						done = tx.Validation();
-
+					//	printf("validation %d\n", done);
 						endT = Read_tsc();
 						valT +=  endT - startT;
 
 						if(done)
 							tx.GlobalCommit();
-
+						//printf("commit %d\n", done);
 						startT = Read_tsc();
 						comT +=  startT - endT;
 						

@@ -43,6 +43,8 @@ namespace leveldb {
 
 class Arena;
 
+
+
 template<typename Key, class Comparator>
 class LockfreeSkipList {
  public:
@@ -59,6 +61,7 @@ class LockfreeSkipList {
   ~LockfreeSkipList();
 
   static void ThreadLocalInit();
+  static void ForceThreadLocalClear();
   static void GlobalClear();
 
   // Insert key into the list.
@@ -126,8 +129,10 @@ class LockfreeSkipList {
 
   // Immutable after construction
   Comparator const compare_;
-  
 
+  static __thread Node** curPreds_;
+  static __thread Node* curNode_;
+  
   Node* head_;
 
   // Modified only by Insert().  Read racily by readers, but stale
@@ -185,6 +190,7 @@ struct LockfreeSkipList<Key,Comparator>::Node {
   explicit Node(const Key& k) : key(k) { }
 
   Key key;
+  int height;
   port::SpinLock lock;
 
   // Accessors/mutators for links.  Wrapped in methods so we can
@@ -225,7 +231,9 @@ LockfreeSkipList<Key,Comparator>::NewNode(const Key& key, int height) {
   char* mem = new char[(
       sizeof(Node) + sizeof(port::AtomicPointer) * (height - 1))];
 //  assert((mem & (64 -1)) == 0);
-  return new (mem) Node(key);
+  Node* n = new (mem) Node(key);
+  n->height = height;
+  return n;
 }
 
 
@@ -305,21 +313,57 @@ bool LockfreeSkipList<Key,Comparator>::KeyIsAfterNode(const Key& key, Node* n) c
 template<typename Key, class Comparator>
 typename LockfreeSkipList<Key,Comparator>::Node* LockfreeSkipList<Key,Comparator>::FindGreaterOrEqual(const Key& key, Node** prev)
     const {
+/*
+  if((curNode_ != NULL) && (compare_(curNode_->key, key) == 0)) {
+
+	if (prev != NULL) {
+	  	for(int i = 0; i < GetMaxHeight(); i++)
+		  	prev[i] = curPreds_[i];
+	}
+
+    return curNode_;
+  }
+  
+  if (curNode_ == NULL || !KeyIsAfterNode(key, curNode_)) {
+  	curNode_ = head_;
+	curNode_->height = GetMaxHeight();
+	for(int i = 0; i < kMaxHeight; i++)
+	   curPreds_[i] = head_;
+  }
+  
+  Node* x = curNode_;
+  int level = curNode_->height - 1;
+  
+  if (prev != NULL && curNode_ != head_) {
+  	for(int i = 0; i < GetMaxHeight(); i++)
+	  	prev[i] = curPreds_[i];
+  }
+*/
+
   Node* x = head_;
   int level = GetMaxHeight() - 1;
+
   while (true) {
     Node* next = x->Next(level);
+	
     if (KeyIsAfterNode(key, next)) {
       // Keep searching in this list
       x = next;
     } else {
       if (prev != NULL) 
 	  	prev[level] = x;
+	    curPreds_[level] = x;
+	  
       if (level == 0) {
+	  	curNode_ = next;
         return next;
       } else {
         // Switch to next list
-        level--;
+       	level--;
+		if(KeyIsAfterNode(key, curPreds_[level]) 
+			&& KeyIsAfterNode(curPreds_[level]->key, x))
+			x = curPreds_[level];
+			
       }
     }
   }
@@ -401,6 +445,16 @@ template<typename Key, class Comparator>
 __thread Arena* LockfreeSkipList<Key,Comparator>::arena_ = NULL;
 
 template<typename Key, class Comparator>
+__thread typename LockfreeSkipList<Key,Comparator>::Node* 
+LockfreeSkipList<Key,Comparator>::curNode_ = NULL;
+
+
+template<typename Key, class Comparator>
+__thread typename LockfreeSkipList<Key,Comparator>::Node** 
+LockfreeSkipList<Key,Comparator>::curPreds_ = NULL;
+
+
+template<typename Key, class Comparator>
 std::vector<Arena*> LockfreeSkipList<Key,Comparator>::arenas_collector;
 
 template<typename Key, class Comparator>
@@ -417,9 +471,18 @@ void LockfreeSkipList<Key,Comparator>::ThreadLocalInit() {
 		arenas_collector.push_back(arena_);
 		ac_lock.Unlock();
 		localinit_ = true;
+		curNode_ = NULL;
+		curPreds_ = new Node*[kMaxHeight];
 	}
 
 }
+
+template<typename Key, class Comparator>
+void LockfreeSkipList<Key,Comparator>::ForceThreadLocalClear() {
+
+	localinit_ = false;
+}
+
 
 
 template<typename Key, class Comparator>
@@ -489,6 +552,21 @@ void LockfreeSkipList<Key,Comparator>::PrintList() const {
 	
 	//Check every level
 	printf(" Max Height %d\n", GetMaxHeight());
+
+	Node* cur = head_;
+		int count = 0;
+		
+		
+	while(cur != NULL)
+	{
+		
+		Key prev = cur->key;
+		printf("key %ld height %ld\n", prev.k, cur->height);
+		cur = cur->Next(0);
+		
+		count++;
+	}
+		
 	/*
 	for(int i = kMaxHeight - 1; i >= 0; i--) {	
 		
@@ -496,25 +574,19 @@ void LockfreeSkipList<Key,Comparator>::PrintList() const {
 		
 		Node* cur = head_;
 		int count = 0;
-		Key prev = NULL;
+		
 		
 		while(cur != NULL)
 		{
-			if(prev != NULL && compare_(prev, cur->key) >= 0) {
-				printf(" ERROR OCCUR \n");	
-				printf("The %dth element %lx is bigger than the %dth element %lx \n",
-					count - 1, prev, count, cur->key);	
-				exit(1);
-			}
 			
-			prev = cur->key;
+			Key prev = cur->key;
 			cur = cur->Next(i);
 			count++;
 		}
 
 		printf(" Layer %d Has %d Elements\n", i, count);
 	}
-	*/
+	
 	Iterator iter(this);
 	iter.SeekToFirst();
 	int count = 0;
@@ -522,17 +594,6 @@ void LockfreeSkipList<Key,Comparator>::PrintList() const {
 	Key min, max;
 	while(iter.Valid()) {
 		count++;
-		if(count == 1) {
-			printf("First Key %lx\n", iter.key());
-			min = iter.key();
-		}
-		if(prev != NULL && compare_(prev, iter.key()) >= 0) {
-			printf(" ERROR OCCUR \n");	
-			printf("The %dth element %lx is bigger than the %dth element %lx \n",
-				count - 1, prev, count, iter.key());	
-			exit(1);
-		}
-
 		prev = iter.key();
 		iter.Next();
 	}
@@ -681,7 +742,7 @@ size_t LockfreeSkipList<Key,Comparator>::Insert(const Key& key) {
   Node* preds[kMaxHeight];
   Node* succs[kMaxHeight];
   int height = RandomHeight();
-  
+
   if (height > GetMaxHeight()) {
     for (int i = GetMaxHeight(); i < height; i++) {
       preds[i] = head_;
@@ -699,6 +760,7 @@ size_t LockfreeSkipList<Key,Comparator>::Insert(const Key& key) {
   
   assert(x == NULL || !Equal(key, x->key));
 
+//  printf("put key %ld height %ld \n", key.k, height);
   x = NewNode(key, height);
 
   
@@ -713,7 +775,8 @@ size_t LockfreeSkipList<Key,Comparator>::Insert(const Key& key) {
 		
 		//We should first get succs[i] which is larger than the key
 		succs[i] = preds[i]->NoBarrier_Next(i);
-    	while(KeyIsAfterNode(key, succs[i])) {		
+    	while(KeyIsAfterNode(key, succs[i])) {
+			
 			preds[i] = succs[i];
 			succs[i] = preds[i]->NoBarrier_Next(i);			
 		}

@@ -30,14 +30,15 @@ class RTMScope {
 			
 		} else {			
 			retry++; 
-/*
-			localprofile.localRecordAbortStatus(stat);
-			if(retry > 100000){
-				localprofile.reportAbortStatus();	
+
+//			localprofile.localRecordAbortStatus(stat);
+			if(retry > 10000){
+				printf("retry %d\n", retry);
+	//			localprofile.reportAbortStatus();	
 				exit(1);
 				retry = 0;
 			}
-	*/		
+			
 			continue;
 		}
 	}
