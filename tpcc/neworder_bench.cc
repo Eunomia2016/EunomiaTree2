@@ -278,6 +278,29 @@ class Benchmark {
 	  }
     }
   }
+
+  
+  void doPayment(ThreadState* thread) {
+	  // Change the constants for run
+	  tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+	  random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
+  
+	  // Client owns all the parameters
+	  TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
+			  District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
+	  client.bindWarehouseDistrict(thread->tid + 1, 0);
+	  
+	  //for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
+	  while (total_count > 0) {
+		int64_t oldv = XADD64(&total_count, -1000);
+		if(oldv <= 0) break;
+		
+		for (int i =0; i < 1000; i++) {   
+		  client.doPayment();
+		  thread->stats.FinishedSingleOp();
+		}
+	  }
+	}
 };
 }
 int main(int argc, const char* argv[]) {
@@ -331,8 +354,9 @@ int main(int argc, const char* argv[]) {
     leveldb::Slice name("neworder");
     leveldb::Benchmark b(tables, clock, cLoad);
 	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doOne);
-	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
-
+	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
+	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doPayment);
+	
 	delete tables;
 	printf("Hello World\n");
     return 0;
