@@ -26,6 +26,8 @@ class RTMProfile {
  pthread_spinlock_t slock;
  uint32_t status[7];
  uint32_t abortCounts;
+ uint32_t capacityCounts;
+ uint32_t conflictCounts;
  uint32_t succCounts;
 
 
@@ -50,6 +52,8 @@ class RTMProfile {
 	pthread_spin_init(&slock, PTHREAD_PROCESS_PRIVATE);
 	abortCounts	= 0;
 	succCounts = 0;
+	capacityCounts = 0;
+	conflictCounts = 0;
 	for( int i = 0; i < 7; i++)
 		status[i] =0;
   }

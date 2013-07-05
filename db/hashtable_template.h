@@ -23,7 +23,7 @@
 #include "leveldb/slice.h"
 #include <stdlib.h>
 #include "util/rtm_arena.h"
-#include "util/rtm_arena.h"
+#include "util/arena.h"
 #include "port/port.h"
 #include "util/mutexlock.h"
 #include "util/rwlock.h"
@@ -41,12 +41,13 @@ class HashTable {
  public:
   
   struct Node 
-  {
-
-	  uint64_t seq;
+  {  
 	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
 	  Node* next; 
 	  Key key;
+  	  char padding0[128];
+	  uint64_t seq;
+	  char padding1[128];
   };
 
 
@@ -70,6 +71,8 @@ class HashTable {
   Node* InsertInRTM(Key k, uint64_t seq);
   void PrintHashTable();
 
+  static void ThreadLocalInit();
+  
   HashFunction hashfunc_;
   
   public:
@@ -80,11 +83,31 @@ class HashTable {
 
   Comparator compare_;
   
+  static __thread RTMArena* arena_;    // Arena used for allocations of nodes
+  static __thread bool localinit_;
   
   void Resize();
   Node* NewNode(Key key);
 
  };
+
+template<typename Key, class HashFunction, class Comparator>
+__thread RTMArena* HashTable<Key, HashFunction, Comparator>::arena_ = NULL;
+
+template<typename Key, class HashFunction, class Comparator>
+__thread bool HashTable<Key, HashFunction, Comparator>::localinit_ = false;
+
+
+template<typename Key, class HashFunction, class Comparator>
+void HashTable<Key, HashFunction, Comparator>::ThreadLocalInit() {
+
+	if(localinit_ == false) {
+		arena_ = new RTMArena();
+		localinit_ = true;
+	}
+
+}
+
 
 
 template<typename Key, class HashFunction, class Comparator>
@@ -96,15 +119,24 @@ HashTable<Key, HashFunction, Comparator>::HashTable(HashFunction hf, Comparator 
       list_(NULL) {
       
 	Resize();
+	ThreadLocalInit();
+	printf("size of Node %d\n", sizeof(Node));
 	
 }
 
 template<typename Key, class HashFunction, class Comparator>
 HashTable<Key, HashFunction, Comparator>::~HashTable() {
 
-	for (uint32_t i = 0; i < length_; i++) {
 	
-	  //delete list_[i].spinlock;
+	for (uint32_t i = 0; i < length_; i++) {
+	  
+	  Node* h = list_[i].h;
+	  while (h != NULL) {
+//		printf("Node Addr %lx Value Addr %lx\n", h, &h->seq);
+		
+		h = h->next;
+	
+	  }
 	}
 	
 	delete[] list_;	
@@ -241,14 +273,12 @@ HashTable<Key, HashFunction, Comparator>::GetNodeWithInsert(Key k)
 	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* tmp = NewNode(k);
-	//MutexSpinLock(slot->spinlock);
-	//slot->rwlock.StartWrite();
 
 retry:
 
 	Node* ptr = slot->h;
 	uint64_t oldv = (uint64_t)ptr;
-	
+
     while (ptr != NULL &&
            (ptr->hash != hash || compare_(ptr->key, k) != 0)) {
   
@@ -271,11 +301,11 @@ retry:
 
 	} else {
 	
-		delete tmp;
+		//delete tmp;
 		
 	}
 
-	//slot->rwlock.EndWrite();
+	
 	
     return ptr;
 	
@@ -292,10 +322,6 @@ HashTable<Key, HashFunction, Comparator>::Insert(Key k, uint64_t seq)
 	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(k);
-	
-	//MutexSpinLock(slot.spinlock);
-	
-	//slot->rwlock.StartWrite();
 
 	ptr->seq = seq;
 	ptr->hash = hash;
@@ -309,7 +335,6 @@ retry:
     if( (uint64_t)ptr->next != curv)
 		goto retry;
 	
-	//slot->rwlock.EndWrite();
 	
     return ptr;
 	
@@ -326,10 +351,6 @@ HashTable<Key, HashFunction, Comparator>::InsertInRTM(Key k, uint64_t seq)
 	uint64_t hash = hashfunc_.hash(k);
 	Head *slot = &list_[hash & (length_ - 1)];
 	Node* ptr = NewNode(k);
-	
-	//MutexSpinLock(slot.spinlock);
-	
-	//slot->rwlock.StartWrite();
 
 	ptr->seq = 0;
 	ptr->hash = hash;
@@ -337,7 +358,6 @@ HashTable<Key, HashFunction, Comparator>::InsertInRTM(Key k, uint64_t seq)
 	
     slot->h = ptr;
 
-	//slot->rwlock.EndWrite();
 	
     return ptr;
 	
@@ -377,8 +397,11 @@ template<typename Key, class HashFunction, class Comparator>
 typename HashTable<Key, HashFunction, Comparator>::Node* 
 HashTable<Key, HashFunction, Comparator>::NewNode(Key k)
 {
-	Node* e = new Node();
-	e->key = k;
+
+	Node* e = reinterpret_cast<Node*>(arena_->AllocateAligned(sizeof(Node)));
+
+  	e->key = k;
+	e->next = NULL;
 	
     return e;
 }

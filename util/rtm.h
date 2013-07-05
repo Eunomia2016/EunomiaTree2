@@ -12,9 +12,11 @@ namespace leveldb {
 
 class RTMScope {
 	
-// RTMProfile localprofile;
+ RTMProfile localprofile;
  RTMProfile* globalprof;
  int retry;
+ int conflict;
+ int capacity;
  uint64_t befcommit;
  uint64_t aftcommit;
 
@@ -22,23 +24,31 @@ class RTMScope {
   inline RTMScope(RTMProfile* prof) {
   	globalprof = prof;
 	retry = 0;
+	conflict = 0;
+	capacity = 0;
+	
 	while(true) {
 	    unsigned stat;
 	 	stat = _xbegin ();
 		if(stat == _XBEGIN_STARTED) {
 			return;
 			
-		} else {			
-			retry++; 
-
-//			localprofile.localRecordAbortStatus(stat);
+		} else {
+		
+			retry++;
+			if((stat & _XABORT_CONFLICT) != 0) 
+		  		conflict++;
+			else if((stat & _XABORT_CAPACITY) != 0)
+				capacity++;
+/*
+			localprofile.localRecordAbortStatus(stat);
 			if(retry > 10000){
 				printf("retry %d\n", retry);
-	//			localprofile.reportAbortStatus();	
-				exit(1);
+				localprofile.reportAbortStatus();	
+			//	exit(1);
 				retry = 0;
 			}
-			
+	*/		
 			continue;
 		}
 	}
@@ -53,6 +63,8 @@ inline  ~RTMScope() {
 	//access the global profile info outside the transaction scope
 	if(globalprof != NULL) {
 		globalprof->abortCounts += retry;
+		globalprof->capacityCounts += capacity;
+		globalprof->conflictCounts += conflict;
 	}
 //		globalprof->MergeLocalStatus(localprofile);
 

@@ -8,7 +8,8 @@
 
 OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
 #OPT ?= -g2              # (B) Debug mode, w/ full line-level debugging symbols
-# OPT ?= -O2 -g2 -DNDEBUG # (C) Profiling mode: opt, but w/debugging symbols
+#OPT ?= -O2 -g2 -DNDEBUG
+#OPT ?= -O2 -fno-omit-frame-pointer -g2 -DNDEBUG # (C) Profiling mode: opt, but w/debugging symbols
 #-----------------------------------------------
 
 # detect what platform we're building on
