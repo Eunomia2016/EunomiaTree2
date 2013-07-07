@@ -103,6 +103,9 @@ class TPCCTxMemStore : public TPCCDB {
   HashTable<leveldb::Key, leveldb::KeyHash, leveldb::KeyComparator> *seqs;
   TXMemStore<leveldb::Key, leveldb::Value, leveldb::KeyComparator>* store;
   KeyComparator *cmp;
+  uint64_t abort;
+  uint64_t conflict;
+  uint64_t capacity;
 
   TPCCTxMemStore();
   ~TPCCTxMemStore();

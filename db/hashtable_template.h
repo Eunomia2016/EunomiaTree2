@@ -45,9 +45,9 @@ class HashTable {
 	  uint64_t hash;	  // Hash of key(); used for fast sharding and comparisons
 	  Node* next; 
 	  Key key;
-  	  char padding0[128];
+//  	  char padding0[128];
 	  uint64_t seq;
-	  char padding1[128];
+//	  char padding1[128];
   };
 
 

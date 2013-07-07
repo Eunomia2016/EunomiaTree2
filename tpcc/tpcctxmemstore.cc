@@ -246,11 +246,17 @@ namespace leveldb {
 	store = new TXMemStore<Key, Value, leveldb::KeyComparator>(*cmp);
 	KeyHash *kh = new KeyHash();
 	seqs = new HashTable<Key, KeyHash, KeyComparator>(*kh, *cmp);
+	abort = 0;
+    conflict = 0;
+    capacity = 0;
   }
 
   TPCCTxMemStore::~TPCCTxMemStore() {
   	delete store;
 	delete seqs;
+	printf("#Abort : %d\n", abort);
+	printf("#Conflict : %d\n", conflict);
+	printf("#Capacity: %d\n", capacity);
   }
   
   void TPCCTxMemStore::insertWarehouse(const Warehouse & warehouse) {
@@ -477,6 +483,7 @@ namespace leveldb {
 	  no->no_o_id = output->o_id;
 	  uint64_t no_key = makeNewOrderKey(warehouse_id, district_id, no->no_o_id);
 	  uint64_t *no_value = new uint64_t();
+	  *no_value = reinterpret_cast<uint64_t>(no);
 	  tx.Add(t, no_key, no_value);
 
 	  //-------------------------------------------------------------------------
@@ -591,7 +598,10 @@ namespace leveldb {
  	  bool b = tx.End();  
   	  if (b) break;
   	}
-  
+
+    atomic_add64(&abort, tx.rtmProf.abortCounts);
+	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
+	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
     return true;
   }
 
