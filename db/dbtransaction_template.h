@@ -727,7 +727,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
- 	printf("before lock\n");	
+ 	//printf("before lock\n");	
 	RTMScope rtm(&rtmProf);
  	// 
  	// slock.Lock();

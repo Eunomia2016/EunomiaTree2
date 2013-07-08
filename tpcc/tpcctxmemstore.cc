@@ -360,7 +360,7 @@ namespace leveldb {
 	//Check correctness
 	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
-	printf("Check\n");
+	//printf("Check\n");
 	while(true) {
 	  
 	  tx.Begin();
@@ -438,7 +438,7 @@ namespace leveldb {
 	  output->d_tax = d->d_tax;
 	  
 	  output->o_id = d->d_next_o_id;
-      printf("%d %d %d\n", warehouse_id, district_id, output->o_id);
+      //printf("%d %d %d\n", warehouse_id, district_id, output->o_id);
   	  District *newd = new District();
 	  updateDistrict(newd, d);
 	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
