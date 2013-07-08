@@ -728,6 +728,7 @@ template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
  	//printf("before lock\n");	
+ 	//MutexLock lock(&storemutex);
 	RTMScope rtm(&rtmProf);
  	// 
  	// slock.Lock();
