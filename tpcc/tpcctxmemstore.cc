@@ -358,7 +358,7 @@ namespace leveldb {
         return false;
     }
 	//Check correctness
-	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+/*	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
 	//printf("Check\n");
 	while(true) {
@@ -381,7 +381,7 @@ namespace leveldb {
 	  bool b = tx.End();  
   	  if (b) break;
   	}
-	
+	*/
     return true;
   }
 
