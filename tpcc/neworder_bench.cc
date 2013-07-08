@@ -239,7 +239,7 @@ class Benchmark {
   	// Change the constants for run
     tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
     random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
-
+	random->seed(0xdeadbeef + thread->tid << 10);
     // Client owns all the parameters
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
@@ -261,7 +261,7 @@ class Benchmark {
   	// Change the constants for run
     tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
     random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
-
+	random->seed(0xdeadbeef + thread->tid << 10);
     // Client owns all the parameters
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
@@ -284,7 +284,7 @@ class Benchmark {
 	  // Change the constants for run
 	  tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
 	  random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
-  
+  	  random->seed(0xdeadbeef + thread->tid << 10);
 	  // Client owns all the parameters
 	  TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
 			  District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);

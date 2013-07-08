@@ -138,13 +138,14 @@ void makeLastName(int num, char* name) {
 }
 
 RealRandomGenerator::RealRandomGenerator() {
+	//printf("Init\n");
 #ifdef HAVE_RANDOM_R
     // Set the random state to zeros. glibc will attempt to access the old state if not NULL.
     memset(&state, 0, sizeof(state));
     int result = initstate_r(static_cast<unsigned int>(time(NULL)), state_array,
             sizeof(state_array), &state);
     ASSERT(result == 0);
-#else
+#else	
     seed(time(NULL));
 #endif
 }
@@ -171,11 +172,18 @@ int RealRandomGenerator::number(int lower, int upper) {
 }
 
 void RealRandomGenerator::seed(unsigned int seed) {
+	//printf("Seed\n");
 #ifdef HAVE_RANDOM_R
-    int error = srandom_r(seed, &state);
-    ASSERT(error == 0);
+    //int error = srandom_r(seed, &state);
+    //ASSERT(error == 0);
+    //printf("Seed %d \n",seed);
+    memset(&state, 0, sizeof(state));
+    int result = initstate_r(seed, state_array,
+            sizeof(state_array), &state);
+    ASSERT(result == 0);
 #else
     memcpy(state, &seed, std::min(sizeof(seed), sizeof(state)));
+	//printf("SEed %d \n",seed);
 #endif
 }
 

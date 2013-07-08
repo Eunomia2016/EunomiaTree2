@@ -45,7 +45,7 @@ namespace leveldb {
     assert(1 <= w_id && w_id <= Warehouse::MAX_WAREHOUSE_ID);
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
     assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID);
-    int32_t upper_id = w_id * Warehouse::MAX_WAREHOUSE_ID + d_id;
+    int32_t upper_id = w_id * District::NUM_PER_WAREHOUSE + d_id;
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	assert(id > 0);
@@ -545,7 +545,7 @@ namespace leveldb {
 		assert(sizeof(output->items[i].i_name) == sizeof(item->i_name));
 	    memcpy(output->items[i].i_name, item->i_name, sizeof(output->items[i].i_name));
 		output->items[i].i_price = item->i_price;
-		//printf("Item %ld\n", i_key);
+		//printf("Item %ld\n", items[i].i_id);
 
 		//-------------------------------------------------------------------------
 		//The row in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals OL_SUPPLY_W_ID) is selected. 
