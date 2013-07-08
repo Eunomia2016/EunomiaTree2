@@ -262,9 +262,8 @@ namespace leveldb {
   void TPCCTxMemStore::insertWarehouse(const Warehouse & warehouse) {
   	int64_t key = makeWarehouseKey(warehouse.w_id);
 	//printf("insert w_key %d\n", key);
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&warehouse);
-	ValueType t = kTypeValue;
+	Warehouse *w = const_cast<Warehouse *>(&warehouse);
+	uint64_t *value = reinterpret_cast<uint64_t *>(w);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
@@ -272,9 +271,8 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertDistrict(const District & district) {
   	int64_t key = makeDistrictKey(district.d_w_id, district.d_id);
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&district);
-	ValueType t = kTypeValue;
+	District *d = const_cast<District *>(&district);
+	uint64_t *value = reinterpret_cast<uint64_t *>(d);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
@@ -282,23 +280,27 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertCustomer(const Customer & customer) {
   	int64_t key = makeCustomerKey(customer.c_w_id, customer.c_d_id, customer.c_id);
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&customer);
-	ValueType t = kTypeValue;
+	Customer *c = const_cast<Customer *>(&customer);
+	uint64_t *value = reinterpret_cast<uint64_t *>(c);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
   }
 
   History* TPCCTxMemStore::insertHistory(const History & history) {
-  	return NULL;
+	int64_t key = makeHistoryKey(history.h_c_id, history.h_c_d_id, history.h_c_w_id, history.h_d_id, history.h_w_id);
+	History *h = const_cast<History *>(&history);
+	uint64_t *value = reinterpret_cast<uint64_t *>(h);
+  	SequenceNumber s = 1;
+  	store->Put(key, value ,s);
+  	seqs->Insert(key, s);
+	return NULL;
   }
 
   void TPCCTxMemStore::insertItem(const Item & item) {
   	int64_t key = makeItemKey(item.i_id);
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&item);
-	ValueType t = kTypeValue;
+	Item *i =  const_cast<Item *>(&item);
+	uint64_t *value = reinterpret_cast<uint64_t *>(i);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
@@ -306,9 +308,8 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertStock(const Stock & stock) {
   	int64_t key = makeStockKey(stock.s_w_id, stock.s_i_id);
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&stock);
-	ValueType t = kTypeValue;
+	Stock *st = const_cast<Stock *>(&stock);
+	uint64_t *value = reinterpret_cast<uint64_t *>(st);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
@@ -316,24 +317,22 @@ namespace leveldb {
 
   Order* TPCCTxMemStore::insertOrder(const Order & order) {
   	int64_t key = makeOrderKey(order.o_w_id, order.o_d_id, order.o_id);
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&order);
-	ValueType t = kTypeValue;
+	Order *o = const_cast<Order *>(&order);
+	uint64_t *value = reinterpret_cast<uint64_t *>(o);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
-	return const_cast<Order *>(&order);
+	return o;
   }
 
   OrderLine* TPCCTxMemStore::insertOrderLine(const OrderLine & orderline) {
   	int64_t key = makeOrderLineKey(orderline.ol_w_id, orderline.ol_d_id, orderline.ol_o_id, orderline.ol_number);
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&orderline);
-	ValueType t = kTypeValue;
+	OrderLine *ol = const_cast<OrderLine *>(&orderline);
+	uint64_t *value = reinterpret_cast<uint64_t *>(ol);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
-	return const_cast<OrderLine *>(&orderline);
+	return ol;
   }
 
   NewOrder* TPCCTxMemStore::insertNewOrder(int32_t w_id,int32_t d_id,int32_t o_id) {
@@ -342,9 +341,7 @@ namespace leveldb {
 	neworder->no_w_id = w_id;
 	neworder->no_d_id = d_id;
 	neworder->no_o_id = o_id;
-	uint64_t *value = new uint64_t();
-	*value = reinterpret_cast<uint64_t>(&neworder);
-	ValueType t = kTypeValue;
+	uint64_t *value = reinterpret_cast<uint64_t *>(&neworder);
   	SequenceNumber s = 1;
   	store->Put(key, value ,s);
   	seqs->Insert(key, s);
@@ -356,10 +353,34 @@ namespace leveldb {
         const std::vector<NewOrderItem>& items, const char* now, NewOrderOutput* output,
         TPCCUndo** undo) {
     // perform the home part
-  bool result = newOrderHome(warehouse_id, district_id, customer_id, items, now, output, undo);
+    bool result = newOrderHome(warehouse_id, district_id, customer_id, items, now, output, undo);
     if (!result) {
         return false;
     }
+	//Check correctness
+	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+	printf("Check\n");
+	while(true) {
+	  
+	  tx.Begin();
+	  
+	  int64_t o_key = makeOrderKey(warehouse_id, district_id, output->o_id);
+	  Status o_s;
+  	  uint64_t *o_value;
+  	  bool found = tx.Get(o_key, &o_value, &o_s);
+	  assert(found);
+	  Order *o = reinterpret_cast<Order *>(o_value);
+	  assert(o->o_c_id == customer_id);
+	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, output->o_id);
+	  Status no_s;
+  	  uint64_t *no_value;
+  	  found = tx.Get(o_key, &no_value, &o_s);
+	  assert(found);
+	  NewOrder *no = reinterpret_cast<NewOrder *>(no_value);
+	  bool b = tx.End();  
+  	  if (b) break;
+  	}
 	
     return true;
   }
@@ -394,7 +415,7 @@ namespace leveldb {
  	  bool found = tx.Get(w_key, &w_value, &w_s);
 	  assert(found);
 	  
-	  Warehouse *w = reinterpret_cast<Warehouse *>(*w_value);
+	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
 	  //printf("1.1 %x\n", *w_value);
 	  output->w_tax = w->w_tax;
 	  //printf("1.2\n");
@@ -412,16 +433,15 @@ namespace leveldb {
 	  assert(found);
 	  //printf("2.1\n");
 	  assert(*d_value != 0);
-	  District *d = reinterpret_cast<District *>(*d_value);
+	  District *d = reinterpret_cast<District *>(d_value);
 	  //printf("2.2\n");
 	  output->d_tax = d->d_tax;
 	  
 	  output->o_id = d->d_next_o_id;
-      
+      printf("%d %d %d\n", warehouse_id, district_id, output->o_id);
   	  District *newd = new District();
 	  updateDistrict(newd, d);
-	  uint64_t *d_v = new uint64_t();
-	  *d_v = reinterpret_cast<uint64_t>(newd);
+	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
 	  tx.Add(t, d_key, d_v);
 
 
@@ -436,7 +456,7 @@ namespace leveldb {
   	  uint64_t *c_value;
 	  found = tx.Get(c_key, &c_value, &c_s);
  	  assert(found);
-	  Customer *c = reinterpret_cast<Customer *>(*c_value);
+	  Customer *c = reinterpret_cast<Customer *>(c_value);
 	  //printf("3.1\n");
   	  output->c_discount = c->c_discount;
 	  //printf("3.2\n");
@@ -471,9 +491,8 @@ namespace leveldb {
 	  order->o_all_local = all_local ? 1 : 0;
 	  strcpy(order->o_entry_d, now);
   	  assert(strlen(order->o_entry_d) == DATETIME_SIZE);
-	  uint64_t o_key = makeOrderKey(warehouse_id, district_id, order->o_id);
-	  uint64_t *o_value = new uint64_t();
-	  *o_value = reinterpret_cast<uint64_t>(order);
+	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order->o_id);
+	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order);
 	  tx.Add(t, o_key, o_value);
   
 	  //printf("Step 6\n");
@@ -481,9 +500,8 @@ namespace leveldb {
   	  no->no_w_id = warehouse_id;
 	  no->no_d_id = district_id;
 	  no->no_o_id = output->o_id;
-	  uint64_t no_key = makeNewOrderKey(warehouse_id, district_id, no->no_o_id);
-	  uint64_t *no_value = new uint64_t();
-	  *no_value = reinterpret_cast<uint64_t>(no);
+	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, no->no_o_id);
+	  uint64_t *no_value = reinterpret_cast<uint64_t *>(no);
 	  tx.Add(t, no_key, no_value);
 
 	  //-------------------------------------------------------------------------
@@ -519,7 +537,7 @@ namespace leveldb {
 	 	  tx.Abort();
 	  	  return false;
 		}
-		Item *item = reinterpret_cast<Item *>(*i_value);
+		Item *item = reinterpret_cast<Item *>(i_value);
 		assert(sizeof(output->items[i].i_name) == sizeof(item->i_name));
 	    memcpy(output->items[i].i_name, item->i_name, sizeof(output->items[i].i_name));
 		output->items[i].i_price = item->i_price;
@@ -541,12 +559,11 @@ namespace leveldb {
 	    //if (items[i].i_id > 100000) printf("Unused key!\n");
 	    found = tx.Get(s_key, &s_value, &s_s);
 		assert(found);
-		Stock *s = reinterpret_cast<Stock *>(*s_value);  
+		Stock *s = reinterpret_cast<Stock *>(s_value);  
 		Stock *news = new Stock();
 		updateStock(news, s, &items[i], warehouse_id);
 		output->items[i].s_quantity = news->s_quantity;
-		uint64_t *s_v = new uint64_t();
-		*s_v = reinterpret_cast<uint64_t>(s);
+		uint64_t *s_v = reinterpret_cast<uint64_t *>(news);
 		tx.Add(t, s_key, s_v);
 
 		//-------------------------------------------------------------------------
@@ -579,8 +596,7 @@ namespace leveldb {
     	assert(sizeof(line->ol_dist_info) == sizeof(s->s_dist[district_id]));
     	memcpy(line->ol_dist_info, s->s_dist[district_id], sizeof(line->ol_dist_info));
 		uint64_t l_key = makeOrderLineKey(line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
-		uint64_t *l_value = new uint64_t();
-		*l_value = reinterpret_cast<uint64_t>(line);
+		uint64_t *l_value = reinterpret_cast<uint64_t *>(line);
 		tx.Add(t, l_key, l_value);
 
 
@@ -634,11 +650,10 @@ namespace leveldb {
 	  uint64_t *w_value;  
  	  bool found = tx.Get(w_key, &w_value, &w_s);
 	  assert(found);
-	  Warehouse *w = reinterpret_cast<Warehouse *>(*w_value);
+	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
 	  Warehouse *neww = new Warehouse();
 	  updateWarehouseYtd(neww, w, h_amount);
-	  uint64_t *w_v = new uint64_t();
-	  *w_v = reinterpret_cast<uint64_t>(neww);
+	  uint64_t *w_v = reinterpret_cast<uint64_t *>(neww);
 	  tx.Add(t, w_key, w_v);
 
 	  COPY_ADDRESS(neww, output, w_);
@@ -656,11 +671,10 @@ namespace leveldb {
 	  assert(found);
 	  //printf("2.1\n");
 	  assert(*d_value != 0);
-	  District *d = reinterpret_cast<District *>(*d_value);      
+	  District *d = reinterpret_cast<District *>(d_value);      
 	  District *newd = new District();
 	  updateDistrictYtd(newd, d, h_amount);
-	  uint64_t *d_v = new uint64_t();
-	  *d_v = reinterpret_cast<uint64_t>(newd);
+	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
 	  tx.Add(t, d_key, d_v);
 
 	  COPY_ADDRESS(newd, output, d_);
@@ -680,11 +694,10 @@ namespace leveldb {
   	  uint64_t *c_value;
 	  found = tx.Get(c_key, &c_value, &c_s);
  	  assert(found);
-	  Customer *c = reinterpret_cast<Customer *>(*c_value);
+	  Customer *c = reinterpret_cast<Customer *>(c_value);
 	  Customer *newc = new Customer();
 	  updateCustomer(newc, c, h_amount, warehouse_id, district_id);
-	  uint64_t *c_v = new uint64_t();
-	  *c_v = reinterpret_cast<uint64_t>(newc);
+	  uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
 	  tx.Add(t, c_key, c_v);
 
 	  output->c_credit_lim = newc->c_credit_lim;
@@ -715,8 +728,7 @@ namespace leveldb {
       strcpy(h->h_data, w->w_name);
       strcat(h->h_data, "    ");
       strcat(h->h_data, d->d_name);
-      uint64_t *h_v = new uint64_t();
-	  *h_v = reinterpret_cast<uint64_t>(h);
+      uint64_t *h_v = reinterpret_cast<uint64_t *>(h);
 	  tx.Add(t, h_key, h_v);
 
 	  //printf("3\n");
@@ -744,7 +756,7 @@ namespace leveldb {
   	  uint64_t *c_value;
 	  bool found = tx.Get(c_key, &c_value, &c_s);
  	  assert(found);
-	  Customer *c = reinterpret_cast<Customer *>(*c_value);
+	  Customer *c = reinterpret_cast<Customer *>(c_value);
 
 	  output->c_id = customer_id;
 	  // retrieve from customer: balance, first, middle, last
@@ -777,7 +789,7 @@ namespace leveldb {
 		uint64_t *o_value;
 		bool found = tx.Get(o_key, &o_value, &o_s);
 		if (!found) continue;*/
-/*		o = reinterpret_cast<Order *>(*o_value);
+/*		o = reinterpret_cast<Order *>(o_value);
 		if (o->o_c_id == customer_id) break;
 		iter.Prev();
 	  }
@@ -797,7 +809,7 @@ namespace leveldb {
   		  Status ol_s;
 		  uint64_t *ol_value;
 		  bool found = tx.Get(ol_key, &ol_value, &ol_s);
-          OrderLine* line = reinterpret_cast<OrderLine *>(*ol_value);
+          OrderLine* line = reinterpret_cast<OrderLine *>(ol_value);
           output->lines[line_number-1].ol_i_id = line->ol_i_id;
           output->lines[line_number-1].ol_supply_w_id = line->ol_supply_w_id;
           output->lines[line_number-1].ol_quantity = line->ol_quantity;
@@ -830,7 +842,7 @@ namespace leveldb {
   	  uint64_t *d_value;
 	  bool found = tx.Get(d_key, &d_value, &d_s);
 	  assert(found);
-      District *d = reinterpret_cast<District *>(*d_value);   
+      District *d = reinterpret_cast<District *>(d_value);   
 	  int32_t o_id = d->d_next_o_id;
 
 	  //-------------------------------------------------------------------------
@@ -857,7 +869,7 @@ namespace leveldb {
 		  uint64_t *ol_value;
 		  bool found = tx.Get(ol_key, &ol_value, &ol_s);
 		  if (!found) break;*/
-/*		  OrderLine *ol = reinterpret_cast<OrderLine *>(*ol_value);   
+/*		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);   
 		  //-------------------------------------------------------------------------
 		  //All rows in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals W_ID) 
 		  //from the list of distinct item numbers and with S_QUANTITY lower than threshold are counted (giving low_stock).
@@ -868,7 +880,7 @@ namespace leveldb {
 		  Status s_s;
 		  uint64_t *s_value;
 		  found = tx.Get(s_key, &s_value, &s_s);
-		  Stock *s = reinterpret_cast<Stock *>(*s_value);
+		  Stock *s = reinterpret_cast<Stock *>(s_value);
 		  if (s->s_quantity < threshold) 
 		  	s_i_ids.push_back(s_i_id);
 		  
@@ -919,7 +931,7 @@ namespace leveldb {
 		int64_t no_key = iter.Key();
 		if (no_key <= end) {
 		  no_value = iter.Value();
-		  no = reinterpret_cast<NewOrder *>(*no_value);
+		  no = reinterpret_cast<NewOrder *>(no_value);
 		  no_id = reinterpret_cast<int32_t>(no_key << 32 >> 32);
 		};
 	*/	 
@@ -959,12 +971,11 @@ namespace leveldb {
 		Status o_s;
 		uint64_t *o_value;
 		bool found = tx.Get(o_key, &o_value, &o_s);
-		Order *o = reinterpret_cast<Order *>(*o_value);
+		Order *o = reinterpret_cast<Order *>(o_value);
 		assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
 		Order *newo = new Order();		
 		updateOrder(newo, o, carrier_id);
-		uint64_t *o_v = new uint64_t();
-		*o_v = reinterpret_cast<uint64_t>(newo);
+		uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
 		tx.Add(t, o_key, o_v);
 		int32_t c_id = o->o_c_id;
 
@@ -986,11 +997,10 @@ namespace leveldb {
 		  Status ol_s;
 		  uint64_t *ol_value;
 		  bool found = tx.Get(ol_key, &ol_value, &ol_s);*/
-/*		  OrderLine *ol = reinterpret_cast<OrderLine *>(*ol_value);
+/*		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);
 		  OrderLine *newol = new OrderLine();
 		  updateOrderLine(newol, ol, now);
-		  uint64_t *ol_v = new uint64_t();
-		  *ol_v = reinterpret_cast<uint64_t>(newol);
+		  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
 		  tx.Add(t, ol_key, ol_v);
 		  sum_ol_amount += ol->ol_amount;
 		  iter.Next();
@@ -1006,11 +1016,10 @@ namespace leveldb {
 		Status c_s;
 		uint64_t *c_value;
 		found = tx.Get(c_key, &c_value, &c_s);
-		Customer *c = reinterpret_cast<Customer *>(*c_value);
+		Customer *c = reinterpret_cast<Customer *>(c_value);
 		Customer *newc = new Customer();
 		updateCustomerDelivery(newc, c, sum_ol_amount);
-		uint64_t *c_v = new uint64_t();
-		*c_v = reinterpret_cast<uint64_t>(newc);
+		uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
 		tx.Add(t, c_key, c_v);
 		
 	  }

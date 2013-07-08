@@ -727,11 +727,11 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Get(
 template<typename Key, typename Value, class HashFunction, class Comparator>
 bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
 
- 
+ 	printf("before lock\n");	
 	RTMScope rtm(&rtmProf);
- 		 
+ 	// 
  	// slock.Lock();
- 
+    //printf("after lock\n");
  
    //step 1. check if the seq has been changed (any one change the value after reading)
    if( !readset->Validate(latestseq_)) { 
@@ -742,7 +742,7 @@ bool DBTransaction<Key, Value, HashFunction, Comparator>::Validation() {
   //step 2.  update the the seq set 
   //can't use the iterator because the cur node may be deleted 
   writeset->UpdateGlobalSeqs(); 
-  
+  //slock.Unlock();
   return true;
 
 }
