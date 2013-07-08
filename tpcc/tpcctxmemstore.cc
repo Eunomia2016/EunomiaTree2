@@ -58,7 +58,7 @@ namespace leveldb {
     assert(1 <= w_id && w_id <= Warehouse::MAX_WAREHOUSE_ID);
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
     assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID);
-    int32_t upper_id = w_id * Warehouse::MAX_WAREHOUSE_ID + d_id;
+    int32_t upper_id = w_id * District::NUM_PER_WAREHOUSE + d_id;
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	assert(id > 0);
@@ -72,8 +72,12 @@ namespace leveldb {
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
     assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID);
     assert(1 <= number && number <= Order::MAX_OL_CNT);
+
+    int32_t upper_id = w_id * District::NUM_PER_WAREHOUSE + d_id;
+    assert(upper_id > 0);
+    int64_t oid = static_cast<int64_t>(upper_id) * Order::MAX_ORDER_ID + static_cast<int64_t>(o_id);
   
-    int32_t olid = makeOrderKey(w_id, d_id, o_id) * Order::MAX_OL_CNT + number; 
+    int64_t olid = oid * Order::MAX_OL_CNT + number; 
     assert(olid >= 0);
 	int64_t id = (int64_t)6 << 50 | static_cast<int64_t>(olid);
     return id;
@@ -541,7 +545,7 @@ namespace leveldb {
 		assert(sizeof(output->items[i].i_name) == sizeof(item->i_name));
 	    memcpy(output->items[i].i_name, item->i_name, sizeof(output->items[i].i_name));
 		output->items[i].i_price = item->i_price;
-
+		//printf("Item %ld\n", i_key);
 
 		//-------------------------------------------------------------------------
 		//The row in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals OL_SUPPLY_W_ID) is selected. 
@@ -597,6 +601,8 @@ namespace leveldb {
     	memcpy(line->ol_dist_info, s->s_dist[district_id], sizeof(line->ol_dist_info));
 		uint64_t l_key = makeOrderLineKey(line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
 		uint64_t *l_value = reinterpret_cast<uint64_t *>(line);
+	//	printf("%d %d %d %d\n", line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
+	//	printf("OrderLine %lx\n", l_key);
 		tx.Add(t, l_key, l_value);
 
 
@@ -610,7 +616,7 @@ namespace leveldb {
 	  }
 	
 	  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
- 	  //printf("Step 13\n");
+ 	//  printf("Step 13\n");
  	  bool b = tx.End();  
   	  if (b) break;
   	}
