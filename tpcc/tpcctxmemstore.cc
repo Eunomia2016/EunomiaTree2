@@ -382,10 +382,28 @@ namespace leveldb {
   	  found = tx.Get(o_key, &no_value, &o_s);
 	  assert(found);
 	  NewOrder *no = reinterpret_cast<NewOrder *>(no_value);
+	  
+	  uint64_t l_key = makeOrderLineKey(warehouse_id, district_id, output->o_id, 2);
+	  Status l_s;
+	  uint64_t *l_value;
+	  found = tx.Get(l_key, &l_value, &l_s);
+	  assert(found);
+	  OrderLine *l = reinterpret_cast<OrderLine *>(l_value);
+	  if (l->ol_quantity != items[1].ol_quantity) 
+	  	printf("%d %d\n",l->ol_quantity, items[1].ol_quantity);
+	  assert(l->ol_quantity == items[1].ol_quantity);
+
+	  uint64_t s_key = makeStockKey(items[3].ol_supply_w_id, items[3].i_id);
+	  Status s_s;
+      uint64_t *s_value;
+	  found = tx.Get(s_key, &s_value, &s_s);
+	  assert(found);
+
+	  
 	  bool b = tx.End();  
   	  if (b) break;
   	}
-	*/
+*/	
     return true;
   }
 
@@ -512,15 +530,16 @@ namespace leveldb {
   	  //For each O_OL_CNT item on the order:
   	  //-------------------------------------------------------------------------
 	  //printf("Step 7\n");
-  	  OrderLine *line = new OrderLine();
-	  line->ol_o_id = output->o_id;
-	  line->ol_d_id = district_id;
-	  line->ol_w_id = warehouse_id;
-	  memset(line->ol_delivery_d, 0, DATETIME_SIZE+1);
+  	  
 	  output->items.resize(items.size());
 	  output->total = 0;
 
 	  for (int i = 0; i < items.size(); ++i) {
+	  	OrderLine *line = new OrderLine();
+	    line->ol_o_id = output->o_id;
+	    line->ol_d_id = district_id;
+	    line->ol_w_id = warehouse_id;
+	    memset(line->ol_delivery_d, 0, DATETIME_SIZE+1);
   		//-------------------------------------------------------------------------
 		//The row in the ITEM table with matching I_ID (equals OL_I_ID) is selected 
 		//and I_PRICE, the price of the item, I_NAME, the name of the item, and I_DATA are retrieved. 
