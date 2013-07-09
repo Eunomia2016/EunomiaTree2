@@ -265,7 +265,7 @@ namespace leveldb {
   
   void TPCCTxMemStore::insertWarehouse(const Warehouse & warehouse) {
   	int64_t key = makeWarehouseKey(warehouse.w_id);
-	//printf("insert w_key %d\n", key);
+	//printf("insert w_key %ld\n", key);
 	Warehouse *w = const_cast<Warehouse *>(&warehouse);
 	uint64_t *value = reinterpret_cast<uint64_t *>(w);
   	SequenceNumber s = 1;
@@ -275,6 +275,7 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertDistrict(const District & district) {
   	int64_t key = makeDistrictKey(district.d_w_id, district.d_id);
+	//printf("insert d_key %ld\n", key);
 	District *d = const_cast<District *>(&district);
 	uint64_t *value = reinterpret_cast<uint64_t *>(d);
   	SequenceNumber s = 1;
@@ -284,6 +285,7 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertCustomer(const Customer & customer) {
   	int64_t key = makeCustomerKey(customer.c_w_id, customer.c_d_id, customer.c_id);
+	//printf("insert c_key %ld\n", key);
 	Customer *c = const_cast<Customer *>(&customer);
 	uint64_t *value = reinterpret_cast<uint64_t *>(c);
   	SequenceNumber s = 1;
@@ -293,6 +295,7 @@ namespace leveldb {
 
   History* TPCCTxMemStore::insertHistory(const History & history) {
 	int64_t key = makeHistoryKey(history.h_c_id, history.h_c_d_id, history.h_c_w_id, history.h_d_id, history.h_w_id);
+	//printf("insert h_key %ld\n", key);
 	History *h = const_cast<History *>(&history);
 	uint64_t *value = reinterpret_cast<uint64_t *>(h);
   	SequenceNumber s = 1;
@@ -303,6 +306,7 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertItem(const Item & item) {
   	int64_t key = makeItemKey(item.i_id);
+	//printf("insert i_key %ld\n", key);
 	Item *i =  const_cast<Item *>(&item);
 	uint64_t *value = reinterpret_cast<uint64_t *>(i);
   	SequenceNumber s = 1;
@@ -312,6 +316,7 @@ namespace leveldb {
 
   void TPCCTxMemStore::insertStock(const Stock & stock) {
   	int64_t key = makeStockKey(stock.s_w_id, stock.s_i_id);
+	//printf("insert s_key %ld\n", key);
 	Stock *st = const_cast<Stock *>(&stock);
 	uint64_t *value = reinterpret_cast<uint64_t *>(st);
   	SequenceNumber s = 1;
@@ -321,6 +326,7 @@ namespace leveldb {
 
   Order* TPCCTxMemStore::insertOrder(const Order & order) {
   	int64_t key = makeOrderKey(order.o_w_id, order.o_d_id, order.o_id);
+	//printf("insert o_key %ld\n", key);
 	Order *o = const_cast<Order *>(&order);
 	uint64_t *value = reinterpret_cast<uint64_t *>(o);
   	SequenceNumber s = 1;
@@ -331,6 +337,7 @@ namespace leveldb {
 
   OrderLine* TPCCTxMemStore::insertOrderLine(const OrderLine & orderline) {
   	int64_t key = makeOrderLineKey(orderline.ol_w_id, orderline.ol_d_id, orderline.ol_o_id, orderline.ol_number);
+	//printf("insert ol_key %ld\n", key);
 	OrderLine *ol = const_cast<OrderLine *>(&orderline);
 	uint64_t *value = reinterpret_cast<uint64_t *>(ol);
   	SequenceNumber s = 1;
@@ -340,7 +347,8 @@ namespace leveldb {
   }
 
   NewOrder* TPCCTxMemStore::insertNewOrder(int32_t w_id,int32_t d_id,int32_t o_id) {
-  	int64_t key = makeOrderKey(w_id, d_id, o_id);
+  	int64_t key = makeNewOrderKey(w_id, d_id, o_id);
+	//printf("insert no_key %ld\n", key);
 	NewOrder *neworder = new NewOrder();
 	neworder->no_w_id = w_id;
 	neworder->no_d_id = d_id;
@@ -417,7 +425,7 @@ namespace leveldb {
 	while(true) {
 	  
 	  tx.Begin();
-	  output->status[0] = '\0';
+	  //output->status[0] = '\0';
 	  //Cheat
   	  for (int i = 0; i < items.size(); ++i) 
 		if (items[i].i_id == 100001) {
