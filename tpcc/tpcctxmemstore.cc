@@ -376,11 +376,19 @@ namespace leveldb {
 	while(true) {
 	  
 	  tx.Begin();
+
+	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
+  	  Status d_s;
+  	  uint64_t *d_value;
+  	  bool found = tx.Get(d_key, &d_value, &d_s);
+	  assert(found);
+	  District *d = reinterpret_cast<District *>(d_value);
+	  assert(output->o_id == d->d_next_o_id - 1);
 	  
 	  int64_t o_key = makeOrderKey(warehouse_id, district_id, output->o_id);
 	  Status o_s;
   	  uint64_t *o_value;
-  	  bool found = tx.Get(o_key, &o_value, &o_s);
+  	  found = tx.Get(o_key, &o_value, &o_s);
 	  assert(found);
 	  Order *o = reinterpret_cast<Order *>(o_value);
 	  assert(o->o_c_id == customer_id);
@@ -410,8 +418,8 @@ namespace leveldb {
 	  
 	  bool b = tx.End();  
   	  if (b) break;
-  	}
-*/	
+  	}*/
+	
     return true;
   }
 
@@ -662,8 +670,35 @@ namespace leveldb {
 			  src->prefix ## state, src->prefix ## zip)
 
   void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
-		  int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
-		  PaymentOutput* output, TPCCUndo** undo) {  
+			int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
+			PaymentOutput* output, TPCCUndo** undo) {  
+	paymentHome(warehouse_id, district_id, c_warehouse_id, c_district_id, customer_id, h_amount, now, output, undo);	
+	//check
+/*	leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
+  				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
+	//printf("Check\n");
+	while(true) {
+	  
+	  tx.Begin();
+
+	  uint64_t c_key = makeCustomerKey(c_warehouse_id, c_district_id, customer_id);
+  	  Status c_s;
+  	  uint64_t *c_value;
+	  bool found = tx.Get(c_key, &c_value, &c_s);
+ 	  assert(found);
+	  Customer *c = reinterpret_cast<Customer *>(c_value);
+	  assert(output->c_balance == c->c_balance);
+
+	  bool b = tx.End();  
+  	  if (b) break;
+  	}*/
+	  
+  }
+
+  void TPCCTxMemStore::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+	int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
+	PaymentOutput* output, TPCCUndo** undo){
+  
     ValueType t = kTypeValue;
     leveldb::DBTransaction<leveldb::Key, leveldb::Value, 
   				leveldb::KeyHash, leveldb::KeyComparator> tx(seqs, store, *cmp);
@@ -1082,11 +1117,7 @@ void TPCCTxMemStore::payment(int32_t warehouse_id, int32_t district_id, int32_t 
   return;
 }
 
-void TPCCTxMemStore::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
-		  int32_t c_district_id, int32_t c_id, float h_amount, const char* now,
-		  PaymentOutput* output, TPCCUndo** undo){
-  return;
-}
+
 void TPCCTxMemStore::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, int32_t c_id, float h_amount, PaymentOutput* output,
 		  TPCCUndo** undo){
