@@ -115,6 +115,9 @@ memtx_bench: db/memtx_bench.o $(LIBOBJECTS) $(TESTUTIL)
 rtm_test: db/rtm_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/rtm_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
+memstore_test: db/memstore_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) db/memstore_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
 
 
 tx_bench: db/tx_bench.o $(LIBOBJECTS) $(TESTUTIL)
