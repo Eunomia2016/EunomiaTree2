@@ -14,7 +14,8 @@
 #include "tpcc/tpccgenerator.h"
 #include "tpcc/tpcctables.h"
 //#include "tpcc/tpccleveldb.h"
-#include "tpcc/tpcctxmemstore.h"
+//#include "tpcc/tpcctxmemstore.h"
+#include "tpcc/tpccskiplist.h"
 
 static const int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
@@ -328,7 +329,7 @@ int main(int argc, const char* argv[]) {
 	
     //TPCCTables* tables = new TPCCTables();
     //leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
-    TPCCDB* tables = new leveldb::TPCCTxMemStore();
+    TPCCDB* tables = new leveldb::TPCCSkiplist();
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.
