@@ -25,6 +25,8 @@ MemStoreSkipList::MemStoreSkipList()
   	for (int i = 0; i < kMaxHeight; i++) {
     	head_->next_[i] = NULL;
   	}
+
+	snapshot = 1;
 }
 
 MemStoreSkipList::~MemStoreSkipList(){}
@@ -41,13 +43,16 @@ void MemStoreSkipList::ThreadLocalInit()
 }
 
 
-inline MemStoreSkipList::Node* MemStoreSkipList::NewNode(uint64_t key, int height)
+MemStoreSkipList::Node* MemStoreSkipList::NewNode(uint64_t key, int height)
 {
  
   Node* n = reinterpret_cast<Node*>(malloc(
 	  			sizeof(Node) + sizeof(void *) * (height - 1)));
 
   n->key = key;
+  n->counter = 0;
+  n->value = NULL;
+  n->next_[0] = NULL;
   return n;
 }
 
@@ -114,32 +119,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
   
   Node* preds[kMaxHeight];
   Node* succs[kMaxHeight];
-  int height = RandomHeight();
   Node* x;
-  uint32_t maxh = 0; 
-
-  //We need to update the max_height_ atomically
-  while (true) {
-  	
-	maxh = max_height_;
-	
-	if (height > maxh) {
-	
-	  uint32_t oldv = atomic_cmpxchg32((uint32_t*)&max_height_, maxh, height);
-	  if(oldv == maxh)
-	    break;
-	  
-
-	} else
-	{
-	  break; 
-	}
-  }
-  
-  for (int i = maxh; i < height; i++) {
-	  preds[i] = head_;
-  }
-
 
   //find the prevs and succs
   x = FindGreaterOrEqual(key, preds);
@@ -152,10 +132,39 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
 	return x;
   }
 
+  
+  int height = RandomHeight();
+	
+	uint32_t maxh = 0; 
+  
+	//We need to update the max_height_ atomically
+	while (true) {
+	  
+	  maxh = max_height_;
+	  
+	  if (height > maxh) {
+	  
+		uint32_t oldv = atomic_cmpxchg32((uint32_t*)&max_height_, maxh, height);
+		if(oldv == maxh)
+		  break;
+		
+  
+	  } else
+	  {
+		break; 
+	  }
+	}
+	
+	for (int i = maxh; i < height; i++) {
+		preds[i] = head_;
+	}
 
 //	printf("put key %ld height %ld \n", key.k, height);
   x = NewNode(key, height);
 
+  //We initialize any node with current snapshot counter
+  x->counter = snapshot;
+  
   for (int i = 0; i < height; i++) {
 	Node *succ = NULL;
 

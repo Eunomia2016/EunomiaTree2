@@ -17,7 +17,9 @@ namespace leveldb {
 class MemStoreSkipList {
 
  public:
- 	
+
+  int snapshot; // the counter for current snapshot
+  
   struct Node
   {
 	uint64_t key;
@@ -38,7 +40,7 @@ class MemStoreSkipList {
 
   void PrintList();
 
-  inline Node* NewNode(uint64_t key, int height);
+  static Node* NewNode(uint64_t key, int height);
  
   inline void FreeNode(Node* n);
   
