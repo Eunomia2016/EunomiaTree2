@@ -179,7 +179,7 @@ class Benchmark {
 				tx.Add(*key1, value1);
 				b = tx.End();
 			}
-	//		printf("Add %d %d\n",tid,(tid+1) % num);
+			//printf("Add %d %d\n",tid,(tid+1) % num);
 			if (i % 10 == (tid%10) && i>10) {
 				leveldb::DBTX tx1(store);
 				b =false;
@@ -194,9 +194,9 @@ class Benchmark {
 					uint64_t *v;
 					
 					tx1.Get(*k, &v);
-	//				printf("%d-----1\n",j);
+					//printf("%d-----1\n",j);
 					str[j] = *v;
-	//				printf("%d------2\n",j);
+					//printf("%d------2\n",j);
 					
 				}						
 				b = tx1.End();
@@ -503,7 +503,25 @@ class Benchmark {
 			}
 			//printf("init \n");
 		}
-		//else if (name == Slice("nocycle")) num = 4;
+		else if (name == Slice("nocycle")) {
+			leveldb::DBTX tx( store);
+			bool b =false;
+			while (b==false) {
+			tx.Begin();
+			
+			for (int i=0; i<num; i++) {
+			  uint64_t *key = new uint64_t();
+			  *key = i;
+			  uint64_t *value = new uint64_t();
+			  *value = 1;
+			
+			  tx.Add(*key, value);				
+			}									
+			b = tx.End();
+			
+			//if (b==true)printf("%d\n", i);
+			}
+		}
 	  
 
 		SharedState shared;
