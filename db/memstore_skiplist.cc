@@ -103,6 +103,14 @@ inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key
 }
 
 
+void MemStoreSkipList::Put(uint64_t k,uint64_t * val)
+{
+	MemStoreSkipList::Node* n = GetNodeWithInsert(k);
+	n->value = val;
+	n->counter = snapshot;
+	n->seq = 1;
+}
+
 MemStoreSkipList::Node* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
 {
 	Node* x = GetNodeWithInsert(key);

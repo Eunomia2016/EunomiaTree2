@@ -34,8 +34,11 @@ class MemStoreSkipList {
   explicit MemStoreSkipList();
   ~MemStoreSkipList();
 
+  //Only for initialization
+  void Put(uint64_t k, uint64_t* val);
+  
   Node* GetNodeWithInsert(uint64_t key);
-
+  
   Node* GetLatestNodeWithInsert(uint64_t key);
 
   void PrintList();
