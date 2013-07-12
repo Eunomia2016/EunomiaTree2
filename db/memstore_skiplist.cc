@@ -6,8 +6,17 @@
 #include "port/atomic.h"
 #include "util/arena.h"
 #include "util/random.h"
+#include "util/rtm.h"
+#include "util/mutexlock.h"
+#include "db/dbtx.h"
 #include "port/port_posix.h"
 #include "db/memstore_skiplist.h"
+
+
+#define SKIPLISTGLOBALLOCK 0
+#define SKIPLISTRTM 1
+#define SKIPLISTLOCKFREE 0
+
 
 namespace leveldb {
 
@@ -19,7 +28,6 @@ __thread bool MemStoreSkipList::localinit_ = false;
 MemStoreSkipList::MemStoreSkipList()
 {
     ThreadLocalInit();
-	
 	max_height_ = 1;
 
 	head_ = reinterpret_cast<Node*>(malloc(sizeof(Node) + sizeof(void *) * (kMaxHeight - 1)));
@@ -116,7 +124,12 @@ void MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 
 MemStoreSkipList::Node* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
 {
+
+#if SKIPLISTLOCKFREE
+	Node* x = GetNodeWithInsertLockFree(key);
+#else
 	Node* x = GetNodeWithInsert(key);
+#endif
 
 	while(x->next_[0] != NULL && x->next_[0]->key == key)
 		x = x->next_[0];
@@ -125,6 +138,54 @@ MemStoreSkipList::Node* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
 }
 
 MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
+{
+
+  
+  Node* preds[kMaxHeight];
+  int height = RandomHeight();
+
+  Node* newn = NewNode(key, height);
+  newn->counter = snapshot;
+  
+  Node* x;
+
+  {
+
+	#if SKIPLISTGLOBALLOCK
+		MutexLock lock(&DBTX::storemutex);
+	#elif SKIPLISTRTM
+		RTMScope rtm(NULL);
+	#endif
+
+    //find the prevs and succs
+    x = FindGreaterOrEqual(key, preds);
+  
+    if(x != NULL && key == x->key ) {
+  	  goto found;
+    }
+  
+     if (height > max_height_){
+      for (int i = max_height_; i < height; i++) {
+        preds[i] = head_;
+      }
+      max_height_ = height;
+    }
+    	
+    
+    for (int i = 0; i < height; i++) {
+  		newn->next_[i] = preds[i]->next_[i];
+  		preds[i]->next_[i] = newn;	
+    }
+    return newn;
+	
+  }
+
+found:
+  FreeNode(newn);
+  return x;
+}
+
+MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key)
 {
 
   
@@ -239,8 +300,10 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
 }
 
 
+
 void MemStoreSkipList::PrintList(){
 
+	/*
 
 	Node* cur = head_;
 		
@@ -251,11 +314,11 @@ void MemStoreSkipList::PrintList(){
 		cur = cur->next_[0];
 		if(cur != NULL)
 			printf("key %ld value %ld, seq %ld snapshot %d\n", 
-			cur->key, *cur->value, cur->seq, cur->counter);
+			cur->key, cur->value, cur->seq, cur->counter);
 	}
-		
+	*/	
 
-/*
+
 	printf(" Max Height %d\n", max_height_);
 
 	Node* cur = head_;
@@ -282,7 +345,7 @@ void MemStoreSkipList::PrintList(){
 
 		printf(" Layer %d Has %d Elements\n", i, count);
 	}
-*/
+
 }
 
 

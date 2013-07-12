@@ -173,7 +173,7 @@ private:
 				
 			for (int i =0; i < 1000; i++) {
 				index++;
-				uint64_t key = (tid <<32)|i;
+				uint64_t key = (tid <<32)|index;
 //				printf("%d insert %lx\n", tid, key);
 				MemStoreSkipList::Node* x = memstore.GetLatestNodeWithInsert(key);
 				if(x == NULL)
