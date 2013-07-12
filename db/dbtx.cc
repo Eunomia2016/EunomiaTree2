@@ -360,6 +360,12 @@ void DBTX::Add(uint64_t key, uint64_t* val)
 }
 
 
+void DBTX::Delete(uint64_t key)
+{
+	//For delete, just insert a null value
+	Add(key, NULL);
+}
+
 bool DBTX::Get(uint64_t key, uint64_t** val)
 {
   //step 1. First check if the <k,v> is in the write set
@@ -372,9 +378,9 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
   MemStoreSkipList::Node* node = txdb_->GetLatestNodeWithInsert(key);
   readset->Add(&node->seq);
   
-  if ( 0 == node->seq ) {
+  if ( node->value == NULL ) {
   	
-    assert(node->value == NULL);
+//    assert(node->value == NULL);
  	*val = NULL;
 	return false;
 	

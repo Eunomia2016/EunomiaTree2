@@ -36,6 +36,7 @@ class DBTX {
 	bool End();
 	void Add(uint64_t key, uint64_t* val);	
 	bool Get(uint64_t key, uint64_t** val);
+	void Delete(uint64_t key);
 	void ThreadLocalInit();
 	
 public:
