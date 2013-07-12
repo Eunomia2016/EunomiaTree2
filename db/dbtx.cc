@@ -17,6 +17,7 @@
 #include "db/txmemstore_template.h"
 
 #define CACHESIM 0
+#define GLOBALOCK 1
 
 namespace leveldb {
 
@@ -249,10 +250,12 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
     if(kvs[i].node->counter == gcounter) {
 		
 	  //If counter of the node is equal to the global counter, then just change the value pointer
-	  kvs[i].node->seq++;
-		
+	 
 	  //FIXME: the old value should be deleted eventually
 	  kvs[i].node->value = kvs[i].val;
+
+	  //Should first update the value, then the seq, to guarantee the seq is always older than the value
+	  kvs[i].node->seq++;
 		
 	} else {
 	  //If global counter is updated, we need to find the node with the global counter
@@ -336,8 +339,11 @@ bool DBTX::Abort()
 
 bool DBTX::End()
 {
+#if GLOBALOCK
   MutexLock lock(&storemutex);
-  //RTMScope rtm(&rtmProf);
+#else
+  RTMScope rtm(&rtmProf);
+#endif
   
   if( !readset->Validate()) {
   	  return false;
@@ -353,10 +359,9 @@ void DBTX::Add(uint64_t key, uint64_t* val)
 {
   MemStoreSkipList::Node* node;
   //Get the seq addr from the hashtable
-  {
-  	MutexLock lock(&storemutex);
-  	node = txdb_->GetLatestNodeWithInsert(key);
-  }
+
+  node = txdb_->GetLatestNodeWithInsert(key);
+  
   
   //write the key value into local buffer
   writeset->Add(key, val, node);
@@ -378,16 +383,20 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 
 
   //step 2.  Read the <k,v> from the in memory store
-  MemStoreSkipList::Node* node;
-  {
-  	MutexLock lock(&storemutex);
-  	node = txdb_->GetLatestNodeWithInsert(key);
-  }
+  MemStoreSkipList::Node* node = txdb_->GetLatestNodeWithInsert(key);
+
+  //Guarantee   
+#if GLOBALOCK
+	MutexLock lock(&storemutex);
+#else
+	RTMScope rtm(&rtmProf);
+#endif
+
+
   readset->Add(&node->seq);
   
   if ( node->value == NULL ) {
-  	
-//    assert(node->value == NULL);
+
  	*val = NULL;
 	return false;
 	

@@ -245,20 +245,17 @@ class Benchmark {
 			tx.Begin();
 			
 			
-	 		uint64_t *k = new uint64_t();
-			*k = 1;
+	 		uint64_t k = 1;
 			uint64_t *v;
 			
-			tx.Get(*k, &v);
+			tx.Get(k, &v);
 
-			uint64_t *key = new uint64_t();
-			*key = 1;
 			uint64_t *value = new uint64_t();
 			*value = *v + 1;
 
 			//printf("Insert %s ", key);
 			//printf(" Value %s\n", value);
-			tx.Add(*key, value);			
+			tx.Add(k, value);			
 			
 			b = tx.End();
 			
