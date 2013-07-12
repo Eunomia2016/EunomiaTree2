@@ -572,6 +572,7 @@ class Benchmark {
 			result = *str;
 			//printf("result %d\n",result);
 			b = tx.End();
+			store->PrintList();
 			}
 			if (result != (FLAGS_txs*num)) {
 				printf("Get %d instead of %d from the counter fail!\n",result,FLAGS_txs*num);

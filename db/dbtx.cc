@@ -351,9 +351,12 @@ bool DBTX::End()
 
 void DBTX::Add(uint64_t key, uint64_t* val)
 {
-
+  MemStoreSkipList::Node* node;
   //Get the seq addr from the hashtable
-  MemStoreSkipList::Node* node = txdb_->GetLatestNodeWithInsert(key);
+  {
+  	MutexLock lock(&storemutex);
+  	node = txdb_->GetLatestNodeWithInsert(key);
+  }
   
   //write the key value into local buffer
   writeset->Add(key, val, node);
@@ -375,7 +378,11 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 
 
   //step 2.  Read the <k,v> from the in memory store
-  MemStoreSkipList::Node* node = txdb_->GetLatestNodeWithInsert(key);
+  MemStoreSkipList::Node* node;
+  {
+  	MutexLock lock(&storemutex);
+  	node = txdb_->GetLatestNodeWithInsert(key);
+  }
   readset->Add(&node->seq);
   
   if ( node->value == NULL ) {

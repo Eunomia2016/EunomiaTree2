@@ -18,6 +18,8 @@ __thread bool MemStoreSkipList::localinit_ = false;
 
 MemStoreSkipList::MemStoreSkipList()
 {
+    ThreadLocalInit();
+	
 	max_height_ = 1;
 
 	head_ = reinterpret_cast<Node*>(malloc(sizeof(Node) + sizeof(void *) * (kMaxHeight - 1)));
@@ -105,6 +107,7 @@ inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key
 
 void MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 {
+	
 	MemStoreSkipList::Node* n = GetNodeWithInsert(k);
 	n->value = val;
 	n->counter = snapshot;
@@ -237,6 +240,22 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
 
 
 void MemStoreSkipList::PrintList(){
+
+
+	Node* cur = head_;
+		
+	while(cur != NULL)
+	{
+		
+		//Key prev = cur->key;
+		cur = cur->next_[0];
+		if(cur != NULL)
+			printf("key %ld value %ld, seq %ld snapshot %d\n", 
+			cur->key, *cur->value, cur->seq, cur->counter);
+	}
+		
+
+/*
 	printf(" Max Height %d\n", max_height_);
 
 	Node* cur = head_;
@@ -263,7 +282,7 @@ void MemStoreSkipList::PrintList(){
 
 		printf(" Layer %d Has %d Elements\n", i, count);
 	}
-
+*/
 }
 
 
