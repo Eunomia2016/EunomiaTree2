@@ -363,7 +363,7 @@ void MemStoreSkipList::PrintList(){
 		cur = cur->next_[0];
 		if(cur != NULL)
 			printf("key %ld value %ld, seq %ld snapshot %d\n", 
-			cur->key, cur->value, cur->seq, cur->counter);
+			cur->key, *cur->value, cur->seq, cur->counter);
 	}
 		
 

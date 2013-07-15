@@ -330,11 +330,21 @@ class Benchmark {
 			if (!(str[0]==str[1])){
 				printf("Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 				fail = true;
+				
+				DBTX::slock.Lock();
+				store->PrintList();
+				
+				DBTX::slock.Unlock();
 				break;
 			}
 			if (!(str[1]==str[2])) {
 				printf("Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 				fail = true;
+				
+				DBTX::slock.Lock();
+				store->PrintList();
+				DBTX::slock.Unlock();
+
 				break;
 			}
 			//printf("Pass 1\n");

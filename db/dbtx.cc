@@ -17,7 +17,7 @@
 #include "db/txmemstore_template.h"
 
 #define CACHESIM 0
-#define GLOBALOCK 1
+#define GLOBALOCK 0
 
 namespace leveldb {
 
@@ -278,9 +278,9 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	   } else {
 	     //if node is not found, insert the dummy node but also need to update cur sequence
 
-	//	printf("[WS] insert dummy node key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
+		//printf("[WS] insert dummy node key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
 		 
-		 cur->seq++;
+		 cur->seq = -1; // use 0xfffffff to identify the new dummy has been inserted
 		 kvs[i].dummy->seq = 1;
 		 kvs[i].dummy->counter = gcounter;
 		 //FIXME: just insert the dummy node into the 1st layer
@@ -393,38 +393,35 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
       	return true;
   }
 
-
+	
+retry:
   //step 2.  Read the <k,v> from the in memory store
   MemStoreSkipList::Node* node = txdb_->GetLatestNodeWithInsert(key);
 
-  //Guarantee   
+	{
+	  //Guarantee	
 #if GLOBALOCK
-	//MutexLock lock(&storemutex);
-	slock.Lock();
+			//MutexLock lock(&storemutex);
+			slock.Lock();
 #else
-
-	RTMScope rtm(&rtmProf);
+		
+			RTMScope rtm(&rtmProf);
 #endif
 
-
-  readset->Add(&node->seq);
-  
-  if ( node->value == NULL ) {
-
- 	*val = NULL;
-
+	  if(node->seq == -1) {
 #if GLOBALOCK
-	  //MutexLock lock(&storemutex);
-	  slock.Unlock();
+		  //MutexLock lock(&storemutex);
+		  slock.Unlock();
 #endif
+	  	goto retry;
 
+	  }
+	  
+	  readset->Add(&node->seq);
+	  
+	  if ( node->value == NULL ) {
 
-	return false;
-	
-  } else {
-  
-	assert(node->value != NULL);
-	*val = node->value;
+	 	*val = NULL;
 
 #if GLOBALOCK
 		  //MutexLock lock(&storemutex);
@@ -432,15 +429,28 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 #endif
 
 
-	return true;
-	
-  }
+		return false;
+		
+	  } else {
+	  
+		assert(node->value != NULL);
+		*val = node->value;
 
 #if GLOBALOCK
-		//MutexLock lock(&storemutex);
-		slock.Unlock();
+			  //MutexLock lock(&storemutex);
+			  slock.Unlock();
 #endif
 
+
+		return true;
+		
+	  }
+
+#if GLOBALOCK
+			//MutexLock lock(&storemutex);
+			slock.Unlock();
+#endif
+	}
   return true;
 }
 

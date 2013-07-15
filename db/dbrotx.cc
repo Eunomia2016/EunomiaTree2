@@ -8,6 +8,7 @@
 
 #include "db/dbformat.h"
 #include "db/dbrotx.h"
+#include "db/dbtx.h"
 #include "port/port_posix.h"
 #include "port/atomic.h"
 
@@ -16,10 +17,6 @@
 #include "db/txmemstore_template.h"
 
 namespace leveldb {
-
-port::Mutex DBROTX::storemutex;
-
-SpinLock DBROTX::slock;
 
 DBROTX::DBROTX(MemStoreSkipList* store)
 {
@@ -36,8 +33,9 @@ DBROTX::~DBROTX()
 void DBROTX::Begin()
 {
 //fetch and increase the global snapshot counter
-  
+  DBTX::slock.Lock();
   oldsnapshot = atomic_fetch_and_add64(&txdb_->snapshot, 1);
+  DBTX::slock.Unlock();
   //printf("snapshot %ld\n", txdb_->snapshot);
 }
 
