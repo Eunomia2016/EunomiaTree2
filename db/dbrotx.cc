@@ -38,7 +38,7 @@ void DBROTX::Begin()
 //fetch and increase the global snapshot counter
   
   oldsnapshot = atomic_fetch_and_add64(&txdb_->snapshot, 1);
-  
+  //printf("snapshot %ld\n", txdb_->snapshot);
 }
 
 bool DBROTX::Abort()

@@ -244,7 +244,7 @@ inline bool DBTX::WriteSet::Lookup(uint64_t key, uint64_t** val)
 //gcounter should be added into the rtm readset
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
 {
-  
+
   for(int i = 0; i < elems; i++) {
   	
     if(kvs[i].node->counter == gcounter) {
@@ -262,8 +262,10 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	  
 	  MemStoreSkipList::Node* cur = kvs[i].node;
 	  
+//	  printf("[WS] write key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
+
 	  while(cur->next_[0]!=NULL 
-	  		&& cur->next_[0]->key != cur->key
+	  		&& cur->next_[0]->key == cur->key
 	  		&& cur->counter != gcounter) {
 		cur = cur->next_[0];
 	  }
@@ -276,6 +278,8 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	   } else {
 	     //if node is not found, insert the dummy node but also need to update cur sequence
 
+	//	printf("[WS] insert dummy node key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
+		 
 		 cur->seq++;
 		 kvs[i].dummy->seq = 1;
 		 kvs[i].dummy->counter = gcounter;
@@ -370,7 +374,6 @@ void DBTX::Add(uint64_t key, uint64_t* val)
   //Get the seq addr from the hashtable
 
   node = txdb_->GetLatestNodeWithInsert(key);
-  
   
   //write the key value into local buffer
   writeset->Add(key, val, node);

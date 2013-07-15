@@ -289,6 +289,7 @@ class Benchmark {
 		bool fail = false;
 		for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
 
+			printf("[EqualTest]snapshot %d\n", store->snapshot);
 			leveldb::DBTX tx( store);
 			bool b = false;
 			while (b == false) {
@@ -337,7 +338,7 @@ class Benchmark {
 				break;
 			}
 			//printf("Pass 1\n");
-			if (i % 10 == 0) {
+			{
 				leveldb::DBROTX tx2( store);
 				bool found[3];
 				tx2.Begin();
@@ -357,11 +358,12 @@ class Benchmark {
 				bool f = true;
 				for (j = 1; j < 4; j++)
 					if (!found[j-1]) {
-						printf("Key %d not found\n", j);
+						printf("[%d]Key %d not found\n", i, j);
 						f = false;
 					}
 				if (!f) {
 					fail = true;
+					store->PrintList();
 					break;
 				}
 				
