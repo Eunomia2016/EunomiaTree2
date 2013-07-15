@@ -289,7 +289,7 @@ class Benchmark {
 		bool fail = false;
 		for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
 
-			printf("[EqualTest]snapshot %d\n", store->snapshot);
+			//printf("[EqualTest]snapshot %d\n", store->snapshot);
 			leveldb::DBTX tx( store);
 			bool b = false;
 			while (b == false) {
@@ -363,7 +363,7 @@ class Benchmark {
 					}
 				if (!f) {
 					fail = true;
-					store->PrintList();
+					//store->PrintList();
 					break;
 				}
 				
