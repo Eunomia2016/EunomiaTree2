@@ -372,8 +372,10 @@ class Benchmark {
 						f = false;
 					}
 				if (!f) {
+
 					fail = true;
 					//store->PrintList();
+
 					break;
 				}
 				
@@ -534,21 +536,27 @@ class Benchmark {
 			for (int j = 1; j<=3; j++) {
 			  leveldb::DBTX tx( store);
 			  bool b =false;
-			  while (b==false) {
-			    tx.Begin();
+			 
 			
 				for (int i=1; i<100;i++) {
-				  if (i % 10 == 0) continue;
-			  	  uint64_t *key = new uint64_t();
-			  	  *key = i;
-			  	  uint64_t *value = new uint64_t();
-			  	  *value = j;			
-				  tx.Add(*key, value);				
+					if (i % 10 == 0) continue;
+
+				 	while (b==false) {
+			    		tx.Begin();	
+				  		
+				  	  	uint64_t *key = new uint64_t();
+				  	  	*key = i;
+				  	  	uint64_t *value = new uint64_t();
+				  	  	*value = j;			
+					  	tx.Add(*key, value);				
+				  		b = tx.End();
+						  
+					}
+
+				  
 				}
 				
-				b = tx.End();
 			
-			  }
 			
 		
 		
