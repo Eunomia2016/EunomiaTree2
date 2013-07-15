@@ -58,7 +58,7 @@ namespace leveldb {
   static int64_t makeOrderKey(int32_t w_id, int32_t d_id, int32_t o_id) {
     assert(1 <= w_id && w_id <= Warehouse::MAX_WAREHOUSE_ID);
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
-    assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID);
+    assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID + 1);
     int32_t upper_id = w_id * District::NUM_PER_WAREHOUSE + d_id;
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
@@ -804,7 +804,7 @@ namespace leveldb {
   #undef COPY_ADDRESS
 
   void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
-	leveldb::DBTX tx(store);
+	leveldb::RODBTX tx(store);
 	//printf("OrderStatus\n");
     while(true) {
 	 
@@ -836,29 +836,22 @@ namespace leveldb {
 	  //-------------------------------------------------------------------------
 	  
 	  Order *o = NULL; int32_t o_id;
-/*	  Iterator iter = tx->Iterator();
-	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID);
+	  Iterator iter = tx->Iterator();
+	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
-	  iter.Seek(start);
-	  while (iter.Key() > start)
-	  	iter.Prev();
+	  iter.SeekLessThan(start);
+	  
 	  while (iter.Key() >= end) { 
 	  	o_id = reinterpret_cast<int32_t>(iter.Key() << 32 >> 32);
-		uint64_t *o_value = iter.Value();*/
-	  
-/*	  for (o_id = Order::MAX_ORDER_ID; o_id > 0; o_id--) {
-	    uint64_t o_key = makeOrderKey(warehouse_id, district_id, o_id);
-		
-		uint64_t *o_value;
-		bool found = tx.Get(o_key, &o_value);
-		if (!found) continue;*/
-/*		o = reinterpret_cast<Order *>(o_value);
+		uint64_t *o_value = iter.Value();
+
+		o = reinterpret_cast<Order *>(o_value);
 		if (o->o_c_id == customer_id) break;
-		iter.Prev();
+		iter.SeekLessThan(iter.Key());
 	  }
 	  output->o_id = o_id;
       output->o_carrier_id = o->o_carrier_id;
-      strcpy(output->o_entry_d, o->o_entry_d);*/
+      strcpy(output->o_entry_d, o->o_entry_d);
 	  
 	  //-------------------------------------------------------------------------
 	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID),
@@ -888,7 +881,7 @@ namespace leveldb {
 
   int32_t TPCCSkiplist::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
 	
-	leveldb::DBTX tx(store);
+	leveldb::RODBTX tx(store);
 	int num_distinct = 0;
 	//printf("StockLevel\n");
 	while(true) {
@@ -916,22 +909,16 @@ namespace leveldb {
       // Average size is more like ~30.
       s_i_ids.reserve(300);
 
-/*	  Iterator iter = tx->Iterator();
+	  Iterator iter = tx->Iterator();
 	  int64_t start = makeOrderLineKey(warehouse_id, district_id, i, 1);
 	  iter.Seek(start);
 	  int64_t end = makeOrderKey(warehouse_id, district_id, o_id, 1);
 	  while (true) {
 	  	  int64_t ol_key = iter.Key();
 		  if (ol_key >= end) break;
-	  	  uint64_t *ol_value = iter.Value();*/
-/*	  for (; i < o_id; i++) {
-	  	for (int j = 1; j < 16; j++) {
-		  int64_t ol_key = makeOrderLineKey(warehouse_id, district_id, i, j);
-		  
-		  uint64_t *ol_value;
-		  bool found = tx.Get(ol_key, &ol_value);
-		  if (!found) break;*/
-/*		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);   
+	  	  uint64_t *ol_value = iter.Value();
+
+		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);   
 		  //-------------------------------------------------------------------------
 		  //All rows in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals W_ID) 
 		  //from the list of distinct item numbers and with S_QUANTITY lower than threshold are counted (giving low_stock).
@@ -946,7 +933,7 @@ namespace leveldb {
 		  if (s->s_quantity < threshold) 
 		  	s_i_ids.push_back(s_i_id);
 		  
-//	  	}
+	  	
 		  iter.Next();
 	  }
 
@@ -959,7 +946,7 @@ namespace leveldb {
           num_distinct += 1;
         }
       }    
-*/
+
 	  bool b = tx.End();  
   	  if (b) break;
 	}
@@ -984,7 +971,7 @@ namespace leveldb {
 		uint64_t *no_value;
 	    NewOrder *no = NULL;
 		
-/*		int64_t start = makeNewOrderKey(warehouse_id, d_id, 1);
+		int64_t start = makeNewOrderKey(warehouse_id, d_id, 1);
 		Iterator iter = tx->Iterator();
 		iter.Seek(start);
 		int64_t end = makeNewOrderKey(warehouse_id, d_id, Order::MAX_ORDER_ID);
@@ -994,24 +981,14 @@ namespace leveldb {
 		  no_value = iter.Value();
 		  no = reinterpret_cast<NewOrder *>(no_value);
 		  no_id = reinterpret_cast<int32_t>(no_key << 32 >> 32);
-		};
-	*/	 
-/*	    while (no_id <= 100000000) {
-	  	  int64_t no_key = makeNewOrderKey(warehouse_id, d_id, no_id);
-	  	    	  
-	  	  bool found = tx.Get(no_key, &no_value);
-		  if (!found) {
-		    no_id++;
-		    continue;
-		  } */
 
 		  //-------------------------------------------------------------------------
 		  //The selected row in the NEW-ORDER table is deleted.
 		  //-------------------------------------------------------------------------
-//	  	  tx.Delete(no_key);
-/*		  break;
+	  	  tx.Delete(no_key);
+
 	    }
-	    no = reinterpret_cast<NewOrder *>(*no_value);*/
+	    
 	    if (no == NULL || no->no_d_id != d_id || no->no_w_id != warehouse_id) {
           // No orders for this district
           // TODO: 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it (???)
@@ -1046,26 +1023,22 @@ namespace leveldb {
 		//and the sum of all OL_AMOUNT is retrieved.
 		//-------------------------------------------------------------------------
 		float sum_ol_amount = 0;
-/*		int64_t start = makeOrderLineKey(warehouse_id, d_id, no_id, 1);
+		int64_t start = makeOrderLineKey(warehouse_id, d_id, no_id, 1);
 		iter.Seek(start);
 		int64_t end = makeOrderLineKey(warehouse_id, d_id, no_id, 15);
 		while (true) {
 		  int64_t ol_key = iter.Key();
 		  if (ol_key > end) break;
-		  uint64_t *ol_value = iter.Value();*/
-/*		for (int32_t ol_number = 1; ol_number < 16; ol_number++) {
-		  int64_t ol_key = makeOrderLineKey(warehouse_id, d_id, no_id, ol_number);
-		  
-		  uint64_t *ol_value;
-		  bool found = tx.Get(ol_key, &ol_value);*/
-/*		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);
+		  uint64_t *ol_value = iter.Value();
+
+		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);
 		  OrderLine *newol = new OrderLine();
 		  updateOrderLine(newol, ol, now);
 		  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
 		  tx.Add(ol_key, ol_v);
 		  sum_ol_amount += ol->ol_amount;
 		  iter.Next();
-		}*/
+		}
 
 		//-------------------------------------------------------------------------
 		//The row in the CUSTOMER table with matching C_W_ID (equals W_ID), C_D_ID (equals D_ID), and C_ID (equals O_C_ID) is selected 

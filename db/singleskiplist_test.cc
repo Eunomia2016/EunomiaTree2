@@ -18,7 +18,8 @@ static const char* FLAGS_benchmarks =
 	"nocycle,"
 	"delete";
 //	"nocycle_readonly,"
-//	"readonly";
+//	"readonly,"
+//	"range";
 	
 
 namespace leveldb {
@@ -104,9 +105,7 @@ class Benchmark {
 			
 			if (i % 10 == (tid%10) && i>10) {
 				leveldb::DBReadonlyTransaction tx1(store);
-				b =false;
-				
-				while (b==false) {
+							
 				tx1.Begin();
 			
 				for (int j=0; j<num; j++) {
@@ -121,7 +120,6 @@ class Benchmark {
 				}						
 				b = tx1.End();
 			   
-				}
 
 				bool e = true;
 				for (int j=0;j<num-1; j++) {
@@ -340,23 +338,22 @@ class Benchmark {
 /*
 			if (i % 10 == 0) {
 				leveldb::DBReadonlyTX tx2( store);
-				b = false;
-				while (b == false) {
-					tx2.Begin();
+				
+				tx2.Begin();
 					
-					for (int j = 1; j < 4; j++) {
-						
-						uint64_t *key = new uint64_t();
-						*key = j;
-						uint64_t *value;					
-						
-						tx2.Get(*key, &value);
-						str[j-1] = *value;
+				for (int j = 1; j < 4; j++) {
 					
-					}						
-					b = tx2.End();
+					uint64_t *key = new uint64_t();
+					*key = j;
+					uint64_t *value;					
+						
+					tx2.Get(*key, &value);
+					str[j-1] = *value;
+					
+				}						
 
-				}
+				tx2.End();
+				
 				
 				if (!(str[0]==str[1])){
 					printf("Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
@@ -473,18 +470,18 @@ class Benchmark {
 				}
 				
 	/*			leveldb::DBReadonlyTX tx3( store);
-				b = false; 
+				
 				bool f1 = true; bool f2 = false;
 				uint64_t *value; uint64_t *value1;
-				while (b == false) {
-					tx3.Begin();				
-															
-					f1 = tx3.Get(4, &value);
-					f2 = tx3.Get(5, &value);	
 				
-					b = tx3.End();
+				tx3.Begin();				
+														
+				f1 = tx3.Get(4, &value);
+				f2 = tx3.Get(5, &value);	
+				
+				tx3.End();
 	
-				}
+				
 				
 				if (f1 != f2){
 					printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
@@ -509,7 +506,7 @@ class Benchmark {
 		printf("%s start\n", name.ToString().c_str());				 		
 
 
-	/*	if (name == Slice("readonly")) {
+	/*	if (name == Slice("readonly")  || name == Slice("range")) {
 			
 			for (int j = 1; j<=3; j++) {
 			  leveldb::DBTX tx( store);
@@ -529,39 +526,39 @@ class Benchmark {
 				b = tx.End();
 			
 			  }
+		
+		
+		
+			leveldb::DBReadonlyTransaction tx1( store);
 
-			  leveldb::DBReadonlyTransaction tx1( store);
-			  bool b =false;
-			  while (b==false) {
-			    tx1.Begin();
-				uint64_t* k = new uint64_t();
-				*k = 1;
+			tx1.Begin();
+			uint64_t* k = new uint64_t();
+			*k = 1;
 				
-				uint64_t *r;
-				tx1.Get(*k,  &r);
+			uint64_t *r;
+			tx1.Get(*k,  &r);
 				
-				b = tx1.End();
-			  }
-			}
+			tx1.End();
+		}	  
+		
 
-			
+		if (name == Slice("readonly")) {	
 			//check
 			leveldb::DBReadonlyTransaction tx2(store);
-			bool b =false; int m;
+			int m;
 			bool c1 = false;bool c2 = false;bool c3 = false;
-			while (b==false) {
-			  for (m=1; m<100;m++) {
+			tx2.begin();	
+			for (m=1; m<100;m++) {
 			  
-			    bool found;
-			  
-			    tx2.begin();			  		    
+			    bool found;  
+			   		  		    
 			    uint64_t *key = new uint64_t();
 			    *key = m;
 			    
 			    uint64_t *r;
 			    found = tx2.Get(*key,  &r);		
 
-				if (m % 10 == 0 ) {
+			    if (m % 10 == 0 ) {
 				  if (found) c1 = true;
 				  break;
 			    }
@@ -574,9 +571,9 @@ class Benchmark {
 				  break;			 			  
 			    }
 				
-			  }
-			  b = tx2.End();
 			}
+			tx2.End();
+			
 			if (c1 ) {
 				printf("Key %d not inserted but found\n", m);
 				return;
@@ -594,7 +591,58 @@ class Benchmark {
 			return;
 		}
 
-
+		else if (name == Slice("range")) {
+			leveldb::DBReadonlyTransaction tx2(store);
+			bool c1 = false;bool c2 = false;bool c3 = false;			 
+			  
+			 tx2.begin();		
+			 Iterator iter = tx2.Iterator();
+			 iter.Seek(1); 
+			 uint64_t key = 1;
+			 uint64_t m = 0;
+			 while (iter.Valid()) {
+			    m = iter.Key();
+			    uint64_t *r = iter.Value();
+			    
+			    if (m % 10 == 0 ) {
+				  c1 = true;
+				  break;
+			    }
+			    
+			   
+			    else if (m != key)  {
+			  	  c2 = true;
+				  break;
+			    }
+			    else if (*r != 3) {
+			  	  c3 = true;
+				  break;			 			  
+			    }
+			    k++;
+			    if  (m % 10 == 9) k++;
+			    iter.Next();
+			 }
+			 tx2.End();
+			
+			if (c1 ) {
+				printf("Key %d not inserted but found\n", m);
+				return;
+			}
+			else if (c2)  {
+			  	printf("Key %d inserted but not found\n", key);
+				return;
+			}
+			else if (c3) {
+			  	printf("Key %d get %d instead of 3\n", m, *r);
+				return;			 			  
+			}
+			else if (m!=99) {
+				printf("Iterate to %d should be 99\n", m);
+				return;
+			}
+			printf("RangeTest pass!\n");	
+			return;
+		}
 		*/
 
 
@@ -774,7 +822,7 @@ int main(int argc, char**argv)
 	  else if (name == leveldb::Slice("delete")) {
 	  	method = &leveldb::Benchmark::DeleteTest;
 	  }
-	  else if (name == leveldb::Slice("readonly")) {
+	  else if (name == leveldb::Slice("readonly") || name == leveldb::Slice("range")) {
 	  	method = NULL;
 	  }
 	  
