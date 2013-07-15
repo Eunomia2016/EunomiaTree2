@@ -350,27 +350,32 @@ class Benchmark {
 						
 					found[j-1] = tx2.Get(*key, &value);
 					if (found[j-1]) str[j-1] = *value;
-					else break;
+					
 				}						
 
 				tx2.End();
-				if (!found[j-1]) {
-					printf("Key %d not found\n", j);
+				bool f = true;
+				for (j = 1; j < 4; j++)
+					if (!found[j-1]) {
+						printf("Key %d not found\n", j);
+						f = false;
+					}
+				if (!f) {
 					fail = true;
 					break;
 				}
-				else {
-				  if (!(str[0]==str[1])){
+				
+				if (!(str[0]==str[1])){
 					printf("In RO, Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 					fail = true;
 					break;
-				  }
-				  if (!(str[1]==str[2])) {
+				}
+				if (!(str[1]==str[2])) {
 					printf("In RO, Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 					fail = true;
 					break;
-				  }
 				}
+				
 			}
 			//printf("Pass 2\n");
 		}
