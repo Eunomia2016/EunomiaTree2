@@ -126,10 +126,20 @@ bool MemStoreSkipList::GetValueWithSnapshot(uint64_t key, uint64_t **val, uint64
 {
 	Node *x = FindGreaterOrEqual(key, NULL);
 	if(x != NULL && key == x->key) {
+
+		if(x->counter == counter) {
+			if(x->value == NULL) {
+				return false;
+			}
+			val = &x->value;
+			return true;
+		} 
+		
 		while(x->next_[0] != NULL && x->next_[0]->key == key) {
 			if(x->counter == counter) {
-				if(x->value == NULL)
+				if(x->value == NULL) {
 					return false;
+				}
 				val = &x->value;
 				return true;
 			} 
@@ -335,8 +345,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
 
 void MemStoreSkipList::PrintList(){
 
-	/*
-
+	
 	Node* cur = head_;
 		
 	while(cur != NULL)
@@ -348,8 +357,9 @@ void MemStoreSkipList::PrintList(){
 			printf("key %ld value %ld, seq %ld snapshot %d\n", 
 			cur->key, cur->value, cur->seq, cur->counter);
 	}
-	*/	
+		
 
+	/*
 
 	printf(" Max Height %d\n", max_height_);
 
@@ -376,7 +386,7 @@ void MemStoreSkipList::PrintList(){
 		}
 
 		printf(" Layer %d Has %d Elements\n", i, count);
-	}
+	}*/
 
 }
 
