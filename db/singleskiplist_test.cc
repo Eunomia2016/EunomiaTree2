@@ -15,9 +15,11 @@ static int FLAGS_threads = 4;
 static const char* FLAGS_benchmarks =
 	"equal,"
 	"counter,"
-	"nocycle";
+	"nocycle,"
+	"delete";
 //	"nocycle_readonly,"
 //	"readonly";
+	
 
 namespace leveldb {
 
@@ -382,6 +384,125 @@ class Benchmark {
 
 
 	
+	static void DeleteTest(void* v) {
+	
+			ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+			int tid = (arg->thread)->tid;
+			SharedState *shared = arg->thread->shared;
+			MemStoreSkipList *store = arg->store;
+			
+	
+	
+			//printf("In tid %lx\n", arg);
+			//printf("start %d\n",tid);
+			
+			bool fail = false;
+			for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
+	
+				leveldb::DBTX tx( store);
+				bool b = false;
+				while (b == false) {
+					tx.Begin();
+					
+					uint64_t *value = new uint64_t();
+					*value = i;
+					tx.Add(4, value);			
+
+					uint64_t *value1 = new uint64_t();
+					*value1 = i;
+					tx.Add(5, value1);	
+					
+					b = tx.End();
+	
+				}
+
+				leveldb::DBTX tx1( store);
+				b = false; 
+				bool f1 = true; bool f2 = false;
+				uint64_t *value; uint64_t *value1;
+				while (b == false) {
+					tx1.Begin();
+					
+										
+						
+					f1 = tx1.Get(4, &value);
+					f2 = tx1.Get(5, &value);	
+
+					
+					tx1.Get(3, &value);
+					tx1.Get(6, &value1);	
+
+					
+					b = tx1.End();
+	
+				}
+				
+				if (f1 != f2){
+					printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
+					fail = true;
+					break;
+				}
+				if (*value != *value1) {
+					printf("Key 3 value %d and Key 6 value %d, should have same values\n",*value, *value1);
+					fail = true;
+					break;
+				}
+				
+				leveldb::DBTX tx2( store);
+				b = false;
+				while (b == false) {
+					tx2.Begin();
+
+					uint64_t *value = new uint64_t();
+					*value = i;
+					tx.Add(3, value);	
+
+
+					tx2.Delete(4);			
+
+					tx2.Delete(5);
+
+		
+
+					uint64_t *value1 = new uint64_t();
+					*value1 = i;
+					tx.Add(6, value1);	
+					
+					b = tx2.End();
+	
+				}
+				
+	/*			leveldb::DBReadonlyTX tx3( store);
+				b = false; 
+				bool f1 = true; bool f2 = false;
+				uint64_t *value; uint64_t *value1;
+				while (b == false) {
+					tx3.Begin();				
+															
+					f1 = tx3.Get(4, &value);
+					f2 = tx3.Get(5, &value);	
+				
+					b = tx3.End();
+	
+				}
+				
+				if (f1 != f2){
+					printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
+					fail = true;
+					break;
+				}*/
+	
+			}
+			{
+			  MutexLock l(&shared->mu);
+			  if (fail) shared->fail = fail;
+			  shared->num_done++;
+			  if (shared->num_done >= shared->total) {
+				shared->cv.SignalAll();
+			  }
+			}
+	
+	}
 	
 	void Run(void (*method)(void* arg), Slice name ) {
 		int num = FLAGS_threads;
@@ -519,7 +640,25 @@ class Benchmark {
 			//if (b==true)printf("%d\n", i);
 			}
 		}
-	  
+	    else if (name == Slice("delete")) {
+			leveldb::DBTX tx( store);
+			bool b =false;
+			while (b==false) {
+			tx.Begin();
+			
+			for (int i=0; i<10; i++) {
+			  uint64_t *key = new uint64_t();
+			  *key = i;
+			  uint64_t *value = new uint64_t();
+			  *value = 1;
+			
+			  tx.Add(*key, value);				
+			}									
+			b = tx.End();
+			
+			//if (b==true)printf("%d\n", i);
+			}
+		}
 
 		SharedState shared;
 		shared.total = num;
@@ -552,6 +691,7 @@ class Benchmark {
 		 }else if (name == Slice("equal")) printf("EqualTest pass!\n");
 		 else if (name == Slice("nocycle")) printf("NocycleTest pass!\n");
 		 else if (name == Slice("nocycle_readonly")) printf("NocycleReadonlyTest pass!\n");		 
+		 else if (name == Slice("delete")) printf("DeleteTest pass!\n");
 		 else if (name == Slice("counter")) {
 		 	
 		 	
@@ -592,6 +732,7 @@ int main(int argc, char**argv)
 	 	 if (leveldb::Slice(argv[i]).starts_with("--help")){
 		 	printf("To Run :\n./tx_test [--benchmarks=Benchmark Name(default: all)] [--num=number of tx per thread(default: 100)] [--threads= number of threads (defaults: 4)]\n");
 			printf("Benchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle(nocycle_readonly)\t n threads, each tx write (tid,1) ((tid+1) %n,2) , never have all keys' value are the same\n");
+			printf("delete\t write or delete 2 keys in a tx, check both keys exist or both not exist\n");
 			return 0;
 	 	 }
 		 if (leveldb::Slice(argv[i]).starts_with("--benchmarks=")) {
@@ -630,6 +771,9 @@ int main(int argc, char**argv)
 /*	  else if (name == leveldb::Slice("nocycle_readonly")) {
 	  	method = &leveldb::Benchmark::NocycleReadonlyTest;
 	  }*/
+	  else if (name == leveldb::Slice("delete")) {
+	  	method = &leveldb::Benchmark::DeleteTest;
+	  }
 	  else if (name == leveldb::Slice("readonly")) {
 	  	method = NULL;
 	  }
