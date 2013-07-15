@@ -529,10 +529,11 @@ class Benchmark {
 			 
 			
 				for (int i=1; i<100;i++) {
+					if (i % 10 == 0) continue;
 
 				 	while (b==false) {
 			    		tx.Begin();	
-				  		if (i % 10 == 0) continue;
+				  		
 				  	  	uint64_t *key = new uint64_t();
 				  	  	*key = i;
 				  	  	uint64_t *value = new uint64_t();
