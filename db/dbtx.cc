@@ -17,7 +17,7 @@
 #include "db/txmemstore_template.h"
 
 #define CACHESIM 0
-#define GLOBALOCK 0
+#define GLOBALOCK 1
 
 namespace leveldb {
 
@@ -340,18 +340,27 @@ bool DBTX::Abort()
 bool DBTX::End()
 {
 #if GLOBALOCK
-  MutexLock lock(&storemutex);
+  //MutexLock lock(&storemutex);
+  slock.Lock();
 #else
   RTMScope rtm(&rtmProf);
 #endif
   
   if( !readset->Validate()) {
+#if GLOBALOCK
+		slock.Unlock();
+#endif
   	  return false;
    }
  
   //step 2.  update the the seq set 
   //can't use the iterator because the cur node may be deleted 
   writeset->Write(txdb_->snapshot);
+
+#if GLOBALOCK
+   slock.Unlock();
+#endif
+
   return true;
 }
 
@@ -387,8 +396,10 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 
   //Guarantee   
 #if GLOBALOCK
-	MutexLock lock(&storemutex);
+	//MutexLock lock(&storemutex);
+	slock.Lock();
 #else
+
 	RTMScope rtm(&rtmProf);
 #endif
 
@@ -398,15 +409,34 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
   if ( node->value == NULL ) {
 
  	*val = NULL;
+
+#if GLOBALOCK
+	  //MutexLock lock(&storemutex);
+	  slock.Unlock();
+#endif
+
+
 	return false;
 	
   } else {
   
 	assert(node->value != NULL);
 	*val = node->value;
+
+#if GLOBALOCK
+		  //MutexLock lock(&storemutex);
+		  slock.Unlock();
+#endif
+
+
 	return true;
 	
   }
+
+#if GLOBALOCK
+		//MutexLock lock(&storemutex);
+		slock.Unlock();
+#endif
 
   return true;
 }

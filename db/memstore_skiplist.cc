@@ -14,8 +14,8 @@
 
 
 #define SKIPLISTGLOBALLOCK 0
-#define SKIPLISTRTM 1
-#define SKIPLISTLOCKFREE 0
+#define SKIPLISTRTM 0
+#define SKIPLISTLOCKFREE 1
 
 
 namespace leveldb {
@@ -152,7 +152,8 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
   {
 
 	#if SKIPLISTGLOBALLOCK
-		MutexLock lock(&DBTX::storemutex);
+		//MutexLock lock(&DBTX::storemutex);
+		DBTX::slock.Lock();
 	#elif SKIPLISTRTM
 		RTMScope rtm(NULL);
 	#endif
@@ -161,6 +162,12 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
     x = FindGreaterOrEqual(key, preds);
   
     if(x != NULL && key == x->key ) {
+
+#if SKIPLISTGLOBALLOCK
+			  //MutexLock lock(&DBTX::storemutex);
+			  DBTX::slock.Unlock();
+#endif
+
   	  goto found;
     }
   
@@ -176,6 +183,12 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
   		newn->next_[i] = preds[i]->next_[i];
   		preds[i]->next_[i] = newn;	
     }
+	
+#if SKIPLISTGLOBALLOCK
+				  //MutexLock lock(&DBTX::storemutex);
+				  DBTX::slock.Unlock();
+#endif
+
     return newn;
 	
   }
