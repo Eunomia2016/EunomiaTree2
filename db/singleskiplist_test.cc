@@ -339,34 +339,34 @@ class Benchmark {
 			//printf("Pass 1\n");
 			if (i % 10 == 0) {
 				leveldb::DBROTX tx2( store);
-				bool found = true;
+				bool found[3];
 				tx2.Begin();
-					
-				for (int j = 1; j < 4; j++) {
+				int j;
+				for (j = 1; j < 4; j++) {
 					
 					uint64_t *key = new uint64_t();
 					*key = j;
 					uint64_t *value;					
 						
-					found = found && tx2.Get(*key, &value);
-					if (found) str[j-1] = *value;
-					
+					found[j-1] = tx2.Get(*key, &value);
+					if (found[j-1]) str[j-1] = *value;
+					else break;
 				}						
 
 				tx2.End();
-				if (!found) {
-					printf("Some key not found\n");
+				if (!found[j-1]) {
+					printf("Key %d not found\n", j);
 					fail = true;
 					break;
 				}
-				else if (found) {
+				else {
 				  if (!(str[0]==str[1])){
-					printf("Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
+					printf("In RO, Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 					fail = true;
 					break;
 				  }
 				  if (!(str[1]==str[2])) {
-					printf("Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
+					printf("In RO, Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 					fail = true;
 					break;
 				  }
