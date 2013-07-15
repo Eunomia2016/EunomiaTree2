@@ -18,7 +18,7 @@ class MemStoreSkipList {
 
  public:
 
-  int snapshot; // the counter for current snapshot
+  uint64_t snapshot; // the counter for current snapshot
   
   struct Node
   {
@@ -42,6 +42,8 @@ class MemStoreSkipList {
   Node* GetLatestNodeWithInsert(uint64_t key);
 
   Node* GetNodeWithInsert(uint64_t key);
+
+  bool GetValueWithSnapshot(uint64_t key, uint64_t **val, uint64_t counter);
   
   void PrintList();
 

@@ -122,6 +122,25 @@ void MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 	n->seq = 1;
 }
 
+bool MemStoreSkipList::GetValueWithSnapshot(uint64_t key, uint64_t **val, uint64_t counter)
+{
+	Node *x = FindGreaterOrEqual(key, NULL);
+	if(x != NULL && key == x->key) {
+		while(x->next_[0] != NULL && x->next_[0]->key == key) {
+			if(x->counter == counter) {
+				if(x->value == NULL)
+					return false;
+				val = &x->value;
+				return true;
+			} 
+			x = x->next_[0];
+		}
+	}
+
+	return false;
+}
+
+
 MemStoreSkipList::Node* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
 {
 
