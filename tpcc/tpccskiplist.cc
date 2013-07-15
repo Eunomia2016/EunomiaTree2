@@ -804,7 +804,7 @@ namespace leveldb {
   #undef COPY_ADDRESS
 
   void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
-	leveldb::RODBTX tx(store);
+/*	leveldb::DBROTX tx(store);
 	//printf("OrderStatus\n");
     while(true) {
 	 
@@ -875,13 +875,13 @@ namespace leveldb {
 	  }
       bool b = tx.End();  
   	  if (b) break;
-    }
+    }*/
     return;
   }
 
   int32_t TPCCSkiplist::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
-	
-	leveldb::RODBTX tx(store);
+/*	
+	leveldb::DBROTX tx(store);
 	int num_distinct = 0;
 	//printf("StockLevel\n");
 	while(true) {
@@ -950,13 +950,14 @@ namespace leveldb {
 	  bool b = tx.End();  
   	  if (b) break;
 	}
-	return num_distinct;
+	return num_distinct;*/
+	return 0;
   }
 
   void TPCCSkiplist::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
 		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo){
 
-	
+/*	
 	
     leveldb::DBTX tx(store);
 	while (true) {
@@ -1061,7 +1062,7 @@ namespace leveldb {
 	  bool b = tx.End();  
   	  if (b) break;
 	}
-	
+	*/
     return;
   }
 

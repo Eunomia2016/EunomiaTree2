@@ -3,6 +3,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "db/dbtx.h"
+#include "db/dbrotx.h"
 #include "db/memstore_skiplist.h"
 
 #include "leveldb/env.h"
@@ -16,9 +17,9 @@ static const char* FLAGS_benchmarks =
 	"equal,"
 	"counter,"
 	"nocycle,"
-	"delete";
-//	"nocycle_readonly,"
-//	"readonly,"
+	"delete,"
+	"nocycle_readonly,"
+	"readonly";
 //	"range";
 	
 
@@ -68,7 +69,7 @@ class Benchmark {
 		
 		
 	};
-/*
+
 	static void NocycleReadonlyTest(void* v) {
 
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
@@ -104,7 +105,7 @@ class Benchmark {
 			}
 			
 			if (i % 10 == (tid%10) && i>10) {
-				leveldb::DBReadonlyTransaction tx1(store);
+				leveldb::DBROTX tx1(store);
 							
 				tx1.Begin();
 			
@@ -145,7 +146,7 @@ class Benchmark {
 		  }
 		}
 	}
-*/	
+	
 	static void NocycleTest(void* v) {
 
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
@@ -335,10 +336,10 @@ class Benchmark {
 				fail = true;
 				break;
 			}
-/*
+			//printf("Pass 1\n");
 			if (i % 10 == 0) {
-				leveldb::DBReadonlyTX tx2( store);
-				
+				leveldb::DBROTX tx2( store);
+				bool found = true;
 				tx2.Begin();
 					
 				for (int j = 1; j < 4; j++) {
@@ -347,26 +348,31 @@ class Benchmark {
 					*key = j;
 					uint64_t *value;					
 						
-					tx2.Get(*key, &value);
-					str[j-1] = *value;
+					found = found && tx2.Get(*key, &value);
+					if (found) str[j-1] = *value;
 					
 				}						
 
 				tx2.End();
-				
-				
-				if (!(str[0]==str[1])){
+				if (!found) {
+					printf("Some key not found\n");
+					fail = true;
+					break;
+				}
+				else if (found) {
+				  if (!(str[0]==str[1])){
 					printf("Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 					fail = true;
 					break;
-				}
-				if (!(str[1]==str[2])) {
+				  }
+				  if (!(str[1]==str[2])) {
 					printf("Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 					fail = true;
 					break;
+				  }
 				}
-			}*/
-
+			}
+			//printf("Pass 2\n");
 		}
 		{
 		  MutexLock l(&shared->mu);
@@ -469,10 +475,10 @@ class Benchmark {
 	
 				}
 				
-	/*			leveldb::DBReadonlyTX tx3( store);
+				leveldb::DBROTX tx3( store);
 				
-				bool f1 = true; bool f2 = false;
-				uint64_t *value; uint64_t *value1;
+				f1 = true; f2 = false;
+				
 				
 				tx3.Begin();				
 														
@@ -487,7 +493,7 @@ class Benchmark {
 					printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 					fail = true;
 					break;
-				}*/
+				}
 	
 			}
 			{
@@ -506,7 +512,7 @@ class Benchmark {
 		printf("%s start\n", name.ToString().c_str());				 		
 
 
-	/*	if (name == Slice("readonly")  || name == Slice("range")) {
+		if (name == Slice("readonly")  || name == Slice("range")) {
 			
 			for (int j = 1; j<=3; j++) {
 			  leveldb::DBTX tx( store);
@@ -526,28 +532,28 @@ class Benchmark {
 				b = tx.End();
 			
 			  }
+			
 		
 		
-		
-			leveldb::DBReadonlyTransaction tx1( store);
+				leveldb::DBROTX tx1( store);
 
-			tx1.Begin();
-			uint64_t* k = new uint64_t();
-			*k = 1;
-				
-			uint64_t *r;
-			tx1.Get(*k,  &r);
-				
-			tx1.End();
-		}	  
-		
+				tx1.Begin();
+				uint64_t* k = new uint64_t();
+				*k = 1;
+					
+				uint64_t *r;
+				tx1.Get(*k,  &r);
+					
+				tx1.End();
+			}	  
+		}
 
 		if (name == Slice("readonly")) {	
 			//check
-			leveldb::DBReadonlyTransaction tx2(store);
-			int m;
+			leveldb::DBROTX tx2(store);
+			int m; uint64_t *r;
 			bool c1 = false;bool c2 = false;bool c3 = false;
-			tx2.begin();	
+			tx2.Begin();	
 			for (m=1; m<100;m++) {
 			  
 			    bool found;  
@@ -555,7 +561,7 @@ class Benchmark {
 			    uint64_t *key = new uint64_t();
 			    *key = m;
 			    
-			    uint64_t *r;
+			    
 			    found = tx2.Get(*key,  &r);		
 
 			    if (m % 10 == 0 ) {
@@ -590,9 +596,9 @@ class Benchmark {
 			printf("ReadonlyTest pass!\n");	
 			return;
 		}
-
+/*
 		else if (name == Slice("range")) {
-			leveldb::DBReadonlyTransaction tx2(store);
+			leveldb::DBROTX tx2(store);
 			bool c1 = false;bool c2 = false;bool c3 = false;			 
 			  
 			 tx2.begin();		
@@ -643,9 +649,8 @@ class Benchmark {
 			printf("RangeTest pass!\n");	
 			return;
 		}
-		*/
-
-
+		
+*/
 		
 		if (name == Slice("counter") ) {
 			
@@ -766,7 +771,7 @@ class Benchmark {
 			else printf("CounterTest pass!\n");
 		 }
 		 
-	
+			
 	}
 };
 }// end namespace leveldb
@@ -816,9 +821,9 @@ int main(int argc, char**argv)
 	  else if (name == leveldb::Slice("nocycle")) {
 	  	method = &leveldb::Benchmark::NocycleTest;
 	  }
-/*	  else if (name == leveldb::Slice("nocycle_readonly")) {
+	  else if (name == leveldb::Slice("nocycle_readonly")) {
 	  	method = &leveldb::Benchmark::NocycleReadonlyTest;
-	  }*/
+	  }
 	  else if (name == leveldb::Slice("delete")) {
 	  	method = &leveldb::Benchmark::DeleteTest;
 	  }
