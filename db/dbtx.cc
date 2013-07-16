@@ -14,7 +14,6 @@
 #include "port/port_posix.h"
 #include "util/txprofile.h"
 #include "util/spinlock.h"
-#include "db/txmemstore_template.h"
 
 #define CACHESIM 0
 #define GLOBALOCK 1
@@ -220,11 +219,7 @@ void DBTX::WriteSet::Add(uint64_t key, uint64_t* val, MemStoreSkipList::Node* no
 
   //Allocate the dummy node
   //FIXME: Just allocate the dummy node as 1 height
-  kvs[cur].dummy = MemStoreSkipList::NewNode(key, 1);
-  kvs[cur].dummy->value = val;
-  kvs[cur].dummy->counter = 0;
-  kvs[cur].dummy->next_[0] = NULL;
-	
+  kvs[cur].dummy = MemStoreSkipList::NewNode(key, 1);	
 }
 
 
@@ -246,7 +241,11 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 {
 
   for(int i = 0; i < elems; i++) {
-  	
+
+#if GLOBALOCK
+	assert(kvs[i].node->counter <= gcounter);
+#endif
+
     if(kvs[i].node->counter == gcounter) {
 		
 	  //If counter of the node is equal to the global counter, then just change the value pointer
@@ -257,36 +256,28 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	  //Should first update the value, then the seq, to guarantee the seq is always older than the value
 	  kvs[i].node->seq++;
 		
-	} else {
-	  //If global counter is updated, we need to find the node with the global counter
-	  
-	  MemStoreSkipList::Node* cur = kvs[i].node;
+	} else if(kvs[i].node->counter < gcounter){
+
+	  //If global counter is updated, just update the counter and store a old copy into the dummy node
+	  //Clone the current value into dummy node
+	  kvs[i].dummy->value = kvs[i].node->value;
+	  kvs[i].dummy->counter = kvs[i].node->counter;
+	  kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
+	  kvs[i].dummy->next_[0] = kvs[i].node->oldVersions;
+
+	  //update the current node
+	  kvs[i].node->oldVersions = kvs[i].dummy;
+	  kvs[i].node->counter = gcounter;
+	  	  
+	  kvs[i].node->value = kvs[i].val;
+	  kvs[i].node->seq++;
 	  
 //	  printf("[WS] write key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
-
-	  while(cur->next_[0]!=NULL 
-	  		&& cur->next_[0]->key == cur->key
-	  		&& cur->counter != gcounter) {
-		cur = cur->next_[0];
-	  }
-
-	   //if node is found, just update the seq number and value
-	   if(cur->counter == gcounter) {
-		 //FIXME: the old value should be deleted eventually
-	     cur->value = kvs[i].val;
-		 cur->seq++;
-	   } else {
-	     //if node is not found, insert the dummy node but also need to update cur sequence
-
-		//printf("[WS] insert dummy node key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
-		 
-		 cur->seq = -1; // use 0xfffffff to identify the new dummy has been inserted
-		 kvs[i].dummy->seq = 1;
-		 kvs[i].dummy->counter = gcounter;
-		 //FIXME: just insert the dummy node into the 1st layer
-		 kvs[i].dummy->next_[0] = cur->next_[0];
-		 cur->next_[0] = kvs[i].dummy;
-	   }
+	   
+	} else {
+	  //Error Check: Shouldn't arrive here
+	  while(_xtest()) _xend();
+	  assert(0);
 	}
   }
 }
@@ -394,64 +385,40 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
   }
 
 	
-retry:
   //step 2.  Read the <k,v> from the in memory store
   MemStoreSkipList::Node* node = txdb_->GetLatestNodeWithInsert(key);
 
-	{
-	  //Guarantee	
+	
+	//Guarantee	
 #if GLOBALOCK
-			//MutexLock lock(&storemutex);
-			slock.Lock();
+    slock.Lock();
 #else
-		
-			RTMScope rtm(&rtmProf);
+    RTMScope rtm(&rtmProf);
 #endif
 
-	  if(node->seq == -1) {
-#if GLOBALOCK
-		  //MutexLock lock(&storemutex);
-		  slock.Unlock();
-#endif
-	  	goto retry;
+    readset->Add(&node->seq);
 
-	  }
-	  
-	  readset->Add(&node->seq);
-	  
-	  if ( node->value == NULL ) {
+	if (node->value == NULL) {
 
-	 	*val = NULL;
+		*val = NULL;
 
 #if GLOBALOCK
-		  //MutexLock lock(&storemutex);
-		  slock.Unlock();
+	  	slock.Unlock();
 #endif
-
-
 		return false;
-		
-	  } else {
-	  
-		assert(node->value != NULL);
+
+	} else {
+
 		*val = node->value;
 
 #if GLOBALOCK
-			  //MutexLock lock(&storemutex);
-			  slock.Unlock();
+		  //MutexLock lock(&storemutex);
+		slock.Unlock();
 #endif
-
-
 		return true;
-		
-	  }
-
-#if GLOBALOCK
-			//MutexLock lock(&storemutex);
-			slock.Unlock();
-#endif
 	}
-  return true;
+
+
 }
 
 

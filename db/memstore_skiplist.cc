@@ -62,6 +62,7 @@ MemStoreSkipList::Node* MemStoreSkipList::NewNode(uint64_t key, int height)
   n->key = key;
   n->counter = 0;
   n->value = NULL;
+  n->oldVersions = NULL;
   n->next_[0] = NULL;
   return n;
 }
@@ -76,32 +77,41 @@ inline void MemStoreSkipList::FreeNode(Node* n)
 
 MemStoreSkipList::Iterator::Iterator(MemStoreSkipList* list, uint64_t snapshotCounter)
 {
-
+	list_ = list;
+	snapshot_ = snapshotCounter;
+	node_ = NULL;
 }
 
 // Returns true iff the iterator is positioned at a valid node.
 bool MemStoreSkipList::Iterator::Valid()
 {
-
+	return node_ != NULL;
 }
 
 // Returns the key at the current position.
 // REQUIRES: Valid()
 uint64_t MemStoreSkipList::Iterator::Key()
 {
-
+	return node_->key;
 }
 
 uint64_t* MemStoreSkipList::Iterator::Value()
 {
-
+	return node_->value;
 }
 
 // Advances to the next position.
 // REQUIRES: Valid()
 void MemStoreSkipList::Iterator::Next()
 {
+	Node* x = node_;
 
+	//get next different key
+	while(x->next_[0] != NULL && x->key == node_->key)
+		x = x->next_[0];
+	
+	node_ = x;
+	
 }
 
 // Advances to the previous position.
@@ -181,49 +191,6 @@ void MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 	n->seq = 1;
 }
 
-bool MemStoreSkipList::GetValueWithSnapshot(uint64_t key, uint64_t **val, uint64_t counter)
-{
-	Node *x = FindGreaterOrEqual(key, NULL);
-	if(x != NULL && key == x->key) {
-
-//		assert(x->counter <= counter);
-		if(x->counter == counter) {
-			if(x->value == NULL) {
-				return false;
-			}
-			
-			*val = x->value;
-			return true;
-		} 
-		while(x->next_[0] != NULL 
-			&& x->next_[0]->key == key
-			&& x->next_[0]->counter <= counter) {
-			x = x->next_[0];
-			if(x->counter == counter) {
-				if(x->value == NULL) {
-					return false;
-				}
-				*val = x->value;
-				return true;
-			} 
-			
-		}
-
-		//just return a stale value
-		if(x->counter < counter) {
-			*val = x->value;
-			return true;
-		} else {
-			return false;
-		}
-//		assert(x->counter < counter);
-
-		
-	}
-
-	return false;
-}
-
 
 MemStoreSkipList::Node* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
 {
@@ -234,11 +201,20 @@ MemStoreSkipList::Node* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
 	Node* x = GetNodeWithInsert(key);
 #endif
 
-	while(x->next_[0] != NULL && x->next_[0]->key == key)
-		x = x->next_[0];
-
 	return x;
 }
+
+MemStoreSkipList::Node* MemStoreSkipList::GetLatestNode(uint64_t key)
+{
+	Node* x = FindGreaterOrEqual(key, NULL);
+
+  	if(x != NULL && key == x->key ) {
+		return x;
+  	}
+
+	return NULL;
+}
+
 
 MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
 {
@@ -377,31 +353,6 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
 
 		if(succ == succs[i])
 		{	
-	//		assert(compare_(preds[i]->key, key) < 0);
-	//		assert(succs[i] == NULL || compare_(key, succs[i]->key) < 0);
-			//printf("Insert %dth Node %lx Addr %lx Height %d\n", gcount, x->key, x, height);
-	//		if(tmp != NULL)
-		//		printf("	 %dth Node %lx Addr %lx Height %d\n", 41, tmp->key, tmp, height);
-			
-			/*
-			if(succs[i] != NULL)
-				printf("%lx ---> %lx ---> %lx\n", preds[i]->key, key, succs[i]->key);
-			else
-				printf("%lx ---> %lx ---> NULL\n", preds[i]->key, key);
-			
-			
-			if(succs[i] != NULL && preds[i]->key != NULL && succs[i]->key != NULL)
-				printf("%ld ---> %ld ---> %ld\n", DecodeFixed32(preds[i]->key), 
-				DecodeFixed32(key), DecodeFixed32(succs[i]->key));
-			else if(succs[i] == NULL && preds[i]->key != NULL)
-				printf("%ld ---> %ld ---> NULL \n", DecodeFixed64(preds[i]->key), 
-				DecodeFixed64(key));
-			else if(succs[i] == NULL && preds[i]->key == NULL)
-				printf("Head ---> %ld ---> NULL \n", DecodeFixed64(key));
-			else if(succs[i] != NULL && preds[i]->key == NULL)
-				printf("Head  ---> %ld ---> %ld \n",
-				DecodeFixed64(key), DecodeFixed64(succs[i]->key));
-			*/
 			break;
 		}
 	//	retry++;

@@ -26,6 +26,7 @@ class MemStoreSkipList {
 	uint64_t counter;
 	uint64_t seq;
 	uint64_t* value;
+	Node* oldVersions;
 	Node* next_[1];
   };
 
@@ -67,7 +68,7 @@ class MemStoreSkipList {
    private:
     MemStoreSkipList* list_;
     Node* node_;
-	uint64_t snapshot;
+	uint64_t snapshot_;
     // Intentionally copyable
   };
 
@@ -80,12 +81,12 @@ class MemStoreSkipList {
   void Put(uint64_t k, uint64_t* val);
   
   Node* GetNodeWithInsertLockFree(uint64_t key);
-  
-  Node* GetLatestNodeWithInsert(uint64_t key);
 
   Node* GetNodeWithInsert(uint64_t key);
 
-  bool GetValueWithSnapshot(uint64_t key, uint64_t **val, uint64_t counter);
+  Node* GetLatestNodeWithInsert(uint64_t key);
+
+  Node* GetLatestNode(uint64_t key);
   
   void PrintList();
 

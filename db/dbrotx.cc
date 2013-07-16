@@ -51,7 +51,35 @@ bool DBROTX::End()
 
 bool DBROTX::Get(uint64_t key, uint64_t** val)
 {  
-  return txdb_->GetValueWithSnapshot(key, val, oldsnapshot);
+  MemStoreSkipList::Node* n = txdb_->GetLatestNode(key);
+
+  if(n == NULL)
+  	return false;
+  
+  if(n->counter <= oldsnapshot) {
+	if(n->value == NULL) {
+		return false;
+	} else {
+		*val = n->value;
+		return true;
+	}
+  }
+
+  n = n->oldVersions;
+  while(n != NULL && n->counter > oldsnapshot) {
+	n = n->next_[0];
+  }
+
+  if(n->counter <= oldsnapshot) {
+	if(n->value == NULL) {
+		return false;
+	} else {
+		*val = n->value;
+		return true;
+	}
+  }	
+
+  return false;
 }
 
 
