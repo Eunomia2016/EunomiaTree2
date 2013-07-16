@@ -29,6 +29,48 @@ class MemStoreSkipList {
 	Node* next_[1];
   };
 
+
+  class Iterator {
+   public:
+    // Initialize an iterator over the specified list.
+    // The returned iterator is not valid.
+    explicit Iterator(MemStoreSkipList* list, uint64_t snapshotCounter);
+
+    // Returns true iff the iterator is positioned at a valid node.
+    bool Valid();
+
+    // Returns the key at the current position.
+    // REQUIRES: Valid()
+    uint64_t Key();
+
+	uint64_t* Value();
+
+    // Advances to the next position.
+    // REQUIRES: Valid()
+    void Next();
+
+    // Advances to the previous position.
+    // REQUIRES: Valid()
+    void Prev();
+
+    // Advance to the first entry with a key >= target
+    void Seek(uint64_t key);
+
+    // Position at the first entry in list.
+    // Final state of iterator is Valid() iff list is not empty.
+    void SeekToFirst();
+
+    // Position at the last entry in list.
+    // Final state of iterator is Valid() iff list is not empty.
+    void SeekToLast();
+
+   private:
+    MemStoreSkipList* list_;
+    Node* node_;
+	uint64_t snapshot;
+    // Intentionally copyable
+  };
+
  public:
 
   explicit MemStoreSkipList();

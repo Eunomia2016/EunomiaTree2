@@ -73,6 +73,65 @@ inline void MemStoreSkipList::FreeNode(Node* n)
 }
 
 
+
+MemStoreSkipList::Iterator::Iterator(MemStoreSkipList* list, uint64_t snapshotCounter)
+{
+
+}
+
+// Returns true iff the iterator is positioned at a valid node.
+bool MemStoreSkipList::Iterator::Valid()
+{
+
+}
+
+// Returns the key at the current position.
+// REQUIRES: Valid()
+uint64_t MemStoreSkipList::Iterator::Key()
+{
+
+}
+
+uint64_t* MemStoreSkipList::Iterator::Value()
+{
+
+}
+
+// Advances to the next position.
+// REQUIRES: Valid()
+void MemStoreSkipList::Iterator::Next()
+{
+
+}
+
+// Advances to the previous position.
+// REQUIRES: Valid()
+void MemStoreSkipList::Iterator::Prev()
+{
+
+}
+
+// Advance to the first entry with a key >= target
+void MemStoreSkipList::Iterator::Seek(uint64_t key)
+{
+
+}
+
+// Position at the first entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void MemStoreSkipList::Iterator::SeekToFirst()
+{
+
+}
+
+// Position at the last entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void MemStoreSkipList::Iterator::SeekToLast()
+{
+
+}
+	
+
 inline uint32_t MemStoreSkipList::RandomHeight() 
 {
   // Increase height with probability 1 in kBranching
