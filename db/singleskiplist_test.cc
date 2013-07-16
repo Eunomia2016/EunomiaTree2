@@ -568,7 +568,10 @@ class Benchmark {
 					
 				uint64_t *r;
 				tx1.Get(*k,  &r);
-					
+				if (*r != j) {
+					printf("Key 1 get %d should be %d\n", *r, j);
+					return;
+				}
 				tx1.End();
 			}	  
 		}
