@@ -17,10 +17,11 @@ static const char* FLAGS_benchmarks =
 	"equal,"
 	"counter,"
 	"nocycle,"
-	"delete,"
-	"nocycle_readonly,"
+	"delete,"	
 	"readonly";
-//	"range";
+//   "range,"
+//   "equalrange,"
+//	"nocycle_readonly";
 	
 
 namespace leveldb {
@@ -66,7 +67,7 @@ class Benchmark {
 	struct ThreadArg {
 		ThreadState *thread;
 		MemStoreSkipList *store;
-		
+		volatile uint8_t start;
 		
 	};
 
@@ -133,6 +134,38 @@ class Benchmark {
 					printf("all keys have same value\n");
 					break;
 				}
+/*
+				leveldb::DBROTX tx2(store);
+							
+				tx2.Begin();
+			
+				Iterator iter = tx2.Iterator();
+				iter.SeekToFirst();
+				int key = 0;
+				while (iter.Valid()) {
+					uint64_t *k = new uint64_t();
+					*k = key;
+					uint64_t *v;
+					
+					tx1.Get(*k, &v);
+					str[key] = *v;
+					key++;
+					iter.Next();
+				}						
+				b = tx2.End();
+			   
+
+				e = true;
+				for (int j=0;j<num-1; j++) {
+					e = e && (str[j]==str[j+1]);
+				}
+				
+				//assert(!e); 
+				if (e) {
+					fail = true;  
+					printf("all keys have same value in range query\n");
+					break;
+				}*/
 			}
 			
 		}
@@ -271,7 +304,117 @@ class Benchmark {
 		}
 		//printf("end %d\n",tid);
 	}
+
+	static void EqualRangeTest(void* v) {
+
+		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+		int tid = (arg->thread)->tid;
+		SharedState *shared = arg->thread->shared;
+		MemStoreSkipList *store = arg->store;
+		
+
+		
+
+		//printf("In tid %lx\n", arg);
+		//printf("start %d\n",tid);
+		
+		bool fail = false;
+		for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
+			if (i == 0) continue;
+			//printf("[EqualTest]snapshot %d\n", store->snapshot);
+			leveldb::DBTX tx( store);
+			bool b = false;
+			while (b == false) {
+				tx.Begin();
+				
+				for (int j=0; j<10; j++) {
+		 			
+					uint64_t *key = new uint64_t();
+					*key = j;
+					uint64_t *value = new uint64_t();
+					*value = i;
+		 			tx.Add(*key, value);			
+				}
+				b = tx.End();
+
+			}
+
+			{
+			/*		leveldb::DBROTX tx2( store);
+
+					tx2.Begin();
+					Iterator iter = tx2.getIterator();
+					iter.SeekToFirst();
+					uint64_t count = 0;
+					uint64_t v = 0;
+					while (iter.Valid()) {
+					
+						
+						uint64_t key = iter.Key();
+						if (key != count) {
+							printf("Key %d not found\n", count);
+							fail = true;
+							break;
+						}
+						count++;
+						uint64_t *value = iter.Value();					
+						if (v == 0) v = *value;
+						else if (v != *value) {
+							printf("Key %d has value %d, not same with others (%d)\n", key, *value, v);
+							fail = true;
+							break;
+						}
+							
+						iter.Next();
+						
+					}						
+					if (fail) break;
+					tx2.End();
+
+					leveldb::DBROTX tx3( store);
+
+					tx3.Begin();
+					Iterator iter = tx3.getIterator();
+					uint64_t count = 5;
+					uint64_t v = 0;
+					iter.Seek(5);
+					while (iter.Valid()) {
+					
+						
+						uint64_t key = iter.Key();
+						if (key != count) {
+							printf("Key %d not found\n", count);
+							fail = true;
+							break;
+						}
+						count++;
+						uint64_t *value = iter.Value();					
+						if (v == 0) v = *value;
+						else if (v != *value) {
+							printf("Key %d has value %d, not same with others (%d)\n", key, *value, v);
+							fail = true;
+							break;
+						}
+							
+						iter.Next();
+						
+					}						
+					if (fail) break;
+					tx3.End();*/
+			}
+				//printf("Pass 2\n");
+		}
+		{
+		  MutexLock l(&shared->mu);
+		  if (fail) shared->fail = fail;
+		  shared->num_done++;
+		  if (shared->num_done >= shared->total) {
+			shared->cv.SignalAll();
+		  }
+		}
 	
+	}
+						
 	static void EqualTest(void* v) {
 
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
@@ -425,6 +568,8 @@ class Benchmark {
 				bool b = false;
 				while (b == false) {
 					tx.Begin();
+
+					tx.Delete(3);	
 					
 					uint64_t *value = new uint64_t();
 					*value = i;
@@ -440,7 +585,9 @@ class Benchmark {
 
 				leveldb::DBTX tx1( store);
 				b = false; 
-				bool f1 = true; bool f2 = false;
+				bool f1 = true; 
+				bool f2 = false;
+				bool f3 = true;
 				uint64_t *value; uint64_t *value1;
 				while (b == false) {
 					tx1.Begin();
@@ -449,22 +596,26 @@ class Benchmark {
 						
 					f1 = tx1.Get(4, &value);
 					f2 = tx1.Get(5, &value);	
-
+					f3 = tx1.Get(3, &value);
 					
-					tx1.Get(3, &value);
+				
 					tx1.Get(6, &value1);	
 
 					
 					b = tx1.End();
 	
 				}
-				
+				if (f1 == f3) {
+					printf("Get Key 4 return %d, Get Key 3 return %d, not equal\n", f1,f3);
+					fail = true;
+					break;
+				}
 				if (f1 != f2){
 					printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 					fail = true;
 					break;
 				}
-				if (*value != *value1) {
+				if (f3 && *value != *value1) {
 					printf("Key 3 value %d and Key 6 value %d, should have same values\n",*value, *value1);
 					fail = true;
 					break;
@@ -525,6 +676,34 @@ class Benchmark {
 			}
 	
 	}
+	static void Company(void* v) {
+
+		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+		MemStoreSkipList *store = arg->store;
+		
+		while (arg->start == 0) ;
+		
+		leveldb::DBTX tx( store);
+		bool b =false;
+			 	
+		for (int i=FLAGS_txs /2 ; i<FLAGS_txs;i++) {
+			if (i % 10 == 0) continue;
+			b = false;
+			while (b==false) {
+				tx.Begin();	
+				  		
+			  	uint64_t *key = new uint64_t();
+			  	*key = i;
+			  	uint64_t *value = new uint64_t();
+			  	*value = 4;			
+			  	tx.Add(*key, value);				
+				b = tx.End();
+						  
+			}
+			  
+		}
+		arg->start = 2;			
+	}	
 	
 	void Run(void (*method)(void* arg), Slice name ) {
 		int num = FLAGS_threads;
@@ -538,7 +717,7 @@ class Benchmark {
 			  bool b =false;
 			 
 			
-				for (int i=1; i<100;i++) {
+				for (int i=1; i<FLAGS_txs;i++) {
 					if (i % 10 == 0) continue;
 					b = false;
 				 	while (b==false) {
@@ -581,8 +760,15 @@ class Benchmark {
 			leveldb::DBROTX tx2(store);
 			int m; uint64_t *r;
 			bool c1 = false;bool c2 = false;bool c3 = false;
-			tx2.Begin();	
-			for (m=1; m<100;m++) {
+			ThreadArg *arg = new ThreadArg();
+			arg->start = 0;
+			arg->store = store;
+			Env::Default()->StartThread(method, arg);
+			tx2.Begin();				
+			arg->start = 1;
+
+			while (arg->start <2) ;
+			for (m=1; m<FLAGS_txs;m++) {
 			  
 			    bool found;  
 			   		  		    
@@ -620,7 +806,7 @@ class Benchmark {
 			  	printf("Key %d get %d instead of 3\n", m, *r);
 				return;			 			  
 			}
-		
+			
 			printf("ReadonlyTest pass!\n");	
 			return;
 		}
@@ -628,8 +814,15 @@ class Benchmark {
 		else if (name == Slice("range")) {
 			leveldb::DBROTX tx2(store);
 			bool c1 = false;bool c2 = false;bool c3 = false;			 
+			  ThreadArg *arg = new ThreadArg();
+			  arg->start = 0;
+			  arg->store = store;
+			  Env::Default()->StartThread(method, arg);
+			  tx2.Begin();	  
 			  
-			 tx2.begin();		
+			  arg->start = 1;
+			while (arg->start <2) ;
+			 
 			 Iterator iter = tx2.Iterator();
 			 iter.Seek(1); 
 			 uint64_t key = 1;
@@ -657,7 +850,8 @@ class Benchmark {
 			    iter.Next();
 			 }
 			 tx2.End();
-			
+			int end = FLAGS_txs -1 ;
+			if (end % 10 ==0) end--;
 			if (c1 ) {
 				printf("Key %d not inserted but found\n", m);
 				return;
@@ -671,7 +865,7 @@ class Benchmark {
 				return;			 			  
 			}
 			else if (m!=99) {
-				printf("Iterate to %d should be 99\n", m);
+				printf("Iterate to %d should be %d\n", m, end);
 				return;
 			}
 			printf("RangeTest pass!\n");	
@@ -843,6 +1037,9 @@ int main(int argc, char**argv)
 	  if (name == leveldb::Slice("equal")){
         method = &leveldb::Benchmark::EqualTest;
       }
+	  else if (name == leveldb::Slice("equalrange")){
+        method = &leveldb::Benchmark::EqualRangeTest;
+      }	  
 	  else if (name == leveldb::Slice("counter")) {
 	  	method = &leveldb::Benchmark::CounterTest;
 	  }
@@ -856,7 +1053,7 @@ int main(int argc, char**argv)
 	  	method = &leveldb::Benchmark::DeleteTest;
 	  }
 	  else if (name == leveldb::Slice("readonly") || name == leveldb::Slice("range")) {
-	  	method = NULL;
+	  	method = &leveldb::Benchmark::Company;
 	  }
 	  
 
