@@ -699,7 +699,7 @@ class Benchmark {
 			}
 			//printf("init \n");
 		}
-		else if (name == Slice("nocycle")) {
+		else if (name == Slice("nocycle") || name == Slice("nocycle_readonly")) {
 			leveldb::DBTX tx( store);
 			bool b =false;
 			while (b==false) {
