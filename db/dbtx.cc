@@ -17,7 +17,7 @@
 #include "db/txmemstore_template.h"
 
 #define CACHESIM 0
-#define GLOBALOCK 0
+#define GLOBALOCK 1
 
 namespace leveldb {
 

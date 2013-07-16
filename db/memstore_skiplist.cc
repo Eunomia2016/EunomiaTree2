@@ -126,7 +126,8 @@ bool MemStoreSkipList::GetValueWithSnapshot(uint64_t key, uint64_t **val, uint64
 {
 	Node *x = FindGreaterOrEqual(key, NULL);
 	if(x != NULL && key == x->key) {
-		assert(x->counter <= counter);
+
+//		assert(x->counter <= counter);
 		if(x->counter == counter) {
 			if(x->value == NULL) {
 				return false;
@@ -150,9 +151,15 @@ bool MemStoreSkipList::GetValueWithSnapshot(uint64_t key, uint64_t **val, uint64
 		}
 
 		//just return a stale value
-		assert(x->counter < counter);
-		*val = x->value;
-		return true;
+		if(x->counter < counter) {
+			*val = x->value;
+			return true;
+		} else {
+			return false;
+		}
+//		assert(x->counter < counter);
+
+		
 	}
 
 	return false;
