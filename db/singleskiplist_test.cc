@@ -540,7 +540,7 @@ class Benchmark {
 			
 				for (int i=1; i<100;i++) {
 					if (i % 10 == 0) continue;
-
+					b = false;
 				 	while (b==false) {
 			    		tx.Begin();	
 				  		
