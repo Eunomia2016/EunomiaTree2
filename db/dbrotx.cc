@@ -49,37 +49,55 @@ bool DBROTX::End()
   return true;
 }
 
+
+inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val)
+{
+	if(n == NULL)
+  	  return false;
+
+   if(n->counter <= oldsnapshot) {
+     if(n->value == NULL) {
+       return false;
+    }else {
+       *val = n->value;
+       return true;
+    }
+   }
+   
+   n = n->oldVersions;
+   while(n != NULL && n->counter > oldsnapshot) {
+     n = n->next_[0];
+   }
+   
+   if(n->counter <= oldsnapshot) {
+     if(n->value == NULL) {
+       return false;
+     } else {
+   	   *val = n->value;
+   	   return true;
+     }
+   }	
+   return false;
+}
+
 bool DBROTX::Get(uint64_t key, uint64_t** val)
 {  
   MemStoreSkipList::Node* n = txdb_->GetLatestNode(key);
-
-  if(n == NULL)
-  	return false;
   
-  if(n->counter <= oldsnapshot) {
-	if(n->value == NULL) {
-		return false;
-	} else {
-		*val = n->value;
-		return true;
-	}
-  }
+#if GLOBALOCK
+  DBTX::slock.Lock();
+#else
+  RTMScope rtm(NULL);
+#endif
 
-  n = n->oldVersions;
-  while(n != NULL && n->counter > oldsnapshot) {
-	n = n->next_[0];
-  }
+  bool res =  GetValueOnSnapshot(n, val);
 
-  if(n->counter <= oldsnapshot) {
-	if(n->value == NULL) {
-		return false;
-	} else {
-		*val = n->value;
-		return true;
-	}
-  }	
+#if GLOBALOCK
+  DBTX::slock.Unlock();
+#endif
 
-  return false;
+  return res;
+
 }
 
 

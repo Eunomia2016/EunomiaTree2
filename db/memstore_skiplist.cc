@@ -378,9 +378,20 @@ void MemStoreSkipList::PrintList(){
 		
 		//Key prev = cur->key;
 		cur = cur->next_[0];
-		if(cur != NULL)
+		if(cur != NULL) {
 			printf("key %ld value %ld, seq %ld snapshot %d\n", 
 			cur->key, *cur->value, cur->seq, cur->counter);
+
+			Node* v = cur->oldVersions;
+			while(v != NULL)
+			{
+				if(v != NULL)
+					printf("key %ld value %ld, seq %ld snapshot %d\n", 
+					v->key, *v->value, v->seq, v->counter);
+				v = v->next_[0];
+			}
+
+		}
 	}
 		
 

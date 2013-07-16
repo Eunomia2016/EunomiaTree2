@@ -35,11 +35,9 @@ class DBROTX {
 	bool Get(uint64_t key, uint64_t** val);
 	
 	
-private:
+public:
 
-	static port::Mutex storemutex;
-	static SpinLock slock;
-
+	inline bool GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val);
 	
 	uint64_t oldsnapshot;
 	MemStoreSkipList *txdb_ ;

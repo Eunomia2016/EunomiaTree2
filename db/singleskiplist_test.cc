@@ -450,7 +450,7 @@ class Benchmark {
 				b = tx.End();
 
 			}
-			
+
 			leveldb::DBTX tx1( store);
 			b = false;
 			while (b == false) {
@@ -494,7 +494,10 @@ class Benchmark {
 			{
 				leveldb::DBROTX tx2( store);
 				bool found[3];
+				
 				tx2.Begin();
+
+				uint64_t snapshot = tx2.oldsnapshot;
 				int j;
 				for (j = 1; j < 4; j++) {
 					
@@ -518,17 +521,30 @@ class Benchmark {
 
 					fail = true;
 					//store->PrintList();
-
+					printf("snapshot %ld\n", snapshot);
+					DBTX::slock.Lock();
+					store->PrintList();
+					DBTX::slock.Unlock();
 					break;
 				}
 				
 				if (!(str[0]==str[1])){
 					printf("In RO, Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
+					printf("snapshot %ld\n", snapshot);
+					DBTX::slock.Lock();
+					store->PrintList();
+					DBTX::slock.Unlock();
+				
 					fail = true;
 					break;
 				}
 				if (!(str[1]==str[2])) {
 					printf("In RO, Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
+					printf("snapshot %ld\n", snapshot);
+					DBTX::slock.Lock();
+					store->PrintList();				
+					DBTX::slock.Unlock();
+
 					fail = true;
 					break;
 				}

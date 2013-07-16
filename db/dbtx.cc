@@ -15,8 +15,6 @@
 #include "util/txprofile.h"
 #include "util/spinlock.h"
 
-#define CACHESIM 0
-#define GLOBALOCK 1
 
 namespace leveldb {
 
