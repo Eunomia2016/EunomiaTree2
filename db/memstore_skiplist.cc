@@ -87,18 +87,6 @@ bool MemStoreSkipList::Iterator::Valid()
 	return node_ != NULL;
 }
 
-// Returns the key at the current position.
-// REQUIRES: Valid()
-uint64_t MemStoreSkipList::Iterator::Key()
-{
-	return node_->key;
-}
-
-uint64_t* MemStoreSkipList::Iterator::Value()
-{
-	return node_->value;
-}
-
 // Advances to the next position.
 // REQUIRES: Valid()
 void MemStoreSkipList::Iterator::Next()
@@ -120,6 +108,11 @@ void MemStoreSkipList::Iterator::Prev()
   }
 }
 
+
+MemStoreSkipList::Node* MemStoreSkipList::Iterator::CurNode()
+{
+	return node_;
+}
 
 // Advance to the first entry with a key >= target
 void MemStoreSkipList::Iterator::Seek(uint64_t key)

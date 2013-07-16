@@ -101,6 +101,92 @@ bool DBROTX::Get(uint64_t key, uint64_t** val)
 }
 
 
+DBROTX::Iterator::Iterator(DBROTX* rotx)
+{
+	rotx_ = rotx;
+	iter_ = new MemStoreSkipList::Iterator(rotx->txdb_);
+	cur_ = NULL;
+}
+	
+bool DBROTX::Iterator::Valid()
+{
+	return cur_ != NULL;
+}
+	
+
+uint64_t DBROTX::Iterator::Key()
+{
+	return cur_->key;
+}
+
+uint64_t* DBROTX::Iterator::Value()
+{
+	return cur_->value;
+}
+	
+void DBROTX::Iterator::Next()
+{
+	uint64_t* val;
+
+	while(iter_->Valid()) {
+		iter_->Next();
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
+			cur_ = iter_->CurNode();
+			break;
+		}
+	}
+}
+
+void DBROTX::Iterator::Prev()
+{
+	uint64_t* val;
+
+	while(iter_->Valid()) {
+		iter_->Prev();
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
+			cur_ = iter_->CurNode();
+			break;
+		}
+	}
+}
+
+void DBROTX::Iterator::Seek(uint64_t key)
+{
+	uint64_t* val;
+	iter_->Seek(key);
+	while(iter_->Valid()) {
+		iter_->Next();
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
+			cur_ = iter_->CurNode();
+			break;
+		}
+	}
+}
+	
+// Position at the first entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void DBROTX::Iterator::SeekToFirst()
+{
+	uint64_t* val;
+	iter_->SeekToFirst();
+	while(iter_->Valid()) {
+		iter_->Next();
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
+			cur_ = iter_->CurNode();
+			break;
+		}
+	}
+}
+	
+// Position at the last entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void DBROTX::Iterator::SeekToLast()
+{
+	//TODO
+	assert(0);
+}
+
+
 
 }  // namespace leveldb
 

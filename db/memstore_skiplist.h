@@ -42,9 +42,7 @@ class MemStoreSkipList {
 
     // Returns the key at the current position.
     // REQUIRES: Valid()
-    uint64_t Key();
-
-	uint64_t* Value();
+    Node* CurNode();
 
     // Advances to the next position.
     // REQUIRES: Valid()
