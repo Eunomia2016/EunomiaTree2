@@ -35,7 +35,7 @@ class MemStoreSkipList {
    public:
     // Initialize an iterator over the specified list.
     // The returned iterator is not valid.
-    explicit Iterator(MemStoreSkipList* list, uint64_t snapshotCounter);
+    explicit Iterator(MemStoreSkipList* list);
 
     // Returns true iff the iterator is positioned at a valid node.
     bool Valid();
@@ -98,6 +98,8 @@ class MemStoreSkipList {
 
   
   inline Node* FindGreaterOrEqual(uint64_t key, Node** prev);
+
+  inline Node* FindLessThan(uint64_t key);
   
   void ThreadLocalInit();
   

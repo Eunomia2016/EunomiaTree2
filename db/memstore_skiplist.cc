@@ -75,10 +75,9 @@ inline void MemStoreSkipList::FreeNode(Node* n)
 
 
 
-MemStoreSkipList::Iterator::Iterator(MemStoreSkipList* list, uint64_t snapshotCounter)
+MemStoreSkipList::Iterator::Iterator(MemStoreSkipList* list)
 {
 	list_ = list;
-	snapshot_ = snapshotCounter;
 	node_ = NULL;
 }
 
@@ -104,41 +103,43 @@ uint64_t* MemStoreSkipList::Iterator::Value()
 // REQUIRES: Valid()
 void MemStoreSkipList::Iterator::Next()
 {
-	Node* x = node_;
-
 	//get next different key
-	while(x->next_[0] != NULL && x->key == node_->key)
-		x = x->next_[0];
-	
-	node_ = x;
-	
+	node_ = node_->next_[0];
 }
 
 // Advances to the previous position.
 // REQUIRES: Valid()
 void MemStoreSkipList::Iterator::Prev()
 {
-
+  // Instead of using explicit "prev" links, we just search for the
+  // last node that falls before key.
+  assert(Valid());
+  node_ = list_->FindLessThan(node_->key);
+  if (node_ == list_->head_) {
+	node_ = NULL;
+  }
 }
+
 
 // Advance to the first entry with a key >= target
 void MemStoreSkipList::Iterator::Seek(uint64_t key)
 {
-
+	node_ = list_->FindGreaterOrEqual(key, NULL);
 }
 
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.
 void MemStoreSkipList::Iterator::SeekToFirst()
 {
-
+	node_ = list_->head_->next_[0];
 }
 
 // Position at the last entry in list.
 // Final state of iterator is Valid() iff list is not empty.
 void MemStoreSkipList::Iterator::SeekToLast()
 {
-
+	//TODO
+	assert(0);
 }
 	
 
@@ -154,6 +155,27 @@ inline uint32_t MemStoreSkipList::RandomHeight()
   assert(height <= kMaxHeight);
   return height;
 }
+
+inline MemStoreSkipList::Node* MemStoreSkipList::FindLessThan(uint64_t key)
+{
+  Node* x = head_;
+  int level = max_height_ - 1;
+  while (true) {
+    assert(x == head_ || x->key < key < 0);
+    Node* next = x->next_[level];
+    if (next == NULL || next->key >= key) {
+      if (level == 0) {
+        return x;
+      } else {
+        // Switch to next list
+        level--;
+      }
+    } else {
+      x = next;
+    }
+  }
+}
+
 
 
 inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key, Node** prev)
