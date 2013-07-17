@@ -408,6 +408,93 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 
 }
 
+DBTX::Iterator::Iterator(DBTX* tx)
+{
+	tx_ = tx;
+	iter_ = new MemStoreSkipList::Iterator(tx->txdb_);
+	cur_ = NULL;
+}
+	
+bool DBTX::Iterator::Valid()
+{
+	return cur_ != NULL;
+}
+	
+
+uint64_t DBTX::Iterator::Key()
+{
+	return cur_->key;
+}
+
+uint64_t* DBTX::Iterator::Value()
+{
+	return val_;
+}
+	
+void DBTX::Iterator::Next()
+{
+	while(iter_->Valid()) {
+	  iter_->Next();
+	  cur_ = iter_->CurNode();
+	  val_ = cur_->value;
+	  if(val_ != NULL)
+		return;
+	}
+
+	cur_ = NULL;
+	
+}
+
+void DBTX::Iterator::Prev()
+{
+	while(iter_->Valid()) {
+	  iter_->Prev();
+	  cur_ = iter_->CurNode();
+	  val_ = cur_->value;
+	  if(val_ != NULL)
+		return;
+	}
+	cur_ = NULL;
+}
+
+void DBTX::Iterator::Seek(uint64_t key)
+{
+	iter_->Seek(key);
+	while(iter_->Valid()) {
+	  cur_ = iter_->CurNode();
+	  val_ = cur_->value;
+	  if(val_ != NULL)
+		return;
+	  
+	  iter_->Next();
+	}
+	cur_ = NULL;
+}
+	
+// Position at the first entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void DBTX::Iterator::SeekToFirst()
+{
+	iter_->SeekToFirst();
+	while(iter_->Valid()) {
+	  cur_ = iter_->CurNode();
+	  val_ = cur_->value;
+	  if(val_ != NULL)
+		return;
+	  
+	  iter_->Next();
+	}
+	cur_ = NULL;
+
+}
+	
+// Position at the last entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void DBTX::Iterator::SeekToLast()
+{
+	//TODO
+	assert(0);
+}
 
 
 }  // namespace leveldb
