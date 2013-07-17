@@ -370,7 +370,7 @@ namespace leveldb {
         return false;
     }
 	//Check correctness
-	leveldb::DBTX tx(store);
+/*	leveldb::DBTX tx(store);
 	//printf("Check\n");
 	while(true) {
 	  
@@ -414,7 +414,7 @@ namespace leveldb {
 	  
 	  bool b = tx.End();  
   	  if (b) break;
-  	}
+  	}*/
 	
     return true;
   }
@@ -519,8 +519,8 @@ namespace leveldb {
 	  order->o_d_id = district_id;
 	  order->o_id = output->o_id;
 	  order->o_c_id = customer_id;
-	  printf("w %d d %d o %d\n",warehouse_id, district_id, order->o_id);
-	  printf("New order %d\n", customer_id);
+	  //printf("w %d d %d o %d\n",warehouse_id, district_id, order->o_id);
+	  //printf("New order %d\n", customer_id);
 	  order->o_carrier_id = Order::NULL_CARRIER_ID;
 	  order->o_ol_cnt = static_cast<int32_t>(items.size());
 	  order->o_all_local = all_local ? 1 : 0;
@@ -803,9 +803,9 @@ namespace leveldb {
   #undef COPY_ADDRESS
 
   void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
-	leveldb::DBROTX tx(store);
-	//printf("OrderStatus\n");
-    while(true) {
+	  leveldb::DBROTX tx(store);
+	  //printf("OrderStatus\n");
+   
 	 
 	  tx.Begin();
 
@@ -838,6 +838,7 @@ namespace leveldb {
 	  DBROTX::Iterator iter(&tx);
 	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
+	  //printf("OrderStatus %d\n", customer_id);
 	  iter.Seek(start);
 	  iter.Prev();
 	  while (iter.Valid() && iter.Key() >= end) { 
@@ -848,8 +849,8 @@ namespace leveldb {
 		o = reinterpret_cast<Order *>(o_value);
 		assert(o_id == o->o_id);
 		if (o->o_c_id == customer_id) break;
-		printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
-	  	printf("OrderStatus %d\n", customer_id);
+		//printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
+	  	
 		iter.Prev();
 		o = NULL;
 	  }
@@ -861,6 +862,7 @@ namespace leveldb {
 	  //OL_QUANTITY, OL_AMOUNT, and OL_DELIVERY_D are retrieved.
 	  //-------------------------------------------------------------------------
 	  if (o != NULL) { 
+	  	//printf("Catch\n");
 	  	output->o_id = o_id;
         output->o_carrier_id = o->o_carrier_id;
         strcpy(output->o_entry_d, o->o_entry_d);
@@ -879,17 +881,16 @@ namespace leveldb {
         }
 	  }
       bool b = tx.End();  
-  	  if (b) break;
-    }
-    return;
+  
+      return;
   }
 
   int32_t TPCCSkiplist::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
 	
-	leveldb::DBROTX tx(store);
-	int num_distinct = 0;
-	//printf("StockLevel\n");
-	while(true) {
+	  leveldb::DBROTX tx(store);
+	  int num_distinct = 0;
+	  //printf("StockLevel\n");
+
 		 
 	  tx.Begin();
 		 
@@ -918,7 +919,7 @@ namespace leveldb {
 	  int64_t start = makeOrderLineKey(warehouse_id, district_id, i, 1);
 	  iter.Seek(start);
 	  int64_t end = makeOrderLineKey(warehouse_id, district_id, o_id, 1);
-	  while (true) {
+	  while (iter.Valid()) {
 	  	  int64_t ol_key = iter.Key();
 		  if (ol_key >= end) break;
 	  	  uint64_t *ol_value = iter.Value();
@@ -953,10 +954,9 @@ namespace leveldb {
       }    
 
 	  bool b = tx.End();  
-  	  if (b) break;
-	}
-	return num_distinct;
-	return 0;
+  	 
+	  return num_distinct;
+	
   }
 
   void TPCCSkiplist::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
