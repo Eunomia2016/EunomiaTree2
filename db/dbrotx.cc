@@ -14,6 +14,7 @@
 
 #include "util/txprofile.h"
 #include "util/spinlock.h"
+#include "util/mutexlock.h"
 #include "db/txmemstore_template.h"
 
 namespace leveldb {
@@ -33,9 +34,12 @@ DBROTX::~DBROTX()
 void DBROTX::Begin()
 {
 //fetch and increase the global snapshot counter
-  DBTX::slock.Lock();
+#if GLOBALOCK
+  SpinLockScope slock(&DBTX::slock);
+#endif
+
   oldsnapshot = atomic_fetch_and_add64(&txdb_->snapshot, 1);
-  DBTX::slock.Unlock();
+
   //printf("snapshot %ld\n", txdb_->snapshot);
 }
 
@@ -49,9 +53,16 @@ bool DBROTX::End()
   return true;
 }
 
-
+//This function should be executed atomically
 inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val)
 {
+
+#if GLOBALOCK
+		  SpinLockScope slock(&DBTX::slock);
+#else
+		  RTMScope rtm(NULL);
+#endif
+
 	if(n == NULL)
   	  return false;
 
@@ -83,20 +94,8 @@ inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val
 bool DBROTX::Get(uint64_t key, uint64_t** val)
 {  
   MemStoreSkipList::Node* n = txdb_->GetLatestNode(key);
-  
-#if GLOBALOCK
-  DBTX::slock.Lock();
-#else
-  RTMScope rtm(NULL);
-#endif
 
-  bool res =  GetValueOnSnapshot(n, val);
-
-#if GLOBALOCK
-  DBTX::slock.Unlock();
-#endif
-
-  return res;
+  return GetValueOnSnapshot(n, val);
 
 }
 
@@ -106,6 +105,7 @@ DBROTX::Iterator::Iterator(DBROTX* rotx)
 	rotx_ = rotx;
 	iter_ = new MemStoreSkipList::Iterator(rotx->txdb_);
 	cur_ = NULL;
+	val_ = NULL;
 }
 	
 bool DBROTX::Iterator::Valid()
@@ -122,80 +122,45 @@ uint64_t DBROTX::Iterator::Key()
 uint64_t* DBROTX::Iterator::Value()
 {
 	//return cur_->value;
-	return value;
+	return val_;
 }
 	
 void DBROTX::Iterator::Next()
 {
-	uint64_t* val;
-/*
+
 	while(iter_->Valid()) {
-		iter_->Next();
-		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
-			cur_ = iter_->CurNode();
-			break;
-		}
-	}*/
-	iter_->Next(); //qh
-	if (!iter_->Valid()) 
-		cur_ = NULL;
-	while(iter_->Valid()) {		
-
-#if GLOBALOCK
-  		DBTX::slock.Lock();
-#else
- 		RTMScope rtm(NULL);
-#endif
-		
-		bool b = rotx_->GetValueOnSnapshot(iter_->CurNode(), &val);
-
-#if GLOBALOCK
-  		DBTX::slock.Unlock();
-#endif
-		if(b) {
-			cur_ = iter_->CurNode();
-			value = val; 
-			break;
-		}
-		iter_->Next();	
+	  iter_->Next();
+	  if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
+		cur_ = iter_->CurNode();
+		return;
+	  }
 	}
+
+	cur_ = NULL;
+	
 }
 
 void DBROTX::Iterator::Prev()
 {
-	uint64_t* val;
-
 	while(iter_->Valid()) {
 		iter_->Prev();
-		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
 			cur_ = iter_->CurNode();
-			break;
+			return;
 		}
 	}
+	cur_ = NULL;
 }
 
 void DBROTX::Iterator::Seek(uint64_t key)
 {
-	uint64_t* val;
 	iter_->Seek(key);
 	while(iter_->Valid()) {		
-#if GLOBALOCK
-		DBTX::slock.Lock();
-#else
-		RTMScope rtm(NULL);
-#endif
-				
-		bool b = rotx_->GetValueOnSnapshot(iter_->CurNode(), &val);
-		
-#if GLOBALOCK
-		DBTX::slock.Unlock();
-#endif
-		if(b) {
-			cur_ = iter_->CurNode();
-			value = val; //qh
-			break;
-		}
-		iter_->Next();	//qh
+	  if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
+	    cur_ = iter_->CurNode();
+	    return;
+	  }
+	  iter_->Next();
 	}
 }
 	
@@ -203,35 +168,16 @@ void DBROTX::Iterator::Seek(uint64_t key)
 // Final state of iterator is Valid() iff list is not empty.
 void DBROTX::Iterator::SeekToFirst()
 {
-	uint64_t* val;
 	iter_->SeekToFirst();
-/*	while(iter_->Valid()) {
-		iter_->Next();
-		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
-			cur_ = iter_->CurNode();
-			break;
-		}
-	}*/
-	while(iter_->Valid()) {		
-#if GLOBALOCK
-		DBTX::slock.Lock();
-#else
-		RTMScope rtm(NULL);
-#endif
-				
-		bool b = rotx_->GetValueOnSnapshot(iter_->CurNode(), &val);
+	while(iter_->Valid()) {
 		
-#if GLOBALOCK
-		DBTX::slock.Unlock();
-#endif
-		if(b) {
-
-			cur_ = iter_->CurNode();
-			value = val; //qh
-			break;
-		}
-		iter_->Next();	//qh
+	  if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
+        cur_ = iter_->CurNode();
+		return;
+	  }
+	  iter_->Next();
 	}
+
 }
 	
 // Position at the last entry in list.

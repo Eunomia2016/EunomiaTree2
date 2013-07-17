@@ -7,6 +7,8 @@
 
 #include "port/port.h"
 #include "port/thread_annotations.h"
+#include "util/spinlock.h"
+
 
 namespace leveldb {
 
@@ -51,6 +53,20 @@ class SCOPED_LOCKABLE MutexSpinLock {
   void operator=(const MutexSpinLock&);
 };
 
+class SCOPED_LOCKABLE SpinLockScope {
+ public:
+  explicit SpinLockScope(SpinLock *slock)
+      : slock_(slock)  {
+    slock_->Lock();
+  }
+  ~SpinLockScope() { slock_->Unlock(); }
+
+ private:
+  SpinLock *slock_;
+  // No copying allowed
+  SpinLockScope(const SpinLockScope&);
+  void operator=(const SpinLockScope&);
+};
 
 
 }  // namespace leveldb
