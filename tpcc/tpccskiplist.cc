@@ -370,7 +370,7 @@ namespace leveldb {
         return false;
     }
 	//Check correctness
-/*	leveldb::DBTX tx(store);
+	leveldb::DBTX tx(store);
 	//printf("Check\n");
 	while(true) {
 	  
@@ -384,22 +384,20 @@ namespace leveldb {
 	  District *d = reinterpret_cast<District *>(d_value);
 	  assert(output->o_id == d->d_next_o_id - 1);
 	  
-	  int64_t o_key = makeOrderKey(warehouse_id, district_id, output->o_id);
-	 
+	  int64_t o_key = makeOrderKey(warehouse_id, district_id, output->o_id); 
   	  uint64_t *o_value;
   	  found = tx.Get(o_key, &o_value);
 	  assert(found);
 	  Order *o = reinterpret_cast<Order *>(o_value);
 	  assert(o->o_c_id == customer_id);
-	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, output->o_id);
 	  
+	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, output->o_id);
   	  uint64_t *no_value;
   	  found = tx.Get(o_key, &no_value);
 	  assert(found);
+	  
 	  NewOrder *no = reinterpret_cast<NewOrder *>(no_value);
-	  
 	  uint64_t l_key = makeOrderLineKey(warehouse_id, district_id, output->o_id, 2);
-	  
 	  uint64_t *l_value;
 	  found = tx.Get(l_key, &l_value);
 	  assert(found);
@@ -409,7 +407,6 @@ namespace leveldb {
 	  assert(l->ol_quantity == items[1].ol_quantity);
 
 	  uint64_t s_key = makeStockKey(items[3].ol_supply_w_id, items[3].i_id);
-	  
       uint64_t *s_value;
 	  found = tx.Get(s_key, &s_value);
 	  assert(found);
@@ -417,7 +414,7 @@ namespace leveldb {
 	  
 	  bool b = tx.End();  
   	  if (b) break;
-  	}*/
+  	}
 	
     return true;
   }
@@ -522,6 +519,8 @@ namespace leveldb {
 	  order->o_d_id = district_id;
 	  order->o_id = output->o_id;
 	  order->o_c_id = customer_id;
+	  printf("w %d d %d o %d\n",warehouse_id, district_id, order->o_id);
+	  printf("New order %d\n", customer_id);
 	  order->o_carrier_id = Order::NULL_CARRIER_ID;
 	  order->o_ol_cnt = static_cast<int32_t>(items.size());
 	  order->o_all_local = all_local ? 1 : 0;
@@ -834,31 +833,37 @@ namespace leveldb {
 	  //(equals C_ID), and with the largest existing O_ID, is selected. This is the most recent order placed by that customer. 
 	  //O_ID, O_ENTRY_D, and O_CARRIER_ID are retrieved.
 	  //-------------------------------------------------------------------------
-/*	  
+
 	  Order *o = NULL; int32_t o_id;
 	  DBROTX::Iterator iter(&tx);
 	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
-	  iter.SeekLessThan(start);
-	  
+	  iter.Seek(start);
+	  iter.Prev();
 	  while (iter.Key() >= end) { 
-	  	o_id = reinterpret_cast<int32_t>(iter.Key() << 32 >> 32);
+	  	o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
+		
 		uint64_t *o_value = iter.Value();
 
 		o = reinterpret_cast<Order *>(o_value);
+		assert(o_id == o->o_id);
 		if (o->o_c_id == customer_id) break;
-		iter.SeekLessThan(iter.Key());
+		printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
+	  	printf("OrderStatus %d\n", customer_id);
+		iter.Prev();
+		o = NULL;
 	  }
-	  output->o_id = o_id;
-      output->o_carrier_id = o->o_carrier_id;
-      strcpy(output->o_entry_d, o->o_entry_d);
+	  
 	  
 	  //-------------------------------------------------------------------------
 	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID),
 	  //and OL_O_ID (equals O_ID) are selected and the corresponding sets of OL_I_ID, OL_SUPPLY_W_ID,
 	  //OL_QUANTITY, OL_AMOUNT, and OL_DELIVERY_D are retrieved.
 	  //-------------------------------------------------------------------------
-	  if (o != NULL) {
+	  if (o != NULL) { 
+	  	output->o_id = o_id;
+        output->o_carrier_id = o->o_carrier_id;
+        strcpy(output->o_entry_d, o->o_entry_d);
 	    output->lines.resize(o->o_ol_cnt);
         for (int32_t line_number = 1; line_number <= o->o_ol_cnt; ++line_number) {
 		  uint64_t ol_key = makeOrderLineKey(warehouse_id, district_id, o_id, line_number);
@@ -872,7 +877,7 @@ namespace leveldb {
           output->lines[line_number-1].ol_amount = line->ol_amount;
           strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
         }
-	  }*/
+	  }
       bool b = tx.End();  
   	  if (b) break;
     }
@@ -973,7 +978,7 @@ namespace leveldb {
 	    NewOrder *no = NULL;
 		
 		int64_t start = makeNewOrderKey(warehouse_id, d_id, 1);
-		DBROTX::Iterator iter(&tx);
+		DBTX::Iterator iter(&tx);
 		iter.Seek(start);
 		int64_t end = makeNewOrderKey(warehouse_id, d_id, Order::MAX_ORDER_ID);
 		
@@ -981,7 +986,7 @@ namespace leveldb {
 		if (no_key <= end) {
 		  no_value = iter.Value();
 		  no = reinterpret_cast<NewOrder *>(no_value);
-		  no_id = reinterpret_cast<int32_t>(no_key << 32 >> 32);
+		  no_id = static_cast<int32_t>(no_key << 32 >> 32);
 
 		  //-------------------------------------------------------------------------
 		  //The selected row in the NEW-ORDER table is deleted.

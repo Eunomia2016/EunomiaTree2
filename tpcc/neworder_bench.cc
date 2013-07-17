@@ -354,8 +354,8 @@ int main(int argc, const char* argv[]) {
 
     leveldb::Slice name("neworder");
     leveldb::Benchmark b(tables, clock, cLoad);
-	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doOne);
-	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
+	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doOne);
+	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
 	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doPayment);
 	
 	delete tables;

@@ -882,7 +882,7 @@ class Benchmark {
 			  	printf("Key %d get %d instead of 3\n", m, *r);
 				return;			 			  
 			}
-			else if (m!=99) {
+			else if (m!=end) {
 				printf("Iterate to %d should be %d\n", m, end);
 				return;
 			}
