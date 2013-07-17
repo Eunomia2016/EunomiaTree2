@@ -14,6 +14,8 @@
 #include "port/port_posix.h"
 #include "util/txprofile.h"
 #include "util/spinlock.h"
+#include "util/mutexlock.h"
+
 
 
 namespace leveldb {
@@ -332,27 +334,21 @@ bool DBTX::Abort()
 
 bool DBTX::End()
 {
+
 #if GLOBALOCK
-  //MutexLock lock(&storemutex);
-  slock.Lock();
+  SpinLockScope spinlock(&slock);
 #else
   RTMScope rtm(&rtmProf);
 #endif
-  
-  if( !readset->Validate()) {
-#if GLOBALOCK
-		slock.Unlock();
-#endif
+
+  if(!readset->Validate())
   	  return false;
-   }
+  
  
   //step 2.  update the the seq set 
   //can't use the iterator because the cur node may be deleted 
   writeset->Write(txdb_->snapshot);
 
-#if GLOBALOCK
-   slock.Unlock();
-#endif
 
   return true;
 }
@@ -389,10 +385,11 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 	
 	//Guarantee	
 #if GLOBALOCK
-    slock.Lock();
+	SpinLockScope spinlock(&slock);
 #else
-    RTMScope rtm(&rtmProf);
+	RTMScope rtm(&rtmProf);
 #endif
+
 
     readset->Add(&node->seq);
 
@@ -400,19 +397,11 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 
 		*val = NULL;
 
-#if GLOBALOCK
-	  	slock.Unlock();
-#endif
 		return false;
 
 	} else {
 
 		*val = node->value;
-
-#if GLOBALOCK
-		  //MutexLock lock(&storemutex);
-		slock.Unlock();
-#endif
 		return true;
 	}
 
