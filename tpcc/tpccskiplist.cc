@@ -804,7 +804,7 @@ namespace leveldb {
   #undef COPY_ADDRESS
 
   void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
-/*	leveldb::DBROTX tx(store);
+	leveldb::DBROTX tx(store);
 	//printf("OrderStatus\n");
     while(true) {
 	 
@@ -834,9 +834,9 @@ namespace leveldb {
 	  //(equals C_ID), and with the largest existing O_ID, is selected. This is the most recent order placed by that customer. 
 	  //O_ID, O_ENTRY_D, and O_CARRIER_ID are retrieved.
 	  //-------------------------------------------------------------------------
-	  
+/*	  
 	  Order *o = NULL; int32_t o_id;
-	  Iterator iter = tx->Iterator();
+	  DBROTX::Iterator iter(&tx);
 	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	  iter.SeekLessThan(start);
@@ -872,15 +872,15 @@ namespace leveldb {
           output->lines[line_number-1].ol_amount = line->ol_amount;
           strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
         }
-	  }
+	  }*/
       bool b = tx.End();  
   	  if (b) break;
-    }*/
+    }
     return;
   }
 
   int32_t TPCCSkiplist::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
-/*	
+	
 	leveldb::DBROTX tx(store);
 	int num_distinct = 0;
 	//printf("StockLevel\n");
@@ -909,10 +909,10 @@ namespace leveldb {
       // Average size is more like ~30.
       s_i_ids.reserve(300);
 
-	  Iterator iter = tx->Iterator();
+	  DBROTX::Iterator iter(&tx);
 	  int64_t start = makeOrderLineKey(warehouse_id, district_id, i, 1);
 	  iter.Seek(start);
-	  int64_t end = makeOrderKey(warehouse_id, district_id, o_id, 1);
+	  int64_t end = makeOrderLineKey(warehouse_id, district_id, o_id, 1);
 	  while (true) {
 	  	  int64_t ol_key = iter.Key();
 		  if (ol_key >= end) break;
@@ -950,7 +950,7 @@ namespace leveldb {
 	  bool b = tx.End();  
   	  if (b) break;
 	}
-	return num_distinct;*/
+	return num_distinct;
 	return 0;
   }
 
@@ -973,7 +973,7 @@ namespace leveldb {
 	    NewOrder *no = NULL;
 		
 		int64_t start = makeNewOrderKey(warehouse_id, d_id, 1);
-		Iterator iter = tx->Iterator();
+		DBROTX::Iterator iter(&tx);
 		iter.Seek(start);
 		int64_t end = makeNewOrderKey(warehouse_id, d_id, Order::MAX_ORDER_ID);
 		
@@ -1024,9 +1024,9 @@ namespace leveldb {
 		//and the sum of all OL_AMOUNT is retrieved.
 		//-------------------------------------------------------------------------
 		float sum_ol_amount = 0;
-		int64_t start = makeOrderLineKey(warehouse_id, d_id, no_id, 1);
+		start = makeOrderLineKey(warehouse_id, d_id, no_id, 1);
 		iter.Seek(start);
-		int64_t end = makeOrderLineKey(warehouse_id, d_id, no_id, 15);
+		end = makeOrderLineKey(warehouse_id, d_id, no_id, 15);
 		while (true) {
 		  int64_t ol_key = iter.Key();
 		  if (ol_key > end) break;

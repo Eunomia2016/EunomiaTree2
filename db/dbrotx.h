@@ -73,6 +73,7 @@ class DBROTX {
 	  DBROTX* rotx_;
 	  MemStoreSkipList::Node* cur_;
 	  MemStoreSkipList::Iterator *iter_;
+	  uint64_t *value;   //qh
 	  // Intentionally copyable
 	};
 	

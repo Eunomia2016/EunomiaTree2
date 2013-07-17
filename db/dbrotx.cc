@@ -66,10 +66,10 @@ inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val
    
    n = n->oldVersions;
    while(n != NULL && n->counter > oldsnapshot) {
-     n = n->next_[0];
+     n = n->next_[0];  
    }
    
-   if(n->counter <= oldsnapshot) {
+   if(n != NULL && n->counter <= oldsnapshot) {
      if(n->value == NULL) {
        return false;
      } else {
@@ -121,19 +121,43 @@ uint64_t DBROTX::Iterator::Key()
 
 uint64_t* DBROTX::Iterator::Value()
 {
-	return cur_->value;
+	//return cur_->value;
+	return value;
 }
 	
 void DBROTX::Iterator::Next()
 {
 	uint64_t* val;
-
+/*
 	while(iter_->Valid()) {
 		iter_->Next();
 		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
 			cur_ = iter_->CurNode();
 			break;
 		}
+	}*/
+	iter_->Next(); //qh
+	if (!iter_->Valid()) 
+		cur_ = NULL;
+	while(iter_->Valid()) {		
+
+#if GLOBALOCK
+  		DBTX::slock.Lock();
+#else
+ 		RTMScope rtm(NULL);
+#endif
+		
+		bool b = rotx_->GetValueOnSnapshot(iter_->CurNode(), &val);
+
+#if GLOBALOCK
+  		DBTX::slock.Unlock();
+#endif
+		if(b) {
+			cur_ = iter_->CurNode();
+			value = val; 
+			break;
+		}
+		iter_->Next();	
 	}
 }
 
@@ -154,12 +178,24 @@ void DBROTX::Iterator::Seek(uint64_t key)
 {
 	uint64_t* val;
 	iter_->Seek(key);
-	while(iter_->Valid()) {
-		iter_->Next();
-		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
+	while(iter_->Valid()) {		
+#if GLOBALOCK
+		DBTX::slock.Lock();
+#else
+		RTMScope rtm(NULL);
+#endif
+				
+		bool b = rotx_->GetValueOnSnapshot(iter_->CurNode(), &val);
+		
+#if GLOBALOCK
+		DBTX::slock.Unlock();
+#endif
+		if(b) {
 			cur_ = iter_->CurNode();
+			value = val; //qh
 			break;
 		}
+		iter_->Next();	//qh
 	}
 }
 	
@@ -169,12 +205,32 @@ void DBROTX::Iterator::SeekToFirst()
 {
 	uint64_t* val;
 	iter_->SeekToFirst();
-	while(iter_->Valid()) {
+/*	while(iter_->Valid()) {
 		iter_->Next();
 		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val)) {
 			cur_ = iter_->CurNode();
 			break;
 		}
+	}*/
+	while(iter_->Valid()) {		
+#if GLOBALOCK
+		DBTX::slock.Lock();
+#else
+		RTMScope rtm(NULL);
+#endif
+				
+		bool b = rotx_->GetValueOnSnapshot(iter_->CurNode(), &val);
+		
+#if GLOBALOCK
+		DBTX::slock.Unlock();
+#endif
+		if(b) {
+
+			cur_ = iter_->CurNode();
+			value = val; //qh
+			break;
+		}
+		iter_->Next();	//qh
 	}
 }
 	

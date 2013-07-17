@@ -18,10 +18,10 @@ static const char* FLAGS_benchmarks =
 	"counter,"
 	"nocycle,"
 	"delete,"	
-	"readonly";
-//   "range,"
-//   "equalrange,"
-//	"nocycle_readonly";
+	"readonly,"
+   "range,"
+   "equalrange,"
+	"nocycle_readonly";
 	
 
 namespace leveldb {
@@ -134,20 +134,20 @@ class Benchmark {
 					printf("all keys have same value\n");
 					break;
 				}
-/*
+
 				leveldb::DBROTX tx2(store);
 							
 				tx2.Begin();
 			
-				Iterator iter = tx2.Iterator();
+				DBROTX::Iterator iter(&tx2);
 				iter.SeekToFirst();
 				int key = 0;
 				while (iter.Valid()) {
-					uint64_t *k = new uint64_t();
-					*k = key;
-					uint64_t *v;
+					uint64_t k = iter.Key();
 					
-					tx1.Get(*k, &v);
+					uint64_t *v = iter.Value();
+					
+					
 					str[key] = *v;
 					key++;
 					iter.Next();
@@ -165,7 +165,7 @@ class Benchmark {
 					fail = true;  
 					printf("all keys have same value in range query\n");
 					break;
-				}*/
+				}
 			}
 			
 		}
@@ -340,10 +340,10 @@ class Benchmark {
 			}
 
 			{
-			/*		leveldb::DBROTX tx2( store);
+					leveldb::DBROTX tx2( store);
 
 					tx2.Begin();
-					Iterator iter = tx2.getIterator();
+					DBROTX::Iterator iter(&tx2);
 					iter.SeekToFirst();
 					uint64_t count = 0;
 					uint64_t v = 0;
@@ -370,11 +370,12 @@ class Benchmark {
 					}						
 					if (fail) break;
 					tx2.End();
-
+			}
+			{
 					leveldb::DBROTX tx3( store);
 
 					tx3.Begin();
-					Iterator iter = tx3.getIterator();
+					DBROTX::Iterator iter(&tx3);
 					uint64_t count = 5;
 					uint64_t v = 0;
 					iter.Seek(5);
@@ -400,7 +401,7 @@ class Benchmark {
 						
 					}						
 					if (fail) break;
-					tx3.End();*/
+					tx3.End();
 			}
 				//printf("Pass 2\n");
 		}
@@ -826,7 +827,7 @@ class Benchmark {
 			printf("ReadonlyTest pass!\n");	
 			return;
 		}
-/*
+
 		else if (name == Slice("range")) {
 			leveldb::DBROTX tx2(store);
 			bool c1 = false;bool c2 = false;bool c3 = false;			 
@@ -839,14 +840,15 @@ class Benchmark {
 			  arg->start = 1;
 			while (arg->start <2) ;
 			 
-			 Iterator iter = tx2.Iterator();
+			 DBROTX::Iterator iter(&tx2);
 			 iter.Seek(1); 
 			 uint64_t key = 1;
 			 uint64_t m = 0;
+			 uint64_t *r;
 			 while (iter.Valid()) {
 			    m = iter.Key();
-			    uint64_t *r = iter.Value();
-			    
+			    r = iter.Value();
+	//		    printf("get %d\n",m);
 			    if (m % 10 == 0 ) {
 				  c1 = true;
 				  break;
@@ -861,8 +863,8 @@ class Benchmark {
 			  	  c3 = true;
 				  break;			 			  
 			    }
-			    k++;
-			    if  (m % 10 == 9) k++;
+			    key++;
+			    if  (m % 10 == 9) key++;
 			    iter.Next();
 			 }
 			 tx2.End();
@@ -888,7 +890,7 @@ class Benchmark {
 			return;
 		}
 		
-*/
+
 		
 		if (name == Slice("counter") ) {
 			
@@ -980,6 +982,7 @@ class Benchmark {
 		 if (shared.fail) {
 		 	printf("%s fail!\n", name.ToString().c_str());	
 		 }else if (name == Slice("equal")) printf("EqualTest pass!\n");
+		 else if (name == Slice("equalrange")) printf("EqualRangeTest pass!\n");
 		 else if (name == Slice("nocycle")) printf("NocycleTest pass!\n");
 		 else if (name == Slice("nocycle_readonly")) printf("NocycleReadonlyTest pass!\n");		 
 		 else if (name == Slice("delete")) printf("DeleteTest pass!\n");
