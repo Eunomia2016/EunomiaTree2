@@ -154,7 +154,7 @@ inline MemStoreSkipList::Node* MemStoreSkipList::FindLessThan(uint64_t key)
   Node* x = head_;
   int level = max_height_ - 1;
   while (true) {
-    assert(x == head_ || x->key < key < 0);
+    assert(x == head_ || x->key < key);
     Node* next = x->next_[level];
     if (next == NULL || next->key >= key) {
       if (level == 0) {
