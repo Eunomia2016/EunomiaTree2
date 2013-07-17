@@ -840,7 +840,7 @@ namespace leveldb {
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	  iter.Seek(start);
 	  iter.Prev();
-	  while (iter.Key() >= end) { 
+	  while (iter.Valid() && iter.Key() >= end) { 
 	  	o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
 		
 		uint64_t *o_value = iter.Value();

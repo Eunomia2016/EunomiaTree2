@@ -753,9 +753,6 @@ class Benchmark {
 				}
 				
 			
-			
-		
-		
 				leveldb::DBROTX tx1( store);
 
 				tx1.Begin();
@@ -886,6 +883,57 @@ class Benchmark {
 				printf("Iterate to %d should be %d\n", m, end);
 				return;
 			}
+
+
+			
+			DBROTX::Iterator iter1(&tx2);
+			 iter1.Seek(FLAGS_txs - 1); 
+			 key = FLAGS_txs - 1;
+			 m = 0;
+			 
+			 while (iter1.Valid()) {
+			    m = iter1.Key();
+			    r = iter1.Value();
+	//		    printf("get %d\n",m);
+			    if (m % 10 == 0 ) {
+				  c1 = true;
+				  break;
+			    }			    
+			    else if (m != key)  {
+			  	  c2 = true;
+				  break;
+			    }
+			    else if (*r != 3) {
+			  	  c3 = true;
+				  break;			 			  
+			    }
+			    key--;
+			    if  (m % 10 == 1) key--;
+			    iter1.Prev();
+			 }
+			 tx2.End();
+			end = 1 ;
+			
+			if (c1 ) {
+				printf("Key %d not inserted but found\n", m);
+				return;
+			}
+			else if (c2)  {
+			  	printf("Key %d inserted but not found\n", key);
+				return;
+			}
+			else if (c3) {
+			  	printf("Key %d get %d instead of 3\n", m, *r);
+				return;			 			  
+			}
+			else if (m!=end) {
+				printf("Iterate to %d should be %d\n", m, end);
+				return;
+			}
+
+
+
+			
 			printf("RangeTest pass!\n");	
 			return;
 		}
