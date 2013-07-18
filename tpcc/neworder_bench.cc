@@ -17,7 +17,7 @@
 //#include "tpcc/tpcctxmemstore.h"
 #include "tpcc/tpccskiplist.h"
 
-static const int NUM_TRANSACTIONS = 100000;
+static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
 namespace leveldb {
@@ -281,7 +281,7 @@ class Benchmark {
   }
 
   
-  void doPayment(ThreadState* thread) {
+  void doReadOnly(ThreadState* thread) {
 	  // Change the constants for run
 	  tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
 	  random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
@@ -297,7 +297,7 @@ class Benchmark {
 		if(oldv <= 0) break;
 		
 		for (int i =0; i < 1000; i++) {   
-		  client.doPayment();
+		  client.doReadOnly();
 		  thread->stats.FinishedSingleOp();
 		}
 	  }
@@ -306,14 +306,30 @@ class Benchmark {
 }
 int main(int argc, const char* argv[]) {
 	
-    if (argc != 2) {
-        fprintf(stderr, "neworder [num warehouses]\n");
-        exit(1);
-    }
-
-    long num_warehouses = strtol(argv[1], NULL, 10);
+	
+	long num_warehouses = 1;
+	const char* benchmark = "mix";
+	for (int i = 1; i < argc; i++) {
+		int n;
+		char junk;
+		if (sscanf(argv[i], "--numwarehouse=%d%c", &n, &junk) == 1) {
+		   	num_warehouses = n;
+	 	}
+		else if (leveldb::Slice(argv[i]).starts_with("--benchmark=")) {
+		   	benchmark = argv[i] + strlen("--benchmark=");
+		}
+		else if (sscanf(argv[i], "--numtx=%d%c", &n, &junk) == 1) {
+		   	NUM_TRANSACTIONS = n;
+	 	}
+		else if (leveldb::Slice(argv[i]).starts_with("--help")){
+			fprintf(stderr, "./neworder [--numwarehouse=...] [--benchmark=...] [--numtx=...]\n");
+        	exit(1);
+		}
+	}
+	
+    
     if (num_warehouses == LONG_MIN || num_warehouses == LONG_MAX) {
-        fprintf(stderr, "Bad warehouse number (%s)\n", argv[1]);
+        fprintf(stderr, "Bad warehouse number (%ld)\n", num_warehouses);
         exit(1);
     }
     if (num_warehouses <= 0) {
@@ -352,11 +368,15 @@ int main(int argc, const char* argv[]) {
     int64_t end = clock->getMicroseconds();
     printf("%"PRId64" ms\n", (end - begin + 500)/1000);
 
-    leveldb::Slice name("neworder");
+    leveldb::Slice name(benchmark);
     leveldb::Benchmark b(tables, clock, cLoad);
-	b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doOne);
-	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
-	//b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doPayment);
+
+	if (name == leveldb::Slice("mix")) 
+		b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doOne);
+	else if (name == leveldb::Slice("neworder"))
+		b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
+	else if (name == leveldb::Slice("readonly"))
+		b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doReadOnly);
 	
 	delete tables;
 	printf("Hello World\n");

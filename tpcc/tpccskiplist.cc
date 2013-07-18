@@ -474,6 +474,16 @@ namespace leveldb {
 	  bool b = tx.End();  
   	  if (b) break;
   	}*/
+
+	//Consistency 2 3 4
+/*	DBROTX rotx(store);
+	rotx.Begin();
+	uint64_t *d_value;
+  	bool found = tx.Get(d_key, &d_value);
+	assert(found);
+	District *d = reinterpret_cast<District *>(d_value);
+	rotx.End();
+*/
 	
     return true;
   }
@@ -770,6 +780,7 @@ namespace leveldb {
   void TPCCSkiplist::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 			int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
 			PaymentOutput* output, TPCCUndo** undo) {  
+
 	paymentHome(warehouse_id, district_id, c_warehouse_id, c_district_id, customer_id, h_amount, now, output, undo);	
 	//check
 /*	leveldb::DBTX tx(store);
@@ -778,7 +789,7 @@ namespace leveldb {
 	  
 	  tx.Begin();
 
-	  uint64_t c_key = makeCustomerKey(c_warehouse_id, c_district_id, customer_id);
+	  int64_t c_key = makeCustomerKey(c_warehouse_id, c_district_id, customer_id);
   	  
   	  uint64_t *c_value;
 	  bool found = tx.Get(c_key, &c_value);
@@ -786,10 +797,28 @@ namespace leveldb {
 	  Customer *c = reinterpret_cast<Customer *>(c_value);
 	  assert(output->c_balance == c->c_balance);
 
+	  //Consistency 1
+	  //Change h_amount range to (1000,5000) when doing this test 
+	  int64_t w_key = makeWarehouseKey(warehouse_id);	  
+	  uint64_t *w_value;  
+ 	  found = tx.Get(w_key, &w_value);
+	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
+	  float sum = 0;
+	  for (int i = 1; i<=District::NUM_PER_WAREHOUSE; i++) {
+		  int64_t d_key = makeDistrictKey(warehouse_id, i);
+  		  uint64_t *d_value;
+	  	  found = tx.Get(d_key, &d_value);
+		  District *d = reinterpret_cast<District *>(d_value);   
+		  sum += d->d_ytd;
+		  //printf("%f\n", d->d_ytd);
+	  }
+	  if (sum - w->w_ytd >= 1000 || w->w_ytd - sum >= 1000) 
+	  	printf("Consistency 1, sum %f  warehouse %f\n", sum, w->w_ytd);
+	  
 	  bool b = tx.End();  
   	  if (b) break;
-  	}*/
-	  
+  	}
+*/	  
   }
 
   void TPCCSkiplist::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
@@ -811,9 +840,7 @@ namespace leveldb {
 	  //and W_YTD, the warehouse's year-to-date balance, is increased by H_ AMOUNT.
 	  //-------------------------------------------------------------------------
 	  
-	  int64_t w_key = makeWarehouseKey(warehouse_id);
-	  //printf("w_key %d\n", w_key);
-  	  
+	  int64_t w_key = makeWarehouseKey(warehouse_id);	  
 	  uint64_t *w_value;  
  	  bool found = tx.Get(w_key, &w_value);
 #if PROFILE
@@ -837,7 +864,6 @@ namespace leveldb {
 	  //-------------------------------------------------------------------------
 
 	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
-  	  
   	  uint64_t *d_value;
   	  found = tx.Get(d_key, &d_value);
 #if PROFILE

@@ -172,6 +172,17 @@ void TPCCClient::doOne() {
     }
 }
 
+void TPCCClient::doReadOnly() {
+    int x = generator_->number(1, 100);
+    if (x <= 50) { // 50%
+        doStockLevel();
+    } 
+    else {  // 50%
+        doNewOrder();
+    }
+}
+
+
 void TPCCClient::remote_item_milli_p(int remote_item_milli_p) {
     assert(0 <= remote_item_milli_p && remote_item_milli_p <= 1000);
     remote_item_milli_p_ = remote_item_milli_p;

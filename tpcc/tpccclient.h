@@ -27,6 +27,7 @@ public:
     bool doNewOrder();
 
     void doOne();
+	void doReadOnly();
 
     static const int32_t MIN_STOCK_LEVEL_THRESHOLD = 10;
     static const int32_t MAX_STOCK_LEVEL_THRESHOLD = 20;
