@@ -18,7 +18,8 @@ public:
   
   void Lock();
   void Unlock();
-  
+
+  inline uint16_t IsLocked(){return lock;}
   uint16_t Trylock();
 
 
