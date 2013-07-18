@@ -484,9 +484,11 @@ uint64_t* DBTX::Iterator::Value()
 	
 void DBTX::Iterator::Next()
 {
+	iter_->Next();
 	while(iter_->Valid()) {
-	  iter_->Next();
+	  
 	  cur_ = iter_->CurNode();
+	  
 	  {
 	  	
 #if GLOBALOCK
@@ -504,6 +506,8 @@ void DBTX::Iterator::Next()
 		}
 
 	  }
+
+	  iter_->Next();
 	}
 
 	cur_ = NULL;
@@ -512,9 +516,11 @@ void DBTX::Iterator::Next()
 
 void DBTX::Iterator::Prev()
 {
+	iter_->Prev();
 	while(iter_->Valid()) {
-	  iter_->Prev();
+	  
 	  cur_ = iter_->CurNode();
+	  
 	  {
 	  	
 #if GLOBALOCK
@@ -532,6 +538,8 @@ void DBTX::Iterator::Prev()
 		}
 
 	  }
+	  
+	  iter_->Prev();
 	}
 	cur_ = NULL;
 }

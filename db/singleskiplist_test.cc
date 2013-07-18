@@ -940,7 +940,7 @@ class Benchmark {
 			 while (iter.Valid()) {
 			    m = iter.Key();
 			    r = iter.Value();
-			    printf("get %d\n",m);
+			  // printf("get %d\n",m);
 			    if (m % 10 == 0 ) {
 				  c1 = true;
 				  break;
