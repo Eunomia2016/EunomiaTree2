@@ -27,6 +27,49 @@ class TPCCSkiplist : public TPCCDB {
   uint64_t conflict;
   uint64_t capacity;
 
+  uint64_t newordernum;
+  uint64_t paymentnum;
+  uint64_t stocklevelnum;
+  uint64_t orderstatusnum;
+  uint64_t delivernum;
+
+  uint64_t neworderreadcount;
+  uint64_t neworderwritecount;
+  uint64_t paymentreadcount;
+  uint64_t paymentwritecount;
+  uint64_t stocklevelitercount;
+  uint64_t stocklevelreadcount;
+  uint64_t orderstatusitercount;
+  uint64_t orderstatusreadcount;
+  uint64_t deliverreadcount;
+  uint64_t deliverwritecount;
+  uint64_t deliveritercount;
+
+  uint64_t neworderreadmax;
+  uint64_t neworderwritemax;
+  uint64_t paymentreadmax;
+  uint64_t paymentwritemax;
+  uint64_t stocklevelitermax;
+  uint64_t stocklevelreadmax;
+  uint64_t orderstatusitermax;
+  uint64_t orderstatusreadmax;
+  uint64_t deliverreadmax;
+  uint64_t deliverwritemax;
+  uint64_t deliveritermax;
+
+  uint64_t neworderreadmin;
+  uint64_t neworderwritemin;
+  uint64_t paymentreadmin;
+  uint64_t paymentwritemin;
+  uint64_t stocklevelitermin;
+  uint64_t stocklevelreadmin;
+  uint64_t orderstatusitermin;
+  uint64_t orderstatusreadmin;
+  uint64_t deliverreadmin;
+  uint64_t deliverwritemin;
+  uint64_t deliveritermin;
+
+  
   TPCCSkiplist();
   ~TPCCSkiplist();
   

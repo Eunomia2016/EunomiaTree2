@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#define PROFILE 0
 
 namespace leveldb {
 
@@ -253,6 +254,49 @@ namespace leveldb {
 	abort = 0;
     conflict = 0;
     capacity = 0;
+#if PROFILE
+	newordernum = 0;
+	paymentnum = 0;
+	stocklevelnum = 0;
+	orderstatusnum = 0;
+	delivernum = 0;
+
+    neworderreadcount = 0;
+    neworderwritecount = 0;
+    paymentreadcount = 0;
+    paymentwritecount = 0;
+    stocklevelitercount = 0;
+    stocklevelreadcount = 0;
+    orderstatusitercount = 0;
+    orderstatusreadcount = 0;
+    deliverreadcount = 0;
+    deliverwritecount = 0;
+    deliveritercount = 0;
+    
+    neworderreadmax = 0;
+    neworderwritemax = 0;
+    paymentreadmax = 0;
+    paymentwritemax = 0;
+    stocklevelitermax = 0;
+    stocklevelreadmax = 0;
+    orderstatusitermax = 0;
+    orderstatusreadmax = 0;
+    deliverreadmax = 0;
+    deliverwritemax = 0;
+    deliveritermax = 0;
+    
+    neworderreadmin = -1;
+    neworderwritemin = -1;
+    paymentreadmin = -1;
+    paymentwritemin = -1;
+    stocklevelitermin = -1;
+    stocklevelreadmin = -1;
+    orderstatusitermin = -1;
+    orderstatusreadmin = -1;
+    deliverreadmin = -1;
+    deliverwritemin = -1;
+    deliveritermin = -1;
+#endif
   }
 
   TPCCSkiplist::~TPCCSkiplist() {
@@ -261,6 +305,21 @@ namespace leveldb {
 	printf("#Abort : %d\n", abort);
 	printf("#Conflict : %d\n", conflict);
 	printf("#Capacity: %d\n", capacity);
+
+#if PROFILE
+	printf("neworderreadcount %f max %ld min %ld\n", (float)neworderreadcount/newordernum, neworderreadmax, neworderreadmin);
+	printf("neworderwritecount %f max %ld min %ld\n", (float)neworderwritecount/newordernum, neworderwritemax, neworderwritemin);
+	printf("paymentreadcount %f max %ld min %ld\n", (float)paymentreadcount/paymentnum, paymentreadmax, paymentreadmin);
+	printf("paymentwritecount %f max %ld min %ld\n", (float)paymentwritecount/paymentnum, paymentwritemax, paymentwritemin);
+	printf("stocklevelitercount %f max %ld min %ld\n", (float)stocklevelitercount/stocklevelnum, stocklevelitermax, stocklevelitermin);
+	printf("stocklevelreadcount %f max %ld min %ld\n", (float)stocklevelreadcount/stocklevelnum, stocklevelreadmax, stocklevelreadmin);
+	printf("orderstatusitercount %f max %ld min %ld\n", (float)orderstatusitercount/orderstatusnum, orderstatusitermax, orderstatusitermin);
+	printf("orderstatusreadcount %f max %ld min %ld\n", (float)orderstatusreadcount/orderstatusnum, orderstatusreadmax, orderstatusreadmin);
+	printf("deliverreadcount %f max %ld min %ld\n", (float)deliverreadcount/delivernum, deliverreadmax, deliverreadmin);
+	printf("deliverwritecount %f max %ld min %ld\n", (float)deliverwritecount/delivernum, deliverwritemax, deliverwritemin);
+	printf("deliveritercount %f max %ld min %ld\n", (float)deliveritercount/delivernum, deliveritermax, deliveritermin);
+	
+#endif
   }
   
   void TPCCSkiplist::insertWarehouse(const Warehouse & warehouse) {
@@ -422,8 +481,12 @@ namespace leveldb {
   bool TPCCSkiplist::newOrderHome(int32_t warehouse_id, int32_t district_id, int32_t customer_id,
         const std::vector<NewOrderItem>& items, const char* now,
         NewOrderOutput* output, TPCCUndo** undo) {
-    
-	
+#if PROFILE
+	atomic_add64(&newordernum, 1);
+		
+    uint32_t rcount = 0;
+	uint32_t wcount = 0;
+#endif
 	leveldb::DBTX tx(store);
 	while(true) {
 	  
@@ -446,6 +509,9 @@ namespace leveldb {
   	  
 	  uint64_t *w_value;  
  	  bool found = tx.Get(w_key, &w_value);
+#if PROFILE
+	  rcount++;
+#endif
 	  assert(found);
 	  
 	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
@@ -463,6 +529,10 @@ namespace leveldb {
   	  
   	  uint64_t *d_value;
   	  found = tx.Get(d_key, &d_value);
+#if PROFILE
+	  rcount++;
+#endif
+
 	  assert(found);
 	  //printf("2.1\n");
 	  assert(*d_value != 0);
@@ -476,8 +546,9 @@ namespace leveldb {
 	  updateDistrict(newd, d);
 	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
 	  tx.Add(d_key, d_v);
-
-
+#if PROFILE
+	  wcount++;
+#endif
 	  //-------------------------------------------------------------------------- 
   	  //The row in the CUSTOMER table with matching C_W_ID, C_D_ID, and C_ID is selected 
 	  //and C_DISCOUNT, the customer's discount rate, C_LAST, the customer's last name, 
@@ -488,6 +559,10 @@ namespace leveldb {
   	  
   	  uint64_t *c_value;
 	  found = tx.Get(c_key, &c_value);
+#if PROFILE
+	  rcount++;
+#endif
+
  	  assert(found);
 	  Customer *c = reinterpret_cast<Customer *>(c_value);
 	  //printf("3.1\n");
@@ -529,7 +604,9 @@ namespace leveldb {
 	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order->o_id);
 	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order);
 	  tx.Add(o_key, o_value);
-  
+#if PROFILE
+	  wcount++;
+#endif
 	  //printf("Step 6\n");
 	  NewOrder *no = new NewOrder();
   	  no->no_w_id = warehouse_id;
@@ -538,7 +615,9 @@ namespace leveldb {
 	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, no->no_o_id);
 	  uint64_t *no_value = reinterpret_cast<uint64_t *>(no);
 	  tx.Add(no_key, no_value);
-
+#if PROFILE
+	  wcount++;
+#endif
 	  //-------------------------------------------------------------------------
   	  //For each O_OL_CNT item on the order:
   	  //-------------------------------------------------------------------------
@@ -564,6 +643,9 @@ namespace leveldb {
 		uint64_t *i_value;
 	
 		bool found = tx.Get(i_key, &i_value);
+#if PROFILE
+		rcount++;
+#endif
 		if (!found && items[i].i_id <=100000) {
 			printf("Item %d\n", items[i].i_id);
 			assert(found);
@@ -594,6 +676,9 @@ namespace leveldb {
     	uint64_t *s_value;
 	    //if (items[i].i_id > 100000) printf("Unused key!\n");
 	    found = tx.Get(s_key, &s_value);
+#if PROFILE
+		rcount++;
+#endif
 		assert(found);
 		Stock *s = reinterpret_cast<Stock *>(s_value);  
 		Stock *news = new Stock();
@@ -601,7 +686,9 @@ namespace leveldb {
 		output->items[i].s_quantity = news->s_quantity;
 		uint64_t *s_v = reinterpret_cast<uint64_t *>(news);
 		tx.Add(s_key, s_v);
-
+#if PROFILE
+		wcount++;
+#endif
 		//-------------------------------------------------------------------------
 		//The amount for the item in the order (OL_AMOUNT) is computed as: OL_QUANTITY * I_PRICE
 		//The strings in I_DATA and S_DATA are examined. If they both include the string "ORIGINAL", 
@@ -636,7 +723,9 @@ namespace leveldb {
 	//	printf("%d %d %d %d\n", line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
 	//	printf("OrderLine %lx\n", l_key);
 		tx.Add(l_key, l_value);
-
+#if PROFILE
+		wcount++;
+#endif
 
 		//-------------------------------------------------------------------------
 		//The total-amount for the complete order is computed as: 
@@ -649,13 +738,25 @@ namespace leveldb {
 	
 	  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
  	//  printf("Step 13\n");
+ 	
  	  bool b = tx.End();  
   	  if (b) break;
+
   	}
 
     atomic_add64(&abort, tx.rtmProf.abortCounts);
 	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
 	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
+
+#if PROFILE
+	atomic_add64(&neworderreadcount, rcount);
+	atomic_add64(&neworderwritecount, wcount);
+
+	while (rcount > neworderreadmax) neworderreadmax = rcount;
+	while (wcount > neworderwritemax) neworderwritemax = wcount;
+	while (rcount < neworderreadmin) neworderreadmin = rcount;
+	while (wcount < neworderwritemin) neworderwritemin = wcount;
+#endif	
     return true;
   }
 
@@ -694,8 +795,11 @@ namespace leveldb {
   void TPCCSkiplist::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 	int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
 	PaymentOutput* output, TPCCUndo** undo){
-  
-    
+#if PROFILE
+	atomic_add64(&paymentnum, 1);
+    uint32_t rcount = 0;
+	uint32_t wcount = 0;
+#endif    
     leveldb::DBTX tx(store);
     while(true) {
 	  //printf("1\n");
@@ -712,13 +816,18 @@ namespace leveldb {
   	  
 	  uint64_t *w_value;  
  	  bool found = tx.Get(w_key, &w_value);
+#if PROFILE
+	  rcount++;
+#endif
 	  assert(found);
 	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
 	  Warehouse *neww = new Warehouse();
 	  updateWarehouseYtd(neww, w, h_amount);
 	  uint64_t *w_v = reinterpret_cast<uint64_t *>(neww);
 	  tx.Add(w_key, w_v);
-
+#if PROFILE
+	  wcount++;
+#endif
 	  COPY_ADDRESS(neww, output, w_);
 
 	  //-------------------------------------------------------------------------
@@ -731,6 +840,9 @@ namespace leveldb {
   	  
   	  uint64_t *d_value;
   	  found = tx.Get(d_key, &d_value);
+#if PROFILE
+	  rcount++;
+#endif
 	  assert(found);
 	  //printf("2.1\n");
 	  assert(*d_value != 0);
@@ -739,7 +851,9 @@ namespace leveldb {
 	  updateDistrictYtd(newd, d, h_amount);
 	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
 	  tx.Add(d_key, d_v);
-
+#if PROFILE
+	  wcount++;
+#endif
 	  COPY_ADDRESS(newd, output, d_);
 
 	  //-------------------------------------------------------------------------
@@ -756,13 +870,18 @@ namespace leveldb {
   	  
   	  uint64_t *c_value;
 	  found = tx.Get(c_key, &c_value);
+#if PROFILE
+	  rcount++;
+#endif
  	  assert(found);
 	  Customer *c = reinterpret_cast<Customer *>(c_value);
 	  Customer *newc = new Customer();
 	  updateCustomer(newc, c, h_amount, warehouse_id, district_id);
 	  uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
 	  tx.Add(c_key, c_v);
-
+#if PROFILE
+	  wcount++;
+#endif
 	  output->c_credit_lim = newc->c_credit_lim;
       output->c_discount = newc->c_discount;
       output->c_balance = newc->c_balance;
@@ -793,20 +912,36 @@ namespace leveldb {
       strcat(h->h_data, d->d_name);
       uint64_t *h_v = reinterpret_cast<uint64_t *>(h);
 	  tx.Add(h_key, h_v);
-
+#if PROFILE
+	  wcount++;
+#endif
 	  //printf("3\n");
 	  bool b = tx.End();  
   	  if (b) break;
     }
+
+    atomic_add64(&abort, tx.rtmProf.abortCounts);
+	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
+	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
+#if PROFILE
+	atomic_add64(&paymentreadcount, rcount);
+	atomic_add64(&paymentwritecount, wcount);
+	while (rcount > paymentreadmax) paymentreadmax = rcount;
+	while (wcount > paymentwritemax) paymentwritemax = wcount;
+	while (rcount < paymentreadmin) paymentreadmin = rcount;
+	while (wcount < paymentwritemin) paymentwritemin = wcount;
+#endif
     return;
   }
   #undef COPY_ADDRESS
 
   void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
+#if PROFILE
+	  atomic_add64(&orderstatusnum, 1);
+   	  uint32_t icount = 0;
+	  uint32_t rcount = 0;
+#endif 
 	  leveldb::DBROTX tx(store);
-	  //printf("OrderStatus\n");
-   
-	 
 	  tx.Begin();
 
 	  //-------------------------------------------------------------------------
@@ -817,6 +952,9 @@ namespace leveldb {
   	  
   	  uint64_t *c_value;
 	  bool found = tx.Get(c_key, &c_value);
+#if PROFILE
+	  rcount++;
+#endif
  	  assert(found);
 	  Customer *c = reinterpret_cast<Customer *>(c_value);
 
@@ -842,12 +980,15 @@ namespace leveldb {
 	  iter.Seek(start);
 	  iter.Prev();
 	  while (iter.Valid() && iter.Key() >= end) { 
+	  	
 	  	o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
 		
 		uint64_t *o_value = iter.Value();
-
+#if PROFILE
+		icount++;
+#endif
 		o = reinterpret_cast<Order *>(o_value);
-		assert(o_id == o->o_id);
+		
 		if (o->o_c_id == customer_id) break;
 		//printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
 	  	
@@ -872,6 +1013,9 @@ namespace leveldb {
   		  
 		  uint64_t *ol_value;
 		  bool found = tx.Get(ol_key, &ol_value);
+#if PROFILE
+		  rcount++;
+#endif
           OrderLine* line = reinterpret_cast<OrderLine *>(ol_value);
           output->lines[line_number-1].ol_i_id = line->ol_i_id;
           output->lines[line_number-1].ol_supply_w_id = line->ol_supply_w_id;
@@ -880,18 +1024,26 @@ namespace leveldb {
           strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
         }
 	  }
-      bool b = tx.End();  
-  
+      bool b = tx.End();
+#if PROFILE
+	  atomic_add64(&orderstatusreadcount, rcount);
+	  atomic_add64(&orderstatusitercount, icount);
+	  while (rcount > orderstatusreadmax) orderstatusreadmax = rcount;
+	  while (icount > orderstatusitermax) orderstatusitermax = icount;
+	  while (rcount < orderstatusreadmin) orderstatusreadmin = rcount;
+	  while (icount < orderstatusitermin) orderstatusitermin = icount;
+#endif	  
       return;
   }
 
   int32_t TPCCSkiplist::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
-	
+#if PROFILE
+	  atomic_add64(&stocklevelnum, 1);
+   	  uint32_t icount = 0;
+	  uint32_t rcount = 0;
+#endif
 	  leveldb::DBROTX tx(store);
-	  int num_distinct = 0;
-	  //printf("StockLevel\n");
-
-		 
+	  int num_distinct = 0; 
 	  tx.Begin();
 		 
 	  //-------------------------------------------------------------------------
@@ -902,6 +1054,9 @@ namespace leveldb {
 	  
   	  uint64_t *d_value;
 	  bool found = tx.Get(d_key, &d_value);
+#if PROFILE
+	  rcount++;
+#endif
 	  assert(found);
       District *d = reinterpret_cast<District *>(d_value);   
 	  int32_t o_id = d->d_next_o_id;
@@ -923,7 +1078,9 @@ namespace leveldb {
 	  	  int64_t ol_key = iter.Key();
 		  if (ol_key >= end) break;
 	  	  uint64_t *ol_value = iter.Value();
-
+#if PROFILE
+		  icount++;
+#endif
 		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);   
 		  //-------------------------------------------------------------------------
 		  //All rows in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals W_ID) 
@@ -935,6 +1092,9 @@ namespace leveldb {
 		  
 		  uint64_t *s_value;
 		  found = tx.Get(s_key, &s_value);
+#if PROFILE
+		  rcount++;
+#endif
 		  Stock *s = reinterpret_cast<Stock *>(s_value);
 		  if (s->s_quantity < threshold) 
 		  	s_i_ids.push_back(s_i_id);
@@ -954,6 +1114,14 @@ namespace leveldb {
       }    
 
 	  bool b = tx.End();  
+#if PROFILE
+	  atomic_add64(&stocklevelreadcount, rcount);
+	  atomic_add64(&stocklevelitercount, icount);
+	  while (rcount > stocklevelreadmax) stocklevelreadmax = rcount;
+	  while (icount > stocklevelitermax) stocklevelitermax = icount;
+	  while (rcount < stocklevelreadmin) stocklevelreadmin = rcount;
+	  while (icount < stocklevelitermin) stocklevelitermin = icount;
+#endif
   	 
 	  return num_distinct;
 	
@@ -961,9 +1129,12 @@ namespace leveldb {
 
   void TPCCSkiplist::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
 		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo){
-
-/*	
-	
+#if PROFILE
+	atomic_add64(&delivernum, 1);
+	uint32_t wcount = 0;
+	uint32_t rcount = 0;
+	uint32_t icount = 0;
+#endif	
     leveldb::DBTX tx(store);
 	while (true) {
 	  tx.Begin();
@@ -976,28 +1147,36 @@ namespace leveldb {
 	    int32_t no_id = 1;
 		uint64_t *no_value;
 	    NewOrder *no = NULL;
-		
+		//printf("w %d d %d\n", warehouse_id, d_id);
 		int64_t start = makeNewOrderKey(warehouse_id, d_id, 1);
 		DBTX::Iterator iter(&tx);
 		iter.Seek(start);
 		int64_t end = makeNewOrderKey(warehouse_id, d_id, Order::MAX_ORDER_ID);
-		
-		int64_t no_key = iter.Key();
-		if (no_key <= end) {
-		  no_value = iter.Value();
-		  no = reinterpret_cast<NewOrder *>(no_value);
-		  no_id = static_cast<int32_t>(no_key << 32 >> 32);
+		int64_t no_key;
+		if (iter.Valid()) { 
+			no_key = iter.Key();
+			if (no_key <= end) {
+			  no_value = iter.Value();
+#if PROFILE
+			  icount++;
+#endif
+			  no = reinterpret_cast<NewOrder *>(no_value);
+			  no_id = static_cast<int32_t>(no_key << 32 >> 32);
 
-		  //-------------------------------------------------------------------------
-		  //The selected row in the NEW-ORDER table is deleted.
-		  //-------------------------------------------------------------------------
-	  	  tx.Delete(no_key);
-
+			  //-------------------------------------------------------------------------
+			  //The selected row in the NEW-ORDER table is deleted.
+			  //-------------------------------------------------------------------------
+		  	  tx.Delete(no_key);
+#if PROFILE
+			  wcount++;
+#endif
+			}
 	    }
-	    
-	    if (no == NULL || no->no_d_id != d_id || no->no_w_id != warehouse_id) {
+	    //else printf("Not valid\n");
+	    if (no == NULL) {
           // No orders for this district
           // TODO: 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it (???)
+          //printf("NoOrder!!\n");
           continue;
         }
 		
@@ -1015,12 +1194,18 @@ namespace leveldb {
 		
 		uint64_t *o_value;
 		bool found = tx.Get(o_key, &o_value);
+#if PROFILE
+		rcount++;
+#endif
 		Order *o = reinterpret_cast<Order *>(o_value);
 		assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
 		Order *newo = new Order();		
 		updateOrder(newo, o, carrier_id);
 		uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
 		tx.Add(o_key, o_v);
+#if PROFILE
+		wcount++;
+#endif
 		int32_t c_id = o->o_c_id;
 
 		//-------------------------------------------------------------------------
@@ -1036,12 +1221,17 @@ namespace leveldb {
 		  int64_t ol_key = iter.Key();
 		  if (ol_key > end) break;
 		  uint64_t *ol_value = iter.Value();
-
+#if PROFILE
+		  icount++;
+#endif
 		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);
 		  OrderLine *newol = new OrderLine();
 		  updateOrderLine(newol, ol, now);
 		  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
 		  tx.Add(ol_key, ol_v);
+#if PROFILE
+		  wcount++;
+#endif
 		  sum_ol_amount += ol->ol_amount;
 		  iter.Next();
 		}
@@ -1056,18 +1246,34 @@ namespace leveldb {
 		
 		uint64_t *c_value;
 		found = tx.Get(c_key, &c_value);
+#if PROFILE
+		rcount++;
+#endif
 		Customer *c = reinterpret_cast<Customer *>(c_value);
 		Customer *newc = new Customer();
 		updateCustomerDelivery(newc, c, sum_ol_amount);
 		uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
 		tx.Add(c_key, c_v);
-		
+#if PROFILE
+		wcount++;
+#endif
 	  }
 
 	  bool b = tx.End();  
   	  if (b) break;
 	}
-	*/
+	
+#if PROFILE
+	atomic_add64(&deliverreadcount, rcount);
+	atomic_add64(&deliveritercount, icount);
+	atomic_add64(&deliverwritecount, wcount);
+	while (rcount > deliverreadmax) deliverreadmax = rcount;
+	while (icount > deliveritermax) deliveritermax = icount;
+	while (wcount > deliverwritemax) deliverwritemax = wcount;
+	while (rcount < deliverreadmin) deliverreadmin = rcount;
+	while (icount < deliveritermin) deliveritermin = icount;
+	while (wcount < deliverwritemin) deliverwritemin = wcount;
+#endif	
     return;
   }
 
