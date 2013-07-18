@@ -436,9 +436,21 @@ void DBTX::Iterator::Next()
 	while(iter_->Valid()) {
 	  iter_->Next();
 	  cur_ = iter_->CurNode();
-	  val_ = cur_->value;
-	  if(val_ != NULL)
-		return;
+	  {
+	  	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&tx_->rtmProf);
+#endif
+	  	val_ = cur_->value;
+	  	if(val_ != NULL) {
+			tx_->readset->Add(&cur_->seq);
+			return;
+		
+		}
+
+	  }
 	}
 
 	cur_ = NULL;
@@ -450,9 +462,21 @@ void DBTX::Iterator::Prev()
 	while(iter_->Valid()) {
 	  iter_->Prev();
 	  cur_ = iter_->CurNode();
-	  val_ = cur_->value;
-	  if(val_ != NULL)
-		return;
+	  {
+	  	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&tx_->rtmProf);
+#endif
+	  	val_ = cur_->value;
+	  	if(val_ != NULL) {
+			tx_->readset->Add(&cur_->seq);
+			return;
+		
+		}
+
+	  }
 	}
 	cur_ = NULL;
 }
@@ -462,9 +486,21 @@ void DBTX::Iterator::Seek(uint64_t key)
 	iter_->Seek(key);
 	while(iter_->Valid()) {
 	  cur_ = iter_->CurNode();
-	  val_ = cur_->value;
-	  if(val_ != NULL)
-		return;
+	  {
+	  	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&tx_->rtmProf);
+#endif
+	  	val_ = cur_->value;
+	  	if(val_ != NULL) {
+			tx_->readset->Add(&cur_->seq);
+			return;
+		
+		}
+
+	  }
 	  
 	  iter_->Next();
 	}
@@ -478,9 +514,21 @@ void DBTX::Iterator::SeekToFirst()
 	iter_->SeekToFirst();
 	while(iter_->Valid()) {
 	  cur_ = iter_->CurNode();
-	  val_ = cur_->value;
-	  if(val_ != NULL)
-		return;
+	  {
+	  	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&tx_->rtmProf);
+#endif
+	  	val_ = cur_->value;
+	  	if(val_ != NULL) {
+			tx_->readset->Add(&cur_->seq);
+			return;
+		
+		}
+
+	  }
 	  
 	  iter_->Next();
 	}
