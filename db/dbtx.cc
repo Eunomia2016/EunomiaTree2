@@ -27,6 +27,7 @@ SpinLock DBTX::slock;
 __thread DBTX::WriteSet* DBTX::writeset = NULL;
 __thread DBTX::ReadSet* DBTX::readset = NULL;
 
+#define MAXSIZE 4*1024*1024 // the initial read/write set size
 
 void DBTX::ThreadLocalInit()
 {
@@ -42,38 +43,73 @@ void DBTX::ThreadLocalInit()
 
 DBTX::ReadSet::ReadSet() 
 {
-	max_length = 64;
+	max_length = MAXSIZE;
 	elems = 0;	
-	seqs = new RSSeqPair[max_length];	 
+	seqs = new RSSeqPair[max_length];
+
+	rangeElems = 0;
+	nexts = new RSSuccPair[max_length];
+
+	//pretouch to avoid page fault in the rtm
+	for(int i = 0; i < max_length; i++) {
+		seqs[i].seq = 0;
+		seqs[i].seqptr = NULL;
+		nexts[i].next = 0;
+		nexts[i].nextptr = NULL;
+	}
+		
 }
 
 DBTX::ReadSet::~ReadSet() 
 {
-	delete[] seqs;	
+	delete[] seqs;
+	delete[] nexts;
 }
 
 inline void DBTX::ReadSet::Reset() 
 {
 	elems = 0;
+	rangeElems = 0;
 }
 
 void DBTX::ReadSet::Resize() 
 {
-	
+  printf("Read Set Resize\n");
   max_length = max_length * 2;
 
   RSSeqPair *ns = new RSSeqPair[max_length];
-
-
   for(int i = 0; i < elems; i++) {
 	ns[i] = seqs[i];
   }
-
   delete[] seqs;
-
   seqs = ns;
+
+  
+  RSSuccPair* nts = new RSSuccPair[max_length];
+  for(int i = 0; i < rangeElems; i++) {
+	nts[i] = nexts[i];
+  }
+  delete[] nexts;
+  nexts = nts;
+  
 }
 
+
+inline void DBTX::ReadSet::AddNext(uint64_t *ptr)
+{
+//if (max_length < rangeElems) printf("ELEMS %d MAX %d\n", rangeElems, max_length);
+  assert(rangeElems <= max_length);
+
+  if(rangeElems == max_length) {
+    Resize();
+  }
+
+  int cur = rangeElems;
+  rangeElems++;
+
+  nexts[cur].next = *ptr;
+  nexts[cur].nextptr = ptr;
+}
 
 inline void DBTX::ReadSet::Add(uint64_t *ptr)
 {
@@ -90,10 +126,12 @@ inline void DBTX::ReadSet::Add(uint64_t *ptr)
   seqs[cur].seqptr = ptr;
 }
 
+
 inline bool DBTX::ReadSet::Validate() 
 {
 
   //This function should be protected by rtm or mutex
+  //Check if any tuple read has been modified
   for(int i = 0; i < elems; i++) {
   	assert(seqs[i].seqptr != NULL);
 	if(seqs[i].seq != *seqs[i].seqptr) {
@@ -101,6 +139,13 @@ inline bool DBTX::ReadSet::Validate()
 	}
   }
 
+  //Check if any tuple has been inserted in the range
+  for(int i = 0; i < rangeElems; i++) {
+  	assert(nexts[i].nextptr != NULL);
+	if(nexts[i].next != *nexts[i].nextptr) {
+		return false;
+	}
+  }
   return true;
 }
 
@@ -117,11 +162,18 @@ void DBTX::ReadSet::Print()
 
 DBTX::WriteSet::WriteSet() 
 {
-  max_length = 64; //first allocate 1024 numbers
+  max_length = MAXSIZE; //first allocate 1024 numbers
   elems = 0;
 
   kvs = new WSKV[max_length];
 
+  for(int i = 0; i < max_length; i++) {
+		kvs[i].key = 0;
+		kvs[i].val = NULL;
+		kvs[i].node = NULL;
+		kvs[i].dummy = NULL;
+  }
+  
 #if CACHESIM
   for(int i = 0; i < 64; i++) {
 	cacheset[i] = 0;
@@ -139,7 +191,8 @@ DBTX::WriteSet::~WriteSet() {
 }
 
 void DBTX::WriteSet::Resize() {
-	
+  
+  printf("Write Set Resize\n");
   max_length = max_length * 2;
   WSKV* nkv = new WSKV[max_length];
 
@@ -205,9 +258,7 @@ void DBTX::WriteSet::Add(uint64_t key, uint64_t* val, MemStoreSkipList::Node* no
   assert(elems <= max_length);
 
   if(elems == max_length) {
-	printf("Resize\n");
 	Resize();
-
   }
 
   int cur = elems;
@@ -444,6 +495,8 @@ void DBTX::Iterator::Next()
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 	  	val_ = cur_->value;
+
+		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
 	  	if(val_ != NULL) {
 			tx_->readset->Add(&cur_->seq);
 			return;
@@ -470,6 +523,8 @@ void DBTX::Iterator::Prev()
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 	  	val_ = cur_->value;
+
+		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
 	  	if(val_ != NULL) {
 			tx_->readset->Add(&cur_->seq);
 			return;
@@ -494,6 +549,8 @@ void DBTX::Iterator::Seek(uint64_t key)
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 	  	val_ = cur_->value;
+
+		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
 	  	if(val_ != NULL) {
 			tx_->readset->Add(&cur_->seq);
 			return;
@@ -522,6 +579,8 @@ void DBTX::Iterator::SeekToFirst()
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 	  	val_ = cur_->value;
+
+		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
 	  	if(val_ != NULL) {
 			tx_->readset->Add(&cur_->seq);
 			return;

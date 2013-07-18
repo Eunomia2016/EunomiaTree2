@@ -92,13 +92,22 @@ public:
 	    uint64_t seq; //seq got when read the value
 	    uint64_t *seqptr; //pointer to the global memory location
 	  };
+
+	  //This is used to check the insertion problem in range query
+	  //FIXME: Still have the ABA problem
+	  struct RSSuccPair {
+	    uint64_t next; //next addr 
+	    uint64_t *nextptr; //pointer to next[0]
+	  };
 		
 	  private:
 
 	    int max_length;
 	    int elems;
-
 	    RSSeqPair *seqs;
+
+		int rangeElems;
+		RSSuccPair *nexts;
 
 	    void Resize();
 			
@@ -107,6 +116,7 @@ public:
 	    ~ReadSet();
 		inline void Reset();
 	    inline void Add(uint64_t *ptr);
+		inline void AddNext(uint64_t *ptr);
 	    inline bool Validate();
 	    void Print();
 	};

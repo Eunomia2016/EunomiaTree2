@@ -14,7 +14,7 @@ namespace leveldb {
 
 #define MAXCAPACITY 10
 #define MAXCONFLICT 100
-#define RTMPROFILE 0
+#define RTMPROFILE 1
 
 class RTMScope {
 	
@@ -49,6 +49,10 @@ class RTMScope {
 		} else {
 		
 		  retry++;
+
+		  if(retry > 10000) {
+		  	printf("stat %lx\n", stat);
+		  }
 		  if((stat & _XABORT_CONFLICT) != 0) 
 		  	conflict++;
 		  else if((stat & _XABORT_CAPACITY) != 0)
