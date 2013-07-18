@@ -721,13 +721,51 @@ class Benchmark {
 		}
 		arg->start = 2;			
 	}	
+
+	static void InsertNode(void* v) {
+
+		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+		MemStoreSkipList *store = arg->store;
+		
+		while (arg->start == 0) ;
+		
+		leveldb::DBTX tx( store);
+		bool b =false;
+			 	
+		b = false;
+		while (b==false) {
+			tx.Begin();					  		
+		  	uint64_t *key = new uint64_t();
+		  	*key = 12;
+		  	uint64_t *value = new uint64_t();
+		  	*value = 4;			
+		  	tx.Add(*key, value);				
+			b = tx.End();						  
+		}			  
+		arg->start = 2;
+		while (arg->start == 2) ;
+
+		b = false;
+		while (b==false) {
+			tx.Begin();					  		
+		  	uint64_t *key = new uint64_t();
+		  	*key = 10;
+		  	uint64_t *value = new uint64_t();
+		  	*value = 4;			
+		  	tx.Add(*key, value);				
+			b = tx.End();						  
+		}			  
+		arg->start = 4;		
+	}	
+
+
 	
 	void Run(void (*method)(void* arg), Slice name ) {
 		int num = FLAGS_threads;
 		printf("%s start\n", name.ToString().c_str());				 		
 
 
-		if (name == Slice("readonly")  || name == Slice("range")) {
+		if (name == Slice("readonly")  || name == Slice("range") || name == Slice("rwiter")) {
 			
 			for (int j = 1; j<=3; j++) {
 			  leveldb::DBTX tx( store);
@@ -768,6 +806,8 @@ class Benchmark {
 				tx1.End();
 			}	  
 		}
+
+
 
 		if (name == Slice("readonly")) {	
 			//check
@@ -827,6 +867,7 @@ class Benchmark {
 
 		else if (name == Slice("range")) {
 			leveldb::DBROTX tx2(store);
+			//DBTX tx2(store);
 			bool c1 = false;bool c2 = false;bool c3 = false;			 
 			  ThreadArg *arg = new ThreadArg();
 			  arg->start = 0;
@@ -938,7 +979,52 @@ class Benchmark {
 			return;
 		}
 		
+		
+		if (name == Slice("rwiter")) {
+			ThreadArg *arg = new ThreadArg();
+			arg->start = 0;
+			arg->store = store;
+			Env::Default()->StartThread(method, arg);
+			
+			DBTX tx2(store);
+			bool b = false;
+			
+			tx2.Begin();
+			DBTX::Iterator iter(&tx2);
+			iter.SeekToFirst();
+			
+			for (int i = 0; i < 30; i++) {
+				iter.Next();
+			}
+			arg->start = 1;
+			while (arg->start != 2);
+			while (iter.Valid())
+				iter.Next();
+			b = tx2.End();
+			if (b) {
+				printf("Modify a key, should abort!\n");
+				return;
+			}
 
+			
+			tx2.Begin();
+			iter.SeekToFirst();
+			for (int i = 0; i < 30; i++) {
+				iter.Next();
+			}
+			arg->start = 3;
+			while (arg->start != 4);
+			while (iter.Valid())
+				iter.Next();
+			b = tx2.End();
+			if (b) {
+				printf("Insert a key, should abort!\n");
+				return;
+			}
+			printf("RwIterTest pass!\n");
+			return;
+				
+		}
 		
 		if (name == Slice("counter") ) {
 			
@@ -1075,6 +1161,7 @@ int main(int argc, char**argv)
 		 	printf("To Run :\n./tx_test [--benchmarks=Benchmark Name(default: all)] [--num=number of tx per thread(default: 100)] [--threads= number of threads (defaults: 4)]\n");
 			printf("Benchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle(nocycle_readonly)\t n threads, each tx write (tid,1) ((tid+1) %n,2) , never have all keys' value are the same\n");
 			printf("delete\t write or delete 2 keys in a tx, check both keys exist or both not exist\n");
+			printf("rwiter\t insert or modify a key during iterating, should abort\n");
 			return 0;
 	 	 }
 		 if (leveldb::Slice(argv[i]).starts_with("--benchmarks=")) {
@@ -1122,7 +1209,9 @@ int main(int argc, char**argv)
 	  else if (name == leveldb::Slice("readonly") || name == leveldb::Slice("range")) {
 	  	method = &leveldb::Benchmark::Company;
 	  }
-	  
+	  else if (name == leveldb::Slice("rwiter")) {
+	  	method = &leveldb::Benchmark::InsertNode;
+	  }
 
 	 leveldb::MemStoreSkipList *store = new leveldb::MemStoreSkipList();
 	

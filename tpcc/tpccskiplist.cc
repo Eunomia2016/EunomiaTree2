@@ -46,7 +46,7 @@ namespace leveldb {
   static int64_t makeNewOrderKey(int32_t w_id, int32_t d_id, int32_t o_id) {
     assert(1 <= w_id && w_id <= Warehouse::MAX_WAREHOUSE_ID);
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
-    assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID);
+    assert(1 <= o_id && o_id <= Order::MAX_ORDER_ID + 1);
     int32_t upper_id = w_id * District::NUM_PER_WAREHOUSE + d_id;
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
@@ -479,9 +479,32 @@ namespace leveldb {
 /*	DBROTX rotx(store);
 	rotx.Begin();
 	uint64_t *d_value;
-  	bool found = tx.Get(d_key, &d_value);
+	int64_t d_key = makeDistrictKey(warehouse_id, district_id);
+  	bool found = rotx.Get(d_key, &d_value);
 	assert(found);
 	District *d = reinterpret_cast<District *>(d_value);
+
+	//Consistency 2
+ 
+	int32_t o_id;
+	DBROTX::Iterator iter(&rotx);
+	uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
+	uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
+	iter.Seek(start);
+    iter.Prev();
+	if (iter.Valid() && iter.Key() >= end) {
+		o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
+		assert(o_id == d->d_next_o_id - 1);		
+	}  	
+
+	start = makeNewOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
+	end = makeNewOrderKey(warehouse_id, district_id, 1);
+	iter.Seek(start);
+    iter.Prev();
+	if (iter.Valid() && iter.Key() >= end) {
+		o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
+		assert(o_id == d->d_next_o_id - 1);		
+	}  	
 	rotx.End();
 */
 	
