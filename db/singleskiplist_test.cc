@@ -743,6 +743,7 @@ class Benchmark {
 			b = tx.End();						  
 		}			  
 		arg->start = 2;
+		printf("2\n");
 		while (arg->start == 2) ;
 
 		b = false;
@@ -755,7 +756,8 @@ class Benchmark {
 		  	tx.Add(*key, value);				
 			b = tx.End();						  
 		}			  
-		arg->start = 4;		
+		arg->start = 4;	
+		printf("4\n");
 	}	
 
 
@@ -866,19 +868,20 @@ class Benchmark {
 		}
 
 		else if (name == Slice("range")) {
-			leveldb::DBROTX tx2(store);
-			//DBTX tx2(store);
+			//leveldb::DBROTX tx2(store);
+			DBTX tx2(store);
 			bool c1 = false;bool c2 = false;bool c3 = false;			 
 			  ThreadArg *arg = new ThreadArg();
 			  arg->start = 0;
 			  arg->store = store;
-			  Env::Default()->StartThread(method, arg);
+	//		  Env::Default()->StartThread(method, arg);
 			  tx2.Begin();	  
 			  
 			  arg->start = 1;
-			while (arg->start <2) ;
+	//		while (arg->start <2) ;
 			 
-			 DBROTX::Iterator iter(&tx2);
+			 //DBROTX::Iterator iter(&tx2);
+			 DBTX::Iterator iter(&tx2);
 			 iter.Seek(1); 
 			 uint64_t key = 1;
 			 uint64_t m = 0;
@@ -903,9 +906,12 @@ class Benchmark {
 			    }
 			    key++;
 			    if  (m % 10 == 9) key++;
+				if (m==99) printf("at end\n");
 			    iter.Next();
+				if (m==99) printf("next\n");
 			 }
 			 tx2.End();
+			 
 			int end = FLAGS_txs -1 ;
 			if (end % 10 ==0) end--;
 			if (c1 ) {
@@ -925,17 +931,16 @@ class Benchmark {
 				return;
 			}
 
-
+			tx2.Begin();
 			
-			DBROTX::Iterator iter1(&tx2);
-			 iter1.Seek(FLAGS_txs - 1); 
+			 iter.Seek(FLAGS_txs - 1); 
 			 key = FLAGS_txs - 1;
 			 m = 0;
 			 
-			 while (iter1.Valid()) {
-			    m = iter1.Key();
-			    r = iter1.Value();
-	//		    printf("get %d\n",m);
+			 while (iter.Valid()) {
+			    m = iter.Key();
+			    r = iter.Value();
+			    printf("get %d\n",m);
 			    if (m % 10 == 0 ) {
 				  c1 = true;
 				  break;
@@ -950,7 +955,7 @@ class Benchmark {
 			    }
 			    key--;
 			    if  (m % 10 == 1) key--;
-			    iter1.Prev();
+			    iter.Prev();
 			 }
 			 tx2.End();
 			end = 1 ;
@@ -997,6 +1002,8 @@ class Benchmark {
 				iter.Next();
 			}
 			arg->start = 1;
+
+			printf("1\n");
 			while (arg->start != 2);
 			while (iter.Valid())
 				iter.Next();
@@ -1013,6 +1020,7 @@ class Benchmark {
 				iter.Next();
 			}
 			arg->start = 3;
+			printf("3\n");
 			while (arg->start != 4);
 			while (iter.Valid())
 				iter.Next();
