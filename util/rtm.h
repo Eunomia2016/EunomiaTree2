@@ -12,9 +12,9 @@
 
 namespace leveldb {
 
-#define MAXCAPACITY 5
+#define MAXCAPACITY 10
 #define MAXCONFLICT 100
-
+#define RTMPROFILE 0
 
 class RTMScope {
 	
@@ -58,13 +58,17 @@ class RTMScope {
 			 while(fblock.IsLocked())
 			 	_mm_pause();
 		  }
-		  if(capacity > MAXCAPACITY)
+		  if(capacity > MAXCAPACITY) {
+//		  	printf("hold lock MAXCAPACITY\n");
 		  	break;
-		  else if (conflict > MAXCONFLICT)
+		  }
+		  else if (conflict > MAXCONFLICT) {  	
+	//	  	printf("hold lock MAXCONFLICT\n");
 		  	break;
+		  }
 		}
 	}
-
+	//printf("hold lock\n");
 	fblock.Lock();
 	
   }
@@ -80,11 +84,13 @@ inline  ~RTMScope() {
 	else
 	  _xend ();
 	//access the global profile info outside the transaction scope
+#if RTMPROFILE
 	if(globalprof != NULL) {
 		globalprof->abortCounts += retry;
 		globalprof->capacityCounts += capacity;
 		globalprof->conflictCounts += conflict;
 	}
+#endif
 //		globalprof->MergeLocalStatus(localprofile);
 
   }
