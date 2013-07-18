@@ -475,17 +475,17 @@ namespace leveldb {
   	  if (b) break;
   	}*/
 
-	//Consistency 2 3 4
 /*	DBROTX rotx(store);
 	rotx.Begin();
+
+	//Consistency 2	
+	
 	uint64_t *d_value;
 	int64_t d_key = makeDistrictKey(warehouse_id, district_id);
   	bool found = rotx.Get(d_key, &d_value);
 	assert(found);
 	District *d = reinterpret_cast<District *>(d_value);
 
-	//Consistency 2
- 
 	int32_t o_id;
 	DBROTX::Iterator iter(&rotx);
 	uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
@@ -505,8 +505,43 @@ namespace leveldb {
 		o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
 		assert(o_id == d->d_next_o_id - 1);		
 	}  	
+
+	//Consistency 3
+	
+	iter.Seek(end);
+	int32_t min = static_cast<int32_t>(iter.Key() << 32 >> 32);
+	int32_t num = 0;
+	while (iter.Valid() && iter.Key() < start) {
+		num++;
+		iter.Next();
+	}
+	assert(o_id - min + 1 == num);
+
+	//Consistency 4
+
+	end = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID);
+	start = makeOrderKey(warehouse_id, district_id, 1);
+	iter.Seek(start);
+	Order *o; 
+	int32_t c = 0;
+	while (iter.Valid() && iter.Key() <= end) {
+		uint64_t *o_value = iter.Value();
+		o = reinterpret_cast<Order *>(o_value);
+		c += o->o_ol_cnt;
+		iter.Next();
+	}
+	start = makeOrderLineKey(warehouse_id, district_id, 1, 1);
+	end = makeOrderLineKey(warehouse_id, district_id, Order::MAX_ORDER_ID, Order::MAX_OL_CNT);
+	int32_t c1 = 0;
+	iter.Seek(start);
+	while (iter.Valid() && iter.Key() <= end) {
+		c1++;
+		iter.Next();
+	}
+	assert(c == c1);
 	rotx.End();
-*/
+	*/
+
 	
     return true;
   }
