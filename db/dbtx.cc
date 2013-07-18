@@ -546,9 +546,20 @@ void DBTX::Iterator::Prev()
 
 void DBTX::Iterator::Seek(uint64_t key)
 {
-	iter_->Seek(key);
+	//Should seek from the previous node and put it into the readset
+	iter_->SeekPrev(key);
+	{	
+#if GLOBALOCK
+        SpinLockScope spinlock(&slock);
+#else
+        RTMScope rtm(&tx_->rtmProf);
+#endif
+		cur_ = iter_->CurNode();
+        tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
+	  }
+
+	iter_->Next();
 	while(iter_->Valid()) {
-	  cur_ = iter_->CurNode();
 	  {
 	  	
 #if GLOBALOCK
@@ -556,6 +567,8 @@ void DBTX::Iterator::Seek(uint64_t key)
 #else
 		RTMScope rtm(&tx_->rtmProf);
 #endif
+		cur_ = iter_->CurNode();
+
 	  	val_ = cur_->value;
 
 		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
@@ -576,6 +589,17 @@ void DBTX::Iterator::Seek(uint64_t key)
 // Final state of iterator is Valid() iff list is not empty.
 void DBTX::Iterator::SeekToFirst()
 {
+	//Put the head into the read set first
+	{	
+#if GLOBALOCK
+        SpinLockScope spinlock(&slock);
+#else
+        RTMScope rtm(&tx_->rtmProf);
+#endif
+		cur_ = tx_->txdb_->GetHead();
+        tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
+	  }
+	
 	iter_->SeekToFirst();
 	while(iter_->Valid()) {
 	  cur_ = iter_->CurNode();

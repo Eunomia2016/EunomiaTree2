@@ -120,6 +120,14 @@ void MemStoreSkipList::Iterator::Seek(uint64_t key)
 	node_ = list_->FindGreaterOrEqual(key, NULL);
 }
 
+void MemStoreSkipList::Iterator::SeekPrev(uint64_t key)
+{
+	node_ = list_->FindLessThan(key);
+	if(node_ == NULL)
+		node_ = list_->head_;
+}
+
+
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.
 void MemStoreSkipList::Iterator::SeekToFirst()

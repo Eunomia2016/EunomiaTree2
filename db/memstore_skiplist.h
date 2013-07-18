@@ -55,6 +55,8 @@ class MemStoreSkipList {
     // Advance to the first entry with a key >= target
     void Seek(uint64_t key);
 
+	void SeekPrev(uint64_t key);
+
     // Position at the first entry in list.
     // Final state of iterator is Valid() iff list is not empty.
     void SeekToFirst();
@@ -98,6 +100,8 @@ class MemStoreSkipList {
   inline Node* FindGreaterOrEqual(uint64_t key, Node** prev);
 
   inline Node* FindLessThan(uint64_t key);
+  
+  inline Node* GetHead(){return head_;}
   
   void ThreadLocalInit();
   
