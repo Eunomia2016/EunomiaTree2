@@ -497,10 +497,12 @@ void DBTX::Iterator::Next()
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 	  	val_ = cur_->value;
-
+		
 		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
-	  	if(val_ != NULL) {
-			tx_->readset->Add(&cur_->seq);
+
+		tx_->readset->Add(&cur_->seq);
+		
+	  	if(val_ != NULL) {	
 			return;
 		
 		}
@@ -531,8 +533,9 @@ void DBTX::Iterator::Prev()
 	  	val_ = cur_->value;
 
 		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
+		tx_->readset->Add(&cur_->seq);
+		
 	  	if(val_ != NULL) {
-			tx_->readset->Add(&cur_->seq);
 			return;
 		
 		}
@@ -572,8 +575,9 @@ void DBTX::Iterator::Seek(uint64_t key)
 	  	val_ = cur_->value;
 
 		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
+		tx_->readset->Add(&cur_->seq);
+		
 	  	if(val_ != NULL) {
-			tx_->readset->Add(&cur_->seq);
 			return;
 		
 		}
@@ -613,8 +617,9 @@ void DBTX::Iterator::SeekToFirst()
 	  	val_ = cur_->value;
 
 		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
+		tx_->readset->Add(&cur_->seq);
+		
 	  	if(val_ != NULL) {
-			tx_->readset->Add(&cur_->seq);
 			return;
 		
 		}
