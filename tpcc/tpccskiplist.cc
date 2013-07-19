@@ -7,7 +7,8 @@
 #include <algorithm>
 
 #define PROFILE 0
-
+#define ABORTPRO 1
+#define SLDBTX	0
 namespace leveldb {
 
   static int64_t makeWarehouseKey(int32_t w_id) {
@@ -254,13 +255,24 @@ namespace leveldb {
 	abort = 0;
     conflict = 0;
     capacity = 0;
-#if PROFILE
+
+#if PROFILE || ABORTPRO
 	newordernum = 0;
 	paymentnum = 0;
 	stocklevelnum = 0;
 	orderstatusnum = 0;
 	delivernum = 0;
+#endif
 
+#if ABORTPRO
+	neworderabort = 0;
+	paymentabort = 0;
+	stocklevelabort = 0;
+	orderstatusabort = 0;
+	deliverabort = 0;
+#endif
+
+#if PROFILE
     neworderreadcount = 0;
     neworderwritecount = 0;
     paymentreadcount = 0;
@@ -305,6 +317,15 @@ namespace leveldb {
 	printf("#Abort : %d\n", abort);
 	printf("#Conflict : %d\n", conflict);
 	printf("#Capacity: %d\n", capacity);
+
+#if ABORTPRO
+	printf("Neworder Run: %ld   Abort: %ld\n", newordernum, neworderabort);
+	printf("Payment Run: %ld	Abort: %ld\n", paymentnum, paymentabort);	
+	printf("Orderstatus Run: %ld   Abort: %ld\n", orderstatusnum, orderstatusabort);
+	printf("Stocklevel Run: %ld   Abort: %ld\n", stocklevelnum, stocklevelabort);
+	printf("Deliver Run: %ld   Abort: %ld\n", delivernum, deliverabort);
+#endif	
+
 
 #if PROFILE
 	printf("neworderreadcount %f max %ld min %ld\n", (float)neworderreadcount/newordernum, neworderreadmax, neworderreadmin);
@@ -550,11 +571,13 @@ namespace leveldb {
         const std::vector<NewOrderItem>& items, const char* now,
         NewOrderOutput* output, TPCCUndo** undo) {
 #if PROFILE
-	atomic_add64(&newordernum, 1);
-		
-    uint32_t rcount = 0;
-	uint32_t wcount = 0;
+		  uint32_t rcount = 0;
+		  uint32_t wcount = 0;
 #endif
+#if ABORTPRO || PROFILE
+		  atomic_add64(&newordernum, 1);
+#endif    
+
 	leveldb::DBTX tx(store);
 	while(true) {
 	  
@@ -809,6 +832,10 @@ namespace leveldb {
  	
  	  bool b = tx.End();  
   	  if (b) break;
+	  
+#if ABORTPRO
+	  atomic_add64(&neworderabort, 1);
+#endif
 
   	}
 
@@ -883,10 +910,13 @@ namespace leveldb {
 	int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
 	PaymentOutput* output, TPCCUndo** undo){
 #if PROFILE
-	atomic_add64(&paymentnum, 1);
     uint32_t rcount = 0;
 	uint32_t wcount = 0;
+#endif
+#if ABORTPRO || PROFILE
+	atomic_add64(&paymentnum, 1);
 #endif    
+
     leveldb::DBTX tx(store);
     while(true) {
 	  //printf("1\n");
@@ -1002,6 +1032,10 @@ namespace leveldb {
 	  //printf("3\n");
 	  bool b = tx.End();  
   	  if (b) break;
+
+#if ABORTPRO
+	  atomic_add64(&paymentabort, 1);
+#endif
     }
 
     atomic_add64(&abort, tx.rtmProf.abortCounts);
@@ -1021,10 +1055,12 @@ namespace leveldb {
 
   void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
 #if PROFILE
-	  atomic_add64(&orderstatusnum, 1);
-   	  uint32_t icount = 0;
+	  uint32_t icount = 0;
 	  uint32_t rcount = 0;
-#endif 
+#endif
+#if PROFILE || ABORTPRO
+	  atomic_add64(&orderstatusnum, 1);
+#endif
 	  leveldb::DBROTX tx(store);
 	  tx.Begin();
 
@@ -1122,43 +1158,54 @@ namespace leveldb {
 
   int32_t TPCCSkiplist::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
 #if PROFILE
-	  atomic_add64(&stocklevelnum, 1);
    	  uint32_t icount = 0;
 	  uint32_t rcount = 0;
 #endif
-	  leveldb::DBROTX tx(store);
-	  int num_distinct = 0; 
-	  tx.Begin();
-		 
-	  //-------------------------------------------------------------------------
-	  //The row in the DISTRICT table with matching D_W_ID and D_ID is selected and D_NEXT_O_ID is retrieved.
-	  //-------------------------------------------------------------------------
-	  
-	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
-	  
-  	  uint64_t *d_value;
-	  bool found = tx.Get(d_key, &d_value);
-#if PROFILE
-	  rcount++;
+#if PROFILE || ABORTPRO
+	  atomic_add64(&stocklevelnum, 1);
 #endif
-	  assert(found);
-      District *d = reinterpret_cast<District *>(d_value);   
-	  int32_t o_id = d->d_next_o_id;
+#if SLDBTX
+	  leveldb::DBTX tx(store);
+#else
+	  leveldb::DBROTX tx(store);
+#endif
+	  int num_distinct = 0; 
+	  while (true) {
+  	    tx.Begin();
+		 
+	    //-------------------------------------------------------------------------
+	    //The row in the DISTRICT table with matching D_W_ID and D_ID is selected and D_NEXT_O_ID is retrieved.
+	    //-------------------------------------------------------------------------
+	  
+	    int64_t d_key = makeDistrictKey(warehouse_id, district_id);
+	  
+  	    uint64_t *d_value;
+	    bool found = tx.Get(d_key, &d_value);
+#if PROFILE
+	    rcount++;
+#endif
+	    assert(found);
+        District *d = reinterpret_cast<District *>(d_value);   
+	    int32_t o_id = d->d_next_o_id;
 
-	  //-------------------------------------------------------------------------
-	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals W_ID), OL_D_ID (equals D_ID), 
-	  //and OL_O_ID (lower than D_NEXT_O_ID and greater than or equal to D_NEXT_O_ID minus 20) are selected.
-	  //-------------------------------------------------------------------------
-	  int i = o_id - 20;
-	  std::vector<int32_t> s_i_ids;
-      // Average size is more like ~30.
-      s_i_ids.reserve(300);
+	    //-------------------------------------------------------------------------
+	    //All rows in the ORDER-LINE table with matching OL_W_ID (equals W_ID), OL_D_ID (equals D_ID), 
+	    //and OL_O_ID (lower than D_NEXT_O_ID and greater than or equal to D_NEXT_O_ID minus 20) are selected.
+	    //-------------------------------------------------------------------------
+	    int i = o_id - 20;
+	    std::vector<int32_t> s_i_ids;
+        // Average size is more like ~30.
+        s_i_ids.reserve(300);
 
-	  DBROTX::Iterator iter(&tx);
-	  int64_t start = makeOrderLineKey(warehouse_id, district_id, i, 1);
-	  iter.Seek(start);
-	  int64_t end = makeOrderLineKey(warehouse_id, district_id, o_id, 1);
-	  while (iter.Valid()) {
+#if SLDBTX
+		DBTX::Iterator iter(&tx);
+#else
+	    DBROTX::Iterator iter(&tx);
+#endif
+	    int64_t start = makeOrderLineKey(warehouse_id, district_id, i, 1);
+	    iter.Seek(start);
+	    int64_t end = makeOrderLineKey(warehouse_id, district_id, o_id, 1);
+	    while (iter.Valid()) {
 	  	  int64_t ol_key = iter.Key();
 		  if (ol_key >= end) break;
 	  	  uint64_t *ol_value = iter.Value();
@@ -1185,19 +1232,26 @@ namespace leveldb {
 		  
 	  	
 		  iter.Next();
-	  }
+	    }
 
-	  std::sort(s_i_ids.begin(), s_i_ids.end());
+	    std::sort(s_i_ids.begin(), s_i_ids.end());
       
-      int32_t last = -1;  // NOTE: This relies on -1 being an invalid s_i_id
-      for (size_t i = 0; i < s_i_ids.size(); ++i) {
-        if (s_i_ids[i] != last) {
-          last = s_i_ids[i];
-          num_distinct += 1;
-        }
-      }    
+        int32_t last = -1;  // NOTE: This relies on -1 being an invalid s_i_id
+        for (size_t i = 0; i < s_i_ids.size(); ++i) {
+          if (s_i_ids[i] != last) {
+            last = s_i_ids[i];
+            num_distinct += 1;
+          }
+        }    
 
-	  bool b = tx.End();  
+	    bool b = tx.End();  
+		if (b) break;
+		
+#if ABORTPRO
+		atomic_add64(&stocklevelabort, 1);
+#endif
+		
+	  }
 #if PROFILE
 	  atomic_add64(&stocklevelreadcount, rcount);
 	  atomic_add64(&stocklevelitercount, icount);
@@ -1214,11 +1268,14 @@ namespace leveldb {
   void TPCCSkiplist::delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
 		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo){
 #if PROFILE
-	atomic_add64(&delivernum, 1);
 	uint32_t wcount = 0;
 	uint32_t rcount = 0;
 	uint32_t icount = 0;
+#endif 
+#if ABORTPRO || PROFILE
+	atomic_add64(&delivernum, 1);
 #endif	
+
     leveldb::DBTX tx(store);
 	while (true) {
 	  tx.Begin();
@@ -1345,6 +1402,10 @@ namespace leveldb {
 
 	  bool b = tx.End();  
   	  if (b) break;
+
+#if ABORTPRO
+	  atomic_add64(&deliverabort, 1);
+#endif
 	}
 	
 #if PROFILE

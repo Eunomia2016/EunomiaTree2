@@ -27,6 +27,12 @@ class TPCCSkiplist : public TPCCDB {
   uint64_t conflict;
   uint64_t capacity;
 
+  uint64_t neworderabort;
+  uint64_t paymentabort;
+  uint64_t stocklevelabort;
+  uint64_t orderstatusabort;
+  uint64_t deliverabort;
+
   uint64_t newordernum;
   uint64_t paymentnum;
   uint64_t stocklevelnum;
