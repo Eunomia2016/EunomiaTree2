@@ -54,6 +54,7 @@ void TPCCClient::doOrderStatus() {
     int y = generator_->number(1, 100);
     if (y <= 0) {
         // 60%: order status by last name
+        //FIXME: Currently don't support using last name to query the database
         char c_last[Customer::MAX_LAST+1];
         generator_->lastName(c_last, customers_per_district_);
         db_->orderStatus(generateWarehouse(), generateDistrict(), c_last, &output);
@@ -103,6 +104,7 @@ void TPCCClient::doPayment() {
     clock_->getDateTimestamp(now);
     if (y <= 0) {
         // 60%: payment by last name
+        //FIXME: Currently don't support using last name to query the database
         char c_last[Customer::MAX_LAST+1];
         generator_->lastName(c_last, customers_per_district_);
         db_->payment(w_id, d_id, c_w_id, c_d_id, c_last, h_amount, now, &output, NULL);

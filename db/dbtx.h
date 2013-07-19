@@ -116,7 +116,7 @@ public:
 	    ~ReadSet();
 		inline void Reset();
 	    inline void Add(uint64_t *ptr);
-		inline void AddNext(uint64_t *ptr);
+		inline void AddNext(uint64_t *ptr, uint64_t value);
 	    inline bool Validate();
 	    void Print();
 	};

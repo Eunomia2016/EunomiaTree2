@@ -95,7 +95,7 @@ void DBTX::ReadSet::Resize()
 }
 
 
-inline void DBTX::ReadSet::AddNext(uint64_t *ptr)
+inline void DBTX::ReadSet::AddNext(uint64_t *ptr, uint64_t value)
 {
 //if (max_length < rangeElems) printf("ELEMS %d MAX %d\n", rangeElems, max_length);
   assert(rangeElems <= max_length);
@@ -107,7 +107,7 @@ inline void DBTX::ReadSet::AddNext(uint64_t *ptr)
   int cur = rangeElems;
   rangeElems++;
 
-  nexts[cur].next = *ptr;
+  nexts[cur].next = value;
   nexts[cur].nextptr = ptr;
 }
 
@@ -441,13 +441,14 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 	RTMScope rtm(&rtmProf);
 #endif
 
-
+//	if(*val != NULL && **val == 1)
+	//	printf("seq of node %d\n", node->seq);
     readset->Add(&node->seq);
 
 	if (node->value == NULL) {
 
 		*val = NULL;
-
+//	    printf("Not Found %d\n", node->seq);
 		return false;
 
 	} else {
@@ -484,7 +485,9 @@ uint64_t* DBTX::Iterator::Value()
 	
 void DBTX::Iterator::Next()
 {
+	MemStoreSkipList::Node* prev = cur_;
 	iter_->Next();
+	
 	while(iter_->Valid()) {
 	  
 	  cur_ = iter_->CurNode();
@@ -498,8 +501,7 @@ void DBTX::Iterator::Next()
 #endif
 	  	val_ = cur_->value;
 		
-		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
-
+		tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {	
@@ -509,6 +511,7 @@ void DBTX::Iterator::Next()
 
 	  }
 
+	  prev = cur_;
 	  iter_->Next();
 	}
 
@@ -518,6 +521,7 @@ void DBTX::Iterator::Next()
 
 void DBTX::Iterator::Prev()
 {
+	MemStoreSkipList::Node* next = cur_;
 	iter_->Prev();
 	while(iter_->Valid()) {
 	  
@@ -532,7 +536,7 @@ void DBTX::Iterator::Prev()
 #endif
 	  	val_ = cur_->value;
 
-		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
+		tx_->readset->AddNext((uint64_t *)&cur_->next_[0], (uint64_t)next);
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {
@@ -541,9 +545,10 @@ void DBTX::Iterator::Prev()
 		}
 
 	  }
-	  
+	  next = cur_;
 	  iter_->Prev();
 	}
+	
 	cur_ = NULL;
 }
 
@@ -551,41 +556,62 @@ void DBTX::Iterator::Seek(uint64_t key)
 {
 	//Should seek from the previous node and put it into the readset
 	iter_->SeekPrev(key);
-	{	
-#if GLOBALOCK
-        SpinLockScope spinlock(&slock);
-#else
-        RTMScope rtm(&tx_->rtmProf);
-#endif
-		cur_ = iter_->CurNode();
-        tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
-	  }
-
+	MemStoreSkipList::Node* prev = iter_->CurNode();
 	iter_->Next();
-	while(iter_->Valid()) {
-	  {
-	  	
+
+	cur_ = iter_->CurNode();
+	//First, find the first node which is not less than the key
+	//Iterate the list to avoid concurrent insertion
+	while(iter_->Valid() && cur_->key < key) {
+
+	  prev = cur_;
+		
+	  iter_->Next();
+	  cur_ = iter_->CurNode();
+	}
+
+	//No keys is equal or larger than key
+	if(!iter_->Valid()){
+		assert(cur_ == NULL);
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
 		RTMScope rtm(&tx_->rtmProf);
 #endif
-		cur_ = iter_->CurNode();
-
-	  	val_ = cur_->value;
-
-		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
-		tx_->readset->Add(&cur_->seq);
-		
-	  	if(val_ != NULL) {
-			return;
-		
-		}
-
-	  }
-	  
-	  iter_->Next();
+		//put the previous node's next field into the readset
+	    tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+		return;
 	}
+	
+	//Second, find the first key which value is not NULL
+	while(iter_->Valid()) {
+
+	   {
+#if GLOBALOCK
+		  SpinLockScope spinlock(&slock);
+#else
+		  RTMScope rtm(&tx_->rtmProf);
+#endif
+
+	  	  //Avoid concurrently insertion
+		  tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+	  	  //Avoid concurrently modification
+	  	  tx_->readset->Add(&cur_->seq);
+	  
+	  	  val_ = cur_->value;
+	  
+  	  	  if(val_ != NULL) {
+	    	return;
+	  	  }
+
+	    }
+	  
+		prev = cur_;
+		iter_->Next();
+	    cur_ = iter_->CurNode();
+	}
+
+	  
 	cur_ = NULL;
 }
 	
@@ -594,19 +620,26 @@ void DBTX::Iterator::Seek(uint64_t key)
 void DBTX::Iterator::SeekToFirst()
 {
 	//Put the head into the read set first
-	{	
-#if GLOBALOCK
-        SpinLockScope spinlock(&slock);
-#else
-        RTMScope rtm(&tx_->rtmProf);
-#endif
-		cur_ = tx_->txdb_->GetHead();
-        tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
-	  }
+	MemStoreSkipList::Node* prev  = tx_->txdb_->GetHead();
 	
 	iter_->SeekToFirst();
+
+	cur_ = iter_->CurNode();
+	
+	if(!iter_->Valid()) {
+		assert(cur_ == NULL);
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&tx_->rtmProf);
+#endif
+		//put the previous node's next field into the readset
+	    tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+		return;
+	}
+	
 	while(iter_->Valid()) {
-	  cur_ = iter_->CurNode();
+	    
 	  {
 	  	
 #if GLOBALOCK
@@ -616,7 +649,7 @@ void DBTX::Iterator::SeekToFirst()
 #endif
 	  	val_ = cur_->value;
 
-		tx_->readset->AddNext((uint64_t *)&cur_->next_[0]);
+		tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {
@@ -625,8 +658,10 @@ void DBTX::Iterator::SeekToFirst()
 		}
 
 	  }
-	  
+
+	  prev = cur_;
 	  iter_->Next();
+	  cur_ = iter_->CurNode();
 	}
 	cur_ = NULL;
 
