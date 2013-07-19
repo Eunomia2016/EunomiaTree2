@@ -1279,7 +1279,7 @@ namespace leveldb {
     leveldb::DBTX tx(store);
 	while (true) {
 	  tx.Begin();
-		
+	  orders->clear();
   	  for (int32_t d_id = 1; d_id <= District::NUM_PER_WAREHOUSE; ++d_id) {
 	    //-------------------------------------------------------------------------
 	    //The row in the NEW-ORDER table with matching NO_W_ID (equals W_ID) and NO_D_ID (equals D_ID) 

@@ -161,7 +161,7 @@ void TPCCClient::doOne() {
     if (x <= 4) { // 4%
         doStockLevel();
     } else if (x <= 8) {  // 4%
-//        doDelivery();
+        doDelivery();
     } else if (x <= 12) {  // 4%
         doOrderStatus();
     } else if (x <= 12+43) { // 43%
