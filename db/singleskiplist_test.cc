@@ -906,9 +906,9 @@ class Benchmark {
 			    }
 			    key++;
 			    if  (m % 10 == 9) key++;
-				if (m==99) printf("at end\n");
+	//			if (m==99) printf("at end\n");
 			    iter.Next();
-				if (m==99) printf("next\n");
+	//			if (m==99) printf("next\n");
 			 }
 			 tx2.End();
 			 
@@ -990,6 +990,12 @@ class Benchmark {
 			arg->start = 0;
 			arg->store = store;
 			Env::Default()->StartThread(method, arg);
+
+			uint64_t *value;
+			DBTX rotx(store);
+			rotx.Begin();
+			rotx.Get(10, &value);
+			rotx.End();
 			
 			DBTX tx2(store);
 			bool b = false;
