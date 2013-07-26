@@ -127,6 +127,6 @@ class TPCCSkiplist : public TPCCDB {
   virtual void applyUndo(TPCCUndo* undo);
   virtual void freeUndo(TPCCUndo* undo);
 
-  
+  virtual void printSkiplist();
 };
 }  

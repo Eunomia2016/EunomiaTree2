@@ -99,6 +99,8 @@ class MemStoreSkipList {
   
   inline Node* FindGreaterOrEqual(uint64_t key, Node** prev);
 
+  inline Node* FindGreaterOrEqualProfile(uint64_t key, Node** prev);
+
   inline Node* FindLessThan(uint64_t key);
   
   inline Node* GetHead(){return head_;}
@@ -111,6 +113,10 @@ class MemStoreSkipList {
 	uint32_t max_height_;
 	
 	Node* head_;
+
+	uint64_t tcount;
+	uint64_t ocount;
+	uint64_t nnum;
 	
 	static __thread Random* rnd_;
 	static __thread bool localinit_;

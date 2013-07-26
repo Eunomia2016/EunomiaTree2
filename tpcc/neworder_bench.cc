@@ -345,7 +345,8 @@ int main(int argc, const char* argv[]) {
 	
     //TPCCTables* tables = new TPCCTables();
     //leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
-    TPCCDB* tables = new leveldb::TPCCSkiplist();
+    //TPCCDB* tables = new leveldb::TPCCSkiplist();
+    leveldb::TPCCSkiplist* tables = new leveldb::TPCCSkiplist();
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.
@@ -368,6 +369,8 @@ int main(int argc, const char* argv[]) {
     int64_t end = clock->getMicroseconds();
     printf("%"PRId64" ms\n", (end - begin + 500)/1000);
 
+	tables->printSkiplist();
+	
     leveldb::Slice name(benchmark);
     leveldb::Benchmark b(tables, clock, cLoad);
 
@@ -377,6 +380,8 @@ int main(int argc, const char* argv[]) {
 		b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doNewOrder);
 	else if (name == leveldb::Slice("readonly"))
 		b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doReadOnly);
+
+	tables->printSkiplist();
 	
 	delete tables;
 	printf("Hello World\n");

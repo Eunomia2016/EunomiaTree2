@@ -1463,6 +1463,11 @@ void TPCCSkiplist::freeUndo(TPCCUndo* undo){
   return;
 }
 
+void TPCCSkiplist::printSkiplist() {
+	store->PrintList();
+}
+
+
  
 }
 

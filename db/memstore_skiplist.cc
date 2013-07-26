@@ -16,7 +16,7 @@
 #define SKIPLISTGLOBALLOCK 0
 #define SKIPLISTRTM 0
 #define SKIPLISTLOCKFREE 1
-
+#define NODEPROFILE 0
 
 namespace leveldb {
 
@@ -37,9 +37,22 @@ MemStoreSkipList::MemStoreSkipList()
   	}
 
 	snapshot = 1;
+
+#if NODEPROFILE
+	tcount = 0;
+	ocount = 0;
+	nnum = 0;
+#endif
 }
 
-MemStoreSkipList::~MemStoreSkipList(){}
+MemStoreSkipList::~MemStoreSkipList()
+{
+#if NODEPROFILE
+	printf("total touched %ld\n", tcount);
+	printf("other table touched %ld\n", ocount);
+	printf("total node number to found %ld\n", nnum);
+#endif
+}
 
 
 
@@ -178,6 +191,37 @@ inline MemStoreSkipList::Node* MemStoreSkipList::FindLessThan(uint64_t key)
 }
 
 
+inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqualProfile(uint64_t key, Node** prev)
+{
+
+  Node* x = head_;
+  int level = max_height_ - 1;
+
+  atomic_inc64(&nnum);
+  
+  while (true) {
+    Node* next = x->next_[level];
+
+	atomic_inc64(&tcount);
+	
+	if(next != NULL && (key>>50) != (next->key>>50))
+		atomic_inc64(&ocount);
+	
+    if (next != NULL && key > next->key) {
+      // Keep searching in this list
+      x = next;
+    } else {
+      if (prev != NULL) 
+	  	prev[level] = x;
+	  
+      if (level == 0) {
+        return next;
+      } else {
+       	level--;
+      }
+    }
+  }
+}
 
 inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key, Node** prev)
 {
@@ -309,7 +353,11 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
   Node* x;
 
   //find the prevs and succs
+ #if NODEPROFILE
+  x = FindGreaterOrEqualProfile(key, preds);
+ #else
   x = FindGreaterOrEqual(key, preds);
+ #endif
 
   if(x != NULL && key == x->key ) {
 	//FIXME: Only search the node at level 1
@@ -393,7 +441,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
 
 void MemStoreSkipList::PrintList(){
 
-	
+	/*
 	Node* cur = head_;
 		
 	while(cur != NULL)
@@ -417,8 +465,9 @@ void MemStoreSkipList::PrintList(){
 		}
 	}
 		
+	*/
 
-	/*
+	
 
 	printf(" Max Height %d\n", max_height_);
 
@@ -427,7 +476,7 @@ void MemStoreSkipList::PrintList(){
 		
 	for(int i = kMaxHeight - 1; i >= 0; i--) {	
 		
-		printf(" Check Layer %d\n", i);
+		//printf(" Check Layer %d\n", i);
 		
 		Node* cur = head_;
 		int count = 0;
@@ -445,7 +494,7 @@ void MemStoreSkipList::PrintList(){
 		}
 
 		printf(" Layer %d Has %d Elements\n", i, count);
-	}*/
+	}
 
 }
 
