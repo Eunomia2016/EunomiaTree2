@@ -187,4 +187,38 @@ void RealRandomGenerator::seed(unsigned int seed) {
 #endif
 }
 
+
+ __thread leveldb::Random* TXDBRandomGenerator::rnd_ = NULL; 
+ __thread unsigned int TXDBRandomGenerator::localseed = 0;
+
+TXDBRandomGenerator::TXDBRandomGenerator() {
+	//printf("Init\n");
+	rnd_ = new leveldb::Random(time(NULL));
+}
+
+int TXDBRandomGenerator::number(int lower, int upper) {
+    int rand_int = rnd_->Next();
+    ASSERT(0 <= rand_int && rand_int <= RAND_MAX);
+
+    // Select a number in [0, range_size-1]
+    int range_size = upper - lower + 1;
+    rand_int %= range_size;
+    ASSERT(0 <= rand_int && rand_int < range_size);
+
+    // Shift the range to [lower, upper]
+    rand_int += lower;
+    ASSERT(lower <= rand_int && rand_int <= upper);
+    return rand_int;
+}
+
+void TXDBRandomGenerator::seed(unsigned int seed) {
+	//printf("Seed\n");
+    localseed = seed;
+	if(rnd_ != NULL)
+		delete rnd_;
+	
+	rnd_ = new leveldb::Random(seed);
+}
+
+
 }  // namespace tpcc

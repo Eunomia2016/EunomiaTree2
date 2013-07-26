@@ -20,6 +20,8 @@
 static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
+#define LOCALRANDOM 0
+
 namespace leveldb {
 
 
@@ -238,7 +240,11 @@ class Benchmark {
 
   void doOne(ThreadState* thread) {
   	// Change the constants for run
+#if LOCALRANDOM
+	tpcc::TXDBRandomGenerator* random = new tpcc::TXDBRandomGenerator();
+#else
     tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+#endif
     random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
 	random->seed(0xdeadbeef + thread->tid << 10);
     // Client owns all the parameters
@@ -260,7 +266,11 @@ class Benchmark {
 
   void doNewOrder(ThreadState* thread) {
   	// Change the constants for run
-    tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+#if LOCALRANDOM
+		tpcc::TXDBRandomGenerator* random = new tpcc::TXDBRandomGenerator();
+#else
+		tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+#endif
     random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
 	random->seed(0xdeadbeef + thread->tid << 10);
     // Client owns all the parameters
@@ -283,7 +293,11 @@ class Benchmark {
   
   void doReadOnly(ThreadState* thread) {
 	  // Change the constants for run
-	  tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+#if LOCALRANDOM
+		  tpcc::TXDBRandomGenerator* random = new tpcc::TXDBRandomGenerator();
+#else
+		  tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+#endif
 	  random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
   	  random->seed(0xdeadbeef + thread->tid << 10);
 	  // Client owns all the parameters
@@ -350,7 +364,11 @@ int main(int argc, const char* argv[]) {
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.
-    tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+#if LOCALRANDOM
+		tpcc::TXDBRandomGenerator* random = new tpcc::TXDBRandomGenerator();
+#else
+		tpcc::RealRandomGenerator* random = new tpcc::RealRandomGenerator();
+#endif
     tpcc::NURandC cLoad = tpcc::NURandC::makeRandom(random);
     random->setC(cLoad);
 
@@ -369,7 +387,7 @@ int main(int argc, const char* argv[]) {
     int64_t end = clock->getMicroseconds();
     printf("%"PRId64" ms\n", (end - begin + 500)/1000);
 
-	tables->printSkiplist();
+	//tables->printSkiplist();
 	
     leveldb::Slice name(benchmark);
     leveldb::Benchmark b(tables, clock, cLoad);
@@ -381,7 +399,7 @@ int main(int argc, const char* argv[]) {
 	else if (name == leveldb::Slice("readonly"))
 		b.RunBenchmark(num_warehouses, name, &leveldb::Benchmark::doReadOnly);
 
-	tables->printSkiplist();
+	//tables->printSkiplist();
 	
 	delete tables;
 	printf("Hello World\n");

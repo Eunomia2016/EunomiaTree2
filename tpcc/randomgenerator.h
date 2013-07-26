@@ -2,6 +2,7 @@
 #define RANDOMGENERATOR_H__
 
 #include <cstdlib>  // for struct random_data
+#include "util/random.h"
 
 #ifdef __linux__
 #define HAVE_RANDOM_R
@@ -100,6 +101,23 @@ private:
     unsigned short state[3];
 #endif
 };
+
+
+class TXDBRandomGenerator : public RandomGenerator {
+public:
+    // Seeds the generator with the current time.
+    TXDBRandomGenerator();
+
+    virtual int number(int lower, int upper);
+
+    // Seed the generator with seed.
+    void seed(unsigned int seed);
+		
+private:
+	static __thread leveldb::Random* rnd_;
+	static __thread unsigned int localseed;
+};
+
 
 }  // namespace tpcc
 
