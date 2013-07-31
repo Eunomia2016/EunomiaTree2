@@ -5,8 +5,11 @@
 #include "util/rtm_arena.h"
 #include <assert.h>
 #include <stdio.h>
+#include <immintrin.h>
 
 namespace leveldb {
+
+#define CACHSIM 0
 
 static const int kBlockSize = 4096;
 
@@ -14,10 +17,12 @@ RTMArena::RTMArena() {
   blocks_memory_ = 0;
   alloc_ptr_ = NULL;  // First allocation will allocate a block
   alloc_bytes_remaining_ = 0;
+
+#if CACHSIM
   for(int i = 0; i < 64; i ++)
   	cacheset[i] = 0;
-
   cachelineaddr = 0;
+#endif
 }
 
 RTMArena::~RTMArena() {
@@ -25,11 +30,12 @@ RTMArena::~RTMArena() {
   	//printf("Free %lx\n", blocks_[i]);
     delete[] blocks_[i];
   }
-  /*
+  
+#if CACHSIM
   for(int i = 0; i < 64; i ++)
   	printf("cacheset[%d] %d ", i, cacheset[i]);
-
-  printf("\n");*/
+  printf("\n");
+#endif
 }
 
 char* RTMArena::AllocateFallback(size_t bytes) {
@@ -50,6 +56,14 @@ char* RTMArena::AllocateFallback(size_t bytes) {
   return result;
 }
 
+void RTMArena::AllocateFallback() {
+
+  // We waste the remaining space in the current block.
+  alloc_ptr_ = AllocateNewBlock(kBlockSize);
+  alloc_bytes_remaining_ = kBlockSize;
+}
+
+
 char* RTMArena::AllocateAligned(size_t bytes) {
 	//printf("Alloca size %d\n", bytes);
 //TODO: align to cache line
@@ -65,16 +79,21 @@ char* RTMArena::AllocateAligned(size_t bytes) {
     alloc_bytes_remaining_ -= needed;
   } else {
     // AllocateFallback always returned aligned memory
+
+	while(_xtest())
+		_xabort(0xf0);
+	
     result = AllocateFallback(bytes);
   }
   
-/*
+#if CACHSIM
   if( cachelineaddr != (uint64_t)result >> 6) {
   	cachelineaddr = (uint64_t)result >> 6;
   	int index = (int)(((uint64_t)result>>6)&0x3f);
   	cacheset[index]++;
   }
-  */
+#endif
+
   assert((reinterpret_cast<uintptr_t>(result) & (align-1)) == 0);
   return result;
 }

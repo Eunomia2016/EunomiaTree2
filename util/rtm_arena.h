@@ -32,6 +32,7 @@ class RTMArena {
 
  private:
   char* AllocateFallback(size_t bytes);
+  void  AllocateFallback();
   char* AllocateNewBlock(size_t block_bytes);
 
   // Allocation state
