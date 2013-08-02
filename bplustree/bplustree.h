@@ -201,10 +201,7 @@ public:
 	}
 
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d) {
-
 	
-		
-		bool split = false;
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
@@ -230,7 +227,6 @@ public:
 				if (inner->num_keys == N) {										
 					unsigned treshold= (N+1)/2;
 					new_sibling = new_inner_node();
-					split = true;
 					
 					new_sibling->num_keys= inner->num_keys -treshold;
 					//printf("sibling num %d\n",new_sibling->num_keys);
@@ -288,7 +284,6 @@ public:
 				if (inner->num_keys == N) {										
 					
 					new_sibling = new_inner_node();
-					split = true;
 					new_sibling->num_keys= inner->num_keys -treshold;
 					
                     for(unsigned i=0; i < new_sibling->num_keys; ++i) {
@@ -296,7 +291,9 @@ public:
                         new_sibling->children[i]= inner->children[treshold+i];
                     }
                     new_sibling->children[new_sibling->num_keys]=
-                                inner->children[inner->num_keys];
+                                inner->children[inner->num_keys];
+                                
+                    //XXX: should threshold ???
                     inner->num_keys= treshold-1;
 					
 					upKey = inner->keys[treshold-1];
@@ -306,6 +303,8 @@ public:
 						if (k >= treshold) k = k - treshold; 
 						else k = 0;
 					}
+
+					//XXX: what is this used for???
 					inner->keys[N-1] = upKey;
 
 //					writes++;
@@ -336,7 +335,7 @@ public:
 			
 		}
 		
-		if (d==depth && split) {
+		if (d==depth && new_sibling != NULL) {
 			InnerNode *new_root = new_inner_node();			
 			new_root->num_keys = 1;
 			new_root->keys[0]= upKey;

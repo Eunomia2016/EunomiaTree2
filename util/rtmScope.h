@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#ifndef STORAGE_LEVELDB_UTIL_RTM_H_
-#define STORAGE_LEVELDB_UTIL_RTM_H_
+#ifndef STORAGE_LEVELDB_UTIL_RTMSCOPE_H_
+#define STORAGE_LEVELDB_UTIL_RTMSCOPE_H_
 #include <immintrin.h>
 #include <sys/time.h>
 #include "txprofile.h"
@@ -68,6 +68,12 @@ class RTMArenaScope {
 	    }
 		else if (stat == 0)
 			zero++;
+
+		if(retry > 1000000) {
+			printf("stat %d\n", stat);
+			exit(1);
+		}
+			
 		
 #if LOCKELISION
 		else if((stat & _XABORT_EXPLICIT) && _XABORT_CODE(stat)==0xff)

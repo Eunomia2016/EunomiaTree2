@@ -118,6 +118,9 @@ rtm_test: db/rtm_test.o $(LIBOBJECTS) $(TESTUTIL)
 bplustree_test: bplustree/bplustree_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) bplustree/bplustree_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
+memstorebt_test: memstore/memstore_bplustree_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) memstore/memstore_bplustree_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
 
 memstore_test: db/memstore_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/memstore_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)

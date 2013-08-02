@@ -7,6 +7,7 @@
 #include <immintrin.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdint.h>
 
 namespace leveldb {
 
