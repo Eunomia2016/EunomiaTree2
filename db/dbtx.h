@@ -15,11 +15,12 @@
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
 #include "db/memstore_skiplist.h"
-
+#include "db/dbtables.h"
 
 
 #define CACHESIM 0
 #define GLOBALOCK 0
+
 
 namespace leveldb {
 
@@ -30,16 +31,23 @@ class DBTX {
 	RTMProfile rtmProf;
 	int count;
 
-	DBTX (MemStoreSkipList* store);
-	
+
+	DBTX(DBTables* tables);
+
+
 	~DBTX();
 
 	void Begin();
 	bool Abort();
 	bool End();
-	void Add(uint64_t key, uint64_t* val);	
-	bool Get(uint64_t key, uint64_t** val);
-	void Delete(uint64_t key);
+	
+
+	void Add(int tableid, uint64_t key, uint64_t* val);	
+	bool Get(int tableid, uint64_t key, uint64_t** val);
+	void Delete(int tableid, uint64_t key);
+
+
+	
 	void ThreadLocalInit();
 	
 public:
@@ -49,7 +57,7 @@ public:
 	 public:
 	  // Initialize an iterator over the specified list.
 	  // The returned iterator is not valid.
-	  explicit Iterator(DBTX* tx);
+	  explicit Iterator(DBTX* tx, int tableid);
 	
 	  // Returns true iff the iterator is positioned at a valid node.
 	  bool Valid();
@@ -81,6 +89,7 @@ public:
 	
 	 private:
 	  DBTX* tx_;
+	  MemStoreSkipList *table_;
 	  MemStoreSkipList::Node* cur_;
 	  MemStoreSkipList::Iterator *iter_;
 	  uint64_t *val_;
@@ -125,6 +134,7 @@ public:
 	class WriteSet {
 		
 		struct WSKV{
+			int tableid;
 			uint64_t key; //pointer to the written key 
 			uint64_t *val;
 			MemStoreSkipList::Node* node;
@@ -150,8 +160,8 @@ public:
 		~WriteSet();	
 		void TouchAddr(uint64_t addr, int type);
 		
-		inline void Add(uint64_t key, uint64_t* val, MemStoreSkipList::Node* node);
-		inline bool Lookup(uint64_t key, uint64_t** val);
+		inline void Add(int tableid, uint64_t key, uint64_t* val, MemStoreSkipList::Node* node);
+		inline bool Lookup(int tableid, uint64_t key, uint64_t** val);
 		inline void Write(uint64_t gcounter);
 		
 		void Print();
@@ -164,7 +174,9 @@ public:
 	static port::Mutex storemutex;
 	static SpinLock slock;
 
-	MemStoreSkipList *txdb_ ;
+
+	DBTables *txdb_;
+
 
 };
 

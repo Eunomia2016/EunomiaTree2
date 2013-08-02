@@ -253,7 +253,7 @@ void DBTX::WriteSet::TouchAddr(uint64_t addr, int type)
 }
 
 
-void DBTX::WriteSet::Add(uint64_t key, uint64_t* val, MemStoreSkipList::Node* node)
+void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, MemStoreSkipList::Node* node)
 {
   assert(elems <= max_length);
 
@@ -264,6 +264,7 @@ void DBTX::WriteSet::Add(uint64_t key, uint64_t* val, MemStoreSkipList::Node* no
   int cur = elems;
   elems++;
 
+  kvs[cur].tableid = tableid;
   kvs[cur].key = node->key;
   kvs[cur].val = val;
   kvs[cur].node = node;
@@ -274,10 +275,10 @@ void DBTX::WriteSet::Add(uint64_t key, uint64_t* val, MemStoreSkipList::Node* no
 }
 
 
-inline bool DBTX::WriteSet::Lookup(uint64_t key, uint64_t** val)
+inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
 {
   for(int i = 0; i < elems; i++) {
-    if(kvs[i].key == key) {
+    if(kvs[i].tableid == tableid && kvs[i].key == key) {
 	   *val = kvs[i].val;
 	   return true;
     }
@@ -351,11 +352,14 @@ void DBTX::WriteSet::Print()
   }
 }
 
-DBTX::DBTX(MemStoreSkipList* store)
+DBTX::DBTX(DBTables* store)
 {
   txdb_ = store;
   count = 0;
 }
+
+  
+
 
 DBTX::~DBTX()
 
@@ -404,34 +408,37 @@ bool DBTX::End()
   return true;
 }
 
-void DBTX::Add(uint64_t key, uint64_t* val)
+
+void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
+
 {
   MemStoreSkipList::Node* node;
   //Get the seq addr from the hashtable
 
-  node = txdb_->GetLatestNodeWithInsert(key);
-  
+  node = txdb_->tables[tableid]->GetLatestNodeWithInsert(key);
+
   //write the key value into local buffer
-  writeset->Add(key, val, node);
+  writeset->Add(tableid, key, val, node);
 }
 
 
-void DBTX::Delete(uint64_t key)
+void DBTX::Delete(int tableid, uint64_t key)
 {
 	//For delete, just insert a null value
-	Add(key, NULL);
+	Add(tableid, key, NULL);
 }
 
-bool DBTX::Get(uint64_t key, uint64_t** val)
+
+bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 {
   //step 1. First check if the <k,v> is in the write set
-  if(writeset->Lookup(key, val)) {
+  if(writeset->Lookup(tableid, key, val)) {
       	return true;
   }
 
 	
   //step 2.  Read the <k,v> from the in memory store
-  MemStoreSkipList::Node* node = txdb_->GetLatestNodeWithInsert(key);
+  MemStoreSkipList::Node* node = txdb_->tables[tableid]->GetLatestNodeWithInsert(key);
 
 	
 	//Guarantee	
@@ -460,10 +467,11 @@ bool DBTX::Get(uint64_t key, uint64_t** val)
 
 }
 
-DBTX::Iterator::Iterator(DBTX* tx)
+DBTX::Iterator::Iterator(DBTX* tx, int tableid)
 {
 	tx_ = tx;
-	iter_ = new MemStoreSkipList::Iterator(tx->txdb_);
+	table_ = tx->txdb_->tables[tableid];
+	iter_ = new MemStoreSkipList::Iterator(table_);
 	cur_ = NULL;
 }
 	
@@ -620,7 +628,7 @@ void DBTX::Iterator::Seek(uint64_t key)
 void DBTX::Iterator::SeekToFirst()
 {
 	//Put the head into the read set first
-	MemStoreSkipList::Node* prev  = tx_->txdb_->GetHead();
+	MemStoreSkipList::Node* prev  = table_->GetHead();
 	
 	iter_->SeekToFirst();
 

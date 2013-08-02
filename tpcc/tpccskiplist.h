@@ -7,7 +7,7 @@
 #include "db/dbtx.h"
 #include "db/dbrotx.h"
 #include "db/memstore_skiplist.h"
-
+#include "db/dbtables.h"
 
 #include "tpccdb.h"
 
@@ -21,7 +21,7 @@ typedef uint64_t Value;
 class TPCCSkiplist : public TPCCDB {
  public :
   
-  MemStoreSkipList* store;
+  DBTables* store;
 
   uint64_t abort;
   uint64_t conflict;

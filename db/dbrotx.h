@@ -15,7 +15,7 @@
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
 #include "db/memstore_skiplist.h"
-
+#include "db/dbtables.h"
 
 
 namespace leveldb {
@@ -25,21 +25,21 @@ class DBROTX {
  public:
 
 
-	DBROTX (MemStoreSkipList* store);
+	DBROTX (DBTables* store);
 	~DBROTX();
 
 	void Begin();
 	bool Abort();
 	bool End();
 	
-	bool Get(uint64_t key, uint64_t** val);
+	bool Get(int tableid, uint64_t key, uint64_t** val);
 	
 	
 	class Iterator {
 	 public:
 	  // Initialize an iterator over the specified list.
 	  // The returned iterator is not valid.
-	  explicit Iterator(DBROTX* rotx);
+	  explicit Iterator(DBROTX* rotx, int tableid);
 	
 	  // Returns true iff the iterator is positioned at a valid node.
 	  bool Valid();
@@ -71,7 +71,7 @@ class DBROTX {
 	
 	 private:
 	  DBROTX* rotx_;
-	  MemStoreSkipList::Node* cur_;
+	  MemStoreSkipList::Node *cur_;
 	  MemStoreSkipList::Iterator *iter_;
 	  uint64_t *val_;
 	  // Intentionally copyable
@@ -82,7 +82,7 @@ public:
 	inline bool GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val);
 	
 	uint64_t oldsnapshot;
-	MemStoreSkipList *txdb_ ;
+	DBTables *txdb_ ;
 
 };
 

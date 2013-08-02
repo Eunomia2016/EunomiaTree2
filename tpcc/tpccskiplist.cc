@@ -9,6 +9,17 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
+
+#define WARE 0
+#define DIST 1
+#define CUST 2
+#define HIST 3
+#define NEWO 4
+#define ORDE 5
+#define ORLI 6
+#define ITEM 7
+#define STOC 8
+
 namespace leveldb {
 
   static int64_t makeWarehouseKey(int32_t w_id) {
@@ -21,7 +32,7 @@ namespace leveldb {
     assert(1 <= d_id && d_id <= District::NUM_PER_WAREHOUSE);
     int32_t did = d_id + (w_id * District::NUM_PER_WAREHOUSE);
     assert(did >= 0);
-	int64_t id = (int64_t)1 << 50 | static_cast<int64_t>(did);
+	int64_t id = static_cast<int64_t>(did);
     return id;
   }
 
@@ -32,7 +43,7 @@ namespace leveldb {
     int32_t cid = (w_id * District::NUM_PER_WAREHOUSE + d_id)
             * Customer::NUM_PER_DISTRICT + c_id;
     assert(cid >= 0);
-	int64_t id = (int64_t)2 << 50 | static_cast<int64_t>(cid);
+	int64_t id = static_cast<int64_t>(cid);
     return id;
   }
 
@@ -40,7 +51,7 @@ namespace leveldb {
   	int32_t cid = (h_c_w_id * District::NUM_PER_WAREHOUSE + h_c_d_id)
             * Customer::NUM_PER_DISTRICT + h_c_id;
 	int32_t did = h_d_id + (h_w_id * District::NUM_PER_WAREHOUSE);
-	int64_t id = (int64_t)3 << 50 | static_cast<int64_t>(cid) << 20 | static_cast<int64_t>(did);
+	int64_t id = static_cast<int64_t>(cid) << 20 | static_cast<int64_t>(did);
   	return id;
   }
 
@@ -52,7 +63,7 @@ namespace leveldb {
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	assert(id > 0);
-	id = (int64_t)4 << 50 | id;
+	
     
     return id;
   }
@@ -65,7 +76,7 @@ namespace leveldb {
     assert(upper_id > 0);
     int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	assert(id > 0);
-	id = (int64_t)5 << 50 | id;
+	
     
     return id;
   }
@@ -82,12 +93,12 @@ namespace leveldb {
   
     int64_t olid = oid * Order::MAX_OL_CNT + number; 
     assert(olid >= 0);
-	int64_t id = (int64_t)6 << 50 | static_cast<int64_t>(olid);
+	int64_t id = static_cast<int64_t>(olid);
     return id;
   }
 
   static int64_t makeItemKey(int32_t i_id) {
-  	int64_t id = (int64_t)7 << 50 | static_cast<int64_t>(i_id);
+  	int64_t id = static_cast<int64_t>(i_id);
 	return id;
   }
 
@@ -96,7 +107,7 @@ namespace leveldb {
     assert(1 <= s_id && s_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
     int32_t sid = s_id + (w_id * Stock::NUM_STOCK_PER_WAREHOUSE);
     assert(sid >= 0);
-	int64_t id = (int64_t)8 << 50 | static_cast<int64_t>(sid);
+	int64_t id = static_cast<int64_t>(sid);
     return id;
   }
 
@@ -250,8 +261,10 @@ namespace leveldb {
   
   TPCCSkiplist::TPCCSkiplist() {
   	
-	store = new MemStoreSkipList();
-
+	store = new DBTables(9);
+	//insert an end value
+	for (int i=0; i<9; i++)
+		store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)1);
 	abort = 0;
     conflict = 0;
     capacity = 0;
@@ -349,7 +362,7 @@ namespace leveldb {
 	Warehouse *w = const_cast<Warehouse *>(&warehouse);
 	uint64_t *value = reinterpret_cast<uint64_t *>(w);
   	
-  	store->Put(key, value);
+  	store->tables[WARE]->Put(key, value);
   	
   }
 
@@ -359,7 +372,7 @@ namespace leveldb {
 	District *d = const_cast<District *>(&district);
 	uint64_t *value = reinterpret_cast<uint64_t *>(d);
   	
-  	store->Put(key, value);
+  	store->tables[DIST]->Put(key, value);
   	
   }
 
@@ -369,7 +382,7 @@ namespace leveldb {
 	Customer *c = const_cast<Customer *>(&customer);
 	uint64_t *value = reinterpret_cast<uint64_t *>(c);
   	
-  	store->Put(key, value);
+  	store->tables[CUST]->Put(key, value);
   	
   }
 
@@ -379,7 +392,7 @@ namespace leveldb {
 	History *h = const_cast<History *>(&history);
 	uint64_t *value = reinterpret_cast<uint64_t *>(h);
   	
-  	store->Put(key, value);
+  	store->tables[HIST]->Put(key, value);
   	
 	return NULL;
   }
@@ -390,7 +403,7 @@ namespace leveldb {
 	Item *i =  const_cast<Item *>(&item);
 	uint64_t *value = reinterpret_cast<uint64_t *>(i);
   	
-  	store->Put(key, value);
+  	store->tables[ITEM]->Put(key, value);
   	
   }
 
@@ -400,7 +413,7 @@ namespace leveldb {
 	Stock *st = const_cast<Stock *>(&stock);
 	uint64_t *value = reinterpret_cast<uint64_t *>(st);
   	
-  	store->Put(key, value);
+  	store->tables[STOC]->Put(key, value);
   	
   }
 
@@ -410,7 +423,7 @@ namespace leveldb {
 	Order *o = const_cast<Order *>(&order);
 	uint64_t *value = reinterpret_cast<uint64_t *>(o);
   	
-  	store->Put(key, value);
+  	store->tables[ORDE]->Put(key, value);
   	
 	return o;
   }
@@ -421,7 +434,7 @@ namespace leveldb {
 	OrderLine *ol = const_cast<OrderLine *>(&orderline);
 	uint64_t *value = reinterpret_cast<uint64_t *>(ol);
   	
-  	store->Put(key, value);
+  	store->tables[ORLI]->Put(key, value);
   	
 	return ol;
   }
@@ -435,7 +448,7 @@ namespace leveldb {
 	neworder->no_o_id = o_id;
 	uint64_t *value = reinterpret_cast<uint64_t *>(&neworder);
   	
-  	store->Put(key, value);
+  	store->tables[NEWO]->Put(key, value);
   	
 	return neworder;
   }
@@ -459,27 +472,28 @@ namespace leveldb {
 	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
   	  
   	  uint64_t *d_value;
-  	  bool found = tx.Get(d_key, &d_value);
+  	  bool found = tx.Get(DIST, d_key, &d_value);
 	  assert(found);
 	  District *d = reinterpret_cast<District *>(d_value);
 	  assert(output->o_id == d->d_next_o_id - 1);
 	  
 	  int64_t o_key = makeOrderKey(warehouse_id, district_id, output->o_id); 
   	  uint64_t *o_value;
-  	  found = tx.Get(o_key, &o_value);
+  	  found = tx.Get(ORDE, o_key, &o_value);
 	  assert(found);
 	  Order *o = reinterpret_cast<Order *>(o_value);
 	  assert(o->o_c_id == customer_id);
 	  
 	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, output->o_id);
   	  uint64_t *no_value;
-  	  found = tx.Get(o_key, &no_value);
-	  assert(found);
+  	  found = tx.Get(NEWO, o_key, &no_value);	  
+	  assert(found);	  
+//	  printf("oid%d \n", output->o_id);
 	  
 	  NewOrder *no = reinterpret_cast<NewOrder *>(no_value);
 	  uint64_t l_key = makeOrderLineKey(warehouse_id, district_id, output->o_id, 2);
 	  uint64_t *l_value;
-	  found = tx.Get(l_key, &l_value);
+	  found = tx.Get(ORLI, l_key, &l_value);
 	  assert(found);
 	  OrderLine *l = reinterpret_cast<OrderLine *>(l_value);
 	  if (l->ol_quantity != items[1].ol_quantity) 
@@ -488,27 +502,28 @@ namespace leveldb {
 
 	  uint64_t s_key = makeStockKey(items[3].ol_supply_w_id, items[3].i_id);
       uint64_t *s_value;
-	  found = tx.Get(s_key, &s_value);
+	  found = tx.Get(STOC, s_key, &s_value);
 	  assert(found);
 
 	  
 	  bool b = tx.End();  
   	  if (b) break;
-  	}*/
+  	}
 
-/*	DBROTX rotx(store);
+
+	DBROTX rotx(store);
 	rotx.Begin();
 
 	//Consistency 2	
 	
 	uint64_t *d_value;
 	int64_t d_key = makeDistrictKey(warehouse_id, district_id);
-  	bool found = rotx.Get(d_key, &d_value);
+  	bool found = rotx.Get(DIST, d_key, &d_value);
 	assert(found);
 	District *d = reinterpret_cast<District *>(d_value);
 
 	int32_t o_id;
-	DBROTX::Iterator iter(&rotx);
+	DBROTX::Iterator iter(&rotx, ORDE);
 	uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	iter.Seek(start);
@@ -520,22 +535,26 @@ namespace leveldb {
 
 	start = makeNewOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	end = makeNewOrderKey(warehouse_id, district_id, 1);
-	iter.Seek(start);
-    iter.Prev();
-	if (iter.Valid() && iter.Key() >= end) {
-		o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
+	DBROTX::Iterator iter1(&rotx, NEWO);
+	iter1.Seek(start);
+	assert(iter1.Valid());
+    iter1.Prev();
+	
+	if (iter1.Valid() && iter1.Key() >= end) {
+		o_id = static_cast<int32_t>(iter1.Key() << 32 >> 32);
 		assert(o_id == d->d_next_o_id - 1);		
 	}  	
-
+	
 	//Consistency 3
 	
-	iter.Seek(end);
-	int32_t min = static_cast<int32_t>(iter.Key() << 32 >> 32);
+	iter1.Seek(end);
+	int32_t min = static_cast<int32_t>(iter1.Key() << 32 >> 32);
 	int32_t num = 0;
-	while (iter.Valid() && iter.Key() < start) {
+	while (iter1.Valid() && iter1.Key() < start) {
 		num++;
-		iter.Next();
+		iter1.Next();
 	}
+	if (o_id - min + 1 != num) printf("%d %d %d",o_id, min, num);
 	assert(o_id - min + 1 == num);
 
 	//Consistency 4
@@ -554,15 +573,16 @@ namespace leveldb {
 	start = makeOrderLineKey(warehouse_id, district_id, 1, 1);
 	end = makeOrderLineKey(warehouse_id, district_id, Order::MAX_ORDER_ID, Order::MAX_OL_CNT);
 	int32_t c1 = 0;
-	iter.Seek(start);
-	while (iter.Valid() && iter.Key() <= end) {
+	DBROTX::Iterator iter2(&rotx, ORLI);
+	iter2.Seek(start);
+	while (iter2.Valid() && iter2.Key() <= end) {
 		c1++;
-		iter.Next();
+		iter2.Next();
 	}
 	assert(c == c1);
 	rotx.End();
-	*/
-
+	
+*/
 	
     return true;
   }
@@ -599,7 +619,7 @@ namespace leveldb {
 	  //printf("w_key %d\n", w_key);
   	  
 	  uint64_t *w_value;  
- 	  bool found = tx.Get(w_key, &w_value);
+ 	  bool found = tx.Get(WARE, w_key, &w_value);
 #if PROFILE
 	  rcount++;
 #endif
@@ -619,7 +639,7 @@ namespace leveldb {
 	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
   	  
   	  uint64_t *d_value;
-  	  found = tx.Get(d_key, &d_value);
+  	  found = tx.Get(DIST, d_key, &d_value);
 #if PROFILE
 	  rcount++;
 #endif
@@ -636,7 +656,7 @@ namespace leveldb {
   	  District *newd = new District();
 	  updateDistrict(newd, d);
 	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
-	  tx.Add(d_key, d_v);
+	  tx.Add(DIST, d_key, d_v);
 #if PROFILE
 	  wcount++;
 #endif
@@ -649,7 +669,7 @@ namespace leveldb {
 	  uint64_t c_key = makeCustomerKey(warehouse_id, district_id, customer_id);
   	  
   	  uint64_t *c_value;
-	  found = tx.Get(c_key, &c_value);
+	  found = tx.Get(CUST, c_key, &c_value);
 #if PROFILE
 	  rcount++;
 #endif
@@ -694,7 +714,7 @@ namespace leveldb {
   	  assert(strlen(order->o_entry_d) == DATETIME_SIZE);
 	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order->o_id);
 	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order);
-	  tx.Add(o_key, o_value);
+	  tx.Add(ORDE, o_key, o_value);
 #if PROFILE
 	  wcount++;
 #endif
@@ -705,7 +725,7 @@ namespace leveldb {
 	  no->no_o_id = output->o_id;
 	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, no->no_o_id);
 	  uint64_t *no_value = reinterpret_cast<uint64_t *>(no);
-	  tx.Add(no_key, no_value);
+	  tx.Add(NEWO, no_key, no_value);
 #if PROFILE
 	  wcount++;
 #endif
@@ -733,7 +753,7 @@ namespace leveldb {
 		
 		uint64_t *i_value;
 	
-		bool found = tx.Get(i_key, &i_value);
+		bool found = tx.Get(ITEM, i_key, &i_value);
 #if PROFILE
 		rcount++;
 #endif
@@ -766,7 +786,7 @@ namespace leveldb {
 		
     	uint64_t *s_value;
 	    //if (items[i].i_id > 100000) printf("Unused key!\n");
-	    found = tx.Get(s_key, &s_value);
+	    found = tx.Get(STOC, s_key, &s_value);
 #if PROFILE
 		rcount++;
 #endif
@@ -776,7 +796,7 @@ namespace leveldb {
 		updateStock(news, s, &items[i], warehouse_id);
 		output->items[i].s_quantity = news->s_quantity;
 		uint64_t *s_v = reinterpret_cast<uint64_t *>(news);
-		tx.Add(s_key, s_v);
+		tx.Add(STOC, s_key, s_v);
 #if PROFILE
 		wcount++;
 #endif
@@ -813,7 +833,7 @@ namespace leveldb {
 		uint64_t *l_value = reinterpret_cast<uint64_t *>(line);
 	//	printf("%d %d %d %d\n", line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
 	//	printf("OrderLine %lx\n", l_key);
-		tx.Add(l_key, l_value);
+		tx.Add(ORLI, l_key, l_value);
 #if PROFILE
 		wcount++;
 #endif
@@ -868,7 +888,8 @@ namespace leveldb {
 
 	paymentHome(warehouse_id, district_id, c_warehouse_id, c_district_id, customer_id, h_amount, now, output, undo);	
 	//check
-/*	leveldb::DBTX tx(store);
+	/*
+	leveldb::DBTX tx(store);
 	//printf("Check\n");
 	while(true) {
 	  
@@ -877,7 +898,7 @@ namespace leveldb {
 	  int64_t c_key = makeCustomerKey(c_warehouse_id, c_district_id, customer_id);
   	  
   	  uint64_t *c_value;
-	  bool found = tx.Get(c_key, &c_value);
+	  bool found = tx.Get(CUST, c_key, &c_value);
  	  assert(found);
 	  Customer *c = reinterpret_cast<Customer *>(c_value);
 	  assert(output->c_balance == c->c_balance);
@@ -899,11 +920,12 @@ namespace leveldb {
 	  }
 	  if (sum - w->w_ytd >= 1000 || w->w_ytd - sum >= 1000) 
 	  	printf("Consistency 1, sum %f  warehouse %f\n", sum, w->w_ytd);
-	  
+  	  
 	  bool b = tx.End();  
   	  if (b) break;
   	}
-*/	  
+  */  
+
   }
 
   void TPCCSkiplist::paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
@@ -930,7 +952,7 @@ namespace leveldb {
 	  
 	  int64_t w_key = makeWarehouseKey(warehouse_id);	  
 	  uint64_t *w_value;  
- 	  bool found = tx.Get(w_key, &w_value);
+ 	  bool found = tx.Get(WARE, w_key, &w_value);
 #if PROFILE
 	  rcount++;
 #endif
@@ -939,7 +961,7 @@ namespace leveldb {
 	  Warehouse *neww = new Warehouse();
 	  updateWarehouseYtd(neww, w, h_amount);
 	  uint64_t *w_v = reinterpret_cast<uint64_t *>(neww);
-	  tx.Add(w_key, w_v);
+	  tx.Add(WARE, w_key, w_v);
 #if PROFILE
 	  wcount++;
 #endif
@@ -953,7 +975,7 @@ namespace leveldb {
 
 	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
   	  uint64_t *d_value;
-  	  found = tx.Get(d_key, &d_value);
+  	  found = tx.Get(DIST, d_key, &d_value);
 #if PROFILE
 	  rcount++;
 #endif
@@ -964,7 +986,7 @@ namespace leveldb {
 	  District *newd = new District();
 	  updateDistrictYtd(newd, d, h_amount);
 	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
-	  tx.Add(d_key, d_v);
+	  tx.Add(DIST, d_key, d_v);
 #if PROFILE
 	  wcount++;
 #endif
@@ -983,7 +1005,7 @@ namespace leveldb {
 	  uint64_t c_key = makeCustomerKey(c_warehouse_id, c_district_id, customer_id);
   	  
   	  uint64_t *c_value;
-	  found = tx.Get(c_key, &c_value);
+	  found = tx.Get(CUST, c_key, &c_value);
 #if PROFILE
 	  rcount++;
 #endif
@@ -992,7 +1014,7 @@ namespace leveldb {
 	  Customer *newc = new Customer();
 	  updateCustomer(newc, c, h_amount, warehouse_id, district_id);
 	  uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
-	  tx.Add(c_key, c_v);
+	  tx.Add(CUST, c_key, c_v);
 #if PROFILE
 	  wcount++;
 #endif
@@ -1025,7 +1047,7 @@ namespace leveldb {
       strcat(h->h_data, "    ");
       strcat(h->h_data, d->d_name);
       uint64_t *h_v = reinterpret_cast<uint64_t *>(h);
-	  tx.Add(h_key, h_v);
+	  tx.Add(HIST, h_key, h_v);
 #if PROFILE
 	  wcount++;
 #endif
@@ -1071,7 +1093,7 @@ namespace leveldb {
 	  uint64_t c_key = makeCustomerKey(warehouse_id, district_id, customer_id);
   	  
   	  uint64_t *c_value;
-	  bool found = tx.Get(c_key, &c_value);
+	  bool found = tx.Get(CUST, c_key, &c_value);
 #if PROFILE
 	  rcount++;
 #endif
@@ -1093,7 +1115,7 @@ namespace leveldb {
 	  //-------------------------------------------------------------------------
 
 	  Order *o = NULL; int32_t o_id;
-	  DBROTX::Iterator iter(&tx);
+	  DBROTX::Iterator iter(&tx, ORDE);
 	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	  //printf("OrderStatus %d\n", customer_id);
@@ -1132,7 +1154,7 @@ namespace leveldb {
 		  uint64_t ol_key = makeOrderLineKey(warehouse_id, district_id, o_id, line_number);
   		  
 		  uint64_t *ol_value;
-		  bool found = tx.Get(ol_key, &ol_value);
+		  bool found = tx.Get(ORLI, ol_key, &ol_value);
 #if PROFILE
 		  rcount++;
 #endif
@@ -1180,7 +1202,7 @@ namespace leveldb {
 	    int64_t d_key = makeDistrictKey(warehouse_id, district_id);
 	  
   	    uint64_t *d_value;
-	    bool found = tx.Get(d_key, &d_value);
+	    bool found = tx.Get(DIST, d_key, &d_value);
 #if PROFILE
 	    rcount++;
 #endif
@@ -1198,9 +1220,9 @@ namespace leveldb {
         s_i_ids.reserve(300);
 
 #if SLDBTX
-		DBTX::Iterator iter(&tx);
+		DBTX::Iterator iter(&tx, ORLI);
 #else
-	    DBROTX::Iterator iter(&tx);
+	    DBROTX::Iterator iter(&tx, ORLI);
 #endif
 	    int64_t start = makeOrderLineKey(warehouse_id, district_id, i, 1);
 	    iter.Seek(start);
@@ -1217,12 +1239,13 @@ namespace leveldb {
 		  //All rows in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals W_ID) 
 		  //from the list of distinct item numbers and with S_QUANTITY lower than threshold are counted (giving low_stock).
 		  //-------------------------------------------------------------------------
-
+		  //printf("ol %lx\n",ol);
+		  //printf("ol_key %ld end %ld\n",ol_key, end);
 		  int32_t s_i_id = ol->ol_i_id;
 		  int64_t s_key = makeStockKey(warehouse_id, s_i_id);
 		  
 		  uint64_t *s_value;
-		  found = tx.Get(s_key, &s_value);
+		  found = tx.Get(STOC, s_key, &s_value);
 #if PROFILE
 		  rcount++;
 #endif
@@ -1290,7 +1313,7 @@ namespace leveldb {
 	    NewOrder *no = NULL;
 		//printf("w %d d %d\n", warehouse_id, d_id);
 		int64_t start = makeNewOrderKey(warehouse_id, d_id, 1);
-		DBTX::Iterator iter(&tx);
+		DBTX::Iterator iter(&tx, NEWO);
 		iter.Seek(start);
 		int64_t end = makeNewOrderKey(warehouse_id, d_id, Order::MAX_ORDER_ID);
 		int64_t no_key;
@@ -1307,7 +1330,7 @@ namespace leveldb {
 			  //-------------------------------------------------------------------------
 			  //The selected row in the NEW-ORDER table is deleted.
 			  //-------------------------------------------------------------------------
-		  	  tx.Delete(no_key);
+		  	  tx.Delete(NEWO, no_key);
 #if PROFILE
 			  wcount++;
 #endif
@@ -1334,7 +1357,7 @@ namespace leveldb {
 		int64_t o_key = makeOrderKey(warehouse_id, d_id, no_id);
 		
 		uint64_t *o_value;
-		bool found = tx.Get(o_key, &o_value);
+		bool found = tx.Get(ORDE, o_key, &o_value);
 #if PROFILE
 		rcount++;
 #endif
@@ -1343,7 +1366,7 @@ namespace leveldb {
 		Order *newo = new Order();		
 		updateOrder(newo, o, carrier_id);
 		uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
-		tx.Add(o_key, o_v);
+		tx.Add(ORDE, o_key, o_v);
 #if PROFILE
 		wcount++;
 #endif
@@ -1355,13 +1378,14 @@ namespace leveldb {
 		//and the sum of all OL_AMOUNT is retrieved.
 		//-------------------------------------------------------------------------
 		float sum_ol_amount = 0;
+		DBTX::Iterator iter1(&tx, ORLI);
 		start = makeOrderLineKey(warehouse_id, d_id, no_id, 1);
-		iter.Seek(start);
+		iter1.Seek(start);
 		end = makeOrderLineKey(warehouse_id, d_id, no_id, 15);
-		while (true) {
-		  int64_t ol_key = iter.Key();
+		while (iter1.Valid()) {
+		  int64_t ol_key = iter1.Key();
 		  if (ol_key > end) break;
-		  uint64_t *ol_value = iter.Value();
+		  uint64_t *ol_value = iter1.Value();
 #if PROFILE
 		  icount++;
 #endif
@@ -1369,12 +1393,12 @@ namespace leveldb {
 		  OrderLine *newol = new OrderLine();
 		  updateOrderLine(newol, ol, now);
 		  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
-		  tx.Add(ol_key, ol_v);
+		  tx.Add(ORLI, ol_key, ol_v);
 #if PROFILE
 		  wcount++;
 #endif
 		  sum_ol_amount += ol->ol_amount;
-		  iter.Next();
+		  iter1.Next();
 		}
 
 		//-------------------------------------------------------------------------
@@ -1386,7 +1410,7 @@ namespace leveldb {
 		int64_t c_key = makeCustomerKey(warehouse_id, d_id, c_id);
 		
 		uint64_t *c_value;
-		found = tx.Get(c_key, &c_value);
+		found = tx.Get(CUST, c_key, &c_value);
 #if PROFILE
 		rcount++;
 #endif
@@ -1394,7 +1418,7 @@ namespace leveldb {
 		Customer *newc = new Customer();
 		updateCustomerDelivery(newc, c, sum_ol_amount);
 		uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
-		tx.Add(c_key, c_v);
+		tx.Add(CUST, c_key, c_v);
 #if PROFILE
 		wcount++;
 #endif
@@ -1464,7 +1488,10 @@ void TPCCSkiplist::freeUndo(TPCCUndo* undo){
 }
 
 void TPCCSkiplist::printSkiplist() {
-	store->PrintList();
+	for (int i=0; i<store->number; i++){
+		printf("========== Table %d ==========",i);
+		store->tables[i]->PrintList();
+	}
 }
 
 

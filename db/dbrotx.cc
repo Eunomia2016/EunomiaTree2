@@ -19,7 +19,7 @@
 
 namespace leveldb {
 
-DBROTX::DBROTX(MemStoreSkipList* store)
+DBROTX::DBROTX(DBTables* store)
 {
   txdb_ = store;
   oldsnapshot = 0;
@@ -91,19 +91,19 @@ inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val
    return false;
 }
 
-bool DBROTX::Get(uint64_t key, uint64_t** val)
+bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val)
 {  
-  MemStoreSkipList::Node* n = txdb_->GetLatestNode(key);
+  MemStoreSkipList::Node* n = txdb_->tables[tableid]->GetLatestNode(key);
 
   return GetValueOnSnapshot(n, val);
 
 }
 
 
-DBROTX::Iterator::Iterator(DBROTX* rotx)
+DBROTX::Iterator::Iterator(DBROTX* rotx, int tableid)
 {
 	rotx_ = rotx;
-	iter_ = new MemStoreSkipList::Iterator(rotx->txdb_);
+	iter_ = new MemStoreSkipList::Iterator(rotx->txdb_->tables[tableid]);
 	cur_ = NULL;
 	val_ = NULL;
 }
