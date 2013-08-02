@@ -57,16 +57,16 @@ struct ThreadState {
 class Benchmark {
   private:
 	
-	MemStoreSkipList* store;
+	DBTables* store;
 	
   public:
-	Benchmark(	MemStoreSkipList *s ) {
+	Benchmark(	DBTables *s ) {
 		store = s;
 		
 	}
 	struct ThreadArg {
 		ThreadState *thread;
-		MemStoreSkipList *store;
+		DBTables *store;
 		volatile uint8_t start;
 		
 	};
@@ -76,7 +76,7 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		MemStoreSkipList *store = arg->store;
+		DBTables *store = arg->store;
 		
 		
 		int num = shared->total;
@@ -95,13 +95,13 @@ class Benchmark {
 				*key = tid;
 				uint64_t* value = new uint64_t(); 
 				*value = 1;
-				tx.Add(*key, value);
+				tx.Add(0, *key, value);
 		
 				uint64_t* key1 = new uint64_t(); 
 				*key1 = (tid+1) % num;
 				uint64_t* value1 = new uint64_t(); 
 				*value1 = 2;
-				tx.Add(*key1, value1);
+				tx.Add(0, *key1, value1);
 				b = tx.End();
 			}
 			
@@ -116,7 +116,7 @@ class Benchmark {
 					*k = j;
 					uint64_t *v;
 					
-					tx1.Get(*k, &v);
+					tx1.Get(0, *k, &v);
 					str[j] = *v;
 					
 				}						
@@ -139,7 +139,7 @@ class Benchmark {
 							
 				tx2.Begin();
 			
-				DBROTX::Iterator iter(&tx2);
+				DBROTX::Iterator iter(&tx2, 0);
 				iter.SeekToFirst();
 				int key = 0;
 				while (iter.Valid()) {
@@ -185,7 +185,7 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		MemStoreSkipList *store = arg->store;
+		DBTables *store = arg->store;
 		
 		
 		int num = shared->total;
@@ -204,13 +204,13 @@ class Benchmark {
 				*key = tid;
 				uint64_t* value = new uint64_t(); 
 				*value = 1;
-				tx.Add(*key, value);
+				tx.Add(0, *key, value);
 		
 				uint64_t* key1 = new uint64_t(); 
 				*key1 = (tid+1) % num;
 				uint64_t* value1 = new uint64_t(); 
 				*value1 = 2;
-				tx.Add(*key1, value1);
+				tx.Add(0, *key1, value1);
 				b = tx.End();
 			}
 			//printf("Add %d %d\n",tid,(tid+1) % num);
@@ -227,7 +227,7 @@ class Benchmark {
 					*k = j;
 					uint64_t *v;
 					
-					tx1.Get(*k, &v);
+					tx1.Get(0, *k, &v);
 					//printf("%d-----1\n",j);
 					str[j] = *v;
 					//printf("%d------2\n",j);
@@ -267,7 +267,7 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		MemStoreSkipList *store = arg->store;
+		DBTables *store = arg->store;
 		
 		
 		//printf("start %d\n",tid);
@@ -282,14 +282,14 @@ class Benchmark {
 	 		uint64_t k = 1;
 			uint64_t *v;
 			
-			tx.Get(k, &v);
+			tx.Get(0, k, &v);
 
 			uint64_t *value = new uint64_t();
 			*value = *v + 1;
 
 			//printf("Insert %s ", key);
 			//printf(" Value %s\n", value);
-			tx.Add(k, value);			
+			tx.Add(0, k, value);			
 			
 			b = tx.End();
 			
@@ -310,7 +310,7 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		MemStoreSkipList *store = arg->store;
+		DBTables *store = arg->store;
 		
 
 		
@@ -333,7 +333,7 @@ class Benchmark {
 					*key = j;
 					uint64_t *value = new uint64_t();
 					*value = i;
-		 			tx.Add(*key, value);			
+		 			tx.Add(0, *key, value);			
 				}
 				b = tx.End();
 
@@ -343,7 +343,7 @@ class Benchmark {
 					leveldb::DBROTX tx2( store);
 
 					tx2.Begin();
-					DBROTX::Iterator iter(&tx2);
+					DBROTX::Iterator iter(&tx2, 0);
 					iter.SeekToFirst();
 					uint64_t count = 0;
 					uint64_t v = 0;
@@ -375,7 +375,7 @@ class Benchmark {
 					leveldb::DBROTX tx3( store);
 
 					tx3.Begin();
-					DBROTX::Iterator iter(&tx3);
+					DBROTX::Iterator iter(&tx3, 0);
 					uint64_t count = 5;
 					uint64_t v = 0;
 					iter.Seek(5);
@@ -421,7 +421,7 @@ class Benchmark {
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
-		MemStoreSkipList *store = arg->store;
+		DBTables *store = arg->store;
 		
 
 		
@@ -446,7 +446,7 @@ class Benchmark {
 					uint64_t *value = new uint64_t();
 					*value = i;
 		 			
-					tx.Add(*key, value);			
+					tx.Add(0, *key, value);			
 				}
 				b = tx.End();
 
@@ -463,7 +463,7 @@ class Benchmark {
 					*key = j;
 					uint64_t *value;					
 					
-					tx1.Get(*key, &value);
+					tx1.Get(0, *key, &value);
 					str[j-1] = *value;
 				
 				}						
@@ -476,7 +476,7 @@ class Benchmark {
 				fail = true;
 				
 				DBTX::slock.Lock();
-				store->PrintList();
+				store->tables[0]->PrintList();
 				
 				DBTX::slock.Unlock();
 				break;
@@ -486,7 +486,7 @@ class Benchmark {
 				fail = true;
 				
 				DBTX::slock.Lock();
-				store->PrintList();
+				store->tables[0]->PrintList();
 				DBTX::slock.Unlock();
 
 				break;
@@ -506,7 +506,7 @@ class Benchmark {
 					*key = j;
 					uint64_t *value;					
 						
-					found[j-1] = tx2.Get(*key, &value);
+					found[j-1] = tx2.Get(0, *key, &value);
 					if (found[j-1]) str[j-1] = *value;
 					
 				}						
@@ -524,7 +524,7 @@ class Benchmark {
 					//store->PrintList();
 					printf("snapshot %ld\n", snapshot);
 					DBTX::slock.Lock();
-					store->PrintList();
+					store->tables[0]->PrintList();
 					DBTX::slock.Unlock();
 					break;
 				}
@@ -533,7 +533,7 @@ class Benchmark {
 					printf("In RO, Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 					printf("snapshot %ld\n", snapshot);
 					DBTX::slock.Lock();
-					store->PrintList();
+					store->tables[0]->PrintList();
 					DBTX::slock.Unlock();
 				
 					fail = true;
@@ -543,7 +543,7 @@ class Benchmark {
 					printf("In RO, Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 					printf("snapshot %ld\n", snapshot);
 					DBTX::slock.Lock();
-					store->PrintList();				
+					store->tables[0]->PrintList();				
 					DBTX::slock.Unlock();
 
 					fail = true;
@@ -571,7 +571,7 @@ class Benchmark {
 			ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 			int tid = (arg->thread)->tid;
 			SharedState *shared = arg->thread->shared;
-			MemStoreSkipList *store = arg->store;
+			DBTables *store = arg->store;
 			
 	
 	
@@ -586,15 +586,15 @@ class Benchmark {
 				while (b == false) {
 					tx.Begin();
 
-					tx.Delete(3);	
+					tx.Delete(0, 3);	
 					
 					uint64_t *value = new uint64_t();
 					*value = i;
-					tx.Add(4, value);			
+					tx.Add(0, 4, value);			
 
 					uint64_t *value1 = new uint64_t();
 					*value1 = i;
-					tx.Add(5, value1);	
+					tx.Add(0, 5, value1);	
 					
 					b = tx.End();
 	
@@ -611,12 +611,12 @@ class Benchmark {
 					
 										
 						
-					f1 = tx1.Get(4, &value);
-					f2 = tx1.Get(5, &value);	
-					f3 = tx1.Get(3, &value);
+					f1 = tx1.Get(0, 4, &value);
+					f2 = tx1.Get(0, 5, &value);	
+					f3 = tx1.Get(0, 3, &value);
 					
 				
-					tx1.Get(6, &value1);	
+					tx1.Get(0, 6, &value1);	
 
 					
 					b = tx1.End();
@@ -645,18 +645,18 @@ class Benchmark {
 
 					uint64_t *value = new uint64_t();
 					*value = i;
-					tx.Add(3, value);	
+					tx.Add(0, 3, value);	
 
 
-					tx2.Delete(4);			
+					tx2.Delete(0, 4);			
 
-					tx2.Delete(5);
+					tx2.Delete(0, 5);
 
 		
 
 					uint64_t *value1 = new uint64_t();
 					*value1 = i;
-					tx.Add(6, value1);	
+					tx.Add(0, 6, value1);	
 					
 					b = tx2.End();
 	
@@ -669,8 +669,8 @@ class Benchmark {
 				
 				tx3.Begin();				
 														
-				f1 = tx3.Get(4, &value);
-				f2 = tx3.Get(5, &value);	
+				f1 = tx3.Get(0, 4, &value);
+				f2 = tx3.Get(0, 5, &value);	
 				
 				tx3.End();
 	
@@ -696,7 +696,7 @@ class Benchmark {
 	static void Company(void* v) {
 
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
-		MemStoreSkipList *store = arg->store;
+		DBTables *store = arg->store;
 		
 		while (arg->start == 0) ;
 		
@@ -713,7 +713,7 @@ class Benchmark {
 			  	*key = i;
 			  	uint64_t *value = new uint64_t();
 			  	*value = 4;			
-			  	tx.Add(*key, value);				
+			  	tx.Add(0, *key, value);				
 				b = tx.End();
 						  
 			}
@@ -725,7 +725,7 @@ class Benchmark {
 	static void InsertNode(void* v) {
 
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
-		MemStoreSkipList *store = arg->store;
+		DBTables *store = arg->store;
 		
 		while (arg->start == 0) ;
 		
@@ -739,7 +739,7 @@ class Benchmark {
 		  	*key = 12;
 		  	uint64_t *value = new uint64_t();
 		  	*value = 4;			
-		  	tx.Add(*key, value);				
+		  	tx.Add(0, *key, value);				
 			b = tx.End();						  
 		}			  
 		arg->start = 2;
@@ -753,7 +753,7 @@ class Benchmark {
 		  	*key = 10;
 		  	uint64_t *value = new uint64_t();
 		  	*value = 4;			
-		  	tx.Add(*key, value);				
+		  	tx.Add(0, *key, value);				
 			b = tx.End();						  
 		}			  
 		arg->start = 4;	
@@ -784,7 +784,7 @@ class Benchmark {
 				  	  	*key = i;
 				  	  	uint64_t *value = new uint64_t();
 				  	  	*value = j;			
-					  	tx.Add(*key, value);				
+					  	tx.Add(0, *key, value);				
 				  		b = tx.End();
 						  
 					}
@@ -800,7 +800,7 @@ class Benchmark {
 				*k = 1;
 					
 				uint64_t *r;
-				tx1.Get(*k,  &r);
+				tx1.Get(0, *k,  &r);
 				if (*r != j) {
 					printf("Key 1 get %d should be %d\n", *r, j);
 					return;
@@ -832,7 +832,7 @@ class Benchmark {
 			    *key = m;
 			    
 			    
-			    found = tx2.Get(*key,  &r);		
+			    found = tx2.Get(0, *key,  &r);		
 
 			    if (m % 10 == 0 ) {
 				  if (found) c1 = true;
@@ -881,7 +881,7 @@ class Benchmark {
 	//		while (arg->start <2) ;
 			 
 			 //DBROTX::Iterator iter(&tx2);
-			 DBTX::Iterator iter(&tx2);
+			 DBTX::Iterator iter(&tx2, 0);
 			 iter.Seek(1); 
 			 uint64_t key = 1;
 			 uint64_t m = 0;
@@ -994,14 +994,14 @@ class Benchmark {
 			uint64_t *value;
 			DBTX rotx(store);
 			rotx.Begin();
-			rotx.Get(10, &value);
+			rotx.Get(0, 10, &value);
 			rotx.End();
 			
 			DBTX tx2(store);
 			bool b = false;
 			
 			tx2.Begin();
-			DBTX::Iterator iter(&tx2);
+			DBTX::Iterator iter(&tx2, 0);
 			iter.SeekToFirst();
 			
 			for (int i = 0; i < 30; i++) {
@@ -1054,7 +1054,7 @@ class Benchmark {
 			uint64_t *value = new uint64_t();
 			*value = 0;
 			
-			tx.Add(*key, value);				
+			tx.Add(0, *key, value);				
 												
 			b = tx.End();
 			
@@ -1074,7 +1074,7 @@ class Benchmark {
 			  uint64_t *value = new uint64_t();
 			  *value = 1;
 			
-			  tx.Add(*key, value);				
+			  tx.Add(0, *key, value);				
 			}									
 			b = tx.End();
 			
@@ -1093,7 +1093,7 @@ class Benchmark {
 			  uint64_t *value = new uint64_t();
 			  *value = 1;
 			
-			  tx.Add(*key, value);				
+			  tx.Add(0, *key, value);				
 			}									
 			b = tx.End();
 			
@@ -1147,7 +1147,7 @@ class Benchmark {
 			*k = 1;
 			
 			uint64_t *str;
-			tx.Get(*k, &str);
+			tx.Get(0, *k, &str);
 			result = *str;
 			//printf("result %d\n",result);
 			b = tx.End();
@@ -1227,7 +1227,7 @@ int main(int argc, char**argv)
 	  	method = &leveldb::Benchmark::InsertNode;
 	  }
 
-	 leveldb::MemStoreSkipList *store = new leveldb::MemStoreSkipList();
+	 leveldb::DBTables *store = new leveldb::DBTables(1);
 	
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);
