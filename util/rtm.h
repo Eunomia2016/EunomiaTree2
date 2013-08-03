@@ -50,10 +50,6 @@ class RTMScope {
 		
 		  retry++;
 
-		  if(retry > 100000) {
-		  	printf("stat %lx\n", stat);
-		  	exit(1);
-		  }
 		  if((stat & _XABORT_CONFLICT) != 0) 
 		  	conflict++;
 		  else if((stat & _XABORT_CAPACITY) != 0)
