@@ -95,13 +95,19 @@ MemStoreSkipList::Iterator::Iterator(MemStoreSkipList* list)
 	prev_ = NULL;
 }
 
-uint64_t MemStoreSkipList::Iterator::GetLink()
+uint64_t* MemStoreSkipList::Iterator::GetLink()
 {
 	if(prev_ == NULL)
 		return NULL;
 	else
-		return (uint64_t)prev_->next_[0];
+		return (uint64_t*)(&prev_->next_[0]);
 }
+
+uint64_t MemStoreSkipList::Iterator::GetLinkTarget()
+{
+	return (uint64_t)node_;
+}
+
 
 // Returns true iff the iterator is positioned at a valid node.
 bool MemStoreSkipList::Iterator::Valid()
@@ -125,10 +131,14 @@ void MemStoreSkipList::Iterator::Prev()
   // Instead of using explicit "prev" links, we just search for the
   // last node that falls before key.
   assert(Valid());
+
+  //FIXME: This function doesn't support link information
+  
   node_ = list_->FindLessThan(node_->key);
   if (node_ == list_->head_) {
 	node_ = NULL;
   }
+  
 }
 
 uint64_t MemStoreSkipList::Iterator::Key()
@@ -145,6 +155,11 @@ Memstore::MemNode* MemStoreSkipList::Iterator::CurNode()
 void MemStoreSkipList::Iterator::Seek(uint64_t key)
 {
 	prev_ = list_->FindLessThan(key);
+	/*node_ = prev_->next_[0];
+	while(node_->key < key) {
+		prev_ = node_;
+		node_ = prev_->next_[0];
+	}*/
 	node_ = list_->FindGreaterOrEqual(key, NULL);
 }
 

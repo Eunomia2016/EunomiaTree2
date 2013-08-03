@@ -143,6 +143,7 @@ inline bool DBTX::ReadSet::Validate()
   for(int i = 0; i < rangeElems; i++) {
   	assert(nexts[i].nextptr != NULL);
 	if(nexts[i].next != *nexts[i].nextptr) {
+
 		return false;
 	}
   }
@@ -397,8 +398,10 @@ bool DBTX::End()
   RTMScope rtm(&rtmProf);
 #endif
 
-  if(!readset->Validate())
+  if(!readset->Validate()) {
   	  return false;
+  }
+  
   
  
   //step 2.  update the the seq set 
@@ -508,9 +511,7 @@ void DBTX::Iterator::Next()
 #endif
 	  	val_ = cur_->value;
 
-		uint64_t* link = (uint64_t *)iter_->GetLink();
-		assert(link != NULL);
-		tx_->readset->AddNext(link, *link);
+		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {	
@@ -542,9 +543,7 @@ void DBTX::Iterator::Prev()
 #endif
 	  	val_ = cur_->value;
 
-		uint64_t* link = (uint64_t *)iter_->GetLink();
-		assert(link != NULL);
-		tx_->readset->AddNext(link, *link);
+		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
 		
 		tx_->readset->Add(&cur_->seq);
 		
@@ -568,9 +567,7 @@ void DBTX::Iterator::Seek(uint64_t key)
 	cur_ = iter_->CurNode();
 	//First, find the first node which is not less than the key
 	//Iterate the list to avoid concurrent insertion
-	while(iter_->Valid() && iter_->Key() < key) {
-
-		
+	while(iter_->Valid() && iter_->Key() < key) {	
 	  iter_->Next();
 	  cur_ = iter_->CurNode();
 	}
@@ -584,9 +581,8 @@ void DBTX::Iterator::Seek(uint64_t key)
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 		//put the previous node's next field into the readset
-	    uint64_t* link = (uint64_t *)iter_->GetLink();
-		assert(link != NULL);
-		tx_->readset->AddNext(link, *link);
+		
+		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
 		return;
 	}
 	
@@ -599,12 +595,10 @@ void DBTX::Iterator::Seek(uint64_t key)
 #else
 		  RTMScope rtm(&tx_->rtmProf);
 #endif
-
+//		  printf("before\n");
 	  	  //Avoid concurrently insertion
-		  uint64_t* link = (uint64_t *)iter_->GetLink();
-		  assert(link != NULL);
-		  tx_->readset->AddNext(link, *link);
-		
+		  tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+	//	  printf("end\n");
 	  	  //Avoid concurrently modification
 	  	  tx_->readset->Add(&cur_->seq);
 	  
@@ -642,9 +636,9 @@ void DBTX::Iterator::SeekToFirst()
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 		//put the previous node's next field into the readset
-	    uint64_t* link = (uint64_t *)iter_->GetLink();
-		assert(link != NULL);
-		tx_->readset->AddNext(link, *link);
+	    
+		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+	    
 		
 		return;
 	}
@@ -660,9 +654,9 @@ void DBTX::Iterator::SeekToFirst()
 #endif
 	  	val_ = cur_->value;
 
-		uint64_t* link = (uint64_t *)iter_->GetLink();
-		assert(link != NULL);
-		tx_->readset->AddNext(link, *link);
+
+		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+		
 		
 		tx_->readset->Add(&cur_->seq);
 		

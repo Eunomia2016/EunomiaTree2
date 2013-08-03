@@ -67,7 +67,9 @@ class MemStoreSkipList: public Memstore {
     // Final state of iterator is Valid() iff list is not empty.
     void SeekToLast();
 
-	uint64_t GetLink();
+	uint64_t* GetLink();
+
+	uint64_t GetLinkTarget();
 
    private:
     MemStoreSkipList* list_;
