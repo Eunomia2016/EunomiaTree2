@@ -127,15 +127,16 @@ uint64_t* DBROTX::Iterator::Value()
 	
 void DBROTX::Iterator::Next()
 {
-
+	iter_->Next();
 	while(iter_->Valid()) {
-	  iter_->Next();
+	  
 	  if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
 		cur_ = iter_->CurNode();
 		return;
 	  }
+	  iter_->Next();
 	}
-
+	
 	cur_ = NULL;
 	
 }

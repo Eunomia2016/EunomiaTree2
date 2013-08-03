@@ -271,7 +271,8 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
 
   //Allocate the dummy node
   //FIXME: Just allocate the dummy node as 1 height
-  kvs[cur].dummy = new Memstore::MemNode();
+  kvs[cur].dummy = Memstore::GetMemNode();
+  
 }
 
 
