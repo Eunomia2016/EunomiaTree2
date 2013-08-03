@@ -253,7 +253,7 @@ void DBTX::WriteSet::TouchAddr(uint64_t addr, int type)
 }
 
 
-void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, MemStoreSkipList::Node* node)
+void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::MemNode* node)
 {
   assert(elems <= max_length);
 
@@ -265,13 +265,13 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, MemStoreSkipL
   elems++;
 
   kvs[cur].tableid = tableid;
-  kvs[cur].key = node->key;
+  kvs[cur].key = key;
   kvs[cur].val = val;
   kvs[cur].node = node;
 
   //Allocate the dummy node
   //FIXME: Just allocate the dummy node as 1 height
-  kvs[cur].dummy = MemStoreSkipList::NewNode(key, 1);	
+  kvs[cur].dummy = new Memstore::MemNode();
 }
 
 
@@ -315,7 +315,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	  kvs[i].dummy->value = kvs[i].node->value;
 	  kvs[i].dummy->counter = kvs[i].node->counter;
 	  kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
-	  kvs[i].dummy->next_[0] = kvs[i].node->oldVersions;
+	  kvs[i].dummy->oldVersions = kvs[i].node->oldVersions;
 
 	  //update the current node
 	  kvs[i].node->oldVersions = kvs[i].dummy;
@@ -412,10 +412,10 @@ bool DBTX::End()
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 
 {
-  MemStoreSkipList::Node* node;
+  Memstore::MemNode* node;
   //Get the seq addr from the hashtable
 
-  node = txdb_->tables[tableid]->GetLatestNodeWithInsert(key);
+  node = txdb_->tables[tableid]->GetWithInsert(key);
 
   //write the key value into local buffer
   writeset->Add(tableid, key, val, node);
@@ -438,7 +438,7 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 
 	
   //step 2.  Read the <k,v> from the in memory store
-  MemStoreSkipList::Node* node = txdb_->tables[tableid]->GetLatestNodeWithInsert(key);
+  Memstore::MemNode* node = txdb_->tables[tableid]->GetWithInsert(key);
 
 	
 	//Guarantee	
@@ -483,7 +483,7 @@ bool DBTX::Iterator::Valid()
 
 uint64_t DBTX::Iterator::Key()
 {
-	return cur_->key;
+	return iter_->Key();
 }
 
 uint64_t* DBTX::Iterator::Value()
@@ -493,9 +493,7 @@ uint64_t* DBTX::Iterator::Value()
 	
 void DBTX::Iterator::Next()
 {
-	MemStoreSkipList::Node* prev = cur_;
-	iter_->Next();
-	
+	iter_->Next();	
 	while(iter_->Valid()) {
 	  
 	  cur_ = iter_->CurNode();
@@ -508,8 +506,10 @@ void DBTX::Iterator::Next()
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 	  	val_ = cur_->value;
-		
-		tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+
+		uint64_t* link = (uint64_t *)iter_->GetLink();
+		assert(link != NULL);
+		tx_->readset->AddNext(link, *link);
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {	
@@ -518,8 +518,6 @@ void DBTX::Iterator::Next()
 		}
 
 	  }
-
-	  prev = cur_;
 	  iter_->Next();
 	}
 
@@ -529,7 +527,6 @@ void DBTX::Iterator::Next()
 
 void DBTX::Iterator::Prev()
 {
-	MemStoreSkipList::Node* next = cur_;
 	iter_->Prev();
 	while(iter_->Valid()) {
 	  
@@ -544,7 +541,10 @@ void DBTX::Iterator::Prev()
 #endif
 	  	val_ = cur_->value;
 
-		tx_->readset->AddNext((uint64_t *)&cur_->next_[0], (uint64_t)next);
+		uint64_t* link = (uint64_t *)iter_->GetLink();
+		assert(link != NULL);
+		tx_->readset->AddNext(link, *link);
+		
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {
@@ -553,7 +553,6 @@ void DBTX::Iterator::Prev()
 		}
 
 	  }
-	  next = cur_;
 	  iter_->Prev();
 	}
 	
@@ -563,16 +562,13 @@ void DBTX::Iterator::Prev()
 void DBTX::Iterator::Seek(uint64_t key)
 {
 	//Should seek from the previous node and put it into the readset
-	iter_->SeekPrev(key);
-	MemStoreSkipList::Node* prev = iter_->CurNode();
-	iter_->Next();
-
+	iter_->Seek(key);
+	
 	cur_ = iter_->CurNode();
 	//First, find the first node which is not less than the key
 	//Iterate the list to avoid concurrent insertion
-	while(iter_->Valid() && cur_->key < key) {
+	while(iter_->Valid() && iter_->Key() < key) {
 
-	  prev = cur_;
 		
 	  iter_->Next();
 	  cur_ = iter_->CurNode();
@@ -587,7 +583,9 @@ void DBTX::Iterator::Seek(uint64_t key)
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 		//put the previous node's next field into the readset
-	    tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+	    uint64_t* link = (uint64_t *)iter_->GetLink();
+		assert(link != NULL);
+		tx_->readset->AddNext(link, *link);
 		return;
 	}
 	
@@ -602,7 +600,10 @@ void DBTX::Iterator::Seek(uint64_t key)
 #endif
 
 	  	  //Avoid concurrently insertion
-		  tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+		  uint64_t* link = (uint64_t *)iter_->GetLink();
+		  assert(link != NULL);
+		  tx_->readset->AddNext(link, *link);
+		
 	  	  //Avoid concurrently modification
 	  	  tx_->readset->Add(&cur_->seq);
 	  
@@ -614,7 +615,6 @@ void DBTX::Iterator::Seek(uint64_t key)
 
 	    }
 	  
-		prev = cur_;
 		iter_->Next();
 	    cur_ = iter_->CurNode();
 	}
@@ -628,7 +628,6 @@ void DBTX::Iterator::Seek(uint64_t key)
 void DBTX::Iterator::SeekToFirst()
 {
 	//Put the head into the read set first
-	MemStoreSkipList::Node* prev  = table_->GetHead();
 	
 	iter_->SeekToFirst();
 
@@ -642,7 +641,10 @@ void DBTX::Iterator::SeekToFirst()
 		RTMScope rtm(&tx_->rtmProf);
 #endif
 		//put the previous node's next field into the readset
-	    tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+	    uint64_t* link = (uint64_t *)iter_->GetLink();
+		assert(link != NULL);
+		tx_->readset->AddNext(link, *link);
+		
 		return;
 	}
 	
@@ -657,7 +659,10 @@ void DBTX::Iterator::SeekToFirst()
 #endif
 	  	val_ = cur_->value;
 
-		tx_->readset->AddNext((uint64_t *)&prev->next_[0], (uint64_t)cur_);
+		uint64_t* link = (uint64_t *)iter_->GetLink();
+		assert(link != NULL);
+		tx_->readset->AddNext(link, *link);
+		
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {
@@ -667,7 +672,6 @@ void DBTX::Iterator::SeekToFirst()
 
 	  }
 
-	  prev = cur_;
 	  iter_->Next();
 	  cur_ = iter_->CurNode();
 	}

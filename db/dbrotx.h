@@ -71,7 +71,7 @@ class DBROTX {
 	
 	 private:
 	  DBROTX* rotx_;
-	  MemStoreSkipList::Node *cur_;
+	  Memstore::MemNode  *cur_;
 	  MemStoreSkipList::Iterator *iter_;
 	  uint64_t *val_;
 	  // Intentionally copyable
@@ -79,7 +79,7 @@ class DBROTX {
 	
 public:
 
-	inline bool GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val);
+	inline bool GetValueOnSnapshot(Memstore::MemNode* n, uint64_t** val);
 	
 	uint64_t oldsnapshot;
 	DBTables *txdb_ ;

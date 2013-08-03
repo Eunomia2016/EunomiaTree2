@@ -54,7 +54,7 @@ bool DBROTX::End()
 }
 
 //This function should be executed atomically
-inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val)
+inline bool DBROTX::GetValueOnSnapshot(Memstore::MemNode* n, uint64_t** val)
 {
 
 #if GLOBALOCK
@@ -77,7 +77,7 @@ inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val
    
    n = n->oldVersions;
    while(n != NULL && n->counter > oldsnapshot) {
-     n = n->next_[0];  
+     n = n->oldVersions;
    }
    
    if(n != NULL && n->counter <= oldsnapshot) {
@@ -93,7 +93,7 @@ inline bool DBROTX::GetValueOnSnapshot(MemStoreSkipList::Node* n, uint64_t** val
 
 bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val)
 {  
-  MemStoreSkipList::Node* n = txdb_->tables[tableid]->GetLatestNode(key);
+  Memstore::MemNode* n = txdb_->tables[tableid]->GetLatestNode(key);
 
   return GetValueOnSnapshot(n, val);
 
@@ -116,7 +116,7 @@ bool DBROTX::Iterator::Valid()
 
 uint64_t DBROTX::Iterator::Key()
 {
-	return cur_->key;
+	return iter_->Key();
 }
 
 uint64_t* DBROTX::Iterator::Value()

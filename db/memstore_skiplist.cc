@@ -73,9 +73,9 @@ MemStoreSkipList::Node* MemStoreSkipList::NewNode(uint64_t key, int height)
 	  			sizeof(Node) + sizeof(void *) * (height - 1)));
 
   n->key = key;
-  n->counter = 0;
-  n->value = NULL;
-  n->oldVersions = NULL;
+  n->memVal.counter = 0;
+  n->memVal.value = NULL;
+  n->memVal.oldVersions = NULL;
   n->next_[0] = NULL;
   return n;
 }
@@ -92,6 +92,15 @@ MemStoreSkipList::Iterator::Iterator(MemStoreSkipList* list)
 {
 	list_ = list;
 	node_ = NULL;
+	prev_ = NULL;
+}
+
+uint64_t MemStoreSkipList::Iterator::GetLink()
+{
+	if(prev_ == NULL)
+		return NULL;
+	else
+		return (uint64_t)prev_->next_[0];
 }
 
 // Returns true iff the iterator is positioned at a valid node.
@@ -105,6 +114,7 @@ bool MemStoreSkipList::Iterator::Valid()
 void MemStoreSkipList::Iterator::Next()
 {
 	//get next different key
+	prev_ = node_;
 	node_ = node_->next_[0];
 }
 
@@ -121,15 +131,20 @@ void MemStoreSkipList::Iterator::Prev()
   }
 }
 
-
-MemStoreSkipList::Node* MemStoreSkipList::Iterator::CurNode()
+uint64_t MemStoreSkipList::Iterator::Key()
 {
-	return node_;
+	return node_->key;
+}
+
+Memstore::MemNode* MemStoreSkipList::Iterator::CurNode()
+{
+	return (Memstore::MemNode*)&node_->memVal;
 }
 
 // Advance to the first entry with a key >= target
 void MemStoreSkipList::Iterator::Seek(uint64_t key)
 {
+	prev_ = list_->FindLessThan(key);
 	node_ = list_->FindGreaterOrEqual(key, NULL);
 }
 
@@ -138,6 +153,8 @@ void MemStoreSkipList::Iterator::SeekPrev(uint64_t key)
 	node_ = list_->FindLessThan(key);
 	if(node_ == NULL)
 		node_ = list_->head_;
+	else
+		prev_ = list_->FindLessThan(node_->key);
 }
 
 
@@ -145,6 +162,7 @@ void MemStoreSkipList::Iterator::SeekPrev(uint64_t key)
 // Final state of iterator is Valid() iff list is not empty.
 void MemStoreSkipList::Iterator::SeekToFirst()
 {
+	prev_ = list_->head_;
 	node_ = list_->head_->next_[0];
 }
 
@@ -252,38 +270,52 @@ inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key
 void MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 {
 	
-	MemStoreSkipList::Node* n = GetNodeWithInsert(k);
+	Memstore::MemNode* n = GetWithInsert(k);
 	n->value = val;
 	n->counter = snapshot;
 	n->seq = 1;
 }
 
 
-MemStoreSkipList::Node* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
+Memstore::MemNode* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
 {
 
 #if SKIPLISTLOCKFREE
-	Node* x = GetNodeWithInsertLockFree(key);
+	Memstore::MemNode* x = GetNodeWithInsertLockFree(key);
 #else
-	Node* x = GetNodeWithInsert(key);
+	Memstore::MemNode* x = GetNodeWithInsert(key);
 #endif
 
 	return x;
 }
 
-MemStoreSkipList::Node* MemStoreSkipList::GetLatestNode(uint64_t key)
+Memstore::MemNode* MemStoreSkipList::GetLatestNode(uint64_t key)
 {
 	Node* x = FindGreaterOrEqual(key, NULL);
 
   	if(x != NULL && key == x->key ) {
-		return x;
+		
+		return (Memstore::MemNode*)&x->memVal;
+		
   	}
 
 	return NULL;
 }
 
+Memstore::MemNode*  MemStoreSkipList::GetWithInsert(uint64_t key) 
+{
 
-MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
+#if SKIPLISTLOCKFREE
+	Memstore::MemNode* x = GetNodeWithInsertLockFree(key);
+#else
+	Memstore::MemNode* x = GetNodeWithInsert(key);
+#endif
+
+	return x;
+}
+
+
+Memstore::MemNode*  MemStoreSkipList::GetNodeWithInsert(uint64_t key)
 {
 
   
@@ -291,7 +323,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
   int height = RandomHeight();
 
   Node* newn = NewNode(key, height);
-  newn->counter = snapshot;
+  newn->memVal.counter = snapshot;
   
   Node* x;
 
@@ -332,19 +364,20 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsert(uint64_t key)
 	
 #if SKIPLISTGLOBALLOCK
 				  //MutexLock lock(&DBTX::storemutex);
-				  DBTX::slock.Unlock();
+	DBTX::slock.Unlock();
 #endif
 
-    return newn;
+    return (Memstore::MemNode*)&newn->memVal;
 	
   }
 
 found:
   FreeNode(newn);
-  return x;
+  
+  return (Memstore::MemNode*)&x->memVal;
 }
 
-MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key)
+Memstore::MemNode* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key)
 {
 
   
@@ -364,7 +397,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
 //	while(x->next_[0] != NULL && x->next_[0]->key == key)
 	//	x = x->next_[0];
 
-	return x;
+	return (Memstore::MemNode*)(&x->memVal);
   }
 
   
@@ -398,7 +431,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
   x = NewNode(key, height);
 
   //We initialize any node with current snapshot counter
-  x->counter = snapshot;
+  x->memVal.counter = snapshot;
   
   for (int i = 0; i < height; i++) {
 	Node *succ = NULL;
@@ -415,7 +448,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
 		if((succs[i]!= NULL) && key == succs[i]->key) {
 			assert( i == 0);
 			FreeNode(x);
-			return succs[i];
+			return (Memstore::MemNode*)&succs[i]->memVal;
 		}
 		
 		x->next_[i] = preds[i]->next_[i];
@@ -433,7 +466,7 @@ MemStoreSkipList::Node* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key
   }
   //atomic_add64(&retryCount, retry);
 
-  return x;
+  return (Memstore::MemNode*)(&x->memVal);
 	
 }
 

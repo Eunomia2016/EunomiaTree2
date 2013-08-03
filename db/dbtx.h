@@ -90,7 +90,7 @@ public:
 	 private:
 	  DBTX* tx_;
 	  MemStoreSkipList *table_;
-	  MemStoreSkipList::Node* cur_;
+	  Memstore::MemNode* cur_;
 	  MemStoreSkipList::Iterator *iter_;
 	  uint64_t *val_;
 	};
@@ -137,8 +137,8 @@ public:
 			int tableid;
 			uint64_t key; //pointer to the written key 
 			uint64_t *val;
-			MemStoreSkipList::Node* node;
-			MemStoreSkipList::Node* dummy;
+			Memstore::MemNode* node;
+			Memstore::MemNode* dummy;
 		};
 		
 		
@@ -160,7 +160,7 @@ public:
 		~WriteSet();	
 		void TouchAddr(uint64_t addr, int type);
 		
-		inline void Add(int tableid, uint64_t key, uint64_t* val, MemStoreSkipList::Node* node);
+		inline void Add(int tableid, uint64_t key, uint64_t* val, Memstore::MemNode* node);
 		inline bool Lookup(int tableid, uint64_t key, uint64_t** val);
 		inline void Write(uint64_t gcounter);
 		

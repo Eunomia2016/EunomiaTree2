@@ -11,10 +11,11 @@
 #include "util/arena.h"
 #include "util/random.h"
 #include "port/port_posix.h"
+#include "memstore/memstore.h"
 
 namespace leveldb {
 
-class MemStoreSkipList {
+class MemStoreSkipList: public Memstore {
 
  public:
 
@@ -23,26 +24,27 @@ class MemStoreSkipList {
   struct Node
   {
 	uint64_t key;
-	uint64_t counter;
-	uint64_t seq;
-	uint64_t* value;
-	Node* oldVersions;
+	MemNode memVal;
 	Node* next_[1];
   };
 
 
-  class Iterator {
+  class Iterator: public Memstore::Iterator {
    public:
     // Initialize an iterator over the specified list.
     // The returned iterator is not valid.
-    explicit Iterator(MemStoreSkipList* list);
+    Iterator(){};
+    Iterator(MemStoreSkipList* list);
 
     // Returns true iff the iterator is positioned at a valid node.
     bool Valid();
 
     // Returns the key at the current position.
     // REQUIRES: Valid()
-    Node* CurNode();
+    MemNode* CurNode();
+
+	
+	uint64_t Key();
 
     // Advances to the next position.
     // REQUIRES: Valid()
@@ -65,9 +67,12 @@ class MemStoreSkipList {
     // Final state of iterator is Valid() iff list is not empty.
     void SeekToLast();
 
+	uint64_t GetLink();
+
    private:
     MemStoreSkipList* list_;
     Node* node_;
+	Node* prev_;
 	uint64_t snapshot_;
     // Intentionally copyable
   };
@@ -80,13 +85,15 @@ class MemStoreSkipList {
   //Only for initialization
   void Put(uint64_t k, uint64_t* val);
   
-  Node* GetNodeWithInsertLockFree(uint64_t key);
+  MemNode* GetNodeWithInsertLockFree(uint64_t key);
 
-  Node* GetNodeWithInsert(uint64_t key);
+  MemNode* GetWithInsert(uint64_t key);
+  
+  MemNode* GetNodeWithInsert(uint64_t key);
 
-  Node* GetLatestNodeWithInsert(uint64_t key);
+  MemNode* GetLatestNodeWithInsert(uint64_t key);
 
-  Node* GetLatestNode(uint64_t key);
+  MemNode* GetLatestNode(uint64_t key);
   
   void PrintList();
 
