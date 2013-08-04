@@ -377,6 +377,7 @@ public:
 
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*val = leaf->values[k];
+			assert(*val != NULL);
 			return NULL;
 		}
 			
@@ -387,7 +388,8 @@ public:
 			unsigned threshold= (M+1)/2;
 			new_sibling->num_keys= leaf->num_keys -threshold;
             for(unsigned j=0; j < new_sibling->num_keys; ++j) {
-            	new_sibling->keys[j]= leaf->keys[threshold+j];                               
+            	new_sibling->keys[j]= leaf->keys[threshold+j];
+				new_sibling->values[j]= leaf->values[threshold+j];
             }
             leaf->num_keys= threshold;
 			
@@ -405,13 +407,16 @@ public:
 		//printf("IN LEAF1 %d\n",toInsert->num_keys);
 		//printTree();
 
-        for (int j=toInsert->num_keys; j>k; j--) 
+        for (int j=toInsert->num_keys; j>k; j--) {
 			toInsert->keys[j] = toInsert->keys[j-1];
-
+			toInsert->values[j] = toInsert->values[j-1];
+        }
+		
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
 		toInsert->values[k] = dummyval_;
 		*val = dummyval_;
+		assert(*val != NULL);
 		dummyval_ = NULL;
 		
 //		writes++;

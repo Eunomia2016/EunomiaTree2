@@ -8,7 +8,7 @@ namespace leveldb {
 	void MemstoreBPlusTree::printLeaf(LeafNode *n) {
 			printf("Leaf Key num %d\n", n->num_keys);
 			for (int i=0; i<n->num_keys;i++)
-				printf("\t%lx  ",n->keys[i]);
+				printf("key  %lx value %lx \t ",n->keys[i], n->values[i]);
 				printf("\n");
 			total_key += n->num_keys;
 		}

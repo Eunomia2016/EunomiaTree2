@@ -455,7 +455,7 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 #endif
 
 //	if(*val != NULL && **val == 1)
-	//	printf("seq of node %d\n", node->seq);
+	assert(node != NULL);
     readset->Add(&node->seq);
 
 	if (node->value == NULL) {
