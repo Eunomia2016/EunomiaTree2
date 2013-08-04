@@ -6,7 +6,8 @@ DBTables::DBTables(int n) {
 	number = n;
 	tables = new Memstore*[n];
 	for (int i=0; i<number; i++)
-		tables[i] = new MemStoreSkipList();
+		tables[i] = new MemstoreBPlusTree();
+		//tables[i] = new MemStoreSkipList();
 	snapshot = 1;
 }
 

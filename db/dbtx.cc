@@ -422,6 +422,8 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
   node = txdb_->tables[tableid]->GetWithInsert(key);
 
   //write the key value into local buffer
+  if(node == 0)
+  	printf("get zero value!!!\n");
   writeset->Add(tableid, key, val, node);
 }
 
@@ -459,7 +461,8 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 	if (node->value == NULL) {
 
 		*val = NULL;
-//	    printf("Not Found %d\n", node->seq);
+//		txdb_->tables[tableid]->PrintStore();
+	//    printf("Not Found %d\n", node->seq);
 		return false;
 
 	} else {

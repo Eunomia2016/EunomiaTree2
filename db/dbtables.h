@@ -2,7 +2,7 @@
 #define DBTABLES_H
 
 #include "memstore_skiplist.h"
-
+#include "memstore/memstore_bplustree.h"
 namespace leveldb{
 
 class DBTables {

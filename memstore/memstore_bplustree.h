@@ -5,6 +5,7 @@
 #include <iostream>
 #include "util/rtmScope.h" 
 #include "util/rtm_arena.h"
+#include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
 #define M  10
@@ -183,8 +184,8 @@ public:
 	}
 	
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
-//		MutexSpinLock lock(&slock);
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		MutexSpinLock lock(&slock);
+//		RTMArenaScope begtx(&rtmlock, &prof, arena_);
 		MemNode* val = NULL;
 		if (depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
@@ -207,6 +208,8 @@ public:
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val);
 			
 		}
+
+		return val;
 	}
 
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val) {
@@ -372,6 +375,12 @@ public:
 		   ++k;
 		}
 
+		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
+			*val = leaf->values[k];
+			return NULL;
+		}
+			
+
 		LeafNode *toInsert = leaf;
 		if (leaf->num_keys == M) {
 			new_sibling = new_leaf_node();
@@ -414,6 +423,8 @@ public:
 		return new_sibling;
 	}
 
+	
+	 Memstore::Iterator* GetIterator() {assert(0);}
 	void printLeaf(LeafNode *n);
 	void printInner(InnerNode *n, unsigned depth);
 	void PrintStore();

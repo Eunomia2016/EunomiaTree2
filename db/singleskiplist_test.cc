@@ -5,6 +5,7 @@
 #include "db/dbtx.h"
 #include "db/dbrotx.h"
 #include "db/memstore_skiplist.h"
+#include "memstore/memstore_bplustree.h"
 
 #include "leveldb/env.h"
 #include "port/port.h"
@@ -285,6 +286,7 @@ class Benchmark {
 			tx.Get(0, k, &v);
 
 			uint64_t *value = new uint64_t();
+			
 			*value = *v + 1;
 
 			//printf("Insert %s ", key);
