@@ -117,8 +117,9 @@ public:
 			InnerNode* result = (InnerNode *)(arena_->AllocateAligned(sizeof(InnerNode)));
 			return result;
 	}
-	
-	inline bool find(uint64_t key) {
+
+	inline MemNode* Get(uint64_t key)
+	{
 		InnerNode* inner;
 		register void* node= root;
 		register unsigned d= depth;
@@ -138,11 +139,12 @@ public:
 		   ++k;
 		}
 		if( leaf->keys[k] == key ) {
-				return true;
+			return leaf->values[k];
 		} else {
-				return false;
+			return NULL;
 		}
 	}
+	
 
 	inline void Put(uint64_t k, uint64_t* val) 
 	{

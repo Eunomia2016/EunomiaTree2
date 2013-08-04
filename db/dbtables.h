@@ -10,7 +10,7 @@ class DBTables {
 	
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
-	MemStoreSkipList **tables;
+	Memstore **tables;
 
 	DBTables(int n);
 	~DBTables();

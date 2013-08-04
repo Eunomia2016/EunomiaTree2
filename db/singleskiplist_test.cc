@@ -476,7 +476,7 @@ class Benchmark {
 				fail = true;
 				
 				DBTX::slock.Lock();
-				store->tables[0]->PrintList();
+				store->tables[0]->PrintStore();
 				
 				DBTX::slock.Unlock();
 				break;
@@ -486,7 +486,7 @@ class Benchmark {
 				fail = true;
 				
 				DBTX::slock.Lock();
-				store->tables[0]->PrintList();
+				store->tables[0]->PrintStore();
 				DBTX::slock.Unlock();
 
 				break;
@@ -524,7 +524,7 @@ class Benchmark {
 					//store->PrintList();
 					printf("snapshot %ld\n", snapshot);
 					DBTX::slock.Lock();
-					store->tables[0]->PrintList();
+					store->tables[0]->PrintStore();
 					DBTX::slock.Unlock();
 					break;
 				}
@@ -533,7 +533,7 @@ class Benchmark {
 					printf("In RO, Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 					printf("snapshot %ld\n", snapshot);
 					DBTX::slock.Lock();
-					store->tables[0]->PrintList();
+					store->tables[0]->PrintStore();
 					DBTX::slock.Unlock();
 				
 					fail = true;
@@ -543,7 +543,7 @@ class Benchmark {
 					printf("In RO, Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 					printf("snapshot %ld\n", snapshot);
 					DBTX::slock.Lock();
-					store->tables[0]->PrintList();				
+					store->tables[0]->PrintStore();				
 					DBTX::slock.Unlock();
 
 					fail = true;

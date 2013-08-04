@@ -1490,7 +1490,7 @@ void TPCCSkiplist::freeUndo(TPCCUndo* undo){
 void TPCCSkiplist::printSkiplist() {
 	for (int i=0; i<store->number; i++){
 		printf("========== Table %d ==========",i);
-		store->tables[i]->PrintList();
+		store->tables[i]->PrintStore();
 	}
 }
 

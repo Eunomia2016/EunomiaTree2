@@ -4,7 +4,7 @@ namespace leveldb {
 
 DBTables::DBTables(int n) {
 	number = n;
-	tables = new MemStoreSkipList *[n];
+	tables = new Memstore*[n];
 	for (int i=0; i<number; i++)
 		tables[i] = new MemStoreSkipList();
 	snapshot = 1;

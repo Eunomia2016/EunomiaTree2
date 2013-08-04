@@ -89,9 +89,9 @@ public:
 	
 	 private:
 	  DBTX* tx_;
-	  MemStoreSkipList *table_;
+	  Memstore *table_;
 	  Memstore::MemNode* cur_;
-	  MemStoreSkipList::Iterator *iter_;
+	  Memstore::Iterator *iter_;
 	  uint64_t *val_;
 	};
 	

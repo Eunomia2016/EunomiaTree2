@@ -72,7 +72,7 @@ class DBROTX {
 	 private:
 	  DBROTX* rotx_;
 	  Memstore::MemNode  *cur_;
-	  MemStoreSkipList::Iterator *iter_;
+	  Memstore::Iterator *iter_;
 	  uint64_t *val_;
 	  // Intentionally copyable
 	};

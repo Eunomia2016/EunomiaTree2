@@ -93,7 +93,7 @@ inline bool DBROTX::GetValueOnSnapshot(Memstore::MemNode* n, uint64_t** val)
 
 bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val)
 {  
-  Memstore::MemNode* n = txdb_->tables[tableid]->GetLatestNode(key);
+  Memstore::MemNode* n = txdb_->tables[tableid]->Get(key);
 
   return GetValueOnSnapshot(n, val);
 
@@ -103,7 +103,7 @@ bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val)
 DBROTX::Iterator::Iterator(DBROTX* rotx, int tableid)
 {
 	rotx_ = rotx;
-	iter_ = new MemStoreSkipList::Iterator(rotx->txdb_->tables[tableid]);
+	iter_ = rotx->txdb_->tables[tableid]->GetIterator();
 	cur_ = NULL;
 	val_ = NULL;
 }

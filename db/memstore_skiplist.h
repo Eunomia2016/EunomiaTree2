@@ -87,17 +87,16 @@ class MemStoreSkipList: public Memstore {
   //Only for initialization
   void Put(uint64_t k, uint64_t* val);
   
-  MemNode* GetNodeWithInsertLockFree(uint64_t key);
+  MemNode* GetWithInsertLockFree(uint64_t key);
+  MemNode* GetWithInsertRTM(uint64_t key);
 
   MemNode* GetWithInsert(uint64_t key);
   
-  MemNode* GetNodeWithInsert(uint64_t key);
+  MemNode* Get(uint64_t key);
 
-  MemNode* GetLatestNodeWithInsert(uint64_t key);
-
-  MemNode* GetLatestNode(uint64_t key);
+  Memstore::Iterator* GetIterator();
   
-  void PrintList();
+  void PrintStore();
 
   static Node* NewNode(uint64_t key, int height);
  

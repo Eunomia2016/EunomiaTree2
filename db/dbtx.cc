@@ -475,7 +475,7 @@ DBTX::Iterator::Iterator(DBTX* tx, int tableid)
 {
 	tx_ = tx;
 	table_ = tx->txdb_->tables[tableid];
-	iter_ = new MemStoreSkipList::Iterator(table_);
+	iter_ = table_->GetIterator();
 	cur_ = NULL;
 }
 	

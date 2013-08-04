@@ -290,21 +290,9 @@ void MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 	n->counter = snapshot;
 	n->seq = 1;
 }
+ 
 
-
-Memstore::MemNode* MemStoreSkipList::GetLatestNodeWithInsert(uint64_t key)
-{
-
-#if SKIPLISTLOCKFREE
-	Memstore::MemNode* x = GetNodeWithInsertLockFree(key);
-#else
-	Memstore::MemNode* x = GetNodeWithInsert(key);
-#endif
-
-	return x;
-}
-
-Memstore::MemNode* MemStoreSkipList::GetLatestNode(uint64_t key)
+Memstore::MemNode* MemStoreSkipList::Get(uint64_t key)
 {
 	Node* x = FindGreaterOrEqual(key, NULL);
 
@@ -321,16 +309,16 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsert(uint64_t key)
 {
 
 #if SKIPLISTLOCKFREE
-	Memstore::MemNode* x = GetNodeWithInsertLockFree(key);
+	Memstore::MemNode* x = GetWithInsertLockFree(key);
 #else
-	Memstore::MemNode* x = GetNodeWithInsert(key);
+	Memstore::MemNode* x = GetWithInsertRTM(key);
 #endif
 
 	return x;
 }
 
 
-Memstore::MemNode*  MemStoreSkipList::GetNodeWithInsert(uint64_t key)
+Memstore::MemNode*  MemStoreSkipList::GetWithInsertRTM(uint64_t key)
 {
 
   
@@ -392,7 +380,7 @@ found:
   return (Memstore::MemNode*)&x->memVal;
 }
 
-Memstore::MemNode* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key)
+Memstore::MemNode* MemStoreSkipList::GetWithInsertLockFree(uint64_t key)
 {
 
   
@@ -487,7 +475,12 @@ Memstore::MemNode* MemStoreSkipList::GetNodeWithInsertLockFree(uint64_t key)
 
 
 
-void MemStoreSkipList::PrintList(){
+Memstore::Iterator* MemStoreSkipList::GetIterator()
+{
+	return new MemStoreSkipList::Iterator(this);
+}
+
+void MemStoreSkipList::PrintStore(){
 
 	/*
 	Node* cur = head_;

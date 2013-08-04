@@ -18,35 +18,40 @@ class Memstore {
    public:
     // Initialize an iterator over the specified list.
     // The returned iterator is not valid.
-    Iterator() { assert(0);}
+    Iterator() {}
 
-    // Returns true iff the iterator is positioned at a valid node.
-    virtual bool Valid(){ assert(0);}
+	virtual bool Valid() = 0;
 
     // Returns the key at the current position.
     // REQUIRES: Valid()
-   virtual  MemNode* CurNode(){ assert(0);}
+    virtual MemNode* CurNode() = 0;
+
+	virtual uint64_t Key() = 0;
 
     // Advances to the next position.
     // REQUIRES: Valid()
-    virtual void Next(){ assert(0);}
+    virtual void Next() = 0;
 
     // Advances to the previous position.
     // REQUIRES: Valid()
-    virtual void Prev(){ assert(0);}
+    virtual void Prev() = 0;
 
     // Advance to the first entry with a key >= target
-    virtual void Seek(uint64_t key){ assert(0);}
+    virtual void Seek(uint64_t key) = 0;
 
-	virtual void SeekPrev(uint64_t key) { assert(0);}
+	virtual void SeekPrev(uint64_t key) = 0;
 
     // Position at the first entry in list.
     // Final state of iterator is Valid() iff list is not empty.
-    virtual void SeekToFirst() { assert(0);}
+    virtual void SeekToFirst() = 0;
 
     // Position at the last entry in list.
     // Final state of iterator is Valid() iff list is not empty.
-    virtual void SeekToLast() { assert(0);}
+    virtual void SeekToLast() = 0;
+
+	virtual uint64_t* GetLink() = 0;
+
+	virtual uint64_t GetLinkTarget() = 0;
 
   };
 
@@ -56,7 +61,12 @@ class Memstore {
   ~Memstore(){};
 
   //Only for initialization
-  virtual void Put(uint64_t k, uint64_t* val) { assert(0); }
+
+  virtual Memstore::Iterator* GetIterator() = 0;
+  
+  virtual void Put(uint64_t k, uint64_t* val) = 0;
+
+  virtual MemNode* Get(uint64_t key) = 0;
   
   virtual MemNode* GetWithInsert(uint64_t key) = 0;
   
