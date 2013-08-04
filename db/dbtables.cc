@@ -13,7 +13,7 @@ DBTables::DBTables(int n) {
 
 DBTables::~DBTables() {
 	for (int i=0; i<number; i++)
-		delete tables[i];
+		delete (MemstoreBPlusTree *)tables[i];
 	delete tables;
 }
 

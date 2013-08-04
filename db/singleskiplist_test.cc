@@ -1235,6 +1235,8 @@ int main(int argc, char**argv)
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);
 
 	  benchmark->Run(method, name);
+
+	  delete store;
     }
 	
 

@@ -19,7 +19,7 @@
 
 
 #define CACHESIM 0
-#define GLOBALOCK 1
+#define GLOBALOCK 0
 
 
 namespace leveldb {

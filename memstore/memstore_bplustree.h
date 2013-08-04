@@ -87,7 +87,7 @@ public:
 	
 	~MemstoreBPlusTree() {
 		prof.reportAbortStatus();
-		PrintStore();
+		//PrintStore();
 		//printf("rwconflict %ld\n", rconflict);
 		//printf("wwconflict %ld\n", wconflict);
 		//printf("depth %d\n",depth);
@@ -184,8 +184,8 @@ public:
 	}
 	
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
-		MutexSpinLock lock(&slock);
-//		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+//		MutexSpinLock lock(&slock);
+		RTMArenaScope begtx(&rtmlock, &prof, arena_);
 		MemNode* val = NULL;
 		if (depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);

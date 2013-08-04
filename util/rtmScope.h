@@ -14,8 +14,9 @@
 
 namespace leveldb {
 
-#define LOCKELISION 0
+#define LOCKELISION 1
 #define MAXRETRY 10
+#define RTMPROFILE 0
 
 class RTMArenaScope {
 	
@@ -48,10 +49,10 @@ class RTMArenaScope {
 	    unsigned stat;
 	 	stat = _xbegin ();
 		if(stat == _XBEGIN_STARTED) {
-			//if(!slock->Islocked())
+			if(!slock->IsLocked())
 				return;
 			
-			//_xabort(0xff);
+			_xabort(0xff);
 			
 		}
 		
@@ -68,31 +69,25 @@ class RTMArenaScope {
 	    }
 		else if (stat == 0)
 			zero++;
-
-		if(retry > 1000000) {
-			printf("stat %d\n", stat);
-			exit(1);
-		}
 			
 		
 #if LOCKELISION
 		else if((stat & _XABORT_EXPLICIT) && _XABORT_CODE(stat)==0xff)
 		{
-			while(slock->Islocked()) 
+			while(slock->IsLocked()) 
 				_mm_pause();
-			lockretry++;
 		}
 
 		if(zero > 2)
 			break;
-		/*
+		
 		if(capacity > 4)
 			break;
 		if(conflict > 8)
 			break;
 		if(retry > 32)
 			break;
-			*/
+		
 #endif
 
 #if 0		
@@ -108,7 +103,7 @@ class RTMArenaScope {
 
 	}
 //    printf("Hold Lock\n");
-
+	lockretry++;
 	slock->Lock();
 
   }
@@ -121,13 +116,20 @@ class RTMArenaScope {
 
 #if LOCKELISION
 
-    if(slock->Islocked())
+    if(slock->IsLocked())
 		slock->Unlock();
 	else
-#endif
+	{	
+		_xend();
+//		printf("!!!\n");
+	}
+
+#else
 		_xend();
 
-#if 1	
+#endif
+
+#if RTMPROFILE	
 	//access the global profile info outside the transaction scope
 	if(globalprof != NULL) {
 		RTMProfile::atomic_inc32(&globalprof->succCounts);
@@ -136,7 +138,7 @@ class RTMArenaScope {
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_CAPACITY_INDEX], capacity);
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_EXPLICIT_INDEX], explict);
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_DEBUG_INDEX], zero);
-		//RTMProfile::atomic_add32(&globalprof->status[XABORT_DEBUG_INDEX], lockretry);
+		RTMProfile::atomic_add32(&globalprof->status[XABORT_NESTED_INDEX], lockretry);
 		
 		//globalprof->MergeLocalStatus(localprofile);
 
