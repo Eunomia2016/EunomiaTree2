@@ -446,10 +446,11 @@ private:
 
 		char padding2[64];
 		RTMProfile prof;
-  		port::SpinLock slock;
 		char padding3[64];
-	    SpinLock rtmlock;
+  		port::SpinLock slock;
 		char padding4[64];
+	    SpinLock rtmlock;
+		char padding5[64];
 
 /*		
 		int current_tid;
