@@ -9,6 +9,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
+#define CHECKTPCC 0
 
 #define WARE 0
 #define DIST 1
@@ -462,8 +463,9 @@ namespace leveldb {
     if (!result) {
         return false;
     }
-	//Check correctness
-/*	leveldb::DBTX tx(store);
+	
+#if CHECKTPCC
+	leveldb::DBTX tx(store);
 	//printf("Check\n");
 	while(true) {
 	  
@@ -582,7 +584,7 @@ namespace leveldb {
 	assert(c == c1);
 	rotx.End();
 	
-*/
+#endif
 	
     return true;
   }
@@ -888,7 +890,7 @@ namespace leveldb {
 
 	paymentHome(warehouse_id, district_id, c_warehouse_id, c_district_id, customer_id, h_amount, now, output, undo);	
 	//check
-	/*
+#if CHECKTPCC
 	leveldb::DBTX tx(store);
 	//printf("Check\n");
 	while(true) {
@@ -908,7 +910,8 @@ namespace leveldb {
 	  int64_t w_key = makeWarehouseKey(warehouse_id);	  
 	  uint64_t *w_value;  
  	  found = tx.Get(w_key, &w_value);
-	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
+	  assert(found);
+/*	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
 	  float sum = 0;
 	  for (int i = 1; i<=District::NUM_PER_WAREHOUSE; i++) {
 		  int64_t d_key = makeDistrictKey(warehouse_id, i);
@@ -920,11 +923,11 @@ namespace leveldb {
 	  }
 	  if (sum - w->w_ytd >= 1000 || w->w_ytd - sum >= 1000) 
 	  	printf("Consistency 1, sum %f  warehouse %f\n", sum, w->w_ytd);
-  	  
+  */	  
 	  bool b = tx.End();  
   	  if (b) break;
   	}
-  */  
+#endif
 
   }
 
