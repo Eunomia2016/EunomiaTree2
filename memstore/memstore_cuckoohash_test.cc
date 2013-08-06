@@ -25,7 +25,7 @@ static const char* FLAGS_benchmarks ="random";
 static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
 
-#define CHECK 0
+#define CHECK 1
 
 namespace leveldb {
 	

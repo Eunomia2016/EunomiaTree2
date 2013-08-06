@@ -47,7 +47,7 @@ Memstore::Iterator* MemstoreCuckooHashTable::GetIterator()
 	
 }
 
-bool MemstoreCuckooHashTable::Insert(uint64_t key, uint64_t* val)
+bool MemstoreCuckooHashTable::Insert(uint64_t key, MemNode **mn)
 {
 	
 	uint64_t h1, h2;
@@ -57,19 +57,20 @@ bool MemstoreCuckooHashTable::Insert(uint64_t key, uint64_t* val)
 	//Step 0. Check if it already exist
 	int slot = GetSlot(table_[h1 % size_], key);
 	if (slot < ASSOCIATIVITY) {
-		table_[h1 % size_].elems[slot].value->value = val;
+		*mn = table_[h1 % size_].elems[slot].value;
 		return true;
 	}
 
 	slot = GetSlot(table_[h2 % size_], key);
 	if (slot < ASSOCIATIVITY) {
-		table_[h2 % size_].elems[slot].value->value = val;
+		*mn = table_[h2 % size_].elems[slot].value;
 		return true;
 	}
 
-	MemNode * mnode = dummyval_;
-	mnode->value = val;
+	MemNode *mnode = dummyval_;
+	
 	dummyval_ = NULL;
+	*mn = mnode;
 	
 	//Step 1. check the first slot
 	slot = GetFreeSlot(table_[h1 % size_]);
@@ -171,10 +172,13 @@ void MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val)
 	ThreadLocalInit();
 	
 	bool succ = false;
+	MemNode* mnode = NULL;
 	
 	{
 		RTMArenaScope begtx(&rtmlock, &prof, NULL);
-		succ = Insert(k, val);
+		succ = Insert(k, &mnode);
+		if(succ)
+			mnode->value = val;
 	}
 
 	if(dummyval_ == NULL)
@@ -188,8 +192,29 @@ void MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val)
 
 Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key)
 {
+
+	ThreadLocalInit();
 	
+	bool succ = false;
+	MemNode* mnode = NULL;
+	
+	{
+		RTMArenaScope begtx(&rtmlock, &prof, NULL);
+		succ = Insert(key, &mnode);
+		if(succ)
+			return mnode;
+	}
+
+	if(dummyval_ == NULL)
+		dummyval_ = new MemNode();
+	
+	if(!succ) {
+		//TODO: need rehash the table, then retry
+		printf("Alert Failed to insert %ld\n", key);
+		return NULL;
+	} 
 }
+
   
 void MemstoreCuckooHashTable::PrintStore()
 {

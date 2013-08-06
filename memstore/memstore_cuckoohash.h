@@ -73,7 +73,7 @@ class MemstoreCuckooHashTable: public Memstore {
 
 private:
 
-  bool Insert(uint64_t k, uint64_t* val);
+  bool Insert(uint64_t key, MemNode **mn);
 
   inline int GetFreeSlot(Entry& e)
   {
