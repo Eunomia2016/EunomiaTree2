@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-namespace leveldb {
 
 #define XBEGIN_STARTED_INDEX 0
 #define XABORT_EXPLICIT_INDEX 1
@@ -151,7 +150,6 @@ class RTMProfile {
   void operator=(const RTMProfile&);
 };
 
-}  // namespace leveldb
 
 
 #endif  // STORAGE_LEVELDB_UTIL_TXPROFILE_H_

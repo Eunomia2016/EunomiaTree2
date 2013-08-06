@@ -3,12 +3,15 @@
 
 #include "util/hash.h"
 #include "memstore.h"
+#include "util/txprofile.h"
+#include "util/spinlock.h"
+
 
 class MemstoreCuckooHashTable: public Memstore {
 
 #define ASSOCIATIVITY 4
 #define MAX_CUCKOO_COUNT 128
-#define DEFAULT_SIZE 10 //100*1024*1024 // 100 Rows
+#define DEFAULT_SIZE 100*1024*1024 // 100 Rows
 
  private:
 
@@ -32,8 +35,21 @@ class MemstoreCuckooHashTable: public Memstore {
   	Element elems[ASSOCIATIVITY];
   };
 
- Entry* table_;
- uint64_t size_;
+  char padding[64];
+  Entry* table_;
+  uint64_t size_;
+  char padding2[64];
+  RTMProfile prof;
+  char padding3[64];
+  SpinLock glock;
+  char padding4[64];
+  SpinLock rtmlock;
+  char padding5[64];
+
+  static __thread bool localinit_;
+  static __thread MemNode *dummyval_;
+  static __thread uint32_t *undo_index;
+  static __thread uint32_t *undo_slot;
 
  public:
 
@@ -44,10 +60,8 @@ class MemstoreCuckooHashTable: public Memstore {
   //Only for initialization
 
   Memstore::Iterator* GetIterator();
-  
-  bool Insert(uint64_t k, uint64_t* val);
 
-  void Put(uint64_t k, uint64_t* val){}
+  void Put(uint64_t k, uint64_t* val);
 
   MemNode* Get(uint64_t key);
   
@@ -56,6 +70,10 @@ class MemstoreCuckooHashTable: public Memstore {
   void PrintStore();
   
   void ThreadLocalInit();
+
+private:
+
+  bool Insert(uint64_t k, uint64_t* val);
 
   inline int GetFreeSlot(Entry& e)
   {

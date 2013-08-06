@@ -97,7 +97,7 @@ public:
 		//top();
 	}
 	  	  
-	void ThreadLocalInit(){
+	inline void ThreadLocalInit(){
 		if(false == localinit_) {
 			arena_ = new RTMArena();
 

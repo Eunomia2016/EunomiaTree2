@@ -25,7 +25,7 @@ static const char* FLAGS_benchmarks ="random";
 static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
 
-#define CHECK 1
+#define CHECK 0
 
 namespace leveldb {
 	
@@ -50,7 +50,7 @@ private:
 
    int64_t total_count;  
 
-   MemstoreCuckooHashTable *btree;
+   MemstoreCuckooHashTable *hashtable;
 
    port::SpinLock slock;
 
@@ -169,7 +169,7 @@ private:
 				 for (int i=0; i<total_count; i++) {
 				 	Key k = i*10 + tid;
 				//	printf("Insert %d %ld\n", tid, k);
-//					btree->GetWithInsert(k, tid);
+					hashtable->Put(k, NULL);
 				 }
 		#else 
 		
@@ -186,7 +186,7 @@ private:
 						k = MakeKey(tid, thread->rnd.Next());
 						//printf("Insert %d %lx\n", tid, k);
 						//k = MakeKey(tid,seqNum++);
-						btree->GetWithInsert(k, tid);
+						hashtable->Put(k, NULL);
 		
 				  }
 			  }
@@ -226,9 +226,9 @@ private:
 				   	 k = MakeKey(tid, thread->rnd.Next());
 
 
-//				 if(!btree->find(k)) {
+				 if(hashtable->Get(k) == NULL) {
 					printf(" %ld Not Found\n", k);
-//				 }
+				 }
 			   }
 		   }
 		 }
@@ -309,7 +309,7 @@ private:
 
 //	  double start = leveldb::Env::Default()->NowMicros();
 	  total_count = FLAGS_num;
-	  btree = new MemstoreCuckooHashTable();
+	  hashtable = new MemstoreCuckooHashTable();
 /*	  uint64_t k = (uint64_t)1 << 35;
 	  for (uint64_t i =1; i< 4; i++){
 	  	
@@ -322,14 +322,13 @@ private:
 	 for (int i=0; i<FLAGS_num; i++) {
 	 	for (int j=0; j<num_threads; j++) {
 			Key k = i*10 + j;
-//			if (!btree->find(k)) printf("Not found %lx\n",k);
+			if (hashtable->Get(k) == NULL) printf("Not found %lx\n",k);
 	 	}
 	 }
 #endif	 
 //	  total_count = FLAGS_num;
  //     std::cout << "Total Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
 
-	  delete btree;
     }
   
 };
@@ -357,18 +356,18 @@ int main(int argc, char** argv) {
 	 } 
  }
 
- // leveldb::Benchmark benchmark;
- // benchmark.Run();
-//  while (1);
-
+  leveldb::Benchmark benchmark;
+  benchmark.Run();
+/*
  MemstoreCuckooHashTable *hash = new MemstoreCuckooHashTable();
  printf("Begin\n");
  for(int i = 0; i < 1000; i++)
- 	if(hash->Insert(i, NULL))
-		printf("Insert %ld successfully\n", i);
+ 	hash->Put(i, NULL);
+ 	
  printf("End\n");
 
  hash->PrintStore();
+  */
 
   return 1;
 }

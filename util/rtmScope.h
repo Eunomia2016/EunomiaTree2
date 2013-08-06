@@ -12,8 +12,6 @@
 
 
 
-namespace leveldb {
-
 #define LOCKELISION 1
 #define MAXRETRY 10
 #define RTMPROFILE 0
@@ -148,8 +146,6 @@ class RTMArenaScope {
   }
 
 };
-
-}  // namespace leveldb
 
 
 #endif  // STORAGE_LEVELDB_UTIL_RTM_H_

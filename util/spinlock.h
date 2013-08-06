@@ -2,10 +2,9 @@
 #define LEVELDB_SPINLOCK_H
 
 #include <stdint.h>
+#include "port/atomic.h"
 
 /* The counter should be initialized to be 0. */
-namespace leveldb {
-
 class SpinLock  {
 
 public:
@@ -18,14 +17,29 @@ public:
 
   SpinLock(){ lock = 0;}
   
-  void Lock();
-  void Unlock();
+  inline void Lock() {
+    while (1) {
+       if (!xchg16((uint16_t *)&lock, 1)) return;
+   
+       while (lock) cpu_relax();
+   }
+  }
+
+  inline void Unlock() 
+  {
+  	  barrier();
+      lock = 0;
+  }
+
+
+  inline uint16_t Trylock()
+  {
+  	return xchg16((uint16_t *)&lock, 1);
+  }
 
   inline uint16_t IsLocked(){return lock;}
-  uint16_t Trylock();
 
 
 };
 
-}
 #endif /* _RWLOCK_H */

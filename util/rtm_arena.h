@@ -11,9 +11,6 @@
 #include <stdint.h>
 #include <immintrin.h>
 
-
-namespace leveldb {
-
 class RTMArena {
  public:
   RTMArena();
@@ -106,7 +103,5 @@ inline char* RTMArena::Allocate(size_t bytes) {
   }
   return result;
 }
-
-}  // namespace leveldb
 
 #endif  // STORAGE_LEVELDB_UTIL_RTM_ARENA_H_

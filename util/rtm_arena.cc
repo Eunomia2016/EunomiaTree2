@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <immintrin.h>
 
-namespace leveldb {
 
 #define CACHSIM 0
 
@@ -74,4 +73,3 @@ char* RTMArena::AllocateNewBlock(size_t block_bytes) {
   return result;
 }
 
-}  // namespace leveldb
