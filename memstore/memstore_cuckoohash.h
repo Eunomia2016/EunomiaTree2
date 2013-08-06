@@ -8,7 +8,7 @@ class MemstoreCuckooHashTable: public Memstore {
 
 #define ASSOCIATIVITY 4
 #define MAX_CUCKOO_COUNT 128
-#define DEFAULT_SIZE 1024*1024*1024 // 1G Rows
+#define DEFAULT_SIZE 10 //100*1024*1024 // 100 Rows
 
  private:
 
@@ -45,7 +45,9 @@ class MemstoreCuckooHashTable: public Memstore {
 
   Memstore::Iterator* GetIterator();
   
-  bool Put(uint64_t k, MemNode* val);
+  bool Insert(uint64_t k, uint64_t* val);
+
+  void Put(uint64_t k, uint64_t* val){}
 
   MemNode* Get(uint64_t key);
   
@@ -74,6 +76,18 @@ class MemstoreCuckooHashTable: public Memstore {
 	  e.elems[slot].hash1 = h1;
 	  e.elems[slot].hash2 = h2;
 	  e.elems[slot].value = val;
+  }
+
+  inline int GetSlot(Entry& e, uint64_t key)
+  {
+	  int i = 0;
+	  
+	  for(i = 0; i < ASSOCIATIVITY; i++) {
+		 if(e.elems[i].key == key)
+			return i;
+      }
+
+	  return i;
   }
 
   inline uint64_t MurmurHash64A (uint64_t key, unsigned int seed )	{
@@ -115,6 +129,8 @@ class MemstoreCuckooHashTable: public Memstore {
 
   inline void ComputeHash(uint64_t key, uint64_t* h1, uint64_t* h2)
   {
+//  	*h1 = key;
+//	*h2 = key;
 	 *h1 = MurmurHash64A(key, 0xdeadbeef);
 	 *h2 = MurmurHash64A(key, 0xbeefdead);
   }

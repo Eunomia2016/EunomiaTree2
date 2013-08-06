@@ -8,8 +8,8 @@
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
-#define M  10
-#define N  10
+#define M  20
+#define N  20
 
 
 //static uint64_t writes = 0;

@@ -909,7 +909,7 @@ namespace leveldb {
 	  //Change h_amount range to (1000,5000) when doing this test 
 	  int64_t w_key = makeWarehouseKey(warehouse_id);	  
 	  uint64_t *w_value;  
- 	  found = tx.Get(w_key, &w_value);
+ 	  found = tx.Get(WARE, w_key, &w_value);
 	  assert(found);
 /*	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
 	  float sum = 0;
