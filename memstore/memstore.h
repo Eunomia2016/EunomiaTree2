@@ -11,6 +11,14 @@ class Memstore {
 	uint64_t seq;
 	uint64_t* value;
 	MemNode* oldVersions;
+
+	MemNode()
+	{
+		counter = 0;
+		seq = 0;
+		value = NULL;
+		oldVersions = NULL;
+	}
   };
 
 

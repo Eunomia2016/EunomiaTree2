@@ -12,8 +12,6 @@
 
 
 
-namespace leveldb {
-
 #define LOCKELISION 1
 #define MAXRETRY 10
 #define RTMPROFILE 0
@@ -28,7 +26,7 @@ class RTMArenaScope {
  int capacity;
  int conflict;
  int explict;
- int lockretry;
+ int lockacquire;
  int zero;
  	
  public:
@@ -40,7 +38,7 @@ class RTMArenaScope {
 	retry = 0;
 	capacity = 0;
 	conflict = 0;
-	lockretry = 0;
+	lockacquire = 0;
 	explict = 0;
 	zero = 0;
 	slock = sl;
@@ -103,7 +101,7 @@ class RTMArenaScope {
 
 	}
 //    printf("Hold Lock\n");
-	lockretry++;
+	lockacquire++;
 	slock->Lock();
 
   }
@@ -138,7 +136,7 @@ class RTMArenaScope {
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_CAPACITY_INDEX], capacity);
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_EXPLICIT_INDEX], explict);
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_DEBUG_INDEX], zero);
-		RTMProfile::atomic_add32(&globalprof->status[XABORT_NESTED_INDEX], lockretry);
+		RTMProfile::atomic_add32(&globalprof->status[XABORT_NESTED_INDEX], lockacquire);
 		
 		//globalprof->MergeLocalStatus(localprofile);
 
@@ -148,8 +146,6 @@ class RTMArenaScope {
   }
 
 };
-
-}  // namespace leveldb
 
 
 #endif  // STORAGE_LEVELDB_UTIL_RTM_H_

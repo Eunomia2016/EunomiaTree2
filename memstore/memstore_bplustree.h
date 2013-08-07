@@ -8,8 +8,8 @@
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
-#define M  10
-#define N  10
+#define M  20
+#define N  20
 
 
 //static uint64_t writes = 0;
@@ -136,7 +136,7 @@ public:
 		//top();
 	}
 	  	  
-	void ThreadLocalInit(){
+	inline void ThreadLocalInit(){
 		if(false == localinit_) {
 			arena_ = new RTMArena();
 
@@ -514,10 +514,11 @@ private:
 
 		char padding2[64];
 		RTMProfile prof;
-  		port::SpinLock slock;
 		char padding3[64];
-	    SpinLock rtmlock;
+  		port::SpinLock slock;
 		char padding4[64];
+	    SpinLock rtmlock;
+		char padding5[64];
 
 /*		
 		int current_tid;

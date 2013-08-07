@@ -22,7 +22,6 @@ namespace leveldb {
 
 port::Mutex DBTX::storemutex;
 
-
 SpinLock DBTX::slock;
 
 __thread DBTX::WriteSet* DBTX::writeset = NULL;
