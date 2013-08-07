@@ -201,14 +201,14 @@ Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key)
 	{
 		RTMArenaScope begtx(&rtmlock, &prof, NULL);
 		succ = Insert(key, &mnode);
-		if(succ)
-			return mnode;
 	}
 
 	if(dummyval_ == NULL)
 		dummyval_ = new MemNode();
-	
-	if(!succ) {
+
+	if(succ)
+		return mnode;
+	else{
 		//TODO: need rehash the table, then retry
 		printf("Alert Failed to insert %ld\n", key);
 		return NULL;

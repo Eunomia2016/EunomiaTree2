@@ -3,6 +3,8 @@
 
 #include "memstore_skiplist.h"
 #include "memstore/memstore_bplustree.h"
+#include "memstore/memstore_cuckoohash.h"
+
 namespace leveldb{
 
 class DBTables {
