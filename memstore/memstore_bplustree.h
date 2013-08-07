@@ -11,9 +11,9 @@
 #define M  20
 #define N  20
 
+#define BTREE_PROF 0
 
 //static uint64_t writes = 0;
-
 //static uint64_t reads = 0;
 	
 static int total_key = 0;
@@ -112,7 +112,11 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
-
+#if BTREE_PROF
+		writes = 0;
+		reads = 0;
+		calls = 0;
+#endif
 //		printf("root addr %lx\n", &root);
 //		printf("depth addr %lx\n", &depth);
 /*		for (int i=0; i<4; i++) {
@@ -132,6 +136,11 @@ public:
 		//printf("depth %d\n",depth);
 		//printf("reads %ld\n",reads);
 		//printf("writes %ld\n", writes);
+		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
+#if BTREE_PROF
+		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes)/(float)calls,(float)(writes)/(float)calls );
+#endif
+	
 		//printTree();
 		//top();
 	}
@@ -185,14 +194,14 @@ public:
 		while( d-- != 0 ) {
 				index = 0;
 				inner= reinterpret_cast<InnerNode*>(node);
+//				reads++;
 				while((index < inner->num_keys) && (key >= inner->keys[index])) {
 				   ++index;
 				}				
 				node= inner->children[index];
 		}
 		LeafNode* leaf= reinterpret_cast<LeafNode*>(node);
-		
-		
+//		reads++;
 		
 	    unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k]<key)) {
@@ -211,6 +220,11 @@ public:
 		ThreadLocalInit();
 		MemNode *node = GetWithInsert(k);
 		node->value = val;
+#if 0
+		reads = 0;
+		writes = 0;
+		calls = 0;
+#endif		
 	}
 
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
@@ -245,6 +259,11 @@ public:
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
 //		MutexSpinLock lock(&slock);
 		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+
+#if BTREE_PROF
+		calls++;
+#endif
+
 		MemNode* val = NULL;
 		if (depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
@@ -258,7 +277,9 @@ public:
 				root = inner;
 //				checkConflict(inner, 1);
 //				checkConflict(&root, 1);
-//				writes++;
+#if BTREE_PROF
+				writes++;
+#endif
 //				inner->writes++;
 			}
 //			else checkConflict(&root, 0);
@@ -318,7 +339,9 @@ public:
 					}
 					inner->keys[N-1] = upKey;
 //					checkConflict(new_sibling, 1);
-//					writes++;
+#if BTREE_PROF
+					writes++;
+#endif
 //					new_sibling->writes++;
 					
 				}
@@ -331,11 +354,15 @@ public:
 				toInsert->keys[k] = new_leaf->keys[0];
 				toInsert->children[k+1] = new_leaf;
 //				checkConflict(inner, 1);
-//				writes++;
+#if BTREE_PROF
+				writes++;
+#endif
 //				inner->writes++;
 			}
 			else {
-//				reads++;
+#if BTREE_PROF
+				reads++;
+#endif
 //				inner->reads++;
 //				checkConflict(inner, 0);
 			}
@@ -379,7 +406,9 @@ public:
 					//XXX: what is this used for???
 					inner->keys[N-1] = upKey;
 
-//					writes++;
+#if BTREE_PROF
+					writes++;
+#endif
 //					new_sibling->writes++;
 //					checkConflict(new_sibling, 1);
 				}	
@@ -394,12 +423,16 @@ public:
 
 				toInsert->children[k+1] = child_sibling;
 														
-//				writes++;
+#if BTREE_PROF
+				writes++;
+#endif
 //				inner->writes++;
 //				checkConflict(inner, 1);
 			}
 			else {
-//				reads++;
+#if BTREE_PROF
+				reads++;
+#endif
 //				inner->reads++;
 //				checkConflict(inner, 0);
 			}
@@ -416,7 +449,9 @@ public:
 			root = new_root;
 			depth++;	
 
-//			writes++;
+#if BTREE_PROF
+			writes++;
+#endif
 //			new_root->writes++;
 //			checkConflict(new_root, 1);
 //			checkConflict(&root, 1);
@@ -436,6 +471,9 @@ public:
 
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*val = leaf->values[k];
+#if BTREE_PROF
+			reads++;
+#endif
 			assert(*val != NULL);
 			return NULL;
 		}
@@ -463,7 +501,9 @@ public:
 			new_sibling->left = leaf;
 			leaf->right = new_sibling;
 			new_sibling->seq = 0;
-//			writes++;
+#if BTREE_PROF
+			writes++;
+#endif
 //			new_sibling->writes++;
 //			checkConflict(new_sibling, 1);
 		}
@@ -484,7 +524,9 @@ public:
 		assert(*val != NULL);
 		dummyval_ = NULL;
 		
-//		writes++;
+#if BTREE_PROF
+		writes++;
+#endif
 //		leaf->writes++;
 //		checkConflict(leaf, 1);
 		//printf("IN LEAF2");
@@ -516,6 +558,12 @@ private:
 		RTMProfile prof;
 		char padding3[64];
   		port::SpinLock slock;
+#if BTREE_PROF
+public:
+		uint64_t reads;
+		uint64_t writes;
+		uint64_t calls;
+#endif		
 		char padding4[64];
 	    SpinLock rtmlock;
 		char padding5[64];

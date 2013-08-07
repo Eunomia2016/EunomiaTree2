@@ -6,17 +6,21 @@
 #include "memstore/memstore_cuckoohash.h"
 
 namespace leveldb{
-
+#define NONE 0
+#define BTREE 1
+#define HASH 2
+#define SKIPLIST 3
 class DBTables {
   public:
 	
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
 	Memstore **tables;
-
+	int next;
 	DBTables(int n);
 	~DBTables();
 	void ThreadLocalInit();
+	int AddTable(int index_type, int secondary_index_type);
 };
 
 }
