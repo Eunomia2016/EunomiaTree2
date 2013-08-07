@@ -174,7 +174,7 @@ public:
 	static port::Mutex storemutex;
 	static SpinLock slock;
 
-
+	bool abort;
 	DBTables *txdb_;
 
 

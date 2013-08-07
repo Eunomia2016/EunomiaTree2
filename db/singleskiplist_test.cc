@@ -22,7 +22,8 @@ static const char* FLAGS_benchmarks =
 	"readonly,"
    "range,"
    "equalrange,"
-	"nocycle_readonly";
+	"nocycle_readonly,"
+	"rwiter";
 	
 
 namespace leveldb {
@@ -81,7 +82,7 @@ class Benchmark {
 		
 		
 		int num = shared->total;
-		
+		assert(num >  1);
 		uint64_t *str  = new uint64_t[num];
 		//printf("start %d\n",tid);
 		bool fail = false;
@@ -190,7 +191,7 @@ class Benchmark {
 		
 		
 		int num = shared->total;
-		
+		assert(num > 1);
 		uint64_t *str  = new uint64_t[num];
 		//printf("start %d\n",tid);
 		bool fail = false;
@@ -308,12 +309,14 @@ class Benchmark {
 	}
 
 	static void EqualRangeTest(void* v) {
-
+		
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+		
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		DBTables *store = arg->store;
 		
+	//	store->tables[0]->PrintStore();
 
 		
 
@@ -335,11 +338,13 @@ class Benchmark {
 					*key = j;
 					uint64_t *value = new uint64_t();
 					*value = i;
+				//	printf("[Test] insert key %lx\n", *key);
 		 			tx.Add(0, *key, value);			
 				}
 				b = tx.End();
 
 			}
+			//store->tables[0]->PrintStore();
 
 			{
 					leveldb::DBROTX tx2( store);
@@ -353,8 +358,9 @@ class Benchmark {
 					
 						
 						uint64_t key = iter.Key();
+						//printf("%d \n",key);
 						if (key != count) {
-							printf("Key %d not found\n", count);
+							printf("tx2 Key %d not found \n", count);
 							fail = true;
 							break;
 						}
@@ -362,7 +368,7 @@ class Benchmark {
 						uint64_t *value = iter.Value();					
 						if (v == 0) v = *value;
 						else if (v != *value) {
-							printf("Key %d has value %d, not same with others (%d)\n", key, *value, v);
+							printf("tx2 Key %d has value %d, not same with others (%d)\n", key, *value, v);
 							fail = true;
 							break;
 						}
@@ -386,7 +392,7 @@ class Benchmark {
 						
 						uint64_t key = iter.Key();
 						if (key != count) {
-							printf("Key %d not found\n", count);
+							printf("tx3 Key %d not found\n", count);
 							fail = true;
 							break;
 						}
@@ -394,7 +400,7 @@ class Benchmark {
 						uint64_t *value = iter.Value();					
 						if (v == 0) v = *value;
 						else if (v != *value) {
-							printf("Key %d has value %d, not same with others (%d)\n", key, *value, v);
+							printf("tx3 Key %d has value %d, not same with others (%d)\n", key, *value, v);
 							fail = true;
 							break;
 						}
@@ -705,7 +711,8 @@ class Benchmark {
 		leveldb::DBTX tx( store);
 		bool b =false;
 			 	
-		for (int i=FLAGS_txs /2 ; i<FLAGS_txs;i++) {
+		for (int i=FLAGS_txs/2 ; i<FLAGS_txs+10;i++) {
+//		for (int i=15 ; i<25;i++) {
 			if (i % 10 == 0) continue;
 			b = false;
 			while (b==false) {
@@ -721,6 +728,7 @@ class Benchmark {
 			}
 			  
 		}
+	//	store->tables[0]->PrintStore();
 		arg->start = 2;			
 	}	
 
@@ -870,20 +878,21 @@ class Benchmark {
 		}
 
 		else if (name == Slice("range")) {
-			//leveldb::DBROTX tx2(store);
-			DBTX tx2(store);
+	//		store->tables[0]->PrintStore();
+			leveldb::DBROTX tx2(store);
+			//DBTX tx2(store);
 			bool c1 = false;bool c2 = false;bool c3 = false;			 
 			  ThreadArg *arg = new ThreadArg();
 			  arg->start = 0;
 			  arg->store = store;
-	//		  Env::Default()->StartThread(method, arg);
+			  Env::Default()->StartThread(method, arg);
 			  tx2.Begin();	  
 			  
-			  arg->start = 1;
+	//		  arg->start = 1;
 	//		while (arg->start <2) ;
 			 
-			 //DBROTX::Iterator iter(&tx2);
-			 DBTX::Iterator iter(&tx2, 0);
+			 DBROTX::Iterator iter(&tx2, 0);
+			 //DBTX::Iterator iter(&tx2, 0);
 			 iter.Seek(1); 
 			 uint64_t key = 1;
 			 uint64_t m = 0;
@@ -891,14 +900,21 @@ class Benchmark {
 			 while (iter.Valid()) {
 			    m = iter.Key();
 			    r = iter.Value();
-	//		    printf("get %d\n",m);
+				
+			   	if (m == FLAGS_txs - 3) {
+					
+					arg->start = 1;
+					while (arg->start <2) ;
+			   	}
+				
 			    if (m % 10 == 0 ) {
 				  c1 = true;
 				  break;
 			    }
 			    
 			   
-			    else if (m != key)  {
+			    else if (m != key)  { 
+					
 			  	  c2 = true;
 				  break;
 			    }
@@ -913,7 +929,7 @@ class Benchmark {
 	//			if (m==99) printf("next\n");
 			 }
 			 tx2.End();
-			 
+			
 			int end = FLAGS_txs -1 ;
 			if (end % 10 ==0) end--;
 			if (c1 ) {
@@ -934,7 +950,7 @@ class Benchmark {
 			}
 
 			tx2.Begin();
-			
+			 
 			 iter.Seek(FLAGS_txs - 1); 
 			 key = FLAGS_txs - 1;
 			 m = 0;
@@ -942,16 +958,17 @@ class Benchmark {
 			 while (iter.Valid()) {
 			    m = iter.Key();
 			    r = iter.Value();
-			  // printf("get %d\n",m);
+			 //   printf("get %d\n",m);
 			    if (m % 10 == 0 ) {
 				  c1 = true;
 				  break;
 			    }			    
 			    else if (m != key)  {
+				//	printf("get %d %d\n",m,key);
 			  	  c2 = true;
 				  break;
 			    }
-			    else if (*r != 3) {
+			    else if (*r != 3 && *r != 4) {
 			  	  c3 = true;
 				  break;			 			  
 			    }
@@ -963,19 +980,19 @@ class Benchmark {
 			end = 1 ;
 			
 			if (c1 ) {
-				printf("Key %d not inserted but found\n", m);
+				printf("Prev Key %d not inserted but found\n", m);
 				return;
 			}
 			else if (c2)  {
-			  	printf("Key %d inserted but not found\n", key);
+			  	printf("Prev Key %d inserted but not found\n", key);
 				return;
 			}
 			else if (c3) {
-			  	printf("Key %d get %d instead of 3\n", m, *r);
+			  	printf("Prev Key %d get %d instead of 3\n", m, *r);
 				return;			 			  
 			}
 			else if (m!=end) {
-				printf("Iterate to %d should be %d\n", m, end);
+				printf("Prev Iterate to %d should be %d\n", m, end);
 				return;
 			}
 
@@ -988,6 +1005,7 @@ class Benchmark {
 		
 		
 		if (name == Slice("rwiter")) {
+			assert(FLAGS_txs >= 34);
 			ThreadArg *arg = new ThreadArg();
 			arg->start = 0;
 			arg->store = store;
@@ -1175,7 +1193,8 @@ int main(int argc, char**argv)
 		 char junk;
 	 	 if (leveldb::Slice(argv[i]).starts_with("--help")){
 		 	printf("To Run :\n./tx_test [--benchmarks=Benchmark Name(default: all)] [--num=number of tx per thread(default: 100)] [--threads= number of threads (defaults: 4)]\n");
-			printf("Benchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\nnocycle(nocycle_readonly)\t n threads, each tx write (tid,1) ((tid+1) %n,2) , never have all keys' value are the same\n");
+			printf("Benchmarks : \nequal\t Each tx write (KeyA, x) (KeyB, x) , check get(KeyA)==get(KeyB) in other transactions\ncounter\t badcount\n");
+			printf("nocycle(nocycle_readonly)\t n threads, each tx write (tid,1) ((tid+1) %n,2) , never have all keys' value are the same\n");
 			printf("delete\t write or delete 2 keys in a tx, check both keys exist or both not exist\n");
 			printf("rwiter\t insert or modify a key during iterating, should abort\n");
 			return 0;

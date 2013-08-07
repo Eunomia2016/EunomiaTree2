@@ -9,7 +9,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
-#define CHECKTPCC 0
+#define CHECKTPCC 1
 
 #define WARE 0
 #define DIST 1
@@ -907,23 +907,24 @@ namespace leveldb {
 
 	  //Consistency 1
 	  //Change h_amount range to (1000,5000) when doing this test 
+	  // TPCCClient.h : 35
 	  int64_t w_key = makeWarehouseKey(warehouse_id);	  
 	  uint64_t *w_value;  
- 	  found = tx.Get(w_key, &w_value);
+ 	  found = tx.Get(WARE, w_key, &w_value);
 	  assert(found);
-/*	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
+	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
 	  float sum = 0;
 	  for (int i = 1; i<=District::NUM_PER_WAREHOUSE; i++) {
 		  int64_t d_key = makeDistrictKey(warehouse_id, i);
   		  uint64_t *d_value;
-	  	  found = tx.Get(d_key, &d_value);
+	  	  found = tx.Get(DIST, d_key, &d_value);
 		  District *d = reinterpret_cast<District *>(d_value);   
 		  sum += d->d_ytd;
 		  //printf("%f\n", d->d_ytd);
 	  }
 	  if (sum - w->w_ytd >= 1000 || w->w_ytd - sum >= 1000) 
 	  	printf("Consistency 1, sum %f  warehouse %f\n", sum, w->w_ytd);
-  */	  
+    
 	  bool b = tx.End();  
   	  if (b) break;
   	}

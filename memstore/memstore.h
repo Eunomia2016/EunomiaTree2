@@ -30,11 +30,11 @@ class Memstore {
 
     // Advances to the next position.
     // REQUIRES: Valid()
-    virtual void Next() = 0;
+    virtual bool Next() = 0;
 
     // Advances to the previous position.
     // REQUIRES: Valid()
-    virtual void Prev() = 0;
+    virtual bool Prev() = 0;
 
     // Advance to the first entry with a key >= target
     virtual void Seek(uint64_t key) = 0;

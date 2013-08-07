@@ -117,16 +117,17 @@ bool MemStoreSkipList::Iterator::Valid()
 
 // Advances to the next position.
 // REQUIRES: Valid()
-void MemStoreSkipList::Iterator::Next()
+bool MemStoreSkipList::Iterator::Next()
 {
 	//get next different key
 	prev_ = node_;
 	node_ = node_->next_[0];
+	return true;
 }
 
 // Advances to the previous position.
 // REQUIRES: Valid()
-void MemStoreSkipList::Iterator::Prev()
+bool MemStoreSkipList::Iterator::Prev()
 {
   // Instead of using explicit "prev" links, we just search for the
   // last node that falls before key.
@@ -138,7 +139,7 @@ void MemStoreSkipList::Iterator::Prev()
   if (node_ == list_->head_) {
 	node_ = NULL;
   }
-  
+  return true;
 }
 
 uint64_t MemStoreSkipList::Iterator::Key()

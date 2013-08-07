@@ -130,7 +130,6 @@ inline void DBTX::ReadSet::Add(uint64_t *ptr)
 
 inline bool DBTX::ReadSet::Validate() 
 {
-
   //This function should be protected by rtm or mutex
   //Check if any tuple read has been modified
   for(int i = 0; i < elems; i++) {
@@ -359,6 +358,7 @@ DBTX::DBTX(DBTables* store)
 {
   txdb_ = store;
   count = 0;
+  abort = false;
 }
 
   
@@ -392,7 +392,7 @@ bool DBTX::Abort()
 
 bool DBTX::End()
 {
-
+  if (abort) return false;
 #if GLOBALOCK
   SpinLockScope spinlock(&slock);
 #else
@@ -419,12 +419,12 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 {
   Memstore::MemNode* node;
   //Get the seq addr from the hashtable
-
   node = txdb_->tables[tableid]->GetWithInsert(key);
-
+  //printf("[DBTX] insert key %lx\n", key);
   //write the key value into local buffer
   if(node == 0)
   	printf("get zero value!!!\n");
+  
   writeset->Add(tableid, key, val, node);
 }
 
@@ -501,7 +501,12 @@ uint64_t* DBTX::Iterator::Value()
 	
 void DBTX::Iterator::Next()
 {
-	iter_->Next();	
+	bool b = iter_->Next();
+	if (!b) {
+		tx_->abort = true;
+		cur_ = NULL;
+		return;
+	}
 	while(iter_->Valid()) {
 	  
 	  cur_ = iter_->CurNode();
@@ -533,7 +538,14 @@ void DBTX::Iterator::Next()
 
 void DBTX::Iterator::Prev()
 {
-	iter_->Prev();
+	bool b = iter_->Prev();
+	if (!b) {
+		tx_->abort = true;
+		cur_ = NULL;
+		return;
+	}
+
+	
 	while(iter_->Valid()) {
 	  
 	  cur_ = iter_->CurNode();

@@ -30,6 +30,9 @@ private:
 		unsigned num_keys;
 		uint64_t keys[M];
 		MemNode *values[M];
+		LeafNode *left;
+		LeafNode *right;
+		uint64_t seq;
 //		uint64_t writes;
 //		uint64_t reads;
 //		uint64_t padding1[4];
@@ -47,34 +50,69 @@ private:
 //		uint64_t padding1[8];
 	};
 
-/*	
-	struct NewNodes {
-		NewNodes(int depth) {
-			d = depth + 6;
-			leaf = new LeafNode();
-			leaf->num_keys = 0;
-			inner = new InnerNode *[d];
-			used = 0;
-			for (int i=0; i<d; i++) {
-				inner[i] = new InnerNode();
-				inner[i]->num_keys = 0;
-				//if ((uint64_t)inner[i] % 64 !=0) printf("not align\n");
-				//printf("%lx \n",inner[i]);
-			}
-		}
-		unsigned d;
-		unsigned used;
-		LeafNode *leaf;
-		InnerNode **inner;
-						
-	};
+	class Iterator: public Memstore::Iterator {
+	 public:
+	  // Initialize an iterator over the specified list.
+	  // The returned iterator is not valid.
+	  Iterator(){};
+	  Iterator(MemstoreBPlusTree* tree);
 
-*/
+	  // Returns true iff the iterator is positioned at a valid node.
+	  bool Valid();
+
+	  // Returns the key at the current position.
+	  // REQUIRES: Valid()
+	  MemNode* CurNode();
+
+	  
+	  uint64_t Key();
+
+	  // Advances to the next position.
+	  // REQUIRES: Valid()
+	  bool Next();
+
+	  // Advances to the previous position.
+	  // REQUIRES: Valid()
+	  bool Prev();
+
+	  // Advance to the first entry with a key >= target
+	  void Seek(uint64_t key);
+
+	  void SeekPrev(uint64_t key);
+
+	  // Position at the first entry in list.
+	  // Final state of iterator is Valid() iff list is not empty.
+	  void SeekToFirst();
+
+	  // Position at the last entry in list.
+	  // Final state of iterator is Valid() iff list is not empty.
+	  void SeekToLast();
+
+	  uint64_t* GetLink();
+
+	  uint64_t GetLinkTarget();
+
+	 private:
+	  MemstoreBPlusTree* tree_;
+	  LeafNode* node_;
+	  uint64_t seq_;
+	  int leaf_index;
+	  uint64_t *link_;
+	  uint64_t target_;
+	  uint64_t key_;
+	  MemNode* value_;
+	  uint64_t snapshot_;
+	  // Intentionally copyable
+	};
 
 public:	
 	MemstoreBPlusTree() {
 		root = new LeafNode();
+		reinterpret_cast<LeafNode*>(root)->left = NULL;
+		reinterpret_cast<LeafNode*>(root)->right = NULL;
+		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
+
 //		printf("root addr %lx\n", &root);
 //		printf("depth addr %lx\n", &depth);
 /*		for (int i=0; i<4; i++) {
@@ -87,6 +125,7 @@ public:
 	
 	~MemstoreBPlusTree() {
 		prof.reportAbortStatus();
+		//PrintList();
 		//PrintStore();
 		//printf("rwconflict %ld\n", rconflict);
 		//printf("wwconflict %ld\n", wconflict);
@@ -119,8 +158,26 @@ public:
 			return result;
 	}
 
+	inline LeafNode* FindLeaf(uint64_t key) {
+		InnerNode* inner;
+		register void* node= root;
+		register unsigned d= depth;
+		unsigned index = 0;
+		while( d-- != 0 ) {
+				index = 0;
+				inner= reinterpret_cast<InnerNode*>(node);
+				while((index < inner->num_keys) && (key >= inner->keys[index])) {
+				   ++index;
+				}				
+				node= inner->children[index];
+		}
+		return reinterpret_cast<LeafNode*>(node);
+	}
+
 	inline MemNode* Get(uint64_t key)
 	{
+		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+
 		InnerNode* inner;
 		register void* node= root;
 		register unsigned d= depth;
@@ -135,7 +192,9 @@ public:
 		}
 		LeafNode* leaf= reinterpret_cast<LeafNode*>(node);
 		
-		unsigned k = 0;
+		
+		
+	    unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k]<key)) {
 		   ++k;
 		}
@@ -398,6 +457,12 @@ public:
 				k = k - threshold;
 				toInsert = new_sibling;
 			}
+
+			if (leaf->right != NULL) leaf->right->left = new_sibling;
+			new_sibling->right = leaf->right;
+			new_sibling->left = leaf;
+			leaf->right = new_sibling;
+			new_sibling->seq = 0;
 //			writes++;
 //			new_sibling->writes++;
 //			checkConflict(new_sibling, 1);
@@ -424,15 +489,18 @@ public:
 //		checkConflict(leaf, 1);
 		//printf("IN LEAF2");
 		//printTree();
-
+		leaf->seq = leaf->seq + 1;
 		return new_sibling;
 	}
 
 	
-	 Memstore::Iterator* GetIterator() {assert(0);}
+	Memstore::Iterator* GetIterator() {
+		return new MemstoreBPlusTree::Iterator(this);
+	}
 	void printLeaf(LeafNode *n);
 	void printInner(InnerNode *n, unsigned depth);
 	void PrintStore();
+	void PrintList();
 	
 private:
 		

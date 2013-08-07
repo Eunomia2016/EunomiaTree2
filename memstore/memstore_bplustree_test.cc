@@ -169,7 +169,7 @@ private:
 				 for (int i=0; i<total_count; i++) {
 				 	Key k = i*10 + tid;
 				//	printf("Insert %d %ld\n", tid, k);
-					btree->GetWithInsert(k, tid);
+					btree->GetWithInsert(k);
 				 }
 		#else 
 		
@@ -186,7 +186,7 @@ private:
 						k = MakeKey(tid, thread->rnd.Next());
 						//printf("Insert %d %lx\n", tid, k);
 						//k = MakeKey(tid,seqNum++);
-						btree->GetWithInsert(k, tid);
+						btree->GetWithInsert(k);
 		
 				  }
 			  }
@@ -226,7 +226,7 @@ private:
 				   	 k = MakeKey(tid, thread->rnd.Next());
 
 
-				 if(!btree->find(k)) {
+				 if(btree->Get(k)==NULL) {
 					printf(" %ld Not Found\n", k);
 				 }
 			   }
@@ -322,7 +322,7 @@ private:
 	 for (int i=0; i<FLAGS_num; i++) {
 	 	for (int j=0; j<num_threads; j++) {
 			Key k = i*10 + j;
-			if (!btree->find(k)) printf("Not found %lx\n",k);
+			if (btree->Get(k) == NULL) printf("Not found %lx\n",k);
 	 	}
 	 }
 #endif	 

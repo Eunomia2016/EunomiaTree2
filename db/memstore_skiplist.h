@@ -48,11 +48,11 @@ class MemStoreSkipList: public Memstore {
 
     // Advances to the next position.
     // REQUIRES: Valid()
-    void Next();
+    bool Next();
 
     // Advances to the previous position.
     // REQUIRES: Valid()
-    void Prev();
+    bool Prev();
 
     // Advance to the first entry with a key >= target
     void Seek(uint64_t key);
