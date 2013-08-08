@@ -22,7 +22,7 @@ class DBTables {
 	DBTables(int n);
 	~DBTables();
 	void ThreadLocalInit();
-	int AddTable(int index_type, int secondary_index_type);
+	int AddTable(int tableid, int index_type, int secondary_index_type);
 };
 
 }
