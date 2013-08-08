@@ -117,9 +117,8 @@ namespace leveldb {
 	// Returns true iff the iterator is positioned at a valid node.
 	bool MemstoreBPlusTree::Iterator::Valid()
 	{
-		bool b = node_ != NULL && node_->num_keys > 0;
+		return (node_ != NULL) && (node_->num_keys > 0);
 	//	printf("b %d\n",b);
-		return b;
 	}
 	
 	// Advances to the next position.

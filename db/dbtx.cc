@@ -500,8 +500,8 @@ uint64_t* DBTX::Iterator::Value()
 	
 void DBTX::Iterator::Next()
 {
-	bool b = iter_->Next();
-	if (!b) {
+	bool r = iter_->Next();
+	if (!r) {
 		tx_->abort = true;
 		cur_ = NULL;
 		return;
