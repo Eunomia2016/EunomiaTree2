@@ -93,6 +93,7 @@ public:
 	  Memstore::MemNode* cur_;
 	  Memstore::Iterator *iter_;
 	  uint64_t *val_;
+	  uint64_t *prev_link;
 	};
 	
  	class ReadSet {

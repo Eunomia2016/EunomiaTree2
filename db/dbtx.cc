@@ -480,6 +480,7 @@ DBTX::Iterator::Iterator(DBTX* tx, int tableid)
 	table_ = tx->txdb_->tables[tableid];
 	iter_ = table_->GetIterator();
 	cur_ = NULL;
+	prev_link = NULL;
 }
 	
 bool DBTX::Iterator::Valid()
@@ -519,7 +520,10 @@ void DBTX::Iterator::Next()
 #endif
 	  	val_ = cur_->value;
 
-		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+		if(prev_link != iter_->GetLink()) {
+			tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+			prev_link = iter_->GetLink();
+		}
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {	
