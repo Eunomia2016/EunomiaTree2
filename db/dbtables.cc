@@ -2,29 +2,37 @@
 
 namespace leveldb {
 
+//FOR TEST
+DBTables::DBTables() {
+	number = 1;
+	tables = new Memstore*[1];
+	tables[0] = new MemstoreBPlusTree();
+//	tables[0] = new MemstoreCuckooHashTable();
+//	tables[0] = new MemStoreSkipList();
+	types = new int[1];
+	types[0] = BTREE;
+	snapshot = 1;
+}
+
+
+
 DBTables::DBTables(int n) {
 	number = n;
 	next = 0;
 	tables = new Memstore*[n];
-	for (int i=0; i<number; i++)
-		//tables[i] = new MemstoreCuckooHashTable();
-		tables[i] = new MemstoreBPlusTree();
-		//tables[i] = new MemStoreSkipList();
+	types = new int[n];	
 	snapshot = 1;
 }
 
 DBTables::~DBTables() {
-//	uint64_t reads = 0;
-//	uint64_t writes = 0;
+
 	for (int i=0; i<number; i++) {
-//		delete (MemstoreCuckooHashTable *)tables[i];
-		MemstoreBPlusTree *t = (MemstoreBPlusTree *)tables[i];
-//		reads += t->reads;
-//		writes += t->writes;
-		delete t;
+		if (types[i] == HASH) delete (MemstoreCuckooHashTable *)tables[i];
+		else if (types[i] == BTREE) delete (MemstoreBPlusTree *)tables[i];
+		else if (types[i] == SKIPLIST) delete (MemStoreSkipList *)tables[i];
 	}
 	delete tables;
-//	printf("reads %ld writes %ld\n", reads, writes);
+	delete types;
 }
 
 void DBTables::ThreadLocalInit()
@@ -35,9 +43,10 @@ void DBTables::ThreadLocalInit()
 
 int DBTables::AddTable(int index_type,int secondary_index_type)
 {
-	if (index_type == BTREE) tables[next] = new MemstoreBPlusTree();
+	if (index_type == BTREE) tables[next] = new MemstoreBPlusTree();	
 	else if (index_type == HASH) tables[next] = new MemstoreCuckooHashTable();
 	else if (index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
+	types[next] = index_type;
 	next++;
 	return next - 1;
 }

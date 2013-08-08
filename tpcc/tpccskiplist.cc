@@ -264,8 +264,10 @@ namespace leveldb {
   	
 	store = new DBTables(9);
 	//insert an end value
-	for (int i=0; i<9; i++)
+	for (int i=0; i<9; i++) {
+		store->AddTable(BTREE, NONE);
 		store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)1);
+	}
 	abort = 0;
     conflict = 0;
     capacity = 0;

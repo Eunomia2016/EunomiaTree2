@@ -1248,7 +1248,7 @@ int main(int argc, char**argv)
 	  	method = &leveldb::Benchmark::InsertNode;
 	  }
 
-	 leveldb::DBTables *store = new leveldb::DBTables(1);
+	 leveldb::DBTables *store = new leveldb::DBTables();
 	
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);
