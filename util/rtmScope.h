@@ -10,14 +10,13 @@
 #include "spinlock.h"
 #include "rtm_arena.h"
 
-
-
 #define LOCKELISION 1
 #define MAXRETRY 10
-#define RTMPROFILE 0
+#define RTMArenaPROFILE 0
+
 
 class RTMArenaScope {
-	
+
  RTMProfile localprofile;
  RTMProfile* globalprof;
  SpinLock* slock;
@@ -53,7 +52,6 @@ class RTMArenaScope {
 			_xabort(0xff);
 			
 		}
-		
 		retry++; 
 		if((stat & _XABORT_CONFLICT) != 0) 
 		  conflict++;
@@ -127,7 +125,7 @@ class RTMArenaScope {
 
 #endif
 
-#if RTMPROFILE	
+#if RTMArenaPROFILE	
 	//access the global profile info outside the transaction scope
 	if(globalprof != NULL) {
 		RTMProfile::atomic_inc32(&globalprof->succCounts);

@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
 #include "memstore_cuckoohash.h"
 #include "util/rtmScope.h"
+#include "util/mutexlock.h"
+#include <sys/mman.h>
 
 
 __thread bool MemstoreCuckooHashTable::localinit_ = false;
@@ -14,12 +17,45 @@ MemstoreCuckooHashTable::MemstoreCuckooHashTable()
 {
 	size_ = DEFAULT_SIZE;
 	table_ = new Entry[size_];
+
+	printf("allocate %ld %ld %ld\n", size_, sizeof(Entry),  size_ * sizeof(Entry));
+	//Use mmap directly
+#if 0
+	table_ = (Entry*)mmap(NULL, size_ * sizeof(Entry), 
+						PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+	if(table_ == NULL)
+	{
+		printf("memory space overflow!\n");
+		exit(1);
+	}
+
+	memset((void*)table_, 0, size_ * sizeof(Entry));
+#endif
+
+#if CUCKOOPROFILE 
+
+	eCount = 0;
+	eGet = 0;
+	eTouched = 0;
+	eWrite = 0;
+#endif
 	ThreadLocalInit();
+	
 }
   
   
 MemstoreCuckooHashTable::~MemstoreCuckooHashTable()
 {
+#if CUCKOOPROFILE 
+	printf("[Total] Count %ld Touched %ld Write %ld\n", 
+				eCount, eTouched, eWrite);
+printf("[Average] Touched %lf Write %lf Get %lf\n", 
+				 (float)eTouched/(float)eCount, (float)eWrite/(float)eCount,
+				 (float)eGet/(float)eCount);
+
+#endif
+	prof.reportAbortStatus();
+	
 	delete[] table_;
 }
 
@@ -49,21 +85,28 @@ Memstore::Iterator* MemstoreCuckooHashTable::GetIterator()
 
 bool MemstoreCuckooHashTable::Insert(uint64_t key, MemNode **mn)
 {
-	
+
+#if CUCKOOPROFILE 
+	eCount++;
+#endif
+
 	uint64_t h1, h2;
-
+	int slot;
 	ComputeHash(key, &h1, &h2);
+	
 
-	//Step 0. Check if it already exist
-	int slot = GetSlot(table_[h1 % size_], key);
+	//Step 0. Check if it already exist with h2
+	slot = GetSlot(table_[h1 % size_], key);
 	if (slot < ASSOCIATIVITY) {
 		*mn = table_[h1 % size_].elems[slot].value;
+		printf("Found\n");
 		return true;
 	}
 
 	slot = GetSlot(table_[h2 % size_], key);
 	if (slot < ASSOCIATIVITY) {
 		*mn = table_[h2 % size_].elems[slot].value;
+		printf("Found\n");
 		return true;
 	}
 
@@ -79,9 +122,13 @@ bool MemstoreCuckooHashTable::Insert(uint64_t key, MemNode **mn)
 		return true;
 	}
 
+	slot = GetFreeSlot(table_[h2 % size_]);
+	if(slot < ASSOCIATIVITY) {
+		WriteAtSlot(table_[h2 % size_], slot, key, h1, h2, mnode);
+		return true;
+	}
 
 	//Step 2. check the second slot and evict the victim if there is none
-	
 	uint32_t victim_index = 0;
 	uint32_t victim_slot = 0;
 
@@ -151,10 +198,17 @@ Memstore::MemNode* MemstoreCuckooHashTable::Get(uint64_t key)
 {
 	uint64_t h1, h2;
 
-	ComputeHash(key, &h1, &h2);
+#if CUCKOOPROFILE 
+	eCount++;
+#endif
 
+
+	ComputeHash(key, &h1, &h2);
+#if GLOBALLOCK
+	leveldb::SpinLockScope lock(&glock);
+#else
 	RTMArenaScope begtx(&rtmlock, &prof, NULL);
-	
+#endif
 	int slot = GetSlot(table_[h1 % size_], key);
 	if (slot < ASSOCIATIVITY)
 		return table_[h1 % size_].elems[slot].value;
@@ -175,7 +229,11 @@ void MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val)
 	MemNode* mnode = NULL;
 	
 	{
+#if GLOBALLOCK
+		leveldb::SpinLockScope lock(&glock);
+#else
 		RTMArenaScope begtx(&rtmlock, &prof, NULL);
+#endif
 		succ = Insert(k, &mnode);
 		if(succ)
 			mnode->value = val;
@@ -188,6 +246,12 @@ void MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val)
 		//TODO: need rehash the table, then retry
 		printf("Alert Failed to insert %ld\n", k);
 	} 
+
+#if CUCKOOPROFILE 
+	eCount = 0;
+	eWrite = 0;
+	eTouched = 0;
+#endif
 }
 
 Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key)
@@ -199,7 +263,12 @@ Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key)
 	MemNode* mnode = NULL;
 	
 	{
+#if GLOBALLOCK
+		leveldb::SpinLockScope lock(&glock);
+#else
 		RTMArenaScope begtx(&rtmlock, &prof, NULL);
+#endif
+
 		succ = Insert(key, &mnode);
 	}
 
@@ -210,7 +279,7 @@ Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key)
 		return mnode;
 	else{
 		//TODO: need rehash the table, then retry
-		printf("Alert Failed to insert %ld\n", key);
+		//printf("Alert Failed to insert %ld\n", key);
 		return NULL;
 	} 
 }
@@ -224,7 +293,7 @@ void MemstoreCuckooHashTable::PrintStore()
 		bool empty = true;
 		//printf("Entry [%d] ", i);
 		for(int j = 0; j < ASSOCIATIVITY; j++) {
-			if(table_[i].elems[j].key != -1) {
+			if(table_[i].elems[j].key != -1 || table_[i].elems[j].hash1 != 0) {
 //				printf(" [%d] %ld hash1 [%lx] hash2 [%lx]\t", 
 	//				j, table_[i].elems[j].key, table_[i].elems[j].hash1, table_[i].elems[j].hash2);
 				printf(" [%d] Key %ld H1 %d H2 %d\t", 

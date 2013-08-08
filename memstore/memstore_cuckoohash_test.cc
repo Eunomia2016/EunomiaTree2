@@ -18,14 +18,18 @@
 #include "leveldb/comparator.h"
 
 #include <vector>
+#include "memstore/memstore_bplustree.h"
 #include "memstore/memstore_cuckoohash.h"
+
 
 static const char* FLAGS_benchmarks ="random";
 
 static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
 
-#define CHECK 1
+#define CHECK 0
+#define SEQ 1
+
 
 namespace leveldb {
 	
@@ -50,7 +54,7 @@ private:
 
    int64_t total_count;  
 
-   MemstoreCuckooHashTable *hashtable;
+   Memstore *btree;
 
    port::SpinLock slock;
 
@@ -169,24 +173,43 @@ private:
 				 for (int i=0; i<total_count; i++) {
 				 	Key k = i*10 + tid;
 				//	printf("Insert %d %ld\n", tid, k);
-					hashtable->Put(k, NULL);
+					btree->GetWithInsert(k);
 				 }
-		#else 
+		#elif SEQ 
+		 uint64_t seq = 0;
 		
+		 while(total_count > 0) {
+	
+			  int64_t oldv = XADD64(&total_count, -1000);
+			  if(oldv <= 0)
+				  break;
+			  
+			  for (int i =0; i < 1000; i++) {
+				  
+				  uint64_t k;
+	
+					k = (((uint64_t)tid) << 40 | seq);
+					seq++;
+					btree->GetWithInsert(k);
+	
+			  }
+		  }
+			
+		#else
 		  while(total_count > 0) {
 		
-				  int64_t oldv = XADD64(&total_count, -100);
+				  int64_t oldv = XADD64(&total_count, -1000);
 				  if(oldv <= 0)
 					  break;
 				  
-				  for (int i =0; i < 100; i++) {
+				  for (int i =0; i < 1000; i++) {
 					  
 					  Key k;
 		
 						k = MakeKey(tid, thread->rnd.Next());
 						//printf("Insert %d %lx\n", tid, k);
 						//k = MakeKey(tid,seqNum++);
-						hashtable->Put(k, NULL);
+						btree->GetWithInsert(k);
 		
 				  }
 			  }
@@ -226,7 +249,7 @@ private:
 				   	 k = MakeKey(tid, thread->rnd.Next());
 
 
-				 if(hashtable->Get(k) == NULL) {
+				 if(btree->Get(k)==NULL) {
 					printf(" %ld Not Found\n", k);
 				 }
 			   }
@@ -309,26 +332,27 @@ private:
 
 //	  double start = leveldb::Env::Default()->NowMicros();
 	  total_count = FLAGS_num;
-	  hashtable = new MemstoreCuckooHashTable();
-/*	  uint64_t k = (uint64_t)1 << 35;
-	  for (uint64_t i =1; i< 4; i++){
-	  	
-	  	btree->insert( k - i);
-		btree->insert( k + i);
-	  }*/
+	   btree = new MemstoreCuckooHashTable();
+
+//	  btree = new MemstoreBPlusTree();
+
       RunBenchmark(num_threads, num_, &Benchmark::Insert);
 
+	  
 #if CHECK
 	 for (int i=0; i<FLAGS_num; i++) {
 	 	for (int j=0; j<num_threads; j++) {
 			Key k = i*10 + j;
-			if (hashtable->Get(k) == NULL) printf("Not found %lx\n",k);
+			if (btree->Get(k) == NULL) printf("Not found %lx\n",k);
 	 	}
 	 }
 #endif	 
 //	  total_count = FLAGS_num;
  //     std::cout << "Total Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
+//	  delete (MemstoreBPlusTree *)btree;
+	delete (MemstoreCuckooHashTable *)btree;
 
+	 
     }
   
 };
@@ -358,16 +382,6 @@ int main(int argc, char** argv) {
 
   leveldb::Benchmark benchmark;
   benchmark.Run();
-/*
- MemstoreCuckooHashTable *hash = new MemstoreCuckooHashTable();
- printf("Begin\n");
- for(int i = 0; i < 1000; i++)
- 	hash->Put(i, NULL);
- 	
- printf("End\n");
-
- hash->PrintStore();
-  */
-
+//  while (1);
   return 1;
 }

@@ -12,6 +12,7 @@
 #define N  20
 
 #define BTREE_PROF 0
+#define BTREE_LOCK 0
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -220,7 +221,8 @@ public:
 		ThreadLocalInit();
 		MemNode *node = GetWithInsert(k);
 		node->value = val;
-#if 0
+		
+#if BTREE_PROF
 		reads = 0;
 		writes = 0;
 		calls = 0;
@@ -257,8 +259,11 @@ public:
 	}
 	
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
-//		MutexSpinLock lock(&slock);
+#if BTREE_LOCK
+		MutexSpinLock lock(&slock);
+#else
 		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+#endif
 
 #if BTREE_PROF
 		calls++;

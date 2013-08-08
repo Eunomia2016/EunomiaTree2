@@ -121,10 +121,8 @@ class RTMProfile {
 
    void reportAbortStatus() {
   	
-		if(status[XBEGIN_STARTED_INDEX] != 0) {
+		if(status[XBEGIN_STARTED_INDEX] != 0)
 	 		printf("XBEGIN_STARTED %d\n", status[XBEGIN_STARTED_INDEX]);
-			while(1);
-		}
 	 	if(status[XABORT_EXPLICIT_INDEX] != 0)
 			printf("XABORT_EXPLICIT %d\n", status[XABORT_EXPLICIT_INDEX]);
 	 	if(status[XABORT_RETRY_INDEX] != 0)

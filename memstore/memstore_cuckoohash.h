@@ -9,9 +9,11 @@
 
 class MemstoreCuckooHashTable: public Memstore {
 
-#define ASSOCIATIVITY 4
+#define ASSOCIATIVITY 1
 #define MAX_CUCKOO_COUNT 128
-#define DEFAULT_SIZE 100*1024*1024 // 100 Rows
+#define DEFAULT_SIZE 40*1024*1024 // 100 Rows
+#define CUCKOOPROFILE 1
+#define GLOBALLOCK 1
 
  private:
 
@@ -45,6 +47,14 @@ class MemstoreCuckooHashTable: public Memstore {
   char padding4[64];
   SpinLock rtmlock;
   char padding5[64];
+  
+#if CUCKOOPROFILE 
+  int eCount;
+  int eTouched;
+  int eWrite;
+  int eGet;
+#endif
+  
 
   static __thread bool localinit_;
   static __thread MemNode *dummyval_;
@@ -75,8 +85,12 @@ private:
 
   bool Insert(uint64_t key, MemNode **mn);
 
-  inline int GetFreeSlot(Entry& e)
+  inline int  GetFreeSlot(Entry& e)
   {
+#if CUCKOOPROFILE 
+	  eTouched++;
+#endif
+
 	  int i = 0;
 	  
 	  for(i = 0; i < ASSOCIATIVITY; i++) {
@@ -87,9 +101,12 @@ private:
 	  return i;
   }
 
-  inline void WriteAtSlot(Entry& e, int slot, uint64_t key, 
+  inline void  WriteAtSlot(Entry& e, int slot, uint64_t key, 
   									uint64_t h1, uint64_t h2, MemNode* val)
-  {
+  { 
+#if CUCKOOPROFILE 
+ 	  eWrite++;
+#endif
 	  e.elems[slot].key = key;
 	  e.elems[slot].hash1 = h1;
 	  e.elems[slot].hash2 = h2;
@@ -98,6 +115,10 @@ private:
 
   inline int GetSlot(Entry& e, uint64_t key)
   {
+ #if CUCKOOPROFILE 
+	  eTouched++;
+ 	  eGet++;
+#endif
 	  int i = 0;
 	  
 	  for(i = 0; i < ASSOCIATIVITY; i++) {
@@ -145,12 +166,12 @@ private:
 		return h;
 	}
 
-  inline void ComputeHash(uint64_t key, uint64_t* h1, uint64_t* h2)
+  inline void  ComputeHash(uint64_t key, uint64_t* h1, uint64_t* h2)
   {
-//  	*h1 = key;
+ // 	*h1 = key;
 //	*h2 = key;
 	 *h1 = MurmurHash64A(key, 0xdeadbeef);
-	 *h2 = MurmurHash64A(key, 0xbeefdead);
+	 *h2 = MurmurHash64A(key, 0xbeefdead);//key;
   }
   
 };

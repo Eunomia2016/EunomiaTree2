@@ -16,7 +16,9 @@ namespace leveldb {
 #define MAXCONFLICT 100
 #define RTMPROFILE 0
 
+
 class RTMScope {
+
 	
  RTMProfile localprofile;
  RTMProfile* globalprof;
