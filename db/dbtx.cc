@@ -385,8 +385,8 @@ bool DBTX::Abort()
   //FIXME: clear all the garbage data
   readset->Reset();
   writeset->Reset();
-  
-  return false;
+  abort = false;
+  return abort;
 }
 
 bool DBTX::End()
@@ -502,11 +502,15 @@ uint64_t* DBTX::Iterator::Value()
 void DBTX::Iterator::Next()
 {
 	bool r = iter_->Next();
+
+#if AGGRESSIVEDETECT
 	if (!r) {
 		tx_->abort = true;
 		cur_ = NULL;
 		return;
 	}
+#endif
+
 	while(iter_->Valid()) {
 	  
 	  cur_ = iter_->CurNode();
