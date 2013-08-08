@@ -17,10 +17,11 @@
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 	
-static int total_key = 0;
+/*static int total_key = 0;
 static int total_nodes = 0;
 static uint64_t rconflict = 0;
 static uint64_t wconflict = 0;
+*/
 namespace leveldb {
 class MemstoreBPlusTree: public Memstore {
 	

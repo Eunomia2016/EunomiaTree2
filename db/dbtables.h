@@ -4,7 +4,7 @@
 #include "memstore_skiplist.h"
 #include "memstore/memstore_bplustree.h"
 #include "memstore/memstore_cuckoohash.h"
-
+#include "memstore/memstore_stringbplustree.h"
 namespace leveldb{
 #define NONE 0
 #define BTREE 1

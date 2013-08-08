@@ -10,7 +10,7 @@ namespace leveldb {
 			for (int i=0; i<n->num_keys;i++)
 				printf("key  %lx value %lx \t ",n->keys[i], n->values[i]);
 				printf("\n");
-			total_key += n->num_keys;
+//			total_key += n->num_keys;
 		}
 	
 
@@ -26,13 +26,13 @@ namespace leveldb {
 
 	void MemstoreBPlusTree::PrintStore() {
 		 printf("===============B+ Tree=========================\n");
-		 total_key = 0;
+//		 total_key = 0;
 		 if (depth == 0) printLeaf(reinterpret_cast<LeafNode*>(root));
 		 else {
 			  printInner(reinterpret_cast<InnerNode*>(root), depth);
 		 }
 		 printf("========================================\n");
-		 printf("Total key num %d\n", total_key);
+//		 printf("Total key num %d\n", total_key);
 	} 
 
 	void MemstoreBPlusTree::PrintList() {

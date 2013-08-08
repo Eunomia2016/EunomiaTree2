@@ -6,6 +6,7 @@ namespace leveldb {
 DBTables::DBTables() {
 	number = 1;
 	tables = new Memstore*[1];
+//	tables[0] = new MemstoreStringBPlusTree(8);
 	tables[0] = new MemstoreBPlusTree();
 //	tables[0] = new MemstoreCuckooHashTable();
 //	tables[0] = new MemStoreSkipList();

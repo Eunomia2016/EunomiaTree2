@@ -1,24 +1,32 @@
-#ifndef MEMSTORE_H_
-#define MEMSTORE_H_
+#ifndef SECONDINDEX_H_
+#define SECONDINDEX_H_
 
-class Memstore {
+#include "memstore.h"
+class SecondIndex {
 
  public:
-  
-  struct MemNode
+  struct MemNodeWrapper
   {
-	uint64_t counter;
-	uint64_t seq;
-	uint64_t* value;
-	MemNode* oldVersions;
+	uint64_t key;
+	Memstore::MemNode *memnode;
+	MemNodeWrapper *next;
+	bool valid;
 
-
-	MemNode()
+	MemNodeWrapper()
 	{
-		counter = 0;
+		valid = false;
+	}
+  };
+  
+  struct SecondNode
+  {
+	uint64_t seq;
+	MemNodeWrapper* head;
+
+	SecondNode()
+	{
 		seq = 0;
-		value = NULL;
-		oldVersions = NULL;
+		head = NULL;
 	}
   };
 
@@ -33,7 +41,7 @@ class Memstore {
 
     // Returns the key at the current position.
     // REQUIRES: Valid()
-    virtual MemNode* CurNode() = 0;
+    virtual MemNodeWrapper* CurNodes() = 0;
 
 	virtual uint64_t Key() = 0;
 
@@ -66,32 +74,21 @@ class Memstore {
 
  public:
 
-  Memstore(){};
-  ~Memstore(){};
+  SecondIndex(){};
+  ~SecondIndex(){};
 
   //Only for initialization
 
-  virtual Memstore::Iterator* GetIterator() = 0;
+  virtual SecondIndex::Iterator* GetIterator() = 0;
   
-  virtual void Put(uint64_t k, uint64_t* val) = 0;
-
-  virtual MemNode* Get(uint64_t key) = 0;
+  virtual SecondNode* Get(uint64_t key) = 0;
   
-  virtual MemNode* GetWithInsert(uint64_t key) = 0;
+  virtual MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t **secseq) = 0;
   
   virtual void PrintStore() { assert(0); }
   
   virtual void ThreadLocalInit() { assert(0); }
 
-  static MemNode* GetMemNode()
-  {
-	MemNode* mn = new Memstore::MemNode();
-	mn->seq = 0;
-	mn->value = 0;
-	mn->counter = 0;
-	mn->oldVersions = NULL;
-	return mn;
-  }
   
   
 };

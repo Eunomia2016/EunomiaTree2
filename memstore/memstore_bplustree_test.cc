@@ -18,14 +18,14 @@
 #include "leveldb/comparator.h"
 
 #include <vector>
-#include "memstore/memstore_bplustree.h"
+#include "memstore/memstore_stringbplustree.h"
 
 static const char* FLAGS_benchmarks ="random";
 
 static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
 
-#define CHECK 1
+#define CHECK 0
 
 namespace leveldb {
 	
@@ -167,8 +167,10 @@ private:
 				  
 		#if CHECK
 				 for (int i=0; i<total_count; i++) {
-				 	Key k = i*10 + tid;
+				 	Key k= i*10 + tid;
 				//	printf("Insert %d %ld\n", tid, k);
+					
+				 	
 					btree->GetWithInsert(k);
 				 }
 		#else 
@@ -309,7 +311,7 @@ private:
 
 //	  double start = leveldb::Env::Default()->NowMicros();
 	  total_count = FLAGS_num;
-	  btree = new leveldb::MemstoreBPlusTree();
+	  btree = new leveldb::MemstoreBPlusTree(8);
 /*	  uint64_t k = (uint64_t)1 << 35;
 	  for (uint64_t i =1; i< 4; i++){
 	  	
@@ -317,7 +319,12 @@ private:
 		btree->insert( k + i);
 	  }*/
       RunBenchmark(num_threads, num_, &Benchmark::Insert);
-
+#if 0      
+	 char *s = "bcdefga";
+	 btree->Put((uint64_t)s, 0);
+	 char *d = "abcde00";
+	 btree->Put((uint64_t)d, 0);
+#endif	 
 #if CHECK
 	 for (int i=0; i<FLAGS_num; i++) {
 	 	for (int j=0; j<num_threads; j++) {
