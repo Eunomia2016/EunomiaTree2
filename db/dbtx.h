@@ -20,7 +20,7 @@
 
 #define CACHESIM 0
 #define GLOBALOCK 0
-
+#define AGGRESSIVEDETECT 0
 
 namespace leveldb {
 
@@ -47,6 +47,7 @@ class DBTX {
 	void Delete(int tableid, uint64_t key);
 
 
+	inline bool hasConflict() {return abort;}
 	
 	void ThreadLocalInit();
 	
@@ -93,6 +94,7 @@ public:
 	  Memstore::MemNode* cur_;
 	  Memstore::Iterator *iter_;
 	  uint64_t *val_;
+	  uint64_t *prev_link;
 	};
 	
  	class ReadSet {

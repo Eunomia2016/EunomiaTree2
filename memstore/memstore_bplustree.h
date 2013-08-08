@@ -175,12 +175,12 @@ public:
 		register unsigned d= depth;
 		unsigned index = 0;
 		while( d-- != 0 ) {
-				index = 0;
-				inner= reinterpret_cast<InnerNode*>(node);
-				while((index < inner->num_keys) && (key >= inner->keys[index])) {
-				   ++index;
-				}				
-				node= inner->children[index];
+			index = 0;
+			inner= reinterpret_cast<InnerNode*>(node);
+			while((index < inner->num_keys) && (key >= inner->keys[index])) {
+			   ++index;
+			}				
+			node= inner->children[index];
 		}
 		return reinterpret_cast<LeafNode*>(node);
 	}
@@ -194,13 +194,13 @@ public:
 		register unsigned d= depth;
 		unsigned index = 0;
 		while( d-- != 0 ) {
-				index = 0;
-				inner= reinterpret_cast<InnerNode*>(node);
-//				reads++;
-				while((index < inner->num_keys) && (key >= inner->keys[index])) {
-				   ++index;
-				}				
-				node= inner->children[index];
+			index = 0;
+			inner= reinterpret_cast<InnerNode*>(node);
+//			reads++;
+			while((index < inner->num_keys) && (key >= inner->keys[index])) {
+			   ++index;
+			}				
+			node= inner->children[index];
 		}
 		LeafNode* leaf= reinterpret_cast<LeafNode*>(node);
 //		reads++;

@@ -18,7 +18,7 @@ MemstoreCuckooHashTable::MemstoreCuckooHashTable()
 	size_ = DEFAULT_SIZE;
 	table_ = new Entry[size_];
 
-	printf("allocate %ld %ld %ld\n", size_, sizeof(Entry),  size_ * sizeof(Entry));
+	//printf("allocate %ld %ld %ld\n", size_, sizeof(Entry),  size_ * sizeof(Entry));
 	//Use mmap directly
 #if 0
 	table_ = (Entry*)mmap(NULL, size_ * sizeof(Entry), 
@@ -99,14 +99,12 @@ bool MemstoreCuckooHashTable::Insert(uint64_t key, MemNode **mn)
 	slot = GetSlot(table_[h1 % size_], key);
 	if (slot < ASSOCIATIVITY) {
 		*mn = table_[h1 % size_].elems[slot].value;
-		printf("Found\n");
 		return true;
 	}
 
 	slot = GetSlot(table_[h2 % size_], key);
 	if (slot < ASSOCIATIVITY) {
 		*mn = table_[h2 % size_].elems[slot].value;
-		printf("Found\n");
 		return true;
 	}
 

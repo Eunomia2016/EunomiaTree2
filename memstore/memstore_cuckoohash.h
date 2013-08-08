@@ -12,8 +12,8 @@ class MemstoreCuckooHashTable: public Memstore {
 #define ASSOCIATIVITY 1
 #define MAX_CUCKOO_COUNT 128
 #define DEFAULT_SIZE 40*1024*1024 // 100 Rows
-#define CUCKOOPROFILE 1
-#define GLOBALLOCK 1
+#define CUCKOOPROFILE 0
+#define GLOBALLOCK 0
 
  private:
 

@@ -385,8 +385,8 @@ bool DBTX::Abort()
   //FIXME: clear all the garbage data
   readset->Reset();
   writeset->Reset();
-  
-  return false;
+  abort = false;
+  return abort;
 }
 
 bool DBTX::End()
@@ -480,6 +480,7 @@ DBTX::Iterator::Iterator(DBTX* tx, int tableid)
 	table_ = tx->txdb_->tables[tableid];
 	iter_ = table_->GetIterator();
 	cur_ = NULL;
+	prev_link = NULL;
 }
 	
 bool DBTX::Iterator::Valid()
@@ -500,12 +501,16 @@ uint64_t* DBTX::Iterator::Value()
 	
 void DBTX::Iterator::Next()
 {
-	bool b = iter_->Next();
-	if (!b) {
+	bool r = iter_->Next();
+
+#if AGGRESSIVEDETECT
+	if (!r) {
 		tx_->abort = true;
 		cur_ = NULL;
 		return;
 	}
+#endif
+
 	while(iter_->Valid()) {
 	  
 	  cur_ = iter_->CurNode();
@@ -519,7 +524,10 @@ void DBTX::Iterator::Next()
 #endif
 	  	val_ = cur_->value;
 
-		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+		if(prev_link != iter_->GetLink()) {
+			tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+			prev_link = iter_->GetLink();
+		}
 		tx_->readset->Add(&cur_->seq);
 		
 	  	if(val_ != NULL) {	

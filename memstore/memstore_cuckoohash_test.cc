@@ -28,7 +28,7 @@ static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
 
 #define CHECK 0
-#define SEQ 1
+#define SEQ 0
 
 
 namespace leveldb {
@@ -332,9 +332,9 @@ private:
 
 //	  double start = leveldb::Env::Default()->NowMicros();
 	  total_count = FLAGS_num;
-	   btree = new MemstoreCuckooHashTable();
+//	   btree = new MemstoreCuckooHashTable();
 
-//	  btree = new MemstoreBPlusTree();
+	  btree = new MemstoreBPlusTree();
 
       RunBenchmark(num_threads, num_, &Benchmark::Insert);
 
@@ -349,8 +349,8 @@ private:
 #endif	 
 //	  total_count = FLAGS_num;
  //     std::cout << "Total Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
-//	  delete (MemstoreBPlusTree *)btree;
-	delete (MemstoreCuckooHashTable *)btree;
+	  delete (MemstoreBPlusTree *)btree;
+//	delete (MemstoreCuckooHashTable *)btree;
 
 	 
     }
