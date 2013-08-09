@@ -280,6 +280,7 @@ public:
 		secn->head = dummywrapper_;
 		secn->seq++;
 		dummywrapper_ = NULL;
+		
 		return secn->head;
 	}
 	
