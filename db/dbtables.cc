@@ -20,8 +20,11 @@ DBTables::DBTables() {
 DBTables::DBTables(int n) {
 	number = n;
 	next = 0;
+	nextindex = 0;
 	tables = new Memstore*[n];
+	secondIndexes = new SecondIndex*[n];
 	types = new int[n];	
+	indextypes = new int[n];
 	snapshot = 1;
 }
 
@@ -34,6 +37,12 @@ DBTables::~DBTables() {
 	}
 	delete tables;
 	delete types;
+	for (int i=0; i<nextindex; i++) {
+		if (indextypes[i] == SBTREE) delete (MemstoreStringBPlusTree *)secondIndexes[i];
+		else if (indextypes[i] == IBTREE) delete (MemstoreUint64BPlusTree *)secondIndexes[i];
+	}
+	delete secondIndexes;
+	delete indextypes;
 }
 
 void DBTables::ThreadLocalInit()
@@ -51,7 +60,12 @@ int DBTables::AddTable(int tableid, int index_type,int secondary_index_type)
 	else if (index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
 	types[next] = index_type;
 	next++;
-	return next - 1;
+	
+	if (secondary_index_type == IBTREE) secondIndexes[nextindex] = new MemstoreUint64BPlusTree();	
+	else if (secondary_index_type == SBTREE) secondIndexes[nextindex] = new MemstoreStringBPlusTree();	
+	indextypes[nextindex] = secondary_index_type;
+	nextindex++;
+	return nextindex - 1;
 }
 
 }

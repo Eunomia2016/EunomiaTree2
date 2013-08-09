@@ -130,7 +130,27 @@ public:
 						}*/
 	}
 
-
+	MemstoreStringBPlusTree() {
+		string_length = 10;
+		root = new LeafNode();
+		reinterpret_cast<LeafNode*>(root)->left = NULL;
+		reinterpret_cast<LeafNode*>(root)->right = NULL;
+		reinterpret_cast<LeafNode*>(root)->seq = 0;
+		depth = 0;
+					
+#if SBTREE_PROF
+		writes = 0;
+		reads = 0;
+		calls = 0;
+#endif
+					//		printf("root addr %lx\n", &root);
+					//		printf("depth addr %lx\n", &depth);
+					/*		for (int i=0; i<4; i++) {
+								windex[i] = 0;
+								rindex[i] = 0;
+							}*/
+	}
+	
 
 	
 	~MemstoreStringBPlusTree() {

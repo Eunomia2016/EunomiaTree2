@@ -147,6 +147,9 @@ memtx_test: db/memtx_test.o $(LIBOBJECTS) $(TESTUTIL)
 singleskiplist_test: db/singleskiplist_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/singleskiplist_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
+secondindex_test: db/secondindex_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) db/secondindex_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
 db_bench_sqlite3: doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL) -o $@ -lsqlite3 $(LIBS)
 
