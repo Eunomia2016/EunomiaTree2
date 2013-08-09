@@ -313,6 +313,8 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 			*sindexes[cursindex].sindex->memnode->secIndexValidateAddr != false;
 
 		//2. update the new secondary index
+		printf("--%lx\n", sindexes[cursindex].sindex);
+		printf("---%lx\n", sindexes[cursindex].sindex->memnode);
 		sindexes[cursindex].sindex->valid = true;
 		sindexes[cursindex].sindex->memnode->secIndexValidateAddr 
 					= &sindexes[cursindex].sindex->valid;
@@ -464,9 +466,16 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
 {
 	uint64_t *seq;
+
+	Memstore::MemNode* node;
+	//Get the seq addr from the hashtable
+	node = txdb_->tables[tableid]->GetWithInsert(key);
+
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =  
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
+
+	mw->memnode = node;
 	
 	//2. add the record seq number into write set
 	writeset->Add(tableid, key, val, mw->memnode);
