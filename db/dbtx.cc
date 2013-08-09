@@ -164,8 +164,10 @@ DBTX::WriteSet::WriteSet()
 {
   max_length = MAXSIZE; //first allocate 1024 numbers
   elems = 0;
-
+  cursindex = 0;
+  
   kvs = new WSKV[max_length];
+  sindexes = new WSSEC[max_length];
 
   for(int i = 0; i < max_length; i++) {
 		kvs[i].key = 0;
@@ -275,6 +277,19 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
   
 }
 
+inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw)
+{
+	if(cursindex == max_length) {
+	  //FIXME: No resize support!
+	  printf("Error: sindex overflow\n");
+    }
+
+	sindexes[cursindex].seq = seq;
+	sindexes[cursindex].sindex = mnw;
+
+	cursindex++;
+}
+
 
 inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
 {
@@ -287,6 +302,22 @@ inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
   
   return false;
   
+}
+
+
+inline void DBTX::WriteSet::UpdateSecondaryIndex()
+{
+	for(int i = 0; i < cursindex; i++) {
+		//1. logically delete the old secondary index
+		if(sindexes[cursindex].sindex->memnode->secIndexValidateAddr != NULL)
+			*sindexes[cursindex].sindex->memnode->secIndexValidateAddr != false;
+
+		//2. update the new secondary index
+		sindexes[cursindex].sindex->valid = true;
+		sindexes[cursindex].sindex->memnode->secIndexValidateAddr 
+					= &sindexes[cursindex].sindex->valid;
+		*sindexes[cursindex].seq += 1;
+	}
 }
 
 //gcounter should be added into the rtm readset
@@ -408,7 +439,9 @@ bool DBTX::End()
   //can't use the iterator because the cur node may be deleted 
   writeset->Write(txdb_->snapshot);
 
-
+  //step 3. update the sencondary index
+  writeset->UpdateSecondaryIndex();
+  
   return true;
 }
 
@@ -427,11 +460,78 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
   writeset->Add(tableid, key, val, node);
 }
 
+//Update a column which has a secondary key
+void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
+{
+	uint64_t *seq;
+	//1. get the memnode wrapper of the secondary key
+	SecondIndex::MemNodeWrapper* mw =  
+		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
+	
+	//2. add the record seq number into write set
+	writeset->Add(tableid, key, val, mw->memnode);
+	
+	//3. add the seq number of the second node and the validation flag address into the write set
+	writeset->Add(seq, mw);
+}
+
 
 void DBTX::Delete(int tableid, uint64_t key)
 {
 	//For delete, just insert a null value
 	Add(tableid, key, NULL);
+}
+
+DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
+{
+	assert(txdb_->secondIndexes[indextableid] != NULL);
+	SecondIndex::SecondNode* sn = txdb_->secondIndexes[indextableid]->Get(seckey);
+	assert(sn != NULL);
+	
+	//FIXME: the seq number maybe much larger than the real number of nodes
+	uint64_t knum = sn->seq;
+
+	if(knum == 0)
+		return NULL;
+	
+	KeyValues* kvs = new KeyValues(knum);
+
+	
+#if GLOBALOCK
+	SpinLockScope spinlock(&slock);
+#else
+	RTMScope rtm(&rtmProf);
+#endif
+
+	//FIXME: the number of node may be changed before the RTM acquired
+	if(knum != sn->seq) {
+		while(_xtest())
+			_xend();
+		printf("[GetByIndex] Error OCCURRED\n");
+	}
+
+	//1.  put the seq into the readset
+	readset->Add(&sn->seq);
+
+	//2. get every record and put the record seq into the readset
+	int i = 0;
+	SecondIndex::MemNodeWrapper* mnw = sn->head;
+	while(mnw != NULL) {
+		kvs->keys[i] = mnw->key;
+		kvs->values[i] = mnw->memnode->value;
+		i++;
+	}
+
+	if(i > knum) {
+		while(_xtest())
+			_xend();
+		printf("[GetByIndex] Error OCCURRED\n");
+	}
+	
+	kvs->num = i;
+
+	return kvs;
+	
 }
 
 

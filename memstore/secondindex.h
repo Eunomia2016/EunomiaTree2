@@ -83,7 +83,7 @@ class SecondIndex {
   
   virtual SecondNode* Get(uint64_t key) = 0;
   
-  virtual MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t **secseq) = 0;
+  virtual MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t prikey, uint64_t **secseq) = 0;
   
   virtual void PrintStore() { assert(0); }
   

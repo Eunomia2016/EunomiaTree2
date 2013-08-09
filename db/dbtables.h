@@ -4,7 +4,9 @@
 #include "memstore_skiplist.h"
 #include "memstore/memstore_bplustree.h"
 #include "memstore/memstore_cuckoohash.h"
-#include "memstore/memstore_stringbplustree.h"
+#include "memstore/secondindex.h"
+
+//#include "memstore/memstore_stringbplustree.h"
 namespace leveldb{
 #define NONE 0
 #define BTREE 1
@@ -16,6 +18,7 @@ class DBTables {
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
 	Memstore **tables;
+	SecondIndex ** secondIndexes;
 	int *types;
 	int next;
 	DBTables();

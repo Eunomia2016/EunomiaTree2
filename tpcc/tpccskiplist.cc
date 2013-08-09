@@ -1199,6 +1199,9 @@ namespace leveldb {
 #endif
 	  int num_distinct = 0; 
 	  while (true) {
+
+retry:
+	
   	    tx.Begin();
 		 
 	    //-------------------------------------------------------------------------
@@ -1236,6 +1239,12 @@ namespace leveldb {
 	    while (iter.Valid()) {
 	  	  int64_t ol_key = iter.Key();
 		  if (ol_key >= end) break;
+
+#if AGGRESSIVEDETECT
+		  if(tx.hasConflict()){
+		  	goto retry;
+		  }
+#endif
 	  	  uint64_t *ol_value = iter.Value();
 #if PROFILE
 		  icount++;
@@ -1261,6 +1270,12 @@ namespace leveldb {
 		  
 	  	
 		  iter.Next();
+#if AGGRESSIVEDETECT
+		  if(tx.hasConflict()){
+		    goto retry;
+		}
+#endif
+
 	    }
 
 	    std::sort(s_i_ids.begin(), s_i_ids.end());

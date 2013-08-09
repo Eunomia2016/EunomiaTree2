@@ -11,7 +11,7 @@ class Memstore {
 	uint64_t seq;
 	uint64_t* value;
 	MemNode* oldVersions;
-
+	bool* secIndexValidateAddr;
 
 	MemNode()
 	{
@@ -19,6 +19,7 @@ class Memstore {
 		seq = 0;
 		value = NULL;
 		oldVersions = NULL;
+		secIndexValidateAddr = NULL;
 	}
   };
 
