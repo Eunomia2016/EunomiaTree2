@@ -41,7 +41,7 @@ class SecondIndex {
 
     // Returns the key at the current position.
     // REQUIRES: Valid()
-    virtual MemNodeWrapper* CurNodes() = 0;
+    virtual SecondNode* CurNode() = 0;
 
 	virtual uint64_t Key() = 0;
 
@@ -80,7 +80,8 @@ class SecondIndex {
   //Only for initialization
 
   virtual SecondIndex::Iterator* GetIterator() = 0;
-  
+
+  virtual SecondNode* RoGet(uint64_t key) = 0;
   virtual SecondNode* Get(uint64_t key) = 0;
   
   virtual MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t prikey, uint64_t **secseq) = 0;
