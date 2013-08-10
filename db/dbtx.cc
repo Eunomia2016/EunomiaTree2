@@ -527,6 +527,7 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 	while(mnw != NULL) {
 		kvs->keys[i] = mnw->key;
 		kvs->values[i] = mnw->memnode->value;
+		mnw = mnw->next;
 		i++;
 	}
 
