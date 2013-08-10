@@ -210,6 +210,7 @@ void DBTX::WriteSet::Resize() {
 void DBTX::WriteSet::Reset() 
 {
 	elems = 0;
+	cursindex = 0;
 #if CACHESIM
 	for(int i = 0; i < 64; i++) {
 	    cacheset[i] = 0;
@@ -309,16 +310,16 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 {
 	for(int i = 0; i < cursindex; i++) {
 		//1. logically delete the old secondary index
-		if(sindexes[cursindex].sindex->memnode->secIndexValidateAddr != NULL)
-			*sindexes[cursindex].sindex->memnode->secIndexValidateAddr != false;
+		if(sindexes[i].sindex->memnode->secIndexValidateAddr != NULL)
+			*sindexes[i].sindex->memnode->secIndexValidateAddr != false;
 
 		//2. update the new secondary index
-		printf("--%lx\n", sindexes[cursindex].sindex);
-		printf("---%lx\n", sindexes[cursindex].sindex->memnode);
-		sindexes[cursindex].sindex->valid = true;
-		sindexes[cursindex].sindex->memnode->secIndexValidateAddr 
-					= &sindexes[cursindex].sindex->valid;
-		*sindexes[cursindex].seq += 1;
+		printf("--%lx\n", sindexes[i].sindex);
+		printf("---%lx\n", sindexes[i].sindex->memnode);
+		sindexes[i].sindex->valid = true;
+		sindexes[i].sindex->memnode->secIndexValidateAddr 
+					= &sindexes[i].sindex->valid;
+		*sindexes[i].seq += 1;
 	}
 }
 
