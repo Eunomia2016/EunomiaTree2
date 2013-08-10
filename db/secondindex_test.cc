@@ -73,9 +73,8 @@ class Benchmark {
 		
 		leveldb::DBTX tx( store);
 		bool b =false;
-			 	
-		b = false;
-		while (b==false) {
+			 
+		while (!b) {
 			tx.Begin();					  		
 		  	uint64_t *value = new uint64_t();
 		  	*value = 1;			
@@ -87,7 +86,7 @@ class Benchmark {
 		while (arg->start == 2) ;
 
 		b = false;
-		while (b==false) {
+		while (!b) {
 			tx.Begin();					  		
 		  	uint64_t *value = new uint64_t();
 		  	*value = 4;			
@@ -122,8 +121,10 @@ class Benchmark {
 			while (!b) {
 				tx.Begin();
 				DBTX::KeyValues* kvs = tx.GetByIndex(0, 1);
-				if (kvs->num != 2)  printf("Should get 2 records for sec key 1, get %d\n", kvs->num);
-				if ((kvs->keys[0]+kvs->keys[1]) != 3) printf("Should get pri key 1,2 get %d %d\n", kvs->keys[0], kvs->keys[1]);
+				if (kvs->num != 2)  
+					printf("[1.1] Should get 2 records for sec key 1, get %d\n", kvs->num);
+				if ((kvs->keys[0]+kvs->keys[1]) != 3) 
+					printf("[1.2] Should get pri key 1,2 get %d %d\n", kvs->keys[0], kvs->keys[1]);
 				uint64_t *v1 = new uint64_t();
 				*v1 = 2;
 				tx.Add(0, 0, 1, 2, v1);
@@ -134,9 +135,13 @@ class Benchmark {
 			while  (!b) {
 				tx.Begin();
 				DBTX::KeyValues* kvs = tx.GetByIndex(0, 1);
-				if (kvs->num != 1) printf("Should get 1 , get %d\n", kvs->num);
+				if (kvs->num != 1) {
+					printf("[2.1] Should get 1 , get %d\n", kvs->num);
+					tx.PrintKVS(kvs);
+				}
 				kvs = tx.GetByIndex(0, 2);
-				if (kvs->num != 1) printf("Should get 1 , get %d\n", kvs->num);
+				if (kvs->num != 1) 
+					printf("[2.2] Should get 1 , get %d\n", kvs->num);
 				b = tx.End();
 			}
 			printf("Step 3\n");
@@ -160,22 +165,25 @@ class Benchmark {
 				tx.Add(0, 0, 2, 1, v2);
 				b = tx.End();
 			}
-			while (!b) {
-				tx.Begin();
-				DBTX::KeyValues* kvs = tx.GetByIndex(0, 1);
-				arg->start = 1;
-				while (arg->start == 1);
-				b = tx.End();
-				if (b) printf("Add node, should abort\n");
-			}
-			while (!b) {				
-				tx.Begin();
-				DBTX::KeyValues* kvs = tx.GetByIndex(0, 1);
-				arg->start = 3;
-				while (arg->start == 3);
-				b = tx.End();
-				if (b) printf("Delete node, should abort\n");
-			}
+			
+			b = false;
+			tx.Begin();
+			DBTX::KeyValues* kvs = tx.GetByIndex(0, 1);
+			arg->start = 1;
+			while (arg->start == 1);
+			b = tx.End();
+			if (b) 
+				printf("[3.1] Add node, should abort\n");
+			
+			b = false;				
+			tx.Begin();
+			kvs = tx.GetByIndex(0, 1);
+			arg->start = 3;
+			while (arg->start == 3);
+			b = tx.End();
+			if (b) 
+				printf("[3.2] Delete node, should abort\n");
+			
 			
 		}
 			

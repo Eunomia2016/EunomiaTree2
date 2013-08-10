@@ -311,7 +311,7 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 	for(int i = 0; i < cursindex; i++) {
 		//1. logically delete the old secondary index
 		if(sindexes[i].sindex->memnode->secIndexValidateAddr != NULL)
-			*sindexes[i].sindex->memnode->secIndexValidateAddr != false;
+			*sindexes[i].sindex->memnode->secIndexValidateAddr = false;
 
 		//2. update the new secondary index
 		sindexes[i].sindex->valid = true;
@@ -473,7 +473,7 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =  
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
-
+	
 	mw->memnode = node;
 	
 	//2. add the record seq number into write set
@@ -488,6 +488,13 @@ void DBTX::Delete(int tableid, uint64_t key)
 {
 	//For delete, just insert a null value
 	Add(tableid, key, NULL);
+}
+
+void DBTX::PrintKVS(KeyValues* kvs)
+{
+	for(int i = 0; i < kvs->num; i++) {
+		printf("KV[%d]: key %lx, value %lx \n", i, kvs->keys[i], kvs->values[i]);
+	}
 }
 
 DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
@@ -518,17 +525,24 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 		printf("[GetByIndex] Error OCCURRED\n");
 	}
 
-	//1.  put the seq into the readset
+	//1.  put the secondary node seq into the readset
 	readset->Add(&sn->seq);
 
 	//2. get every record and put the record seq into the readset
 	int i = 0;
 	SecondIndex::MemNodeWrapper* mnw = sn->head;
 	while(mnw != NULL) {
-		kvs->keys[i] = mnw->key;
-		kvs->values[i] = mnw->memnode->value;
+
+		if (mnw->valid) {
+			kvs->keys[i] = mnw->key;
+			kvs->values[i] = mnw->memnode->value;
+			readset->Add(&mnw->memnode->seq);
+			i++;
+			//put the record seq into the read set
+		}
+		
 		mnw = mnw->next;
-		i++;
+		
 	}
 
 	if(i > knum) {

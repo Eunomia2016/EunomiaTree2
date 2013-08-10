@@ -64,7 +64,7 @@ class DBTX {
 	bool Get(int tableid, uint64_t key, uint64_t** val);
 	void Delete(int tableid, uint64_t key);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);
-
+	void PrintKVS(KeyValues* kvs);
 	inline bool hasConflict() {return abort;}
 	
 	void ThreadLocalInit();
