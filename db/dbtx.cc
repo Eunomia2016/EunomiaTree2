@@ -314,8 +314,6 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 			*sindexes[i].sindex->memnode->secIndexValidateAddr != false;
 
 		//2. update the new secondary index
-		printf("--%lx\n", sindexes[i].sindex);
-		printf("---%lx\n", sindexes[i].sindex->memnode);
 		sindexes[i].sindex->valid = true;
 		sindexes[i].sindex->memnode->secIndexValidateAddr 
 					= &sindexes[i].sindex->valid;
