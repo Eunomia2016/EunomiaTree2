@@ -496,6 +496,31 @@ void DBTX::PrintKVS(KeyValues* kvs)
 		printf("KV[%d]: key %lx, value %lx \n", i, kvs->keys[i], kvs->values[i]);
 	}
 }
+int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
+{
+	//1.  put the secondary node seq into the readset
+	readset->Add(&sn->seq);
+
+	//2. get every record and put the record seq into the readset
+	int i = 0;
+	SecondIndex::MemNodeWrapper* mnw = sn->head;
+	while(mnw != NULL) {
+
+		if (mnw->valid) {
+			kvs->keys[i] = mnw->key;
+			kvs->values[i] = mnw->memnode->value;
+			//put the record seq into the read set
+			readset->Add(&mnw->memnode->seq);
+			i++;
+			
+		}
+		mnw = mnw->next;
+	}
+	
+	kvs->num = i;
+
+	return i;
+}
 
 DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 {
@@ -525,34 +550,18 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 		printf("[GetByIndex] Error OCCURRED\n");
 	}
 
-	//1.  put the secondary node seq into the readset
-	readset->Add(&sn->seq);
-
-	//2. get every record and put the record seq into the readset
-	int i = 0;
-	SecondIndex::MemNodeWrapper* mnw = sn->head;
-	while(mnw != NULL) {
-
-		if (mnw->valid) {
-			kvs->keys[i] = mnw->key;
-			kvs->values[i] = mnw->memnode->value;
-			readset->Add(&mnw->memnode->seq);
-			i++;
-			//put the record seq into the read set
-		}
-		
-		mnw = mnw->next;
-		
-	}
-
+	int i = ScanSecondNode(sn, kvs);
+	
 	if(i > knum) {
 		while(_xtest())
 			_xend();
 		printf("[GetByIndex] Error OCCURRED\n");
 	}
-	
-	kvs->num = i;
 
+	if( i == 0) {
+		delete kvs;
+		return NULL;
+	}
 	return kvs;
 	
 }
@@ -827,6 +836,294 @@ void DBTX::Iterator::SeekToLast()
 	//TODO
 	assert(0);
 }
+
+DBTX::SecondaryIndexIterator::SecondaryIndexIterator(DBTX* tx, int tableid)
+{
+	tx_ = tx;
+	index_ = tx->txdb_->secondIndexes[tableid];
+	iter_ = index_->GetIterator();
+	cur_ = NULL;
+}
+	
+bool DBTX::SecondaryIndexIterator::Valid()
+{
+	return cur_ != NULL;
+}
+	
+
+uint64_t DBTX::SecondaryIndexIterator::Key()
+{
+	return iter_->Key();
+}
+
+DBTX::KeyValues* DBTX::SecondaryIndexIterator::Value()
+{
+	return val_;
+}
+	
+void DBTX::SecondaryIndexIterator::Next()
+{
+	bool r = iter_->Next();
+
+#if AGGRESSIVEDETECT
+	if (!r) {
+		tx_->abort = true;
+		cur_ = NULL;
+		return;
+	}
+#endif
+
+	while(iter_->Valid()) {
+	  
+	  cur_ = iter_->CurNode();
+	  
+	  uint64_t knum = cur_->seq;
+	
+	  if(knum == 0) {
+		iter_->Next();
+		continue;
+	  }
+
+	  KeyValues* kvs = new KeyValues(knum);
+
+	  {
+	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&rtmProf);
+#endif
+
+	//FIXME: the number of node may be changed before the RTM acquired
+		if(knum != cur_->seq) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Next] Error OCCURRED\n");
+		}
+
+		int i = tx_->ScanSecondNode(cur_, kvs);
+	
+		if(i > knum) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Next] Error OCCURRED\n");
+		}
+
+		if(i > 0) {
+			val_ = kvs;
+			return;
+		}
+	  }
+	  
+	  delete kvs;
+	  iter_->Next();
+	}
+
+	cur_ = NULL;
+	
+}
+
+void DBTX::SecondaryIndexIterator::Prev()
+{
+	bool b = iter_->Prev();
+	if (!b) {
+		tx_->abort = true;
+		cur_ = NULL;
+		return;
+	}
+
+	
+	while(iter_->Valid()) {
+	  
+	  cur_ = iter_->CurNode();
+	  
+	  uint64_t knum = cur_->seq;
+	
+	  if(knum == 0) {
+		iter_->Prev();
+		continue;
+	  }
+
+	  KeyValues* kvs = new KeyValues(knum);
+
+	  {
+	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&rtmProf);
+#endif
+
+	//FIXME: the number of node may be changed before the RTM acquired
+		if(knum != cur_->seq) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Prev] Error OCCURRED\n");
+		}
+
+		int i = tx_->ScanSecondNode(cur_, kvs);
+	
+		if(i > knum) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Prev] Error OCCURRED\n");
+		}
+
+		if(i > 0) {
+			val_ = kvs;
+			return;
+		}
+	  }
+	  
+	  delete kvs;
+	  iter_->Prev();
+	}
+	
+	cur_ = NULL;
+}
+
+void DBTX::SecondaryIndexIterator::Seek(uint64_t key)
+{
+	//Should seek from the previous node and put it into the readset
+	iter_->Seek(key);
+
+	//First, find the first node which is not less than the key
+	//Iterate the list to avoid concurrent insertion
+	while(iter_->Valid() && iter_->Key() < key) {	
+	  cur_ = iter_->CurNode();
+	  iter_->Next();
+	}
+
+	//No keys is equal or larger than key
+	if(!iter_->Valid() && cur_ != NULL){
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&tx_->rtmProf);
+#endif
+		//put the previous node's next field into the readset
+		readset->Add(&cur_->seq);
+		return;
+	}
+	
+	//Second, find the first key which value is not NULL
+	while(iter_->Valid()) {
+	  
+	  cur_ = iter_->CurNode();
+	  
+	  uint64_t knum = cur_->seq;
+	
+	  if(knum == 0) {
+		iter_->Next();
+		continue;
+	  }
+
+	  KeyValues* kvs = new KeyValues(knum);
+
+	  {
+	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&rtmProf);
+#endif
+
+	//FIXME: the number of node may be changed before the RTM acquired
+		if(knum != cur_->seq) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Next] Error OCCURRED\n");
+		}
+
+		int i = tx_->ScanSecondNode(cur_, kvs);
+	
+		if(i > knum) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Next] Error OCCURRED\n");
+		}
+
+		if(i > 0) {
+			val_ = kvs;
+			return;
+		}
+	  }
+	  
+	  delete kvs;
+	  iter_->Next();
+	}
+
+	  
+	cur_ = NULL;
+}
+	
+// Position at the first entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void DBTX::SecondaryIndexIterator::SeekToFirst()
+{
+	//Put the head into the read set first
+	
+	iter_->SeekToFirst();
+
+	cur_ = iter_->CurNode();
+	assert(cur_ != NULL);
+	
+	while(iter_->Valid()) {
+	  
+	  uint64_t knum = cur_->seq;
+	
+	  if(knum == 0) {
+		iter_->Next();
+		continue;
+	  }
+
+	  KeyValues* kvs = new KeyValues(knum);
+
+	  {
+	
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&rtmProf);
+#endif
+
+	//FIXME: the number of node may be changed before the RTM acquired
+		if(knum != cur_->seq) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Next] Error OCCURRED\n");
+		}
+
+		int i = tx_->ScanSecondNode(cur_, kvs);
+	
+		if(i > knum) {
+			while(_xtest())
+				_xend();
+			printf("[SecondaryIndexIterator::Next] Error OCCURRED\n");
+		}
+
+		if(i > 0) {
+			val_ = kvs;
+			return;
+		}
+	  }
+	  
+	  delete kvs;
+	  iter_->Next();	  
+	  cur_ = iter_->CurNode();
+	}
+	cur_ = NULL;
+
+}
+	
+// Position at the last entry in list.
+// Final state of iterator is Valid() iff list is not empty.
+void DBTX::SecondaryIndexIterator::SeekToLast()
+{
+	//TODO
+	assert(0);
+}
+
 
 
 }  // namespace leveldb

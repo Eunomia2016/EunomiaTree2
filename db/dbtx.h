@@ -63,6 +63,7 @@ class DBTX {
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);
 	bool Get(int tableid, uint64_t key, uint64_t** val);
 	void Delete(int tableid, uint64_t key);
+	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);
 	void PrintKVS(KeyValues* kvs);
 	inline bool hasConflict() {return abort;}
@@ -71,7 +72,6 @@ class DBTX {
 	
 public:
 
-	//FIXME: This iterator doesn't provide any isolation
 	class Iterator {
 	 public:
 	  // Initialize an iterator over the specified list.
@@ -114,6 +114,50 @@ public:
 	  uint64_t *val_;
 	  uint64_t *prev_link;
 	};
+
+
+	class SecondaryIndexIterator {
+	 public:
+	  // Initialize an iterator over the specified list.
+	  // The returned iterator is not valid.
+	  explicit SecondaryIndexIterator(DBTX* tx, int tableid);
+	
+	  // Returns true iff the iterator is positioned at a valid node.
+	  bool Valid();
+	
+	  // Returns the key at the current position.
+	  // REQUIRES: Valid()
+	  uint64_t Key();
+
+	  KeyValues* Value();
+	
+	  // Advances to the next position.
+	  // REQUIRES: Valid()
+	  void Next();
+	
+	  // Advances to the previous position.
+	  // REQUIRES: Valid()
+	  void Prev();
+	
+	  // Advance to the first entry with a key >= target
+	  void Seek(uint64_t key);
+	
+	  // Position at the first entry in list.
+	  // Final state of iterator is Valid() iff list is not empty.
+	  void SeekToFirst();
+	
+	  // Position at the last entry in list.
+	  // Final state of iterator is Valid() iff list is not empty.
+	  void SeekToLast();
+	
+	 private:
+	  DBTX* tx_;
+	  SecondIndex* index_;
+	  SecondIndex::SecondNode* cur_;
+	  SecondIndex::Iterator *iter_;
+	  KeyValues* val_;
+	};
+
 	
  	class ReadSet {
 
