@@ -11,7 +11,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
-#define CHECKTPCC 1
+#define CHECKTPCC 0
 
 #define WARE 0
 #define DIST 1
@@ -490,7 +490,9 @@ namespace leveldb {
 	Order *o = const_cast<Order *>(&order);
 	uint64_t *value = reinterpret_cast<uint64_t *>(o);
   	
-  	store->tables[ORDE]->Put(key, value);
+  	Memstore::MemNode *node = store->tables[ORDE]->Put(key, value);
+	uint64_t sec = makeOrderIndex(order.o_w_id, order.o_d_id, order.o_c_id, order.o_id);
+	store->secondIndexes[ORDER_INDEX]->Put(sec, key, node);
   	
 	return o;
   }
@@ -782,7 +784,8 @@ namespace leveldb {
   	  assert(strlen(order->o_entry_d) == DATETIME_SIZE);
 	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order->o_id);
 	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order);
-	  tx.Add(ORDE, o_key, o_value);
+	  int64_t o_sec = makeOrderIndex(warehouse_id, district_id, customer_id, output->o_id);
+	  tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, o_value);
 #if PROFILE
 	  wcount++;
 #endif
@@ -1428,6 +1431,7 @@ namespace leveldb {
 			//-------------------------------------------------------------------------
 	  
 			Order *o = NULL; int32_t o_id;
+#if 0	  
 			DBROTX::Iterator iter(&tx, ORDE);
 			uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 			uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
@@ -1435,21 +1439,36 @@ namespace leveldb {
 			iter.Seek(start);
 			iter.Prev();
 			while (iter.Valid() && iter.Key() >= end) { 
-			  
-			  o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
-			  
-			  uint64_t *o_value = iter.Value();
+				
+				o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
+					
+				uint64_t *o_value = iter.Value();
 #if PROFILE
-			  icount++;
+				icount++;
 #endif
-			  o = reinterpret_cast<Order *>(o_value);
-			  
-			  if (o->o_c_id == customer_id) break;
-			  //printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
-			  
-			  iter.Prev();
-			  o = NULL;
+				o = reinterpret_cast<Order *>(o_value);
+					
+				if (o->o_c_id == customer_id) break;
+				//printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
+					
+				iter.Prev();
+				o = NULL;
 			}
+#endif
+			DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+			uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
+			uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
+			iter.Seek(start);
+			iter.Prev();
+			if (iter.Valid() && iter.Key() >= end) {
+				DBROTX::KeyValues *kvs = iter.Value();
+				o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
+				uint64_t *o_value = kvs->values[0];
+#if PROFILE
+				icount++;
+#endif
+				o = reinterpret_cast<Order *>(o_value);
+			 }
 			
 			
 			//-------------------------------------------------------------------------
@@ -1530,7 +1549,9 @@ namespace leveldb {
 	  //O_ID, O_ENTRY_D, and O_CARRIER_ID are retrieved.
 	  //-------------------------------------------------------------------------
 
+
 	  Order *o = NULL; int32_t o_id;
+#if 0	  
 	  DBROTX::Iterator iter(&tx, ORDE);
 	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
@@ -1553,8 +1574,21 @@ namespace leveldb {
 		iter.Prev();
 		o = NULL;
 	  }
-	  
-	  
+#endif
+	  DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+	  uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
+	  uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
+	  iter.Seek(start);
+	  iter.Prev();
+	  if (iter.Valid() && iter.Key() >= end) {
+	  	DBROTX::KeyValues *kvs = iter.Value();
+		o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
+		uint64_t *o_value = kvs->values[0];
+#if PROFILE
+				icount++;
+#endif
+		o = reinterpret_cast<Order *>(o_value);
+	  }
 	  //-------------------------------------------------------------------------
 	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID),
 	  //and OL_O_ID (equals O_ID) are selected and the corresponding sets of OL_I_ID, OL_SUPPLY_W_ID,
@@ -1582,6 +1616,7 @@ namespace leveldb {
           strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
         }
 	  }
+	  else printf("No order\n");
       bool b = tx.End();
 #if PROFILE
 	  atomic_add64(&orderstatusreadcount, rcount);

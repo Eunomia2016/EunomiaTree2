@@ -32,7 +32,7 @@ public:
     static const int32_t MIN_STOCK_LEVEL_THRESHOLD = 10;
     static const int32_t MAX_STOCK_LEVEL_THRESHOLD = 20;
     // TODO: Should these constants be part of tpccdb.h?
-    static const float MIN_PAYMENT_AMOUNT = 1000.00;
+    static const float MIN_PAYMENT_AMOUNT = 1.00;
     static const float MAX_PAYMENT_AMOUNT = 5000.00;
     static const int32_t MAX_OL_QUANTITY = 10;
 
