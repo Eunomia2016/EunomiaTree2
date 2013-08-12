@@ -8,6 +8,8 @@
 #include "randomgenerator.h"
 #include "tpccdb.h"
 
+#define SEC_INDEX 0
+
 using std::vector;
 
 // Non-integral constants must be defined in a .cc file. Needed for Mac OS X.
@@ -52,7 +54,12 @@ void TPCCClient::doStockLevel() {
 void TPCCClient::doOrderStatus() {
     OrderStatusOutput output;
     int y = generator_->number(1, 100);
-    if (y <= 60) {
+#if SEC_INDEX
+		if (y <= 60) {
+#else		
+		if (y <= 0) {
+#endif
+	
         // 60%: order status by last name
         //FIXME: Currently don't support using last name to query the database
         char c_last[Customer::MAX_LAST+1];
@@ -102,7 +109,11 @@ void TPCCClient::doPayment() {
 
     char now[Clock::DATETIME_SIZE+1];
     clock_->getDateTimestamp(now);
-    if (y <= 60) {
+#if SEC_INDEX
+	if (y <= 60) {
+#else		
+    if (y <= 0) {
+#endif
         // 60%: payment by last name
         //FIXME: Currently don't support using last name to query the database
         char c_last[Customer::MAX_LAST+1];
