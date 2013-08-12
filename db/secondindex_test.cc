@@ -13,7 +13,7 @@
 #include "db/dbtables.h"
 
 
-static const char* FLAGS_benchmarks = "simple,interrupt,itersimple";
+static const char* FLAGS_benchmarks = "simple,interrupt,itersimple,roitersimple";
 
 	
 
@@ -212,7 +212,7 @@ class Benchmark {
 			}
 			
 			b = false;
-			//Test step 1
+			//Test step 1. normal verify
 			while (!b) {
 				tx.Begin();
 				DBTX::SecondaryIndexIterator* siter = 
@@ -235,10 +235,137 @@ class Benchmark {
 					siter->Next();
 				}
 				b = tx.End();
-			}
-			
+			}			
 			
 		}
+
+		if (name == Slice("roitersimple")) {
+		
+			ThreadArg *arg = new ThreadArg();
+			arg->start = 0;
+			arg->store = store;
+			
+			bool b = false;
+			DBTX tx(store);
+			while (!b) {
+				tx.Begin();
+				int pk = 0;
+				// construct the memstore and secondary index
+				//i is the secondary index
+				for(int i = 1; i <= 10; i++) {
+					//j is the primary key
+					for(int j = 1; j <= i; j++) {
+						uint64_t *v = new uint64_t();
+						++pk;
+						*v = i * pk;
+						tx.Add(0, 0, pk, i, v);
+					}
+				}
+				b = tx.End();
+			}
+
+			DBROTX rotx(store);
+			b = false;
+			//Test step 1 normal verify
+			while (!b) {
+				rotx.Begin();
+				DBROTX::SecondaryIndexIterator* siter = 
+					new DBROTX::SecondaryIndexIterator(&rotx, 0);
+
+				siter->SeekToFirst();
+				while(siter->Valid()) {
+					uint64_t key = siter->Key();
+					DBROTX::KeyValues* kvs = siter->Value();
+					if(key != kvs->num) {
+						printf("the number of value for key %ld is wrong[%d]\n", key, kvs->num);
+						break;
+					}
+
+					for(int k = 0; k < kvs->num; k++) {
+						if(*kvs->values[k] != (kvs->keys[k] * key)) {
+							printf("Wrong Value %ld\n", *kvs->values[k]);
+						}
+					}
+					siter->Next();
+				}
+				b = rotx.End();
+			}
+			
+		    //Test step 2. write some other tuples on the new snapshot
+			b = false;
+			while (!b) {
+				tx.Begin();
+				int pk = 0;
+				// construct the memstore and secondary index
+				//i is the secondary index
+				for(int i = 1; i <= 10; i++) {
+					//j is the primary key
+					for(int j = 1; j <= i; j++) {
+						uint64_t *v = new uint64_t();
+						++pk;
+						*v = pk * pk;
+						tx.Add(0,pk, v);
+					}
+				}
+				b = tx.End();
+			}
+
+			//step 3. verify the latest value
+			b = false;
+
+			while (!b) {
+				rotx.Begin();
+				DBROTX::SecondaryIndexIterator* siter = 
+					new DBROTX::SecondaryIndexIterator(&rotx, 0);
+
+				siter->SeekToFirst();
+				while(siter->Valid()) {
+					uint64_t key = siter->Key();
+					DBROTX::KeyValues* kvs = siter->Value();
+					if(key != kvs->num) {
+						printf("the number of value for key %ld is wrong[%d]\n", key, kvs->num);
+						break;
+					}
+
+					for(int k = 0; k < kvs->num; k++) {
+						if(*kvs->values[k] != (kvs->keys[k] * kvs->keys[k])) {
+							printf("Wrong Value %ld\n", *kvs->values[k]);
+						}
+					}
+					siter->Next();
+				}
+				b = rotx.End();
+			}
+
+
+			//step 4. verify the old value
+			b = false;
+			while (!b) {
+				rotx.Begin();
+				rotx.oldsnapshot = 0;
+				DBROTX::SecondaryIndexIterator* siter = 
+					new DBROTX::SecondaryIndexIterator(&rotx, 0);
+
+				siter->SeekToFirst();
+				while(siter->Valid()) {
+					uint64_t key = siter->Key();
+					DBROTX::KeyValues* kvs = siter->Value();
+					if(key != kvs->num) {
+						printf("the number of value for key %ld is wrong[%d]\n", key, kvs->num);
+						break;
+					}
+
+					for(int k = 0; k < kvs->num; k++) {
+						if(*kvs->values[k] != (kvs->keys[k] * key)) {
+							printf("Wrong Value %ld\n", *kvs->values[k]);
+						}
+					}
+					siter->Next();
+				}
+				b = rotx.End();
+			}
+		}
+			
 			
 	}
 };
