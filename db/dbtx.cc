@@ -196,6 +196,8 @@ void DBTX::WriteSet::Resize() {
   
   printf("Write Set Resize\n");
   max_length = max_length * 2;
+
+  //resize the wskv
   WSKV* nkv = new WSKV[max_length];
 
   for(int i = 0; i < elems; i++) {
@@ -205,6 +207,8 @@ void DBTX::WriteSet::Resize() {
   delete[] kvs;
 
   kvs = nkv;
+
+  //FIXME: didn't resize the secondary index array
 }
 
 void DBTX::WriteSet::Reset() 
@@ -280,7 +284,7 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
 
 inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw)
 {
-	if(cursindex == max_length) {
+	if(cursindex >= max_length) {
 	  //FIXME: No resize support!
 	  printf("Error: sindex overflow\n");
     }

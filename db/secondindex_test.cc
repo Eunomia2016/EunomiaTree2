@@ -13,7 +13,7 @@
 #include "db/dbtables.h"
 
 
-static const char* FLAGS_benchmarks = "simple,interrupt";
+static const char* FLAGS_benchmarks = "simple,interrupt,itersimple";
 
 	
 
@@ -183,6 +183,59 @@ class Benchmark {
 			b = tx.End();
 			if (b) 
 				printf("[3.2] Delete node, should abort\n");
+			
+			
+		}
+		if (name == Slice("itersimple")) {
+		
+			ThreadArg *arg = new ThreadArg();
+			arg->start = 0;
+			arg->store = store;
+			
+			bool b = false;
+			DBTX tx(store);
+			while (!b) {
+				tx.Begin();
+				int pk = 0;
+				// construct the memstore and secondary index
+				//i is the secondary index
+				for(int i = 1; i <= 10; i++) {
+					//j is the primary key
+					for(int j = 1; j <= i; j++) {
+						uint64_t *v = new uint64_t();
+						++pk;
+						*v = i * pk;
+						tx.Add(0, 0, pk, i, v);
+					}
+				}
+				b = tx.End();
+			}
+			
+			b = false;
+			//Test step 1
+			while (!b) {
+				tx.Begin();
+				DBTX::SecondaryIndexIterator* siter = 
+					new DBTX::SecondaryIndexIterator(&tx, 0);
+
+				siter->SeekToFirst();
+				while(siter->Valid()) {
+					uint64_t key = siter->Key();
+					DBTX::KeyValues* kvs = siter->Value();
+					if(key != kvs->num) {
+						printf("the number of value for key %ld is wrong[%d]\n", key, kvs->num);
+						break;
+					}
+
+					for(int k = 0; k < kvs->num; k++) {
+						if(*kvs->values[k] != (kvs->keys[k] * key)) {
+							printf("Wrong Value %ld\n", *kvs->values[k]);
+						}
+					}
+					siter->Next();
+				}
+				b = tx.End();
+			}
 			
 			
 		}
