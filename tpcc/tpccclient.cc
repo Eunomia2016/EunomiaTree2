@@ -52,7 +52,7 @@ void TPCCClient::doStockLevel() {
 void TPCCClient::doOrderStatus() {
     OrderStatusOutput output;
     int y = generator_->number(1, 100);
-    if (y <= 0) {
+    if (y <= 60) {
         // 60%: order status by last name
         //FIXME: Currently don't support using last name to query the database
         char c_last[Customer::MAX_LAST+1];

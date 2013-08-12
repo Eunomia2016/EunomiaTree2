@@ -11,7 +11,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
-#define CHECKTPCC 0
+#define CHECKTPCC 1
 
 #define WARE 0
 #define DIST 1
@@ -1370,23 +1370,23 @@ namespace leveldb {
 					
 			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
 #endif	
-			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
-			iter.Seek(c_start);
+			DBROTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
+			citer.Seek(c_start);
 			uint64_t **c_values = new uint64_t *[20];
 			uint64_t *c_keys = new uint64_t[20];
 			int j = 0;
-			while (iter.Valid()) {
+			while (citer.Valid()) {
 					
 #if PROFILE		
 				rcount++;
 #endif			
-				if (compareCustomerIndex(iter.Key(), c_end)){
+				if (compareCustomerIndex(citer.Key(), c_end)){
 #if 0					
 								for (int i=0; i<38; i++)
 									printf("%d ",((char *)iter.Key())[i]);
 								printf("\n");
 #endif
-					DBTX::KeyValues *kvs = iter.Value();
+					DBROTX::KeyValues *kvs = citer.Value();
 					int num = kvs->num;
 					for (int i=0; i<num; i++)  {
 						c_values[j] = kvs->values[i];
@@ -1397,7 +1397,7 @@ namespace leveldb {
 					delete kvs;
 				}
 				else break;
-				iter.Next();
+				citer.Next();
 				
 			}
 			j = (j+1)/2 - 1;
@@ -1409,10 +1409,9 @@ namespace leveldb {
 			delete fstart;
 			delete fend;
 			delete c_values;
-			assert(found);
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 	  		
-	  		int64_t customer_id = c_key - (c_warehouse_id * District::NUM_PER_WAREHOUSE + c_district_id)
+	  		int64_t customer_id = c_key - (warehouse_id * District::NUM_PER_WAREHOUSE + district_id)
             						* Customer::NUM_PER_DISTRICT;
 			output->c_id = customer_id;
 			// retrieve from customer: balance, first, middle, last
