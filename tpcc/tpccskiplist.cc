@@ -1044,8 +1044,8 @@ namespace leveldb {
 #endif	
 			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
 			iter.Seek(c_start);
-			uint64_t **c_values = new uint64_t *[20];
-			uint64_t *c_keys = new uint64_t[20];
+			uint64_t **c_values = new uint64_t *[40];
+			uint64_t *c_keys = new uint64_t[40];
 			int j = 0;
 			while (iter.Valid()) {
 				
@@ -1081,8 +1081,10 @@ namespace leveldb {
 			delete fstart;
 			delete fend;
 			delete c_values;
+			delete c_keys;
 			assert(found);
 			Customer *c = reinterpret_cast<Customer *>(c_value);
+			// printf("%d %lx\n",j,c_value);
 			Customer *newc = new Customer();
 			updateCustomer(newc, c, h_amount, warehouse_id, district_id);
 			uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
@@ -1375,8 +1377,8 @@ namespace leveldb {
 #endif	
 			DBROTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
 			citer.Seek(c_start);
-			uint64_t **c_values = new uint64_t *[20];
-			uint64_t *c_keys = new uint64_t[20];
+			uint64_t **c_values = new uint64_t *[40];
+			uint64_t *c_keys = new uint64_t[40];
 			int j = 0;
 			while (citer.Valid()) {
 					
@@ -1412,6 +1414,7 @@ namespace leveldb {
 			delete fstart;
 			delete fend;
 			delete c_values;
+			delete c_keys;
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 	  		
 	  		int64_t customer_id = c_key - (warehouse_id * District::NUM_PER_WAREHOUSE + district_id)
