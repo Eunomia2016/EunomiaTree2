@@ -244,7 +244,10 @@ namespace leveldb {
 		int num = leaf->num_keys;
 		int k = 0; 
 		while (k < num)  {
+	//	   printf("a %s\n",key +4);
+	//	   printf("b %s\n",leaf->keys[k] +4);
 		   int tmp = tree_->Compare((char *)key, leaf->keys[k]);
+		   
 		   if (tmp <= 0) break;
 		   ++k;
 		}

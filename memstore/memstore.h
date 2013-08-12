@@ -1,5 +1,9 @@
 #ifndef MEMSTORE_H_
 #define MEMSTORE_H_
+#include <stdint.h>
+#include <assert.h>
+#include <stdlib.h>
+
 
 class Memstore {
 
@@ -74,7 +78,7 @@ class Memstore {
 
   virtual Memstore::Iterator* GetIterator() = 0;
   
-  virtual void Put(uint64_t k, uint64_t* val) = 0;
+  virtual MemNode* Put(uint64_t k, uint64_t* val) = 0;
 
   virtual MemNode* Get(uint64_t key) = 0;
   

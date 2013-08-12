@@ -218,7 +218,7 @@ Memstore::MemNode* MemstoreCuckooHashTable::Get(uint64_t key)
 	return NULL;
 }
 
-void MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val)
+Memstore::MemNode* MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val)
 {
 
 	ThreadLocalInit();
@@ -250,6 +250,7 @@ void MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val)
 	eWrite = 0;
 	eTouched = 0;
 #endif
+    return mnode;
 }
 
 Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key)

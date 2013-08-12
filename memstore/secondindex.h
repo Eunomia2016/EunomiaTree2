@@ -5,6 +5,10 @@
 class SecondIndex {
 
  public:
+ 	SecondIndex(){}
+	virtual ~SecondIndex(){}
+	
+ public:
   struct MemNodeWrapper
   {
 	uint64_t key;
@@ -74,13 +78,12 @@ class SecondIndex {
 
  public:
 
-  SecondIndex(){};
-  ~SecondIndex(){};
 
   //Only for initialization
 
   virtual SecondIndex::Iterator* GetIterator() = 0;
 
+  virtual void Put(uint64_t seckey, uint64_t prikey, Memstore::MemNode* memnode){}
   virtual SecondNode* RoGet(uint64_t key) = 0;
   virtual SecondNode* Get(uint64_t key) = 0;
   

@@ -71,7 +71,7 @@ class MemstoreCuckooHashTable: public Memstore {
 
   Memstore::Iterator* GetIterator();
 
-  void Put(uint64_t k, uint64_t* val);
+  MemNode* Put(uint64_t k, uint64_t* val);
 
   MemNode* Get(uint64_t key);
   

@@ -217,7 +217,7 @@ public:
 	}
 	
 
-	inline void Put(uint64_t k, uint64_t* val) 
+	inline MemNode* Put(uint64_t k, uint64_t* val) 
 	{
 		ThreadLocalInit();
 		MemNode *node = GetWithInsert(k);
@@ -228,6 +228,7 @@ public:
 		writes = 0;
 		calls = 0;
 #endif		
+		return node;
 	}
 
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {

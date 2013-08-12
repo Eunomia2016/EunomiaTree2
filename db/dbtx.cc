@@ -722,14 +722,7 @@ void DBTX::Iterator::Seek(uint64_t key)
 {
 	//Should seek from the previous node and put it into the readset
 	iter_->Seek(key);
-	
 	cur_ = iter_->CurNode();
-	//First, find the first node which is not less than the key
-	//Iterate the list to avoid concurrent insertion
-	while(iter_->Valid() && iter_->Key() < key) {	
-	  iter_->Next();
-	  cur_ = iter_->CurNode();
-	}
 
 	//No keys is equal or larger than key
 	if(!iter_->Valid()){
@@ -990,13 +983,8 @@ void DBTX::SecondaryIndexIterator::Seek(uint64_t key)
 {
 	//Should seek from the previous node and put it into the readset
 	iter_->Seek(key);
-
-	//First, find the first node which is not less than the key
-	//Iterate the list to avoid concurrent insertion
-	while(iter_->Valid() && iter_->Key() < key) {	
-	  cur_ = iter_->CurNode();
-	  iter_->Next();
-	}
+	cur_ = iter_->CurNode();
+//	printf("%s\n", (char *)(iter_->Key()+4));	
 
 	//No keys is equal or larger than key
 	if(!iter_->Valid() && cur_ != NULL){

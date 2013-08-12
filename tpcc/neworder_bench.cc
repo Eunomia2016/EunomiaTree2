@@ -284,7 +284,8 @@ class Benchmark {
   	  if(oldv <= 0) break;
 	  
 	  for (int i =0; i < 1000; i++) {	
-        client.doNewOrder();
+        //client.doNewOrder();
+        client.doPayment();
 		thread->stats.FinishedSingleOp();
 	  }
     }

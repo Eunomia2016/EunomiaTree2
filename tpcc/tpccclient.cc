@@ -102,7 +102,7 @@ void TPCCClient::doPayment() {
 
     char now[Clock::DATETIME_SIZE+1];
     clock_->getDateTimestamp(now);
-    if (y <= 0) {
+    if (y <= 60) {
         // 60%: payment by last name
         //FIXME: Currently don't support using last name to query the database
         char c_last[Customer::MAX_LAST+1];

@@ -85,7 +85,7 @@ class MemStoreSkipList: public Memstore {
   ~MemStoreSkipList();
 
   //Only for initialization
-  void Put(uint64_t k, uint64_t* val);
+  MemNode* Put(uint64_t k, uint64_t* val);
   
   MemNode* GetWithInsertLockFree(uint64_t key);
   MemNode* GetWithInsertRTM(uint64_t key);

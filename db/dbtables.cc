@@ -63,8 +63,10 @@ int DBTables::AddTable(int tableid, int index_type,int secondary_index_type)
 	
 	if (secondary_index_type == IBTREE) secondIndexes[nextindex] = new MemstoreUint64BPlusTree();	
 	else if (secondary_index_type == SBTREE) secondIndexes[nextindex] = new MemstoreStringBPlusTree();	
-	indextypes[nextindex] = secondary_index_type;
-	nextindex++;
+	if (secondary_index_type != NONE) {
+		indextypes[nextindex] = secondary_index_type;
+		nextindex++;
+	}
 	return nextindex - 1;
 }
 

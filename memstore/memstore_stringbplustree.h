@@ -131,7 +131,7 @@ public:
 	}
 
 	MemstoreStringBPlusTree() {
-		string_length = 10;
+		string_length = 38;
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
@@ -167,7 +167,7 @@ public:
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes)/(float)calls,(float)(writes)/(float)calls );
 #endif
 	
-		PrintStore();
+		//PrintStore();
 		//top();
 	}
   	  
@@ -195,8 +195,14 @@ public:
 
 	inline int Compare(char *a, char *b) {
 		for (int i=0; i<string_length; i++){
-			if (a[i] > b[i]) return 1;
-			if (a[i] < b[i]) return -1;
+			
+				
+			if ((uint8_t)a[i] > (uint8_t)b[i]) return 1;
+			if ((uint8_t)a[i] < (uint8_t)b[i]) return -1;
+			if (i > 4 && i < 21 && a[i] == 0)
+				i = 20;
+			else if (i > 20 &&  a[i] == 0)
+				return 0;
 		}
 		return 0;
 	}
@@ -264,6 +270,13 @@ public:
 		ThreadLocalInit();
 		SecondNode *secn = Get_sec((char *)key);
 		return secn;
+	}
+
+	void Put(uint64_t seckey, uint64_t prikey, Memstore::MemNode* memnode){
+		uint64_t *secseq;
+		MemNodeWrapper *w = GetWithInsert(seckey, prikey, &secseq);
+		w->memnode = memnode;
+		w->valid = true;
 	}
 
 	inline MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t prikey, uint64_t **secseq) {

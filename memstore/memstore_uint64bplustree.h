@@ -146,7 +146,7 @@ public:
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes)/(float)calls,(float)(writes)/(float)calls );
 #endif
 	
-		PrintStore();
+		//PrintStore();
 		//top();
 	}
   	  
@@ -229,7 +229,14 @@ public:
 		SecondNode *secn = Get_sec(key);
 		return secn;
 	}
-
+	
+	void Put(uint64_t seckey, uint64_t prikey, Memstore::MemNode* memnode){
+		uint64_t *secseq;
+		MemNodeWrapper *w = GetWithInsert(seckey, prikey, &secseq);
+		w->memnode = memnode;
+		w->valid = true;
+	}
+	
 	inline MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t prikey, uint64_t **secseq) {
 
 		ThreadLocalInit();

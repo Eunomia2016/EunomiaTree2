@@ -98,10 +98,7 @@ class TPCCSkiplist : public TPCCDB {
 			  NewOrderOutput* output, TPCCUndo** undo);
 
 
-  //not used yet
-  virtual bool newOrderRemote(int32_t home_warehouse, int32_t remote_warehouse,
-  		  const std::vector<NewOrderItem>& items, std::vector<int32_t>* out_quantities,
-  		  TPCCUndo** undo);
+  
   virtual int32_t stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold);
   virtual void orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output);
   virtual void orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output);
@@ -115,18 +112,24 @@ class TPCCSkiplist : public TPCCDB {
   virtual void paymentHome(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
   		  int32_t c_district_id, int32_t c_id, float h_amount, const char* now,
   		  PaymentOutput* output, TPCCUndo** undo);
+  virtual void delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
+  		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo);
+
+  //not used yet
   virtual void paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
   		  int32_t c_district_id, int32_t c_id, float h_amount, PaymentOutput* output,
   		  TPCCUndo** undo);
   virtual void paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
   		  int32_t c_district_id, const char* c_last, float h_amount, PaymentOutput* output,
   		  TPCCUndo** undo);
-  virtual void delivery(int32_t warehouse_id, int32_t carrier_id, const char* now,
-  		  std::vector<DeliveryOrderInfo>* orders, TPCCUndo** undo);
   virtual bool hasWarehouse(int32_t warehouse_id);
   virtual void applyUndo(TPCCUndo* undo);
   virtual void freeUndo(TPCCUndo* undo);
 
   virtual void printSkiplist();
+  
+  virtual bool newOrderRemote(int32_t home_warehouse, int32_t remote_warehouse,
+  		  const std::vector<NewOrderItem>& items, std::vector<int32_t>* out_quantities,
+  		  TPCCUndo** undo);
 };
 }  

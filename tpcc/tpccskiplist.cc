@@ -6,6 +6,8 @@
 
 #include <algorithm>
 
+#define SEPERATE 0
+
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
@@ -20,6 +22,9 @@
 #define ORLI 6
 #define ITEM 7
 #define STOC 8
+
+#define CUST_INDEX 0
+#define ORDER_INDEX 1
 
 namespace leveldb {
 
@@ -48,6 +53,33 @@ namespace leveldb {
     return id;
   }
 
+  static uint64_t makeCustomerIndex(int32_t w_id, int32_t d_id, char* c_last, char* c_first) {
+  	char *seckey = new char[38];
+  	int32_t did = d_id + (w_id * District::NUM_PER_WAREHOUSE);
+	memcpy(seckey, &did, 4);
+	memcpy(seckey+4, c_last, 17);
+	memcpy(seckey+21, c_first, 17);
+	return (uint64_t)seckey;
+  }
+
+  static bool compareCustomerIndex(uint64_t key, uint64_t bound){
+  	char *a = (char *)key;
+//	printf("last %s\n",a+4);
+	char *b = (char *)bound;
+	
+	for (int i=0; i<38; i++){	
+	//	printf("i%d %ud %ud\n",i,a[i] ,b[i]);
+		if ((uint8_t)a[i] > (uint8_t)b[i]) return false;
+		if ((uint8_t)a[i] < (uint8_t)b[i]) return true;
+		if (i > 4 && i < 21 && a[i] == 0)
+			i = 20;
+		else if (i > 20 &&	a[i] == 0)
+			return true;
+	}
+	return true;
+	
+  }
+  
   static int64_t makeHistoryKey(int32_t h_c_id, int32_t h_c_d_id, int32_t h_c_w_id, int32_t h_d_id, int32_t h_w_id) {
   	int32_t cid = (h_c_w_id * District::NUM_PER_WAREHOUSE + h_c_d_id)
             * Customer::NUM_PER_DISTRICT + h_c_id;
@@ -80,6 +112,13 @@ namespace leveldb {
 	
     
     return id;
+  }
+
+  static int64_t makeOrderIndex(int32_t w_id, int32_t d_id, int32_t c_id, int32_t o_id) {
+  	int32_t upper_id = (w_id * District::NUM_PER_WAREHOUSE + d_id)
+            * Customer::NUM_PER_DISTRICT + c_id;
+	int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
+	return id;  	
   }
 
   static int64_t makeOrderLineKey(int32_t w_id, int32_t d_id, int32_t o_id, int32_t number) {
@@ -264,8 +303,24 @@ namespace leveldb {
   	
 	store = new DBTables(9);
 	//insert an end value
+#if SEPERATE
+	store->AddTable(WARE, BTREE, NONE);
+	store->AddTable(DIST, HASH, NONE);
+	store->AddTable(CUST, HASH, SBTREE);
+	store->AddTable(HIST, HASH, NONE);
+	store->AddTable(NEWO, BTREE, NONE);
+	store->AddTable(ORDE, HASH, IBTREE);
+	store->AddTable(ORLI, BTREE, NONE);
+	store->AddTable(ITEM, HASH, NONE);
+	store->AddTable(STOC, HASH, NONE);
+#else
+	for (int i=0; i<9; i++)
+		if (i == CUST) store->AddTable(i, BTREE, SBTREE);
+		else if (i == ORDE) store->AddTable(i, BTREE, IBTREE);
+		else store->AddTable(i, BTREE, NONE);
+#endif
+	
 	for (int i=0; i<9; i++) {
-		store->AddTable(i, BTREE, NONE);
 		store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)1);
 	}
 	abort = 0;
@@ -385,8 +440,17 @@ namespace leveldb {
 	Customer *c = const_cast<Customer *>(&customer);
 	uint64_t *value = reinterpret_cast<uint64_t *>(c);
   	
-  	store->tables[CUST]->Put(key, value);
-  	
+  	Memstore::MemNode *node = store->tables[CUST]->Put(key, value);
+	uint64_t sec = makeCustomerIndex(customer.c_w_id, customer.c_d_id, 
+					const_cast<char *>(customer.c_last), const_cast<char *>(customer.c_first));
+  	store->secondIndexes[CUST_INDEX]->Put(sec, key, node);
+#if 0
+	printf("Insert %d %d %s\n",customer.c_w_id, customer.c_d_id, 
+					const_cast<char *>(customer.c_last) );
+	for (int i=0; i<38; i++)
+		printf("%d ",((char *)sec)[i]);
+	printf("\n");
+#endif
   }
 
   History* TPCCSkiplist::insertHistory(const History & history) {
@@ -887,6 +951,200 @@ namespace leveldb {
 			  src->prefix ## state, src->prefix ## zip)
 
   void TPCCSkiplist::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
+		  int32_t c_district_id, const char* c_last, float h_amount, const char* now,
+		  PaymentOutput* output, TPCCUndo** undo) {
+#if PROFILE
+		  uint32_t rcount = 0;
+		  uint32_t wcount = 0;
+#endif
+#if ABORTPRO || PROFILE
+		  atomic_add64(&paymentnum, 1);
+#endif    
+	  
+		  leveldb::DBTX tx(store);
+		  while(true) {
+			//printf("1\n");
+			tx.Begin();
+			//printf("2\n");
+			//-------------------------------------------------------------------------
+			//The row in the WAREHOUSE table with matching W_ID is selected. 
+			//W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, and W_ZIP are retrieved 
+			//and W_YTD, the warehouse's year-to-date balance, is increased by H_ AMOUNT.
+			//-------------------------------------------------------------------------
+			
+			int64_t w_key = makeWarehouseKey(warehouse_id); 	
+			uint64_t *w_value;	
+			bool found = tx.Get(WARE, w_key, &w_value);
+#if PROFILE
+			rcount++;
+#endif
+			assert(found);
+			Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
+			Warehouse *neww = new Warehouse();
+			updateWarehouseYtd(neww, w, h_amount);
+			uint64_t *w_v = reinterpret_cast<uint64_t *>(neww);
+			tx.Add(WARE, w_key, w_v);
+#if PROFILE
+			wcount++;
+#endif
+			COPY_ADDRESS(neww, output, w_);
+	  
+			//-------------------------------------------------------------------------
+			//The row in the DISTRICT table with matching D_W_ID and D_ID is selected. 
+			//D_NAME, D_STREET_1, D_STREET_2, D_CITY, D_STATE, and D_ZIP are retrieved 
+			//and D_YTD, the district's year-to-date balance, is increased by H_AMOUNT.
+			//-------------------------------------------------------------------------
+	  
+			int64_t d_key = makeDistrictKey(warehouse_id, district_id);
+			uint64_t *d_value;
+			found = tx.Get(DIST, d_key, &d_value);
+#if PROFILE
+			rcount++;
+#endif
+			assert(found);
+			//printf("2.1\n");
+			assert(*d_value != 0);
+			District *d = reinterpret_cast<District *>(d_value);	  
+			District *newd = new District();
+			updateDistrictYtd(newd, d, h_amount);
+			uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
+			tx.Add(DIST, d_key, d_v);
+#if PROFILE
+			wcount++;
+#endif
+			COPY_ADDRESS(newd, output, d_);
+	  
+			//-------------------------------------------------------------------------
+			//the row in the CUSTOMER table with matching C_W_ID, C_D_ID and C_ID is selected. 
+			//C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, 
+			//C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, and C_BALANCE are retrieved. 
+			//C_BALANCE is decreased by H_AMOUNT. C_YTD_PAYMENT is increased by H_AMOUNT. 
+			//C_PAYMENT_CNT is incremented by 1.
+			//If the value of C_CREDIT is equal to "BC", then C_DATA is also retrieved 
+			//and C_ID, C_D_ID, C_W_ID, D_ID, W_ID, and H_AMOUNT, are inserted at the left of the C_DATA field
+			//-------------------------------------------------------------------------
+			char *clast = const_cast<char *>(c_last);
+	  		char *fstart = new char[17];
+			memset(fstart, 0, 17);
+			uint64_t c_start = makeCustomerIndex(c_warehouse_id, c_district_id, clast, fstart);
+			char *fend = new char[17];
+			fend[0] = 255;
+			uint64_t c_end = makeCustomerIndex(c_warehouse_id, c_district_id, clast, fend);
+#if 0
+
+			printf("start\n");
+			for (int i=0; i<38; i++)
+				printf("%d ",((char *)c_start)[i]);
+			printf("\n");
+			
+			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
+#endif	
+			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
+			iter.Seek(c_start);
+			uint64_t **c_values = new uint64_t *[20];
+			uint64_t *c_keys = new uint64_t[20];
+			int j = 0;
+			while (iter.Valid()) {
+				
+#if PROFILE		
+				rcount++;
+#endif			
+				if (compareCustomerIndex(iter.Key(), c_end)){
+#if 0					
+					for (int i=0; i<38; i++)
+						printf("%d ",((char *)iter.Key())[i]);
+					printf("\n");
+#endif
+					DBTX::KeyValues *kvs = iter.Value();
+					int num = kvs->num;
+					for (int i=0; i<num; i++)  {
+						c_values[j] = kvs->values[i];
+						c_keys[j] = kvs->keys[i];
+//						printf("j %d\n",j);
+						j++;
+					}	
+					delete kvs;
+				}
+				else break;
+				iter.Next();
+					
+			}
+			j = (j+1)/2 - 1;
+			
+			uint64_t *c_value = c_values[j];
+//			printf("cv %lx\n",c_value);
+			uint64_t c_key = c_keys[j];
+			//if (c_value == NULL) exit(0);
+			delete fstart;
+			delete fend;
+			delete c_values;
+			assert(found);
+			Customer *c = reinterpret_cast<Customer *>(c_value);
+			Customer *newc = new Customer();
+			updateCustomer(newc, c, h_amount, warehouse_id, district_id);
+			uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
+			tx.Add(CUST, c_key, c_v);
+#if PROFILE
+			wcount++;
+#endif
+			output->c_credit_lim = newc->c_credit_lim;
+			output->c_discount = newc->c_discount;
+			output->c_balance = newc->c_balance;
+    #define COPY_STRING(dest, src, field) memcpy(dest->field, src->field, sizeof(src->field))
+			COPY_STRING(output, newc, c_first);
+			COPY_STRING(output, newc, c_middle);
+			COPY_STRING(output, newc, c_last);
+			COPY_ADDRESS(newc, output, c_);
+			COPY_STRING(output, newc, c_phone);
+			COPY_STRING(output, newc, c_since);
+			COPY_STRING(output, newc, c_credit);
+			COPY_STRING(output, newc, c_data);
+    #undef COPY_STRING
+	  
+	  
+			//-------------------------------------------------------------------------
+			//H_DATA is built by concatenating W_NAME and D_NAME separated by 4 spaces.
+			//A new row is inserted into the HISTORY table with H_C_ID = C_ID, H_C_D_ID = C_D_ID, H_C_W_ID =
+			//C_W_ID, H_D_ID = D_ID, and H_W_ID = W_ID.
+			//-------------------------------------------------------------------------
+	  		int64_t customer_id = c_key - (c_warehouse_id * District::NUM_PER_WAREHOUSE + c_district_id)
+            						* Customer::NUM_PER_DISTRICT;
+			uint64_t h_key = makeHistoryKey(customer_id, c_district_id, c_warehouse_id, district_id, warehouse_id);
+			History *h = new History();
+			h->h_amount = h_amount;
+			strcpy(h->h_date, now);
+			strcpy(h->h_data, w->w_name);
+			strcat(h->h_data, "    ");
+			strcat(h->h_data, d->d_name);
+			uint64_t *h_v = reinterpret_cast<uint64_t *>(h);
+			tx.Add(HIST, h_key, h_v);
+#if PROFILE
+			wcount++;
+#endif
+			//printf("3\n");
+			bool b = tx.End();	
+			if (b) break;
+	  
+#if ABORTPRO
+			atomic_add64(&paymentabort, 1);
+#endif
+		  }
+	  
+		  atomic_add64(&abort, tx.rtmProf.abortCounts);
+		  atomic_add64(&capacity, tx.rtmProf.capacityCounts);
+		  atomic_add64(&conflict, tx.rtmProf.conflictCounts);
+#if PROFILE
+		  atomic_add64(&paymentreadcount, rcount);
+		  atomic_add64(&paymentwritecount, wcount);
+		  while (rcount > paymentreadmax) paymentreadmax = rcount;
+		  while (wcount > paymentwritemax) paymentwritemax = wcount;
+		  while (rcount < paymentreadmin) paymentreadmin = rcount;
+		  while (wcount < paymentwritemin) paymentwritemin = wcount;
+#endif
+		  return;
+  }
+
+  void TPCCSkiplist::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 			int32_t c_district_id, int32_t customer_id, float h_amount, const char* now,
 			PaymentOutput* output, TPCCUndo** undo) {  
 
@@ -1080,6 +1338,159 @@ namespace leveldb {
     return;
   }
   #undef COPY_ADDRESS
+  
+  void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output){
+#if PROFILE
+			uint32_t icount = 0;
+			uint32_t rcount = 0;
+#endif
+#if PROFILE || ABORTPRO
+			atomic_add64(&orderstatusnum, 1);
+#endif
+			leveldb::DBROTX tx(store);
+			tx.Begin();
+	  
+			//-------------------------------------------------------------------------
+			//the row in the CUSTOMER table with matching C_W_ID, C_D_ID, and C_ID is selected 
+			//and C_BALANCE, C_FIRST, C_MIDDLE, and C_LAST are retrieved.
+			//-------------------------------------------------------------------------
+			char *clast = const_cast<char *>(c_last);
+			char *fstart = new char[17];
+			memset(fstart, 0, 17);
+			uint64_t c_start = makeCustomerIndex(warehouse_id, district_id, clast, fstart);
+			char *fend = new char[17];
+			fend[0] = 255;
+			uint64_t c_end = makeCustomerIndex(warehouse_id, district_id, clast, fend);
+#if 0
+			
+			printf("start\n");
+			for (int i=0; i<38; i++)
+				printf("%d ",((char *)c_start)[i]);
+			printf("\n");
+					
+			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
+#endif	
+			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
+			iter.Seek(c_start);
+			uint64_t **c_values = new uint64_t *[20];
+			uint64_t *c_keys = new uint64_t[20];
+			int j = 0;
+			while (iter.Valid()) {
+					
+#if PROFILE		
+				rcount++;
+#endif			
+				if (compareCustomerIndex(iter.Key(), c_end)){
+#if 0					
+								for (int i=0; i<38; i++)
+									printf("%d ",((char *)iter.Key())[i]);
+								printf("\n");
+#endif
+					DBTX::KeyValues *kvs = iter.Value();
+					int num = kvs->num;
+					for (int i=0; i<num; i++)  {
+						c_values[j] = kvs->values[i];
+						c_keys[j] = kvs->keys[i];
+			//				printf("j %d\n",j);
+						j++;
+					}	
+					delete kvs;
+				}
+				else break;
+				iter.Next();
+				
+			}
+			j = (j+1)/2 - 1;
+				
+			uint64_t *c_value = c_values[j];
+			//			printf("cv %lx\n",c_value);
+			uint64_t c_key = c_keys[j];
+			//if (c_value == NULL) exit(0);
+			delete fstart;
+			delete fend;
+			delete c_values;
+			assert(found);
+			Customer *c = reinterpret_cast<Customer *>(c_value);
+	  		
+	  		int64_t customer_id = c_key - (c_warehouse_id * District::NUM_PER_WAREHOUSE + c_district_id)
+            						* Customer::NUM_PER_DISTRICT;
+			output->c_id = customer_id;
+			// retrieve from customer: balance, first, middle, last
+			output->c_balance = c->c_balance;
+			strcpy(output->c_first, c->c_first);
+			strcpy(output->c_middle, c->c_middle);
+			strcpy(output->c_last, c->c_last);
+	  
+			
+			//-------------------------------------------------------------------------
+			//The row in the ORDER table with matching O_W_ID (equals C_W_ID), O_D_ID (equals C_D_ID), O_C_ID
+			//(equals C_ID), and with the largest existing O_ID, is selected. This is the most recent order placed by that customer. 
+			//O_ID, O_ENTRY_D, and O_CARRIER_ID are retrieved.
+			//-------------------------------------------------------------------------
+	  
+			Order *o = NULL; int32_t o_id;
+			DBROTX::Iterator iter(&tx, ORDE);
+			uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
+			uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
+			//printf("OrderStatus %d\n", customer_id);
+			iter.Seek(start);
+			iter.Prev();
+			while (iter.Valid() && iter.Key() >= end) { 
+			  
+			  o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
+			  
+			  uint64_t *o_value = iter.Value();
+#if PROFILE
+			  icount++;
+#endif
+			  o = reinterpret_cast<Order *>(o_value);
+			  
+			  if (o->o_c_id == customer_id) break;
+			  //printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
+			  
+			  iter.Prev();
+			  o = NULL;
+			}
+			
+			
+			//-------------------------------------------------------------------------
+			//All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID),
+			//and OL_O_ID (equals O_ID) are selected and the corresponding sets of OL_I_ID, OL_SUPPLY_W_ID,
+			//OL_QUANTITY, OL_AMOUNT, and OL_DELIVERY_D are retrieved.
+			//-------------------------------------------------------------------------
+			if (o != NULL) { 
+			  //printf("Catch\n");
+			  output->o_id = o_id;
+			  output->o_carrier_id = o->o_carrier_id;
+			  strcpy(output->o_entry_d, o->o_entry_d);
+			  output->lines.resize(o->o_ol_cnt);
+			  for (int32_t line_number = 1; line_number <= o->o_ol_cnt; ++line_number) {
+				uint64_t ol_key = makeOrderLineKey(warehouse_id, district_id, o_id, line_number);
+				
+				uint64_t *ol_value;
+				bool found = tx.Get(ORLI, ol_key, &ol_value);
+#if PROFILE
+				rcount++;
+#endif
+				OrderLine* line = reinterpret_cast<OrderLine *>(ol_value);
+				output->lines[line_number-1].ol_i_id = line->ol_i_id;
+				output->lines[line_number-1].ol_supply_w_id = line->ol_supply_w_id;
+				output->lines[line_number-1].ol_quantity = line->ol_quantity;
+				output->lines[line_number-1].ol_amount = line->ol_amount;
+				strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
+			  }
+			}
+			bool b = tx.End();
+#if PROFILE
+			atomic_add64(&orderstatusreadcount, rcount);
+			atomic_add64(&orderstatusitercount, icount);
+			while (rcount > orderstatusreadmax) orderstatusreadmax = rcount;
+			while (icount > orderstatusitermax) orderstatusitermax = icount;
+			while (rcount < orderstatusreadmin) orderstatusreadmin = rcount;
+			while (icount < orderstatusitermin) orderstatusitermin = icount;
+#endif	  
+			return;
+  }
 
   void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, int32_t customer_id, OrderStatusOutput* output){
 #if PROFILE
@@ -1476,14 +1887,7 @@ bool TPCCSkiplist::newOrderRemote(int32_t home_warehouse, int32_t remote_warehou
 
 
 
-void TPCCSkiplist::orderStatus(int32_t warehouse_id, int32_t district_id, const char* c_last, OrderStatusOutput* output){
-  return;
-}
-void TPCCSkiplist::payment(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
-		  int32_t c_district_id, const char* c_last, float h_amount, const char* now,
-		  PaymentOutput* output, TPCCUndo** undo) {
-  return;
-}
+
 
 
 void TPCCSkiplist::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
