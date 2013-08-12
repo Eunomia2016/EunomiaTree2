@@ -235,7 +235,35 @@ class Benchmark {
 					siter->Next();
 				}
 				b = tx.End();
-			}			
+			}	
+
+
+			b = false;
+			//Test step 2. seek verify
+			while (!b) {
+				tx.Begin();
+				DBTX::SecondaryIndexIterator* siter = 
+					new DBTX::SecondaryIndexIterator(&tx, 0);
+
+				siter->Seek(5);
+				while(siter->Valid()) {
+					uint64_t key = siter->Key();
+					printf("key %ld\n", key);
+					DBTX::KeyValues* kvs = siter->Value();
+					if(key != kvs->num) {
+						printf("the number of value for key %ld is wrong[%d]\n", key, kvs->num);
+						break;
+					}
+
+					for(int k = 0; k < kvs->num; k++) {
+						if(*kvs->values[k] != (kvs->keys[k] * key)) {
+							printf("Wrong Value %ld\n", *kvs->values[k]);
+						}
+					}
+					siter->Next();
+				}
+				b = tx.End();
+			}	
 			
 		}
 

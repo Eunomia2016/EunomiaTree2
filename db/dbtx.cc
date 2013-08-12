@@ -888,7 +888,7 @@ void DBTX::SecondaryIndexIterator::Next()
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&rtmProf);
+		RTMScope rtm(&tx_->rtmProf);
 #endif
 
 	//FIXME: the number of node may be changed before the RTM acquired
@@ -948,7 +948,7 @@ void DBTX::SecondaryIndexIterator::Prev()
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&rtmProf);
+		RTMScope rtm(&tx_->rtmProf);
 #endif
 
 	//FIXME: the number of node may be changed before the RTM acquired
@@ -1017,7 +1017,7 @@ void DBTX::SecondaryIndexIterator::Seek(uint64_t key)
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&rtmProf);
+		RTMScope rtm(&tx_->rtmProf);
 #endif
 
 	//FIXME: the number of node may be changed before the RTM acquired
@@ -1076,7 +1076,7 @@ void DBTX::SecondaryIndexIterator::SeekToFirst()
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&rtmProf);
+		RTMScope rtm(&tx_->rtmProf);
 #endif
 
 	//FIXME: the number of node may be changed before the RTM acquired
