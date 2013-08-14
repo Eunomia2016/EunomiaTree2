@@ -8,7 +8,7 @@
 #include "randomgenerator.h"
 #include "tpccdb.h"
 
-#define SEC_INDEX 0
+
 
 using std::vector;
 

@@ -7,6 +7,11 @@
 #include <tr1/unordered_map>
 #include <vector>
 
+
+//Define if use secondary index or not
+#define SEC_INDEX 1
+
+
 // Avoid std::tr1::unordered_set on Mac OS X, which has compile errors
 #ifdef __APPLE__
 #include <ext/hash_set>
