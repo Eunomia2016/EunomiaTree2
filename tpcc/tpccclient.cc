@@ -37,6 +37,16 @@ TPCCClient::TPCCClient(Clock* clock, tpcc::RandomGenerator* generator, TPCCDB* d
     ASSERT(1 <= districts_per_warehouse_ &&
             districts_per_warehouse_ <= District::NUM_PER_WAREHOUSE);
     ASSERT(1 <= customers_per_district_ && customers_per_district_ <= Customer::NUM_PER_DISTRICT);
+	
+#if TIMEPROFILE
+		total_time = 0;
+		payment_time = 0;
+		neworder_time = 0;
+		stocklevel_time = 0;
+		orderstatus_time = 0;
+		delivery_time = 0;
+#endif
+
 }
 
 TPCCClient::~TPCCClient() {
@@ -170,21 +180,78 @@ void TPCCClient::doOne() {
     // This is not strictly accurate: The requirement is for certain *minimum* percentages to be
     // maintained. This is close to the right thing, but not precisely correct.
     // See TPC-C 5.2.4 (page 68).
+
+#if TIMEPROFILE
+    uint64_t start = rdtsc();
+	uint64_t end = 0;
+#endif
+
     int x = generator_->number(1, 100);
     if (x <= 4) { // 4%
         doStockLevel();
+		
+#if TIMEPROFILE
+		end = rdtsc();
+		stocklevel_time += (end - start);
+#endif
+
     } else if (x <= 8) {  // 4%
         doDelivery();
+
+#if TIMEPROFILE
+		end = rdtsc();
+		delivery_time += (end - start);
+#endif
+
+
     } else if (x <= 12) {  // 4%
         doOrderStatus();
+
+#if TIMEPROFILE
+		end = rdtsc();
+		orderstatus_time += (end - start);
+#endif
+
+
     } else if (x <= 12+43) { // 43%
         doPayment();
+
+#if TIMEPROFILE
+		end = rdtsc();
+		payment_time += (end - start);
+#endif
+
+
     } else {  // 45%
         ASSERT(x > 100-45);
         doNewOrder();
+		
+#if TIMEPROFILE
+		end = rdtsc();
+		neworder_time += (end - start);
+#endif
+
     }
+
+#if TIMEPROFILE
+	total_time += (end - start);
+#endif
+
+
 }
 
+void TPCCClient::reportStat() {
+	double cpufreq = 3400000;
+#if TIMEPROFILE
+	printf("Total Time %lf (ms)\n", total_time/cpufreq);
+	printf("Stock Level Time %lf (ms)\n", stocklevel_time/cpufreq);
+	printf("Payment Time %lf (ms)\n", payment_time/cpufreq);
+	printf("New Order Time %lf (ms)\n", neworder_time/cpufreq);
+	printf("Order Status Time %lf (ms)\n", orderstatus_time/cpufreq);
+#endif
+	
+}
+	
 void TPCCClient::doReadOnly() {
     int x = generator_->number(1, 100);
     if (x <= 50) { // 50%

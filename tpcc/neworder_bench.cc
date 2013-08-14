@@ -240,6 +240,10 @@ class Benchmark {
 
   void doOne(ThreadState* thread) {
   	// Change the constants for run
+#if TIMEPROFILE
+	double start_time = leveldb::Env::Default()->NowMicros();
+#endif
+
 #if LOCALRANDOM
 	tpcc::TXDBRandomGenerator* random = new tpcc::TXDBRandomGenerator();
 #else
@@ -262,6 +266,12 @@ class Benchmark {
 		thread->stats.FinishedSingleOp();
 	  }
     }
+	
+#if TIMEPROFILE
+	double stop_time = leveldb::Env::Default()->NowMicros();
+	printf("Mix run time : ", stop_time - start_time);
+#endif
+
   }
 
   void doNewOrder(ThreadState* thread) {

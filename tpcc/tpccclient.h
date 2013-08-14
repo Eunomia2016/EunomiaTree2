@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define TIMEPROFILE 1
+
 namespace tpcc {
 class RandomGenerator;
 }
@@ -29,6 +31,8 @@ public:
     void doOne();
 	void doReadOnly();
 
+	void reportStat();
+	
     static const int32_t MIN_STOCK_LEVEL_THRESHOLD = 10;
     static const int32_t MAX_STOCK_LEVEL_THRESHOLD = 20;
     // TODO: Should these constants be part of tpccdb.h?
@@ -64,7 +68,24 @@ private:
     int remote_item_milli_p_;
 
     int bound_warehouse_; 
-    int bound_district_; 
+    int bound_district_;
+
+#if TIMEPROFILE
+	
+	inline unsigned long rdtsc(void)
+	{
+		  unsigned a, d;
+		  __asm __volatile("rdtsc":"=a"(a), "=d"(d));
+		  return ((unsigned long)a) | (((unsigned long) d) << 32);
+	}
+
+	uint64_t total_time;
+	uint64_t payment_time;
+	uint64_t neworder_time;
+	uint64_t stocklevel_time;
+	uint64_t orderstatus_time;
+	uint64_t delivery_time;
+#endif
 };
 
 #endif
