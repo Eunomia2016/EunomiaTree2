@@ -245,6 +245,8 @@ namespace leveldb {
 		if (k == num) {
 			node_ = leaf->right;
 			leaf_index = 0;
+			if(node_ == NULL)
+				return;
 		}
 		else {
 			leaf_index = k;

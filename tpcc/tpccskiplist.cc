@@ -1443,7 +1443,8 @@ namespace leveldb {
 				  uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
 				  uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
 				  iter.Seek(start);
-				  iter.Prev();
+				  if(iter.Valid())
+    				iter.Prev();
 				  if (iter.Valid() && iter.Key() >= end) {
 					DBROTX::KeyValues *kvs = iter.Value();
 					o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
@@ -1459,8 +1460,8 @@ namespace leveldb {
 				  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 				  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 				  //printf("OrderStatus %d\n", customer_id);
-				  iter.Seek(start);
-				  iter.Prev();
+				  if(iter.Valid())
+    				iter.Prev();
 				  while (iter.Valid() && iter.Key() >= end) { 
 					
 					o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
@@ -1564,7 +1565,8 @@ namespace leveldb {
 	  uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
 	  iter.Seek(start);
-	  iter.Prev();
+	  if(iter.Valid())
+    	iter.Prev();
 	  if (iter.Valid() && iter.Key() >= end) {
 	  	DBROTX::KeyValues *kvs = iter.Value();
 		o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
@@ -1581,7 +1583,8 @@ namespace leveldb {
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	  //printf("OrderStatus %d\n", customer_id);
 	  iter.Seek(start);
-	  iter.Prev();
+	  if(iter.Valid())
+    	iter.Prev();
 	  while (iter.Valid() && iter.Key() >= end) { 
 	  	
 	  	o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
