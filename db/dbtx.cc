@@ -26,17 +26,23 @@ SpinLock DBTX::slock;
 
 __thread DBTX::WriteSet* DBTX::writeset = NULL;
 __thread DBTX::ReadSet* DBTX::readset = NULL;
+__thread bool DBTX::localinit = false;
+__thread DBTX::BufferNode* DBTX::buffer = NULL;
+
 
 #define MAXSIZE 4*1024*1024 // the initial read/write set size
 
 void DBTX::ThreadLocalInit()
 {
-
-	if(readset == NULL)
+   if ( false == localinit) {
 	  readset = new ReadSet();
-	
-	if(writeset == NULL)
 	  writeset = new WriteSet();
+#if BUFFERNODE
+	  assert( txdb_->number > 0);
+	  buffer = new BufferNode[txdb_->number];
+#endif
+	  localinit = true;
+   }
 	
 }
 
@@ -455,13 +461,22 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 
 {
   Memstore::MemNode* node;
+
   //Get the seq addr from the hashtable
-  node = txdb_->tables[tableid]->GetWithInsert(key);
-  //printf("[DBTX] insert key %lx\n", key);
-  //write the key value into local buffer
-  if(node == 0)
-  	printf("get zero value!!!\n");
-  
+#if BUFFERNODE
+  if(buffer[tableid].key == key) {
+  	node = buffer[tableid].node;
+	assert(node != NULL);
+  } else {
+  	node = txdb_->tables[tableid]->GetWithInsert(key);
+	buffer[tableid].node = node;
+	buffer[tableid].key = key;
+	assert(node != NULL);
+  }
+#else
+	node = txdb_->tables[tableid]->GetWithInsert(key);
+#endif
+
   writeset->Add(tableid, key, val, node);
 }
 
@@ -471,8 +486,20 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 	uint64_t *seq;
 
 	Memstore::MemNode* node;
+#if BUFFERNODE
 	//Get the seq addr from the hashtable
+	if(buffer[tableid].key == key) {
+		node = buffer[tableid].node;
+		assert(node != NULL);
+	} else {
+		node = txdb_->tables[tableid]->GetWithInsert(key);
+		buffer[tableid].node = node;
+		buffer[tableid].key = key;
+		assert(node != NULL);
+	}
+#else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
+#endif
 
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =  
@@ -580,9 +607,21 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 
 	
   //step 2.  Read the <k,v> from the in memory store
-  Memstore::MemNode* node = txdb_->tables[tableid]->GetWithInsert(key);
+  Memstore::MemNode* node = NULL;
+#if BUFFERNODE
+  if(buffer[tableid].key == key) {
+  	node = buffer[tableid].node;
+	assert(node != NULL);
+  } else {
+  	node = txdb_->tables[tableid]->GetWithInsert(key);
+	buffer[tableid].node = node;
+	buffer[tableid].key = key;
+	assert(node != NULL);
+  }
+#else
+	node = txdb_->tables[tableid]->GetWithInsert(key);
+#endif}
 
-	
 	//Guarantee	
 #if GLOBALOCK
 	SpinLockScope spinlock(&slock);
@@ -591,7 +630,6 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 #endif
 
 //	if(*val != NULL && **val == 1)
-	assert(node != NULL);
     readset->Add(&node->seq);
 
 	if (node->value == NULL) {
@@ -617,6 +655,7 @@ DBTX::Iterator::Iterator(DBTX* tx, int tableid)
 	iter_ = table_->GetIterator();
 	cur_ = NULL;
 	prev_link = NULL;
+	tableid_ = tableid;
 }
 	
 bool DBTX::Iterator::Valid()
@@ -632,6 +671,10 @@ uint64_t DBTX::Iterator::Key()
 
 uint64_t* DBTX::Iterator::Value()
 {
+#if BUFFERNODE
+	tx_->buffer[tableid_].key = iter_->Key();
+	tx_->buffer[tableid_].node = cur_;
+#endif
 	return val_;
 }
 	

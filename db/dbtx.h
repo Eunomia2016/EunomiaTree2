@@ -19,8 +19,10 @@
 
 
 #define CACHESIM 0
-#define GLOBALOCK 0
+#define GLOBALOCK 1
 #define AGGRESSIVEDETECT 0
+#define BUFFERNODE 1
+
 
 namespace leveldb {
 
@@ -46,6 +48,18 @@ class DBTX {
 	  {
 	  	delete[] keys;
 		delete[] values;
+	  }
+	};
+
+	struct BufferNode {
+
+	  uint64_t key;
+	  Memstore::MemNode* node;
+	  
+	  BufferNode()
+	  {
+	  	key = -1;
+		node = NULL;
 	  }
 	};
 	
@@ -109,6 +123,7 @@ public:
 	 private:
 	  DBTX* tx_;
 	  Memstore *table_;
+	  uint64_t tableid_;
 	  Memstore::MemNode* cur_;
 	  Memstore::Iterator *iter_;
 	  uint64_t *val_;
@@ -244,6 +259,11 @@ public:
 
 	static __thread ReadSet* readset;
 	static __thread WriteSet *writeset;
+	char padding[64];
+	
+	static __thread bool localinit;
+	static __thread BufferNode* buffer;
+	char padding2[64];
 	
 	static port::Mutex storemutex;
 	static SpinLock slock;
