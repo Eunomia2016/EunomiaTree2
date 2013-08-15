@@ -245,9 +245,11 @@ void TPCCClient::reportStat() {
 #if TIMEPROFILE
 	printf("Total Time %lf (ms)\n", total_time/cpufreq);
 	printf("Stock Level Time %lf (ms)\n", stocklevel_time/cpufreq);
+	printf("Delivery Time %lf (ms)\n", delivery_time/cpufreq);
+	printf("Order Status Time %lf (ms)\n", orderstatus_time/cpufreq);
 	printf("Payment Time %lf (ms)\n", payment_time/cpufreq);
 	printf("New Order Time %lf (ms)\n", neworder_time/cpufreq);
-	printf("Order Status Time %lf (ms)\n", orderstatus_time/cpufreq);
+	
 #endif
 	
 }

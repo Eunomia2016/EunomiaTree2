@@ -269,7 +269,8 @@ class Benchmark {
 	
 #if TIMEPROFILE
 	double stop_time = leveldb::Env::Default()->NowMicros();
-	printf("Mix run time : ", stop_time - start_time);
+	printf("Mix run time : %lf\n", (stop_time - start_time)/1000);
+	client.reportStat();
 #endif
 
   }
