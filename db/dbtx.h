@@ -22,7 +22,7 @@
 #define GLOBALOCK 1
 #define AGGRESSIVEDETECT 0
 #define BUFFERNODE 1
-
+#define PROFILEBUFFERNODE 1
 
 namespace leveldb {
 
@@ -264,6 +264,10 @@ public:
 	static __thread bool localinit;
 	static __thread BufferNode* buffer;
 	char padding2[64];
+
+	int bufferGet;
+	int bufferHit;
+	int bufferMiss;
 	
 	static port::Mutex storemutex;
 	static SpinLock slock;

@@ -400,6 +400,12 @@ DBTX::DBTX(DBTables* store)
   txdb_ = store;
   count = 0;
   abort = false;
+#if PROFILEBUFFERNODE
+  bufferGet = 0;
+  bufferMiss = 0;
+  bufferHit = 0;
+#endif
+
 }
 
   
@@ -462,12 +468,27 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 {
   Memstore::MemNode* node;
 
+#if PROFILEBUFFERNODE
+  bufferGet++;
+#endif
+
+
   //Get the seq addr from the hashtable
 #if BUFFERNODE
   if(buffer[tableid].key == key) {
-  	node = buffer[tableid].node;
+
+#if PROFILEBUFFERNODE
+  bufferHit++;
+#endif
+
+ 	node = buffer[tableid].node;
 	assert(node != NULL);
   } else {
+
+#if PROFILEBUFFERNODE
+  bufferMiss++;
+#endif
+
   	node = txdb_->tables[tableid]->GetWithInsert(key);
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;
@@ -485,13 +506,25 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 {
 	uint64_t *seq;
 
+#if PROFILEBUFFERNODE
+  bufferGet++;
+#endif
+
+
 	Memstore::MemNode* node;
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
 	if(buffer[tableid].key == key) {
+#if PROFILEBUFFERNODE
+  bufferHit++;
+#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
+#if PROFILEBUFFERNODE
+  bufferMiss++;
+#endif
+
 		node = txdb_->tables[tableid]->GetWithInsert(key);
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
@@ -605,14 +638,29 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
       	return true;
   }
 
+#if PROFILEBUFFERNODE
+  bufferGet++;
+#endif
+
+
 	
   //step 2.  Read the <k,v> from the in memory store
   Memstore::MemNode* node = NULL;
 #if BUFFERNODE
   if(buffer[tableid].key == key) {
-  	node = buffer[tableid].node;
+ 
+#if PROFILEBUFFERNODE
+  bufferHit++;
+#endif
+ 	node = buffer[tableid].node;
 	assert(node != NULL);
   } else {
+
+#if PROFILEBUFFERNODE
+  bufferMiss++;
+#endif
+
+
   	node = txdb_->tables[tableid]->GetWithInsert(key);
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;

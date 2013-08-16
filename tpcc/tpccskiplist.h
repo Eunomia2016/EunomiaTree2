@@ -75,6 +75,11 @@ class TPCCSkiplist : public TPCCDB {
   uint64_t deliverwritemin;
   uint64_t deliveritermin;
 
+#if PROFILEBUFFERNODE
+  int bufferMiss;
+  int bufferHit;
+  int bufferGet;
+#endif
   
   TPCCSkiplist();
   ~TPCCSkiplist();

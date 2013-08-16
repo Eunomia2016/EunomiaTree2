@@ -25,7 +25,6 @@
 
 #define CUST_INDEX 0
 #define ORDER_INDEX 1
-
 namespace leveldb {
 
   static int64_t makeWarehouseKey(int32_t w_id) {
@@ -335,6 +334,12 @@ namespace leveldb {
 	delivernum = 0;
 #endif
 
+#if PROFILEBUFFERNODE                                                                                                                                         
+  int bufferMiss = 0;
+  int bufferHit = 0;
+  int bufferGet = 0;
+#endif
+
 #if ABORTPRO
 	neworderabort = 0;
 	paymentabort = 0;
@@ -396,7 +401,10 @@ namespace leveldb {
 	printf("Stocklevel Run: %ld   Abort: %ld\n", stocklevelnum, stocklevelabort);
 	printf("Deliver Run: %ld   Abort: %ld\n", delivernum, deliverabort);
 #endif	
-
+#if PROFILEBUFFERNODE
+	printf("Miss %d [%lf] Hit %d [%lf] Total %d\n ", bufferMiss, (double)bufferMiss/bufferGet, 
+			bufferHit, (double)bufferHit/bufferGet, bufferGet);
+#endif
 
 #if PROFILE
 	printf("neworderreadcount %f max %ld min %ld\n", (float)neworderreadcount/newordernum, neworderreadmax, neworderreadmin);
@@ -1911,6 +1919,12 @@ retry:
 	  atomic_add64(&deliverabort, 1);
 #endif
 	}
+
+#if PROFILEBUFFERNODE                                                                                                                                         
+  bufferMiss += tx.bufferMiss;
+  bufferHit += tx.bufferHit;
+  bufferGet += tx.bufferGet;
+#endif
 	
 #if PROFILE
 	atomic_add64(&deliverreadcount, rcount);
