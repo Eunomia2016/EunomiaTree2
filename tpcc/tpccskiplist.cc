@@ -1995,6 +1995,10 @@ retry:
    search += tx.searchTime;
    traverse += tx.traverseTime;
    traverseCount += tx.traverseCount;
+
+if(seekCount % 1000 == 0)
+  printf("Avg Count %ld [%ld / %ld]\n", traverseCount / seekCount, traverseCount, seekCount);
+
 #endif	
 	
 #if PROFILE
