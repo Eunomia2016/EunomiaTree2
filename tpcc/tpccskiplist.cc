@@ -335,9 +335,16 @@ namespace leveldb {
 #endif
 
 #if PROFILEBUFFERNODE                                                                                                                                         
-  int bufferMiss = 0;
-  int bufferHit = 0;
-  int bufferGet = 0;
+  bufferMiss = 0;
+  bufferHit = 0;
+  bufferGet = 0;
+#endif
+
+#if PROFILEDELIVERY
+  dstep1 = 0;                                                                                                                                            
+  dstep2 = 0;
+  dstep3 = 0;                                                                                                                                            
+  dstep4 = 0;
 #endif
 
 #if ABORTPRO
@@ -405,6 +412,13 @@ namespace leveldb {
 	printf("Miss %d [%lf] Hit %d [%lf] Total %d\n ", bufferMiss, (double)bufferMiss/bufferGet, 
 			bufferHit, (double)bufferHit/bufferGet, bufferGet);
 #endif
+
+#if PROFILEDELIVERY
+  double cpufreq = 3400000; 	
+  printf("Delivery TX profile s1 %lf s2 %lf s3 %lf s4 %lf\n", dstep1/cpufreq, dstep2/cpufreq, dstep3/cpufreq, dstep4/cpufreq);
+#endif
+
+
 
 #if PROFILE
 	printf("neworderreadcount %f max %ld min %ld\n", (float)neworderreadcount/newordernum, neworderreadmax, neworderreadmin);
@@ -1792,6 +1806,10 @@ retry:
 	  tx.Begin();
 	  orders->clear();
   	  for (int32_t d_id = 1; d_id <= District::NUM_PER_WAREHOUSE; ++d_id) {
+
+#if PROFILEDELIVERY
+	  uint64_t sstart = rdtsc();
+#endif
 	    //-------------------------------------------------------------------------
 	    //The row in the NEW-ORDER table with matching NO_W_ID (equals W_ID) and NO_D_ID (equals D_ID) 
 	    //and with the lowest NO_O_ID value is selected.
@@ -1831,89 +1849,115 @@ retry:
           //printf("NoOrder!!\n");
           continue;
         }
-		
-		DeliveryOrderInfo order;
+	
+#if PROFILEDELIVERY
+	dstep1 += rdtsc() - sstart;
+	sstart = rdtsc();
+#endif
+
+	DeliveryOrderInfo order;
         order.d_id = d_id;
         order.o_id = no_id;
         orders->push_back(order);
 
-		//-------------------------------------------------------------------------
-		//The row in the ORDER table with matching O_W_ID (equals W_ ID), O_D_ID (equals D_ID), and O_ID (equals NO_O_ID) is selected, 
-		//O_C_ID, the customer number, is retrieved, and O_CARRIER_ID is updated.
-		//-------------------------------------------------------------------------
+	//-------------------------------------------------------------------------
+	//The row in the ORDER table with matching O_W_ID (equals W_ ID), O_D_ID (equals D_ID), and O_ID (equals NO_O_ID) is selected, 
+	//O_C_ID, the customer number, is retrieved, and O_CARRIER_ID is updated.
+	//-------------------------------------------------------------------------
 
-		int64_t o_key = makeOrderKey(warehouse_id, d_id, no_id);
+
+	int64_t o_key = makeOrderKey(warehouse_id, d_id, no_id);
 		
-		uint64_t *o_value;
-		bool found = tx.Get(ORDE, o_key, &o_value);
+	uint64_t *o_value;
+	bool found = tx.Get(ORDE, o_key, &o_value);
 #if PROFILE
-		rcount++;
+	rcount++;
 #endif
-		Order *o = reinterpret_cast<Order *>(o_value);
-		assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
-		Order *newo = new Order();		
-		updateOrder(newo, o, carrier_id);
-		uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
-		tx.Add(ORDE, o_key, o_v);
-#if PROFILE
-		wcount++;
-#endif
-		int32_t c_id = o->o_c_id;
+	Order *o = reinterpret_cast<Order *>(o_value);
+	assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
+	Order *newo = new Order();		
+	updateOrder(newo, o, carrier_id);
+	uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
+	tx.Add(ORDE, o_key, o_v);
 
-		//-------------------------------------------------------------------------
-		//All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID), and OL_O_ID (equals O_ID) are selected. 
-		//All OL_DELIVERY_D, the delivery dates, are updated to the current system time as returned by the operating system 
-		//and the sum of all OL_AMOUNT is retrieved.
-		//-------------------------------------------------------------------------
-		float sum_ol_amount = 0;
-		DBTX::Iterator iter1(&tx, ORLI);
-		start = makeOrderLineKey(warehouse_id, d_id, no_id, 1);
-		iter1.Seek(start);
-		end = makeOrderLineKey(warehouse_id, d_id, no_id, 15);
-		while (iter1.Valid()) {
-		  int64_t ol_key = iter1.Key();
-		  if (ol_key > end) break;
-		  uint64_t *ol_value = iter1.Value();
-#if PROFILE
-		  icount++;
+#if PROFILEDELIVERY
+	dstep2 += rdtsc() - sstart;
+	sstart = rdtsc();
 #endif
-		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);
-		  OrderLine *newol = new OrderLine();
-		  updateOrderLine(newol, ol, now);
-		  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
-		  tx.Add(ORLI, ol_key, ol_v);
-#if PROFILE
-		  wcount++;
-#endif
-		  sum_ol_amount += ol->ol_amount;
-		  iter1.Next();
-		}
 
-		//-------------------------------------------------------------------------
-		//The row in the CUSTOMER table with matching C_W_ID (equals W_ID), C_D_ID (equals D_ID), and C_ID (equals O_C_ID) is selected 
-		//and C_BALANCE is increased by the sum of all order-line amounts (OL_AMOUNT) previously retrieved. 
-		//C_DELIVERY_CNT is incremented by 1.
-		//-------------------------------------------------------------------------
-
-		int64_t c_key = makeCustomerKey(warehouse_id, d_id, c_id);
-		
-		uint64_t *c_value;
-		found = tx.Get(CUST, c_key, &c_value);
 #if PROFILE
-		rcount++;
+	wcount++;
 #endif
-		Customer *c = reinterpret_cast<Customer *>(c_value);
-		Customer *newc = new Customer();
-		updateCustomerDelivery(newc, c, sum_ol_amount);
-		uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
-		tx.Add(CUST, c_key, c_v);
-#if PROFILE
-		wcount++;
-#endif
-	  }
+	int32_t c_id = o->o_c_id;
 
-	  bool b = tx.End();  
-  	  if (b) break;
+	//-------------------------------------------------------------------------
+	//All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID), and OL_O_ID (equals O_ID) are selected. 
+	//All OL_DELIVERY_D, the delivery dates, are updated to the current system time as returned by the operating system 
+	//and the sum of all OL_AMOUNT is retrieved.
+	//-------------------------------------------------------------------------
+	float sum_ol_amount = 0;
+	DBTX::Iterator iter1(&tx, ORLI);
+	start = makeOrderLineKey(warehouse_id, d_id, no_id, 1);
+	iter1.Seek(start);
+	end = makeOrderLineKey(warehouse_id, d_id, no_id, 15);
+	while (iter1.Valid()) {
+	  int64_t ol_key = iter1.Key();
+	  if (ol_key > end) break;
+	  uint64_t *ol_value = iter1.Value();
+
+#if PROFILE
+	  icount++;
+#endif
+	  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);
+	  OrderLine *newol = new OrderLine();
+	  updateOrderLine(newol, ol, now);
+	  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
+	  tx.Add(ORLI, ol_key, ol_v);
+#if PROFILE
+	  wcount++;
+#endif
+	  sum_ol_amount += ol->ol_amount;
+	  iter1.Next();
+	}
+
+#if PROFILEDELIVERY
+	dstep3 += rdtsc() - sstart;
+	sstart = rdtsc();
+#endif
+
+	//-------------------------------------------------------------------------
+	//The row in the CUSTOMER table with matching C_W_ID (equals W_ID), C_D_ID (equals D_ID), and C_ID (equals O_C_ID) is selected 
+	//and C_BALANCE is increased by the sum of all order-line amounts (OL_AMOUNT) previously retrieved. 
+	//C_DELIVERY_CNT is incremented by 1.
+	//-------------------------------------------------------------------------
+
+	int64_t c_key = makeCustomerKey(warehouse_id, d_id, c_id);
+	
+	uint64_t *c_value;
+	found = tx.Get(CUST, c_key, &c_value);
+#if PROFILE
+	rcount++;
+#endif
+	Customer *c = reinterpret_cast<Customer *>(c_value);
+	Customer *newc = new Customer();
+	updateCustomerDelivery(newc, c, sum_ol_amount);
+	uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
+	tx.Add(CUST, c_key, c_v);
+#if PROFILE
+	wcount++;
+#endif
+	 
+
+#if PROFILEDELIVERY
+	dstep4 += rdtsc() - sstart;
+#endif
+
+
+
+   }
+	
+  bool b = tx.End();  
+  if (b) break;
 
 #if ABORTPRO
 	  atomic_add64(&deliverabort, 1);

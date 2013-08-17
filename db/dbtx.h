@@ -21,8 +21,8 @@
 #define CACHESIM 0
 #define GLOBALOCK 1
 #define AGGRESSIVEDETECT 0
-#define BUFFERNODE 1
-#define PROFILEBUFFERNODE 1
+#define BUFFERNODE 0
+#define PROFILEBUFFERNODE 0
 
 namespace leveldb {
 

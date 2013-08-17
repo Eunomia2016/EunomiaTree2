@@ -11,6 +11,7 @@
 
 #include "tpccdb.h"
 
+#define PROFILEDELIVERY 1
 
 namespace leveldb {
 
@@ -80,7 +81,21 @@ class TPCCSkiplist : public TPCCDB {
   int bufferHit;
   int bufferGet;
 #endif
-  
+
+#if PROFILEDELIVERY
+  uint64_t dstep1;
+  uint64_t dstep2;
+  uint64_t dstep3;
+  uint64_t dstep4;
+#endif
+
+  inline unsigned long rdtsc(void)                                                                                                                      
+  {
+        unsigned a, d;                                                                                                                              
+        __asm __volatile("rdtsc":"=a"(a), "=d"(d));
+        return ((unsigned long)a) | (((unsigned long) d) << 32);                                                                                    
+  }
+
   TPCCSkiplist();
   ~TPCCSkiplist();
   
