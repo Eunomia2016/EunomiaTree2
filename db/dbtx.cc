@@ -405,7 +405,8 @@ DBTX::DBTX(DBTables* store)
   bufferMiss = 0;
   bufferHit = 0;
 #endif
-
+  searchTime = 0;
+  traverseTime = 0;
 }
 
   
@@ -860,6 +861,66 @@ void DBTX::Iterator::Seek(uint64_t key)
 	  
 	cur_ = NULL;
 }
+
+void DBTX::Iterator::SeekProfiled(uint64_t key)
+{
+	uint64_t start = tx_->rdtsc();
+	//Should seek from the previous node and put it into the readset
+	iter_->Seek(key);
+	cur_ = iter_->CurNode();
+
+	tx_->searchTime += tx_->rdtsc() - start;
+
+	//No keys is equal or larger than key
+	if(!iter_->Valid()){
+		assert(cur_ == NULL);
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&tx_->rtmProf);
+#endif
+		//put the previous node's next field into the readset
+		
+		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+		return;
+	}
+	
+	start = tx_->rdtsc();
+	//Second, find the first key which value is not NULL
+	while(iter_->Valid()) {
+
+	   {
+#if GLOBALOCK
+		  SpinLockScope spinlock(&slock);
+#else
+		  RTMScope rtm(&tx_->rtmProf);
+#endif
+//		  printf("before\n");
+	  	  //Avoid concurrently insertion
+		  tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+	//	  printf("end\n");
+	  	  //Avoid concurrently modification
+	  	  tx_->readset->Add(&cur_->seq);
+	  
+	  	  val_ = cur_->value;
+	  
+  	  	  if(val_ != NULL) {
+
+			tx_->traverseTime += (tx_->rdtsc() - start);
+		    	return;
+	  	  }
+
+	    }
+	  
+	    iter_->Next();
+	    cur_ = iter_->CurNode();
+	}
+
+	  
+	cur_ = NULL;
+//	tx_->traverseTime += tx_->rdtsc() - start;
+}
+
 	
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.

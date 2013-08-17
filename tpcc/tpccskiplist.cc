@@ -345,6 +345,8 @@ namespace leveldb {
   dstep2 = 0;
   dstep3 = 0;                                                                                                                                            
   dstep4 = 0;
+  search = 0;
+  traverse = 0;
 #endif
 
 #if ABORTPRO
@@ -416,6 +418,7 @@ namespace leveldb {
 #if PROFILEDELIVERY
   double cpufreq = 3400000; 	
   printf("Delivery TX profile s1 %lf s2 %lf s3 %lf s4 %lf\n", dstep1/cpufreq, dstep2/cpufreq, dstep3/cpufreq, dstep4/cpufreq);
+  printf("Seek Profile Search %lf Traverse %lf\n", search/cpufreq, traverse/cpufreq);
 #endif
 
 
@@ -1820,7 +1823,19 @@ retry:
 		//printf("w %d d %d\n", warehouse_id, d_id);
 		int64_t start = makeNewOrderKey(warehouse_id, d_id, 1);
 		DBTX::Iterator iter(&tx, NEWO);
+
+#if PROFILEDELIVERY
+	 	
+		sstart = rdtsc();
+
+		iter.SeekProfiled(start);
+
+     		dstep1 += rdtsc() - sstart;
+		sstart = rdtsc();
+
+#else
 		iter.Seek(start);
+#endif
 		int64_t end = makeNewOrderKey(warehouse_id, d_id, Order::MAX_ORDER_ID);
 		int64_t no_key;
 		if (iter.Valid()) { 
@@ -1850,8 +1865,10 @@ retry:
           continue;
         }
 	
-#if PROFILEDELIVERY
+#if 0 //PROFILEDELIVERY
 	dstep1 += rdtsc() - sstart;
+	search += tx.searchTime;
+	traverse += tx.traverseTime;
 	sstart = rdtsc();
 #endif
 
@@ -1949,7 +1966,7 @@ retry:
 	 
 
 #if PROFILEDELIVERY
-	dstep4 += rdtsc() - sstart;
+	dstep4 += rdtsc() - sstart;	
 #endif
 
 
@@ -1969,6 +1986,11 @@ retry:
   bufferHit += tx.bufferHit;
   bufferGet += tx.bufferGet;
 #endif
+
+#if PROFILEDELIVERY
+   search += tx.searchTime;
+   traverse += tx.traverseTime;
+#endif	
 	
 #if PROFILE
 	atomic_add64(&deliverreadcount, rcount);

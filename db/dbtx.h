@@ -111,6 +111,9 @@ public:
 	
 	  // Advance to the first entry with a key >= target
 	  void Seek(uint64_t key);
+
+	  // Just for profile
+	  void SeekProfiled(uint64_t key);
 	
 	  // Position at the first entry in list.
 	  // Final state of iterator is Valid() iff list is not empty.
@@ -268,7 +271,17 @@ public:
 	int bufferGet;
 	int bufferHit;
 	int bufferMiss;
-	
+
+
+       inline unsigned long rdtsc(void)
+      {
+        unsigned a, d;
+        __asm __volatile("rdtsc":"=a"(a), "=d"(d));
+        return ((unsigned long)a) | (((unsigned long) d) << 32);
+      }
+
+	uint64_t searchTime;
+	uint64_t traverseTime;	
 	static port::Mutex storemutex;
 	static SpinLock slock;
 
