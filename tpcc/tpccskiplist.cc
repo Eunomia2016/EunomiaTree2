@@ -347,6 +347,8 @@ namespace leveldb {
   dstep4 = 0;
   search = 0;
   traverse = 0;
+  traverseCount = 0;
+  seekCount = 0;
 #endif
 
 #if ABORTPRO
@@ -418,7 +420,7 @@ namespace leveldb {
 #if PROFILEDELIVERY
   double cpufreq = 3400000; 	
   printf("Delivery TX profile s1 %lf s2 %lf s3 %lf s4 %lf\n", dstep1/cpufreq, dstep2/cpufreq, dstep3/cpufreq, dstep4/cpufreq);
-  printf("Seek Profile Search %lf Traverse %lf\n", search/cpufreq, traverse/cpufreq);
+  printf("Seek Profile Search %lf Traverse %lf Avg Count %ld [%ld / %ld]\n", search/cpufreq, traverse/cpufreq, traverseCount / seekCount, traverseCount, seekCount);
 #endif
 
 
@@ -1827,6 +1829,8 @@ retry:
 #if PROFILEDELIVERY
 	 	
 		sstart = rdtsc();
+		
+		seekCount ++;
 
 		iter.SeekProfiled(start);
 
@@ -1990,6 +1994,7 @@ retry:
 #if PROFILEDELIVERY
    search += tx.searchTime;
    traverse += tx.traverseTime;
+   traverseCount += tx.traverseCount;
 #endif	
 	
 #if PROFILE

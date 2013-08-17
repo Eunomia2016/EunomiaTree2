@@ -281,7 +281,8 @@ public:
       }
 
 	uint64_t searchTime;
-	uint64_t traverseTime;	
+	uint64_t traverseTime;
+	uint64_t traverseCount;	
 	static port::Mutex storemutex;
 	static SpinLock slock;
 

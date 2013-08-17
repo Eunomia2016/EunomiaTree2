@@ -89,6 +89,8 @@ class TPCCSkiplist : public TPCCDB {
   uint64_t dstep4;
   uint64_t search;
   uint64_t traverse;
+  uint64_t traverseCount;
+  uint64_t seekCount;
 #endif
 
   inline unsigned long rdtsc(void)                                                                                                                      

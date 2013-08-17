@@ -407,6 +407,7 @@ DBTX::DBTX(DBTables* store)
 #endif
   searchTime = 0;
   traverseTime = 0;
+  traverseCount = 0;
 }
 
   
@@ -909,6 +910,7 @@ void DBTX::Iterator::SeekProfiled(uint64_t key)
 			tx_->traverseTime += (tx_->rdtsc() - start);
 		    	return;
 	  	  }
+		  tx_->traverseCount ++; 
 
 	    }
 	  
