@@ -52,6 +52,14 @@ private:
 //		uint64_t padding1[8];
 	};
 
+	//The result object of the delete function
+	struct DeleteResult {
+		DeleteResult(): value(0), freeNode(false), upKey(-1){}
+		Memstore::MemNode* value;  //The value of the record deleted
+		bool freeNode;	//if the children node need to be free
+		uint64_t upKey; //the key need to be updated -1: default value
+	};	
+
 	class Iterator: public Memstore::Iterator {
 	 public:
 	  // Initialize an iterator over the specified list.
@@ -231,6 +239,205 @@ public:
 		return node;
 	}
 
+	inline int slotAtLeaf(uint64_t key, LeafNode* cur) {
+		
+		int slot = 0;
+		
+		while((slot < cur->num_keys) && (cur->keys[slot] < key)) {
+			slot++;
+		}
+		
+		return slot;
+	}
+
+	inline Memstore::MemNode* removeLeafEntry(LeafNode* cur, int slot) {
+		
+		assert(slot < cur->num_keys);
+		
+		Memstore::MemNode* value = cur->values[slot];
+
+		cur->num_keys--;
+
+		//The key deleted is the last one
+		if (slot == cur->num_keys)
+			return value;
+
+		//Re-arrange the entries in the leaf
+		for(int i = slot + 1; i <= cur->num_keys; i++) {
+			cur->keys[i - 1] = cur->keys[i];
+			cur->values[i - 1] = cur->values[i];
+		}
+			
+	}
+
+	
+	inline DeleteResult* LeafDelete(uint64_t key, LeafNode* cur) {
+		
+
+		//step 1. find the slot of the key
+		int slot = slotAtLeaf(key, cur);
+
+		//the record of the key doesn't exist, just return
+		if(slot == cur->num_keys) {
+			return NULL;
+		}
+
+		DeleteResult *res = new DeleteResult();
+		
+		//step 2. remove the entry of the key, and get the deleted value
+		res->value = removeLeafEntry(cur, slot);
+
+		//step 3. if node is empty, remove the node from the list
+		if(cur->num_keys == 0) {
+			if(cur->left != NULL)
+				cur->left->right = cur->right;
+			if(cur->right != NULL)
+				cur->right->left = cur->left;
+
+			//Parent is responsible for the node deletion
+			res->freeNode = true;
+
+			return res;
+		}
+		
+		//The smallest key in the leaf node has been changed, update the parent key
+		if(slot == 0) {
+			res->upKey = cur->keys[0];
+		}
+				
+	}
+
+	inline int slotAtInner(uint64_t key, InnerNode* cur) {
+		
+		int slot = 0;
+
+		while((slot < cur->num_keys) && (cur->keys[slot] <= key)) {
+			slot++;
+		}
+		
+		return slot;
+	}
+	
+	inline void removeInnerEntry(InnerNode* cur, int slot, DeleteResult* res) {
+		
+		assert(slot <= cur->num_keys);
+	
+		//If there is only one available entry 	
+		if(cur->num_keys == 0) {
+			assert(slot == 0);
+			res->freeNode = true;
+			return;	
+		}
+
+
+		//The key deleted is the last one
+		if (slot == cur->num_keys) {
+			cur->num_keys--;
+			return;
+		}
+		//delete the first entry, upkey is needed
+		if (slot == 0)
+			res->upKey = cur->keys[slot];
+		
+		//Re-arrange the entries in the Inner Node
+		int i = 0;
+		for(i = slot + 1; i < cur->num_keys; i++) {
+			cur->keys[i - 1] = cur->keys[i];
+			cur->children[i - 1] = cur->children[i];
+		}
+
+		cur->children[i - 1] = cur->children[i];
+
+		cur->num_keys--;	
+	}
+
+	inline DeleteResult* InnerDelete(uint64_t key, InnerNode* cur ,int depth) 
+	{
+		
+		DeleteResult* res = NULL;
+
+		//step 1. find the slot of the key
+		int slot = slotAtInner(key, cur);
+		
+		//step 2. remove the record recursively
+		//This is the last level of the inner nodes
+		if(depth == 1) {
+			res = LeafDelete(key, (LeafNode *)cur->children[slot]);	
+		} else {
+			res = InnerDelete(key, (InnerNode *)cur->children[slot], depth--);
+		}
+	
+		//The record is not found	
+		if(res == NULL) {
+			return res;
+		}
+
+		//step 3. Remove the entry if the total children node has been removed
+		if(res->freeNode) {
+			//FIXME: Should free the children node here
+		  	
+			//remove the node from the parent node
+			removeInnerEntry(cur, slot, res);
+			res->freeNode = false;
+			return res;	
+		}
+
+		//step 4. update the key if needed
+		if(res->upKey != -1) {
+			if (slot != 0) {
+				 cur->keys[slot - 1] = res->upKey;
+				 res->upKey = -1;
+			}
+		}
+
+		return res;
+	
+	}
+
+
+	
+	inline Memstore::MemNode* Delete_rtm(uint64_t key) {
+#if BTREE_LOCK
+		MutexSpinLock lock(&slock);
+#else
+		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+#endif
+
+
+		DeleteResult* res = NULL;
+		if (depth == 0) {
+			//Just delete the record from the root
+			res = LeafDelete(key, (LeafNode*)root);
+		}
+		else {
+			res = InnerDelete(key, (InnerNode*)root, depth);
+		}
+
+		if (res == NULL)
+			return NULL;
+	
+		if(res->freeNode) 
+			root = NULL;
+
+		return res->value;
+	}
+
+
+
+	inline Memstore::MemNode* GetWithDelete(uint64_t key) {
+	
+		ThreadLocalInit();
+
+		MemNode* value = Delete_rtm(key);
+		
+		if(dummyval_ == NULL)
+			dummyval_ = new MemNode();
+
+		return value;
+		
+	}
+
+
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
 
 		ThreadLocalInit();
@@ -329,13 +536,12 @@ public:
 					
 					new_sibling->num_keys= inner->num_keys -treshold;
 					//printf("sibling num %d\n",new_sibling->num_keys);
-                    for(unsigned i=0; i < new_sibling->num_keys; ++i) {
-                    	new_sibling->keys[i]= inner->keys[treshold+i];
-                        new_sibling->children[i]= inner->children[treshold+i];
-                    }
-                    new_sibling->children[new_sibling->num_keys]=
-                                inner->children[inner->num_keys];
-                    inner->num_keys= treshold-1;
+                    			for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+                    				new_sibling->keys[i]= inner->keys[treshold+i];
+                        			new_sibling->children[i]= inner->children[treshold+i];
+                    			}	
+                    			new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
+                    			inner->num_keys= treshold-1;
 					//printf("remain num %d\n",inner->num_keys);
 					upKey = inner->keys[treshold-1];
 					//printf("UP %lx\n",upKey);

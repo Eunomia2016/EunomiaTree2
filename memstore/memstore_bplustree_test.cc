@@ -18,7 +18,7 @@
 #include "leveldb/comparator.h"
 
 #include <vector>
-#include "memstore/memstore_stringbplustree.h"
+#include "memstore/memstore_bplustree.h"
 
 static const char* FLAGS_benchmarks ="random";
 
@@ -311,7 +311,7 @@ private:
 
 //	  double start = leveldb::Env::Default()->NowMicros();
 	  total_count = FLAGS_num;
-	  btree = new leveldb::MemstoreBPlusTree(8);
+	  btree = new leveldb::MemstoreBPlusTree();
 /*	  uint64_t k = (uint64_t)1 << 35;
 	  for (uint64_t i =1; i< 4; i++){
 	  	
