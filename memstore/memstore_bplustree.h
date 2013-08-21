@@ -12,7 +12,7 @@
 #define N  20
 
 #define BTREE_PROF 0
-#define BTREE_LOCK 0
+#define BTREE_LOCK 1
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -267,6 +267,8 @@ public:
 			cur->keys[i - 1] = cur->keys[i];
 			cur->values[i - 1] = cur->values[i];
 		}
+		
+		return value;
 			
 	}
 
@@ -304,7 +306,8 @@ public:
 		if(slot == 0) {
 			res->upKey = cur->keys[0];
 		}
-				
+		
+		return res;	
 	}
 
 	inline int slotAtInner(uint64_t key, InnerNode* cur) {

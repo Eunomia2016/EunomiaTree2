@@ -196,6 +196,35 @@ private:
 		#endif		
 	   }
 
+	 void DeleteSingleThread(ThreadState* thread) {
+			  
+		int tid = thread->tid;
+		int seqNum = 0;
+		Memstore::MemNode *node = NULL;
+
+		//Step 1. Only Has 1 Node
+
+		for(int i = 0; i < 20; i++) {
+			node = btree->GetWithInsert(i);
+			node->value = (uint64_t *)i;
+		}
+		btree->PrintStore();
+
+		//Delete a medium key
+		node = btree->GetWithDelete(10);
+		printf("delete key %ld value %ld\n", 10, node->value);
+		btree->PrintStore();
+
+		node = btree->GetWithDelete(0);
+		printf("delete key %ld value %ld\n", 0, node->value);
+		btree->PrintStore(); 
+
+		node = btree->GetWithDelete(9);
+		printf("delete key %ld value %ld\n", 10, node->value);
+		btree->PrintStore();
+	   }
+
+
 
 
 	   void ReadRandom(ThreadState* thread) {
@@ -300,7 +329,12 @@ private:
 
 	void Run(){
 
-	  int num_threads = FLAGS_threads;  
+	  btree = new leveldb::MemstoreBPlusTree();
+      RunBenchmark(1, 1, &Benchmark::DeleteSingleThread);
+     
+	return;
+ 
+     int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num/num_threads;
     
       void (Benchmark::*wmethod)(ThreadState*) = NULL;
@@ -311,7 +345,6 @@ private:
 
 //	  double start = leveldb::Env::Default()->NowMicros();
 	  total_count = FLAGS_num;
-	  btree = new leveldb::MemstoreBPlusTree();
 /*	  uint64_t k = (uint64_t)1 << 35;
 	  for (uint64_t i =1; i< 4; i++){
 	  	
