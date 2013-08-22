@@ -225,7 +225,7 @@ private:
 		//assert();
 		//btree->PrintStore();
 
-		//Check 2. Delete Leaf Node -- 1.2 Delete second leaf node
+		//Check 1. Delete Leaf Node -- 1.2 Delete second leaf node
 		printf("Check 1. Delete Leaf Node -- 1.2 Delete second leaf node\n");
 		for(int i = 21; i < 24; i++) {
 			node = btree->GetWithDelete(i);
@@ -241,7 +241,7 @@ private:
 		//btree->PrintStore();
 
 
-		//Check 3. Delete Leaf Node -- 1.3 Delete first leaf node
+		//Check 1. Delete Leaf Node -- 1.3 Delete first leaf node
 		printf("Check 1. Delete Leaf Node -- 1.3 Delete first leaf node\n");
 		for(int i = 27; i < 30; i++) {
 			node = btree->GetWithDelete(i);
@@ -260,7 +260,7 @@ private:
 		//btree->PrintStore();
 
 
-		//Check 4. Delete Leaf Node -- 1.4 Delete last leaf node
+		//Check 1. Delete Leaf Node -- 1.4 Delete last leaf node
 		printf("Check 1. Delete Leaf Node -- 1.4 Delete last leaf node\n");
 		for(int i = 45; i < 50; i++) {
 			node = btree->GetWithDelete(i);
@@ -268,14 +268,72 @@ private:
 		}
 		n = (MemstoreBPlusTree::InnerNode*) btree->root;
 
-		n = (MemstoreBPlusTree::InnerNode *)n->children[2];
+		n = (MemstoreBPlusTree::InnerNode *)n->children[4];
 		if( n->num_keys != 1 || n->keys[0] != 39)
 			printf("Check 1.4 Error!!!\n");
 		else
 			printf("Check 1.4 Pass\n");
 		//assert();
-		btree->PrintStore();
+		//btree->PrintStore();
 
+
+		//Check 2. Delete Record -- 2.1 Delete middle record
+		printf("Check 2. Delete Record -- 2.1 Delete middle record\n");
+		int i = 10;
+		node = btree->GetWithDelete(i);
+		printf("delete key %ld value %ld\n", i, node->value);
+		
+		n = (MemstoreBPlusTree::InnerNode*) btree->root;
+		n = (MemstoreBPlusTree::InnerNode *)n->children[1];
+		MemstoreBPlusTree::LeafNode *ln = (MemstoreBPlusTree::LeafNode *)n->children[0];
+
+		if( ln->num_keys != 2 || ln->keys[1] != 11)
+			printf("Check 2.1 Error!!!\n");
+		else
+			printf("Check 2.1 Pass\n");
+		//assert();
+		//btree->PrintStore();
+		
+
+		//Check 2. Delete Record -- 2.2 Delete first record in middle leaf
+		printf("Check 2. Delete Record -- 2.2 Delete first record in middle leaf\n");
+		i = 24;
+		node = btree->GetWithDelete(i);
+		printf("delete key %ld value %ld\n", i, node->value);
+		
+		n = (MemstoreBPlusTree::InnerNode*) btree->root;
+		n = (MemstoreBPlusTree::InnerNode *)n->children[2];
+		ln = (MemstoreBPlusTree::LeafNode *)n->children[2];
+
+		if(n->keys[0] != 25 || ln->num_keys != 2 || ln->keys[0] != 25)
+			printf("Check 2.2 Error!!! %ld %ld %ld\n", n->keys[0], ln->num_keys, ln->keys[0]);
+		else
+			printf("Check 2.2 Pass\n");
+		//assert();
+		//btree->PrintStore();
+
+
+		//Check 2. Delete Record -- 2.3 Delete first record in middle leaf
+		printf("Check 2. Delete Record -- 2.3 Delete first record in middle leaf\n");
+		i = 9;
+		node = btree->GetWithDelete(i);
+		printf("delete key %ld value %ld\n", i, node->value);
+		
+		n = (MemstoreBPlusTree::InnerNode*) btree->root;
+		if(n->keys[0] != 11) {
+			printf("Check 2.3 Error\n");
+			btree->PrintStore();
+			return;
+		}
+		n = (MemstoreBPlusTree::InnerNode *)n->children[1];
+		ln = (MemstoreBPlusTree::LeafNode *)n->children[0];
+
+		if(n->keys[0] != 12 || ln->num_keys != 1 || ln->keys[0] != 11)
+			printf("Check 2.3 Error!!! %ld %ld %ld\n", n->keys[0], ln->num_keys, ln->keys[0]);
+		else
+			printf("Check 2.3 Pass\n");
+		//assert();
+		btree->PrintStore();
 
 
 #if 0
