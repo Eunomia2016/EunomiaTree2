@@ -23,6 +23,7 @@ DBROTX::DBROTX(DBTables* store)
 {
   txdb_ = store;
   oldsnapshot = 0;
+ // printf("READONLY TX!!!!\n");
 }
 
 DBROTX::~DBROTX()

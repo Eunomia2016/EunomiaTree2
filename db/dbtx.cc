@@ -270,6 +270,8 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
 {
   assert(elems <= max_length);
 
+  if(key == 1152921504606846976)
+	printf("TX WS add  key %ld value %ld\n", key, val);
   if(elems == max_length) {
 	Resize();
   }
@@ -398,9 +400,10 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
   for(int i = 0; i < elems; i++) {
 	//the node need to be removed from the memstore
 	//FIXME: just support deletion on the first snapshot
-	if(kvs[i].node->value == (uint64_t *)1) { 
+	if(kvs[i].node->value == (uint64_t *)1) {
+
 		Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-		assert(node == NULL || (node->counter == 0 && node->value == (uint64_t *)1));
+		assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
 	}
   }
 }
@@ -497,7 +500,7 @@ bool DBTX::End()
 
   //Phase 2. Cleanup
   {
-    //writeset->Cleanup(txdb_);
+    writeset->Cleanup(txdb_);
   }
 
   return true;
@@ -512,9 +515,6 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 #if PROFILEBUFFERNODE
   bufferGet++;
 #endif
-
-if(key == 47244642357)
-		printf("add value %lx tableid %d\n", val, tableid);
 
 
   //Get the seq addr from the hashtable
@@ -595,8 +595,6 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 void DBTX::Delete(int tableid, uint64_t key)
 {
 
-	if(key == 47244642357)
-		printf("delete tableid %d\n", tableid);
 	//Logically delete, set the value pointer to be 0x1
 	Add(tableid, key, (uint64_t *)1);
 }
@@ -680,8 +678,6 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 {
-	if(key == 47244642357)
-		printf("get table %d\n", tableid);
 
   //step 1. First check if the <k,v> is in the write set
   if(writeset->Lookup(tableid, key, val)) {
@@ -811,6 +807,8 @@ void DBTX::Iterator::Next()
 			return;
 		
 		}
+		else
+		  printf("key %ld val_ %d\n",iter_->Key(), cur_->value);
 
 	  }
 	  iter_->Next();
@@ -875,6 +873,7 @@ void DBTX::Iterator::Seek(uint64_t key)
 #endif
 		//put the previous node's next field into the readset
 		
+		printf("Not Valid!\n");
 		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
 		return;
 	}
@@ -899,7 +898,8 @@ void DBTX::Iterator::Seek(uint64_t key)
 	  
 	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
 	    	  return;
-	  	}
+	  	}else
+		  printf("val_ %ld\n", val_);
 
 	    }
 	  
@@ -930,6 +930,7 @@ void DBTX::Iterator::SeekProfiled(uint64_t key)
 #endif
 		//put the previous node's next field into the readset
 		
+		printf("Not Valid!\n");
 		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
 		return;
 	}
@@ -958,6 +959,8 @@ void DBTX::Iterator::SeekProfiled(uint64_t key)
 			tx_->traverseTime += (tx_->rdtsc() - start);
 		    	return;
 	  	  }
+		  else
+			printf("val_ %ld\n", val_);
 		  tx_->traverseCount ++; 
 
 	    }

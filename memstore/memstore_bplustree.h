@@ -229,6 +229,8 @@ public:
 	inline MemNode* Put(uint64_t k, uint64_t* val) 
 	{
 		ThreadLocalInit();
+		if(k == 1152921504606846976)
+			printf("Memstore Put key %ld val %ld\n", k , val);
 		MemNode *node = GetWithInsert(k);
 		node->value = val;
 		
@@ -285,12 +287,14 @@ public:
 			return NULL;
 		}
 
+		//printf("try to delete %ld %d\n", cur->values[slot]->value, cur->values[slot]->counter);
 		//FIXME: check if the node has been logically delete here.
-		if(cur->values[slot]->value != (uint64_t *)1 || cur->values[slot]->counter != 0)
+		if(cur->values[slot]->value != (uint64_t *)1 ) //|| cur->values[slot]->counter != 1)
 			return NULL;
 		else
 		   cur->values[slot]->value = (uint64_t *)2;
 
+	//	printf("delete node\n");
 		DeleteResult *res = new DeleteResult();
 		
 		//step 2. remove the entry of the key, and get the deleted value
@@ -399,9 +403,9 @@ public:
 		if(res->freeNode) {
 			//FIXME: Should free the children node here
 		  	
-			//remove the node from the parent node
-			removeInnerEntry(cur, slot, res);
+			//remove the node from the parent node	
 			res->freeNode = false;
+			removeInnerEntry(cur, slot, res);
 			return res;	
 		}
 

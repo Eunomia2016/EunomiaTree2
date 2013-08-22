@@ -243,6 +243,7 @@ namespace leveldb {
 		link_ = (uint64_t *)(&leaf->seq);
 		target_ = leaf->seq;		
 		int num = leaf->num_keys;
+		assert(num > 0);
 		int k = 0; 
 		while ((k < num) && (key > leaf->keys[k])) {
 		   ++k;

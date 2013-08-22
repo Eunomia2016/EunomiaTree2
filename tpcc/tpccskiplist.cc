@@ -10,7 +10,7 @@
 
 #define PROFILE 0
 #define ABORTPRO 1
-#define SLDBTX	0
+#define SLDBTX	1
 #define CHECKTPCC 0
 
 #define WARE 0
@@ -320,7 +320,8 @@ namespace leveldb {
 #endif
 	
 	for (int i=0; i<9; i++) {
-		store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)1);
+		//Fixme: invalid value pointer
+		store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)3);
 	}
 	abort = 0;
     conflict = 0;
@@ -437,6 +438,7 @@ namespace leveldb {
 	printf("deliverreadcount %f max %ld min %ld\n", (float)deliverreadcount/delivernum, deliverreadmax, deliverreadmin);
 	printf("deliverwritecount %f max %ld min %ld\n", (float)deliverwritecount/delivernum, deliverwritemax, deliverwritemin);
 	printf("deliveritercount %f max %ld min %ld\n", (float)deliveritercount/delivernum, deliveritermax, deliveritermin);
+	  ieveldb::DBROTX tx(store);
 	
 #endif
   }
@@ -1383,7 +1385,15 @@ namespace leveldb {
 #if PROFILE || ABORTPRO
 			atomic_add64(&orderstatusnum, 1);
 #endif
+
+#if SLDBTX
+			leveldb::DBTX tx(store);
+#else
 			leveldb::DBROTX tx(store);
+#endif
+
+			while(true) {
+
 			tx.Begin();
 	  
 			//-------------------------------------------------------------------------
@@ -1405,8 +1415,14 @@ namespace leveldb {
 			printf("\n");
 					
 			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
-#endif	
+#endif
+
+#if SLDBTX
+
+			DBTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
+#else	
 			DBROTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
+#endif
 			citer.Seek(c_start);
 			uint64_t **c_values = new uint64_t *[40];
 			uint64_t *c_keys = new uint64_t[40];
@@ -1422,7 +1438,13 @@ namespace leveldb {
 									printf("%d ",((char *)iter.Key())[i]);
 								printf("\n");
 #endif
+
+#if SLDBTX
+					
+					DBTX::KeyValues *kvs = citer.Value();
+#else
 					DBROTX::KeyValues *kvs = citer.Value();
+#endif
 					int num = kvs->num;
 					for (int i=0; i<num; i++)  {
 						c_values[j] = kvs->values[i];
@@ -1483,7 +1505,12 @@ namespace leveldb {
 				  }
 			
 #else
+
+#if SLDBTX
+				  DBTX::Iterator iter(&tx, ORDE);
+#else				  
 				  DBROTX::Iterator iter(&tx, ORDE);
+#endif
 				  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 				  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 				  //printf("OrderStatus %d\n", customer_id);
@@ -1535,6 +1562,9 @@ namespace leveldb {
 			  }
 			}
 			bool b = tx.End();
+			if(b)
+			  break;
+			}
 #if PROFILE
 			atomic_add64(&orderstatusreadcount, rcount);
 			atomic_add64(&orderstatusitercount, icount);
@@ -1554,10 +1584,17 @@ namespace leveldb {
 #if PROFILE || ABORTPRO
 	  atomic_add64(&orderstatusnum, 1);
 #endif
+
+#if SLDBTX
+
+	  leveldb::DBTX tx(store);
+#else
 	  leveldb::DBROTX tx(store);
+#endif
 	  tx.Begin();
 
-	  //-------------------------------------------------------------------------
+	 while(true) {
+	 //-------------------------------------------------------------------------
 	  //the row in the CUSTOMER table with matching C_W_ID, C_D_ID, and C_ID is selected 
 	  //and C_BALANCE, C_FIRST, C_MIDDLE, and C_LAST are retrieved.
 	  //-------------------------------------------------------------------------
@@ -1605,7 +1642,12 @@ namespace leveldb {
 	  }
 
 #else
+
+#if SLDBTX
+	DBTX::Iterator iter(&tx, ORDE);
+#else
 	  DBROTX::Iterator iter(&tx, ORDE);
+#endif
 	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	  //printf("OrderStatus %d\n", customer_id);
@@ -1659,6 +1701,9 @@ namespace leveldb {
 	  }
 	  else printf("No order\n");
       bool b = tx.End();
+      if(b)
+	break;
+     }
 #if PROFILE
 	  atomic_add64(&orderstatusreadcount, rcount);
 	  atomic_add64(&orderstatusitercount, icount);
@@ -1842,8 +1887,14 @@ retry:
 #endif
 		int64_t end = makeNewOrderKey(warehouse_id, d_id, Order::MAX_ORDER_ID);
 		int64_t no_key;
+
+
 		if (iter.Valid()) { 
-			no_key = iter.Key();
+
+		no_key = iter.Key();
+		
+
+
 			if (no_key <= end) {
 			  no_value = iter.Value();
 #if PROFILE
@@ -1865,7 +1916,7 @@ retry:
 	    if (no == NULL) {
           // No orders for this district
           // TODO: 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it (???)
-          //printf("NoOrder!!\n");
+          printf("NoOrder for district %d!!\n",  d_id);
           continue;
         }
 	
@@ -1880,7 +1931,6 @@ retry:
         order.d_id = d_id;
         order.o_id = no_id;
         orders->push_back(order);
-
 	//-------------------------------------------------------------------------
 	//The row in the ORDER table with matching O_W_ID (equals W_ ID), O_D_ID (equals D_ID), and O_ID (equals NO_O_ID) is selected, 
 	//O_C_ID, the customer number, is retrieved, and O_CARRIER_ID is updated.
@@ -1895,23 +1945,15 @@ retry:
 	rcount++;
 #endif
 	Order *o = reinterpret_cast<Order *>(o_value);
-	if(o->o_carrier_id != Order::NULL_CARRIER_ID)
-		printf("o %lx key %ld ocid %ld\n", o, o_key, o->o_carrier_id);
 
 	assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
 
 	Order *newo = new Order();		
-	if(o_key == 47244642357)
-	printf("new add %lx %d\n", newo, newo->o_carrier_id);
 
 	updateOrder(newo, o, carrier_id);
-	if(o_key == 47244642357)
-	printf("update add %lx %d\n", newo, newo->o_carrier_id);
 
 	uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
 	tx.Add(ORDE, o_key, o_v);
-	if(o_key == 47244642357)
-	printf("tx add %lx %d\n", newo, newo->o_carrier_id);
 #if PROFILEDELIVERY
 	dstep2 += rdtsc() - sstart;
 	sstart = rdtsc();
