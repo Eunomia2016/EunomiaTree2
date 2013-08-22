@@ -1895,12 +1895,23 @@ retry:
 	rcount++;
 #endif
 	Order *o = reinterpret_cast<Order *>(o_value);
+	if(o->o_carrier_id != Order::NULL_CARRIER_ID)
+		printf("o %lx key %ld ocid %ld\n", o, o_key, o->o_carrier_id);
+
 	assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
+
 	Order *newo = new Order();		
+	if(o_key == 47244642357)
+	printf("new add %lx %d\n", newo, newo->o_carrier_id);
+
 	updateOrder(newo, o, carrier_id);
+	if(o_key == 47244642357)
+	printf("update add %lx %d\n", newo, newo->o_carrier_id);
+
 	uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
 	tx.Add(ORDE, o_key, o_v);
-
+	if(o_key == 47244642357)
+	printf("tx add %lx %d\n", newo, newo->o_carrier_id);
 #if PROFILEDELIVERY
 	dstep2 += rdtsc() - sstart;
 	sstart = rdtsc();

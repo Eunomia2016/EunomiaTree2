@@ -304,14 +304,15 @@ inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw)
 
 inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
 {
+  bool res = false;
   for(int i = 0; i < elems; i++) {
     if(kvs[i].tableid == tableid && kvs[i].key == key) {
 	   *val = kvs[i].val;
-	   return true;
+	   res = true;
     }
   }
   
-  return false;
+  return res;
   
 }
 
@@ -453,6 +454,7 @@ void DBTX::Begin()
   readset->Reset();
   writeset->Reset();
   
+//printf("Begin\n");
   
 }
 
@@ -469,6 +471,7 @@ bool DBTX::End()
 {
   if (abort) return false;
 
+  //printf("TXEND\n");
   //Phase 1. Validation & Commit
   {
 #if GLOBALOCK
@@ -478,7 +481,7 @@ bool DBTX::End()
 #endif
 
     if(!readset->Validate() || !writeset->CheckWriteSet()) {
-  	  return false;
+	return false;
     }
   
   
@@ -494,7 +497,7 @@ bool DBTX::End()
 
   //Phase 2. Cleanup
   {
-    writeset->Cleanup(txdb_);
+    //writeset->Cleanup(txdb_);
   }
 
   return true;
@@ -509,6 +512,9 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 #if PROFILEBUFFERNODE
   bufferGet++;
 #endif
+
+if(key == 47244642357)
+		printf("add value %lx tableid %d\n", val, tableid);
 
 
   //Get the seq addr from the hashtable
@@ -588,8 +594,11 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 
 void DBTX::Delete(int tableid, uint64_t key)
 {
+
+	if(key == 47244642357)
+		printf("delete tableid %d\n", tableid);
 	//Logically delete, set the value pointer to be 0x1
-	Add(tableid, key, (uint64_t *)0x1);
+	Add(tableid, key, (uint64_t *)1);
 }
 
 void DBTX::PrintKVS(KeyValues* kvs)
@@ -671,6 +680,9 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 {
+	if(key == 47244642357)
+		printf("get table %d\n", tableid);
+
   //step 1. First check if the <k,v> is in the write set
   if(writeset->Lookup(tableid, key, val)) {
       	return true;
@@ -722,7 +734,7 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 
 		*val = NULL;
 //		txdb_->tables[tableid]->PrintStore();
-	//    printf("Not Found %d\n", node->seq);
+	   
 		return false;
 
 	} else {
@@ -795,7 +807,7 @@ void DBTX::Iterator::Next()
 		}
 		tx_->readset->Add(&cur_->seq);
 		
-	  	if(val_ != NULL) {	
+	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
 			return;
 		
 		}
@@ -835,7 +847,7 @@ void DBTX::Iterator::Prev()
 		
 		tx_->readset->Add(&cur_->seq);
 		
-	  	if(val_ != NULL) {
+	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
 			return;
 		
 		}
@@ -885,9 +897,9 @@ void DBTX::Iterator::Seek(uint64_t key)
 	  
 	  	  val_ = cur_->value;
 	  
-  	  	  if(val_ != NULL) {
-	    	return;
-	  	  }
+	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
+	    	  return;
+	  	}
 
 	    }
 	  
@@ -941,7 +953,7 @@ void DBTX::Iterator::SeekProfiled(uint64_t key)
 	  
 	  	  val_ = cur_->value;
 	  
-  	  	  if(val_ != NULL) {
+   	  	  if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
 
 			tx_->traverseTime += (tx_->rdtsc() - start);
 		    	return;
@@ -1001,8 +1013,9 @@ void DBTX::Iterator::SeekToFirst()
 		
 		
 		tx_->readset->Add(&cur_->seq);
-		
-	  	if(val_ != NULL) {
+	
+			
+	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
 			return;
 		
 		}
