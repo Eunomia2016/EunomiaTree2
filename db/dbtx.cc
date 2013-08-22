@@ -378,6 +378,32 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 }
 		
 
+//Check if any record in the write set has been remove from the memstore
+inline bool DBTX::WriteSet::CheckWriteSet()
+{
+
+  for(int i = 0; i < elems; i++) {
+	//the node has been removed from the memstore
+	if(kvs[i].node->value == (uint64_t *)2) 
+		return false;
+  }
+  return true;
+}
+
+//Remove the deleted node from the memstore 
+inline void DBTX::WriteSet::Cleanup(DBTables* tables)
+{
+
+  for(int i = 0; i < elems; i++) {
+	//the node need to be removed from the memstore
+	//FIXME: just support deletion on the first snapshot
+	if(kvs[i].node->value == (uint64_t *)1) { 
+		Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
+		assert(node == NULL || (node->counter == 0 && node->value == (uint64_t *)1));
+	}
+  }
+}
+
 
 void DBTX::WriteSet::Print()
 {
@@ -448,7 +474,7 @@ bool DBTX::End()
   RTMScope rtm(&rtmProf);
 #endif
 
-  if(!readset->Validate()) {
+  if(!readset->Validate() || !writeset->CheckWriteSet()) {
   	  return false;
   }
   
@@ -552,8 +578,8 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 
 void DBTX::Delete(int tableid, uint64_t key)
 {
-	//For delete, just insert a null value
-	Add(tableid, key, NULL);
+	//Logically delete, set the value pointer to be 0x1
+	Add(tableid, key, (uint64_t *)0x1);
 }
 
 void DBTX::PrintKVS(KeyValues* kvs)
@@ -682,7 +708,7 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 //	if(*val != NULL && **val == 1)
     readset->Add(&node->seq);
 
-	if (node->value == NULL) {
+	if (node->value == NULL || node->value == (uint64_t *)1 || node->value == (uint64_t *)2) {
 
 		*val = NULL;
 //		txdb_->tables[tableid]->PrintStore();

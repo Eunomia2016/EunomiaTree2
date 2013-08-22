@@ -77,6 +77,7 @@ class DBTX {
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);
 	bool Get(int tableid, uint64_t key, uint64_t** val);
 	void Delete(int tableid, uint64_t key);
+	bool Cleanup(DBTables* tables);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);
 	void PrintKVS(KeyValues* kvs);
@@ -253,8 +254,10 @@ public:
 		inline void Add(int tableid, uint64_t key, uint64_t* val, Memstore::MemNode* node);
 		inline void Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw);
 		inline bool Lookup(int tableid, uint64_t key, uint64_t** val);
-		inline void Write(uint64_t gcounter);
 		inline void UpdateSecondaryIndex();
+		inline void Write(uint64_t gcounter);
+		inline bool CheckWriteSet();
+		inline void Cleanup(DBTables* tables);
 		
 		void Print();
 		void Reset();

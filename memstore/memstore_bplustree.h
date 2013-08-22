@@ -285,6 +285,12 @@ public:
 			return NULL;
 		}
 
+		//FIXME: check if the node has been logically delete here.
+		if(cur->values[slot]->value != (uint64_t *)1 || cur->values[slot]->counter != 0)
+			return NULL;
+		else
+		   cur->values[slot]->value = (uint64_t *)2;
+
 		DeleteResult *res = new DeleteResult();
 		
 		//step 2. remove the entry of the key, and get the deleted value
