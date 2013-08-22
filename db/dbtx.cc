@@ -468,25 +468,35 @@ bool DBTX::Abort()
 bool DBTX::End()
 {
   if (abort) return false;
+
+  //Phase 1. Validation & Commit
+  {
 #if GLOBALOCK
-  SpinLockScope spinlock(&slock);
+    SpinLockScope spinlock(&slock);
 #else
-  RTMScope rtm(&rtmProf);
+    RTMScope rtm(&rtmProf);
 #endif
 
-  if(!readset->Validate() || !writeset->CheckWriteSet()) {
+    if(!readset->Validate() || !writeset->CheckWriteSet()) {
   	  return false;
-  }
+    }
   
   
  
-  //step 2.  update the the seq set 
-  //can't use the iterator because the cur node may be deleted 
-  writeset->Write(txdb_->snapshot);
+    //step 2.  update the the seq set 
+    //can't use the iterator because the cur node may be deleted 
+    writeset->Write(txdb_->snapshot);
 
-  //step 3. update the sencondary index
-  writeset->UpdateSecondaryIndex();
-  
+    //step 3. update the sencondary index
+    writeset->UpdateSecondaryIndex();
+ 
+  }
+
+  //Phase 2. Cleanup
+  {
+    writeset->Cleanup(txdb_);
+  }
+
   return true;
 }
 
