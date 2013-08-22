@@ -204,12 +204,81 @@ private:
 
 		//Step 1. Only Has 1 Node
 
-		for(int i = 0; i < 20; i++) {
+		for(int i = 0; i < 50; i++) {
 			node = btree->GetWithInsert(i);
 			node->value = (uint64_t *)i;
 		}
 		btree->PrintStore();
 
+		//Check 1. Delete Leaf Node -- 1.1 Delete third leaf node
+		printf("Check 1. Delete Leaf Node -- 1.1 Delete third leaf node\n");
+		for(int i = 42; i < 45; i++) {
+			node = btree->GetWithDelete(i);
+			printf("delete key %ld value %ld\n", i, node->value);
+		}
+		MemstoreBPlusTree::InnerNode* n = (MemstoreBPlusTree::InnerNode*) btree->root;
+		n = (MemstoreBPlusTree::InnerNode *)n->children[4];
+		if( n->num_keys != 2 || n->keys[1] != 45)
+			printf("Check 1.1 Error!!!\n");
+		else
+			printf("Check 1.1 Pass\n");
+		//assert();
+		//btree->PrintStore();
+
+		//Check 2. Delete Leaf Node -- 1.2 Delete second leaf node
+		printf("Check 1. Delete Leaf Node -- 1.2 Delete second leaf node\n");
+		for(int i = 21; i < 24; i++) {
+			node = btree->GetWithDelete(i);
+			printf("delete key %ld value %ld\n", i, node->value);
+		}
+		n = (MemstoreBPlusTree::InnerNode*) btree->root;
+		n = (MemstoreBPlusTree::InnerNode *)n->children[2];
+		if( n->num_keys != 1 || n->keys[0] != 24)
+			printf("Check 1.2 Error!!!\n");
+		else
+			printf("Check 1.2 Pass\n");
+		//assert();
+		//btree->PrintStore();
+
+
+		//Check 3. Delete Leaf Node -- 1.3 Delete first leaf node
+		printf("Check 1. Delete Leaf Node -- 1.3 Delete first leaf node\n");
+		for(int i = 27; i < 30; i++) {
+			node = btree->GetWithDelete(i);
+			printf("delete key %ld value %ld\n", i, node->value);
+		}
+		n = (MemstoreBPlusTree::InnerNode*) btree->root;
+		if( n->keys[2] != 30)
+			printf("Check 1.3 Error!!!\n");
+
+		n = (MemstoreBPlusTree::InnerNode *)n->children[3];
+		if( n->num_keys != 1 || n->keys[0] != 33)
+			printf("Check 1.3 Error!!!\n");
+		else
+			printf("Check 1.3 Pass\n");
+		//assert();
+		//btree->PrintStore();
+
+
+		//Check 4. Delete Leaf Node -- 1.4 Delete last leaf node
+		printf("Check 1. Delete Leaf Node -- 1.4 Delete last leaf node\n");
+		for(int i = 45; i < 50; i++) {
+			node = btree->GetWithDelete(i);
+			printf("delete key %ld value %ld\n", i, node->value);
+		}
+		n = (MemstoreBPlusTree::InnerNode*) btree->root;
+
+		n = (MemstoreBPlusTree::InnerNode *)n->children[2];
+		if( n->num_keys != 1 || n->keys[0] != 39)
+			printf("Check 1.4 Error!!!\n");
+		else
+			printf("Check 1.4 Pass\n");
+		//assert();
+		btree->PrintStore();
+
+
+
+#if 0
 		//Delete a medium key
 		node = btree->GetWithDelete(10);
 		printf("delete key %ld value %ld\n", 10, node->value);
@@ -219,9 +288,10 @@ private:
 		printf("delete key %ld value %ld\n", 0, node->value);
 		btree->PrintStore(); 
 
-		node = btree->GetWithDelete(9);
+		node = btree->GetWithDelete(19);
 		printf("delete key %ld value %ld\n", 10, node->value);
 		btree->PrintStore();
+#endif
 	   }
 
 

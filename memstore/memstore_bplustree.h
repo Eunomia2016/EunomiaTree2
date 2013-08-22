@@ -8,8 +8,8 @@
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
-#define M  20
-#define N  20
+#define M  5
+#define N  5
 
 #define BTREE_PROF 0
 #define BTREE_LOCK 1
@@ -24,8 +24,9 @@ static uint64_t wconflict = 0;
 */
 namespace leveldb {
 class MemstoreBPlusTree: public Memstore {
-	
-private:	
+
+//Test purpose	
+public:
 	struct LeafNode {
 		LeafNode() : num_keys(0){}//, writes(0), reads(0) {}
 //		uint64_t padding[4];
@@ -338,20 +339,31 @@ public:
 			cur->num_keys--;
 			return;
 		}
-		//delete the first entry, upkey is needed
-		if (slot == 0)
-			res->upKey = cur->keys[slot];
-		
-		//Re-arrange the entries in the Inner Node
-		int i = 0;
-		for(i = slot + 1; i < cur->num_keys; i++) {
-			cur->keys[i - 1] = cur->keys[i];
+
+		//replace the children slot
+		for(int i = slot + 1; i <= cur->num_keys; i++)
 			cur->children[i - 1] = cur->children[i];
-		}
+		
+		//delete the first entry, upkey is needed
+		if (slot == 0) {
 
-		cur->children[i - 1] = cur->children[i];
+			//record the first key as the upkey
+			res->upKey = cur->keys[slot];
 
-		cur->num_keys--;	
+			//delete the first key
+			for(int i = slot; i < cur->num_keys - 1; i++) {
+				cur->keys[i] = cur->keys[i + 1];
+			}
+
+		} else {
+			//delete the previous key
+			for(int i = slot; i < cur->num_keys; i++) {
+				cur->keys[i - 1] = cur->keys[i];
+			}	
+		} 
+		
+		cur->num_keys--;
+
 	}
 
 	inline DeleteResult* InnerDelete(uint64_t key, InnerNode* cur ,int depth) 
@@ -367,7 +379,9 @@ public:
 		if(depth == 1) {
 			res = LeafDelete(key, (LeafNode *)cur->children[slot]);	
 		} else {
-			res = InnerDelete(key, (InnerNode *)cur->children[slot], depth--);
+			//printf("Delete Inner Node  %d\n", depth);
+			//printInner((InnerNode *)cur->children[slot], depth - 1);
+			res = InnerDelete(key, (InnerNode *)cur->children[slot], (depth - 1));
 		}
 	
 		//The record is not found	
@@ -759,8 +773,9 @@ public:
 	void printInner(InnerNode *n, unsigned depth);
 	void PrintStore();
 	void PrintList();
-	
-private:
+
+//Test Purpose	
+public:
 		
 		static __thread RTMArena* arena_;	  // Arena used for allocations of nodes
 		static __thread bool localinit_;

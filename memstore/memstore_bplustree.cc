@@ -6,18 +6,22 @@ namespace leveldb {
 	__thread bool MemstoreBPlusTree::localinit_ = false;
 	__thread Memstore::MemNode *MemstoreBPlusTree::dummyval_ = NULL;
 	void MemstoreBPlusTree::printLeaf(LeafNode *n) {
-			printf("Leaf Key num %d\n", n->num_keys);
-			for (int i=0; i<n->num_keys;i++)
-				printf("key  %ld value %ld \t ",n->keys[i], n->values[i]->value);
-				printf("\n");
-//			total_key += n->num_keys;
-		}
+		for(int i = 0; i < depth; i++)
+			printf(" ");
+		printf("Leaf Key num %d  :", n->num_keys);
+		for (int i=0; i<n->num_keys;i++)
+			printf("key  %ld value %ld \t ",n->keys[i], n->values[i]->value);
+			printf("\n");
+//		total_key += n->num_keys;
+	}
 	
 
 	void MemstoreBPlusTree::printInner(InnerNode *n, unsigned depth) {
-		printf("Inner %d Key num %d\n", depth, n->num_keys);
+		for(int i = 0; i < this->depth - depth; i++)
+				printf(" ");
+		printf("Inner %d Key num %d  :", depth, n->num_keys);
 		for (int i=0; i<n->num_keys;i++)
-			 printf("\t%lx	",n->keys[i]);
+			 printf("\t%ld	",n->keys[i]);
 		 printf("\n");
 		for (int i=0; i<=n->num_keys; i++)
 			if (depth>1) printInner(reinterpret_cast<InnerNode*>(n->children[i]), depth-1);
