@@ -1600,9 +1600,11 @@ namespace leveldb {
 #else
 	  leveldb::DBROTX tx(store);
 #endif
-	  tx.Begin();
 
 	 while(true) {
+	
+	  tx.Begin();
+
 	 //-------------------------------------------------------------------------
 	  //the row in the CUSTOMER table with matching C_W_ID, C_D_ID, and C_ID is selected 
 	  //and C_BALANCE, C_FIRST, C_MIDDLE, and C_LAST are retrieved.
