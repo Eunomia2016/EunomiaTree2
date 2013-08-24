@@ -12,6 +12,7 @@
 
 namespace leveldb {
 
+#define MAXZERO 3
 #define MAXCAPACITY 10
 #define MAXCONFLICT 100
 #define RTMPROFILE 0
@@ -25,6 +26,7 @@ class RTMScope {
  int retry;
  int conflict;
  int capacity;
+ int zero;
  uint64_t befcommit;
  uint64_t aftcommit;
 
@@ -36,6 +38,7 @@ class RTMScope {
 	retry = 0;
 	conflict = 0;
 	capacity = 0;
+        zero = 0;
 	
 	while(true) {
 	    unsigned stat;
@@ -51,8 +54,9 @@ class RTMScope {
 		} else {
 		
 		  retry++;
-
-		  if((stat & _XABORT_CONFLICT) != 0) 
+		  if(stat == 0)
+			zero++;
+		  else if((stat & _XABORT_CONFLICT) != 0) 
 		  	conflict++;
 		  else if((stat & _XABORT_CAPACITY) != 0)
 			capacity++;
@@ -68,7 +72,10 @@ class RTMScope {
 		  else if (conflict > MAXCONFLICT) {  	
 	//	  	printf("hold lock MAXCONFLICT\n");
 		  	break;
-		  }
+		  } else if(zero > MAXZERO) {
+			break;
+		 }
+		
 		}
 	}
 	//printf("hold lock\n");

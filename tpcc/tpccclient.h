@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define TIMEPROFILE 1
+#define TIMEPROFILE 0
 
 namespace tpcc {
 class RandomGenerator;

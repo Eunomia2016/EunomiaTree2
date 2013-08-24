@@ -11,7 +11,7 @@
 
 #include "tpccdb.h"
 
-#define PROFILEDELIVERY 1
+#define PROFILEDELIVERY 0
 
 namespace leveldb {
 

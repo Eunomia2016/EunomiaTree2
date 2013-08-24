@@ -1488,14 +1488,23 @@ namespace leveldb {
 	  
 			Order *o = NULL; int32_t o_id;
 #if SEC_INDEX
+
+#if SLDBTX
+				  DBTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+#else
 				  DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+#endif
 				  uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
 				  uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
 				  iter.Seek(start);
 				  if(iter.Valid())
     				iter.Prev();
 				  if (iter.Valid() && iter.Key() >= end) {
+#if SLDBTX
+					DBTX::KeyValues *kvs = iter.Value();
+#else					
 					DBROTX::KeyValues *kvs = iter.Value();
+#endif
 					o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
 					uint64_t *o_value = kvs->values[0];
 #if PROFILE
@@ -1625,14 +1634,26 @@ namespace leveldb {
 
 	  Order *o = NULL; int32_t o_id;
 #if SEC_INDEX
-	  DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+	
+#if SLDBTX
+		DBTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+#else
+
+		DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+#endif
 	  uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
 	  uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
 	  iter.Seek(start);
 	  if(iter.Valid())
     	iter.Prev();
 	  if (iter.Valid() && iter.Key() >= end) {
-	  	DBROTX::KeyValues *kvs = iter.Value();
+	  
+#if SLDBTX
+		DBTX::KeyValues *kvs = iter.Value();
+#else						
+		DBROTX::KeyValues *kvs = iter.Value();
+#endif
+
 		o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
 		uint64_t *o_value = kvs->values[0];
 #if PROFILE

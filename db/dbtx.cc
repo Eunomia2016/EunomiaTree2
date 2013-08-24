@@ -898,8 +898,7 @@ void DBTX::Iterator::Seek(uint64_t key)
 	  
 	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
 	    	  return;
-	  	}else
-		  printf("val_ %ld\n", val_);
+	  	}
 
 	    }
 	  
@@ -959,8 +958,6 @@ void DBTX::Iterator::SeekProfiled(uint64_t key)
 			tx_->traverseTime += (tx_->rdtsc() - start);
 		    	return;
 	  	  }
-		  else
-			printf("val_ %ld\n", val_);
 		  tx_->traverseCount ++; 
 
 	    }
