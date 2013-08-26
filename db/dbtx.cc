@@ -397,15 +397,51 @@ inline bool DBTX::WriteSet::CheckWriteSet()
 inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 {
 
+  
   for(int i = 0; i < elems; i++) {
 	//the node need to be removed from the memstore
 	//FIXME: just support deletion on the first snapshot
-	if(kvs[i].node->value == (uint64_t *)1) {
 
-		Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-		assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
+	if(kvs[i].val == (uint64_t *)1) {
+		
+		bool remove = false;
+
+	  {
+#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+#else
+		RTMScope rtm(&rtmProf);
+#endif
+		if(kvs[i].node->value == (uint64_t *)1) {
+			kvs[i].node->value = (uint64_t *)2;
+			remove = true;
+		}
+
+	  }
+
+	  if(remove == true) {
+	  	
+		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
+
+		 {		
+	 		  SpinLockScope spinlock(&slock);
+	 		  if(node != NULL) {
+	 			 //printf("Thread %ld remove %ld\n", pthread_self(), kvs[i].key);
+	 		  }
+	 		 if(!(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2)))
+	 		 {
+	 			printf("Thread %ld node %ld, counter %d, value %lx\n",  pthread_self(), node, node->counter, node->value);
+	 			tables->tables[kvs[i].tableid]->PrintStore();
+	 		 }
+	 				
+	 		 assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
+		}
+	  }
+	  
 	}
-  }
+
+	}
+
 }
 
 
@@ -510,6 +546,7 @@ bool DBTX::End()
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 
 {
+
   Memstore::MemNode* node;
 
 #if PROFILEBUFFERNODE
@@ -678,7 +715,7 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 {
-
+  	
   //step 1. First check if the <k,v> is in the write set
   if(writeset->Lookup(tableid, key, val)) {
       	return true;

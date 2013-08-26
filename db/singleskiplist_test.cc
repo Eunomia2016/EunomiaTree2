@@ -669,7 +669,7 @@ class Benchmark {
 					b = tx2.End();
 	
 				}
-				
+#if 0				
 				leveldb::DBROTX tx3( store);
 				
 				f1 = true; f2 = false;
@@ -689,6 +689,7 @@ class Benchmark {
 					fail = true;
 					break;
 				}
+#endif
 	
 			}
 			{
