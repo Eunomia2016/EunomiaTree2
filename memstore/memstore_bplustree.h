@@ -12,7 +12,7 @@
 #define N  3
 
 #define BTREE_PROF 0
-#define BTREE_LOCK 0
+#define BTREE_LOCK 1
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -287,12 +287,8 @@ public:
 			return NULL;
 		}
 
-		//printf("try to delete %ld %d\n", cur->values[slot]->value, cur->values[slot]->counter);
-		//FIXME: check if the node has been logically delete here.
-		if(cur->values[slot]->value != (uint64_t *)1 ) //|| cur->values[slot]->counter != 1)
-			return NULL;
-		else
-		   cur->values[slot]->value = (uint64_t *)2;
+		
+		 assert(cur->values[slot]->value == (uint64_t *)2);
 
 	//	printf("delete node\n");
 		DeleteResult *res = new DeleteResult();
