@@ -9,8 +9,8 @@
 #include "port/port_posix.h"
 #include "memstore.h"
 #include "secondindex.h"
-#define M  20
-#define N  20
+#define M  3
+#define N  3
 
 #define IBTREE_PROF 0
 #define IBTREE_LOCK 1
