@@ -631,17 +631,17 @@ class Benchmark {
 					if (!check3) {
 					//operation
 					for (int j=10; j<10+tid; j++) {
-						uint64_t *value1 = new uint64_t();
-						*value1 = 1;
-						tx.Add(0, j, value1);	
+						//uint64_t *value1 = new uint64_t();
+						//*value1 = 1;
+						tx.Add(0, j, (uint64_t *)8);	
 					}
 					for (int j = 0; j<10; j++) {
 						tx.Delete(0, 10+tid+j);
 					}
 					for (int j = 0; j<5; j++) {
-						uint64_t *value2 = new uint64_t();
-						*value2 = 1;
-						tx.Add(0, 20+tid+j, value2);
+						//uint64_t *value2 = new uint64_t();
+						//*value2 = 1;
+						tx.Add(0, 20+tid+j, (uint64_t *)8);
 					}
 					}
 					}

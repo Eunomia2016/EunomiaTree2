@@ -9,8 +9,8 @@
 #include "port/port_posix.h"
 #include "memstore.h"
 #include "secondindex.h"
-#define M  3
-#define N  3
+#define SM  3
+#define SN  3
 
 #define SBTREE_PROF 0
 #define SBTREE_LOCK 0
@@ -31,8 +31,8 @@ private:
 		LeafNode() : num_keys(0){}//, writes(0), reads(0) {}
 //		uint64_t padding[4];
 		unsigned num_keys;
-		char *keys[M];
-		SecondNode *values[M];
+		char *keys[SM];
+		SecondNode *values[SM];
 		LeafNode *left;
 		LeafNode *right;
 		uint64_t seq;
@@ -46,8 +46,8 @@ private:
 //		uint64_t padding[8];
 //		unsigned padding;
 		unsigned num_keys;
-		char *keys[M];
-		void*	 children[N+1];
+		char *keys[SM];
+		void*	 children[SN+1];
 //		uint64_t writes;
 //		uint64_t reads;
 //		uint64_t padding1[8];
@@ -397,8 +397,8 @@ public:
 			//printTree();
 			if (new_leaf != NULL) {
 				InnerNode *toInsert = inner;
-				if (inner->num_keys == N) {										
-					unsigned treshold= (N+1)/2;
+				if (inner->num_keys == SN) {										
+					unsigned treshold= (SN+1)/2;
 					new_sibling = new_inner_node();
 					
 					new_sibling->num_keys= inner->num_keys -treshold;
@@ -419,7 +419,7 @@ public:
 						if (k >= treshold) k = k - treshold; 
 						else k = 0;
 					}
-					inner->keys[N-1] = upKey;
+					inner->keys[SN-1] = upKey;
 //					checkConflict(new_sibling, 1);
 #if SBTREE_PROF
 					writes++;
@@ -461,8 +461,8 @@ public:
 			if (new_inner != NULL) {
 				InnerNode *toInsert = inner;
 				InnerNode *child_sibling = new_inner;
-				unsigned treshold= (N+1)/2;
-				if (inner->num_keys == N) {										
+				unsigned treshold= (SN+1)/2;
+				if (inner->num_keys == SN) {										
 					
 					new_sibling = new_inner_node();
 					new_sibling->num_keys= inner->num_keys -treshold;
@@ -487,7 +487,7 @@ public:
 					}
 
 					//XXX: what is this used for???
-					inner->keys[N-1] = upKey;
+					inner->keys[SN-1] = upKey;
 
 #if SBTREE_PROF
 					writes++;
@@ -502,7 +502,7 @@ public:
 				}
 			
 				toInsert->num_keys++;
-				toInsert->keys[k] = reinterpret_cast<InnerNode*>(child)->keys[N-1];
+				toInsert->keys[k] = reinterpret_cast<InnerNode*>(child)->keys[SN-1];
 
 				toInsert->children[k+1] = child_sibling;
 														
@@ -568,9 +568,9 @@ public:
 			
 
 		LeafNode *toInsert = leaf;
-		if (leaf->num_keys == M) {
+		if (leaf->num_keys == SM) {
 			new_sibling = new_leaf_node();
-			unsigned threshold= (M+1)/2;
+			unsigned threshold= (SM+1)/2;
 			new_sibling->num_keys= leaf->num_keys -threshold;
             for(unsigned j=0; j < new_sibling->num_keys; ++j) {
             	new_sibling->keys[j]= leaf->keys[threshold+j];
