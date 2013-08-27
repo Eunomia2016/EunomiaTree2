@@ -1251,7 +1251,9 @@ class Benchmark {
 			
 			//if (b==true)printf("%d\n", i);
 			}
+
 			//store->tables[0]->PrintStore();
+
 		}
 		if (name == Slice("bigdelete")) {
 			leveldb::DBTX tx(store);
