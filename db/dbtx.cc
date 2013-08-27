@@ -722,6 +722,10 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
   	
   //step 1. First check if the <k,v> is in the write set
   if(writeset->Lookup(tableid, key, val)) {
+
+		if( (*val) == (uint64_t *)1)
+			return false;
+		
       	return true;
   }
 

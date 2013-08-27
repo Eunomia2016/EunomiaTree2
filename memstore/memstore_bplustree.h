@@ -8,8 +8,8 @@
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
-#define M  3
-#define N  3
+#define M  20
+#define N  20
 
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
