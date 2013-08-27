@@ -12,7 +12,7 @@
 #define N  20
 
 #define BTREE_PROF 0
-#define BTREE_LOCK 0
+#define BTREE_LOCK 1
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;

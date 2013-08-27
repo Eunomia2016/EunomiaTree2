@@ -270,8 +270,6 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
 {
   assert(elems <= max_length);
 
-  if(key == 1152921504606846976)
-	printf("TX WS add  key %ld value %ld\n", key, val);
   if(elems == max_length) {
 	Resize();
   }
@@ -337,15 +335,20 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 //gcounter should be added into the rtm readset
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
 {
-
   for(int i = 0; i < elems; i++) {
 
 #if GLOBALOCK
 	assert(kvs[i].node->counter <= gcounter);
 #endif
 
+	if(kvs[i].node->counter == 0)
+		kvs[i].node->counter = gcounter;
+	
     if(kvs[i].node->counter == gcounter) {
-		
+
+
+//	  printf("Thread %ld write %ld value %ld\n", pthread_self(), kvs[i].key, kvs[i].val);
+	 		  
 	  //If counter of the node is equal to the global counter, then just change the value pointer
 	 
 	  //FIXME: the old value should be deleted eventually
@@ -414,7 +417,9 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 #endif
 		if(kvs[i].node->value == (uint64_t *)1) {
 			kvs[i].node->value = (uint64_t *)2;
+			kvs[i].node->seq++;
 			remove = true;
+			//printf("Thread %ld remove %ld seq %ld\n", pthread_self(), kvs[i].key, kvs[i].node->seq);
 		}
 
 	  }
@@ -424,10 +429,14 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
 
 		 {		
-	 		  SpinLockScope spinlock(&slock);
-	 		  if(node != NULL) {
-	 			 //printf("Thread %ld remove %ld\n", pthread_self(), kvs[i].key);
-	 		  }
+#if GLOBALOCK
+			SpinLockScope spinlock(&slock);
+#else
+			RTMScope rtm(&rtmProf);
+#endif
+			//update the sequence number here to handle the concurrent read
+			//if(node != NULL)
+			//	node->seq++;
 	 		 if(!(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2)))
 	 		 {
 	 			printf("Thread %ld node %ld, counter %d, value %lx\n",  pthread_self(), node, node->counter, node->value);
@@ -531,6 +540,8 @@ bool DBTX::End()
 
     //step 3. update the sencondary index
     writeset->UpdateSecondaryIndex();
+
+//	printf("Thread %ld TX End Successfully\n",pthread_self());
  
   }
 
@@ -546,6 +557,9 @@ bool DBTX::End()
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 
 {
+//  SpinLockScope spinlock(&slock);
+
+retry:
 
   Memstore::MemNode* node;
 
@@ -579,7 +593,10 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 #endif
 
+  if(node->value == (uint64_t *)2)
+  	goto retry;
   writeset->Add(tableid, key, val, node);
+
 }
 
 //Update a column which has a secondary key
@@ -715,6 +732,9 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 {
+
+//  if(key == 3 || key == 4)
+  //	printf("Thread %ld get %ld\n", pthread_self(), key);
   	
   //step 1. First check if the <k,v> is in the write set
   if(writeset->Lookup(tableid, key, val)) {
@@ -728,6 +748,9 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 
 	
   //step 2.  Read the <k,v> from the in memory store
+
+retry:
+
   Memstore::MemNode* node = NULL;
 #if BUFFERNODE
   if(buffer[tableid].key == key) {
@@ -760,9 +783,19 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 	RTMScope rtm(&rtmProf);
 #endif
 
+	if(node->value == (uint64_t *)2)
+		goto retry;
+	
 //	if(*val != NULL && **val == 1)
     readset->Add(&node->seq);
 
+	//if this node has been removed from the memstore
+	
+//	if(key == 3 || key == 4)
+	//printf("Thread %ld get %ld, seq %ld, value %ld\n", 
+		//		pthread_self(), key, node->seq, (uint64_t)node->value);
+
+	
 	if (node->value == NULL || node->value == (uint64_t *)1 || node->value == (uint64_t *)2) {
 
 		*val = NULL;

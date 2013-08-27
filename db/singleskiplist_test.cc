@@ -593,18 +593,23 @@ class Benchmark {
 				bool b = false;
 				while (b == false) {
 					tx.Begin();
-
+//					printf("[%ld] TX1 Begin\n", pthread_self());
+//					printf("[%ld]TX1 Delete 3\n", pthread_self());
 					tx.Delete(0, 3);	
 					
 					uint64_t *value = new uint64_t();
 					*value = i;
+//					printf("[%ld] TX1 Put 4\n", pthread_self());
 					tx.Add(0, 4, value);			
-
+#if 0
 					uint64_t *value1 = new uint64_t();
 					*value1 = i;
 					tx.Add(0, 5, value1);	
-					
+#endif					
+                    
 					b = tx.End();
+//				printf("[%ld] TX1 End\n", pthread_self());
+
 	
 				}
 
@@ -616,25 +621,31 @@ class Benchmark {
 				uint64_t *value; uint64_t *value1;
 				while (b == false) {
 					tx1.Begin();
-					
+		//			printf("[%ld] RTX Begin\n", pthread_self());
+	//				printf("[%ld]RTX Get 4\n", pthread_self());
 										
 						
 					f1 = tx1.Get(0, 4, &value);
 					f2 = tx1.Get(0, 5, &value);	
+//					printf("[%ld]RTX Get 3\n", pthread_self());
 					f3 = tx1.Get(0, 3, &value);
 					
 				
 					tx1.Get(0, 6, &value1);	
-
+				
 					
 					b = tx1.End();
-	
+		//			if(b == true)
+	//					printf("[%ld]RTX End\n", pthread_self());
+//					else
+//						printf("[%ld]RTX Rollback\n", pthread_self());
 				}
 				if (f1 == f3) {
-					printf("Get Key 4 return %d, Get Key 3 return %d, not equal\n", f1,f3);
+					printf("[%ld] Get Key 4 return %d, Get Key 3 return %d, not equal\n", pthread_self(), f1,f3);
 					fail = true;
 					break;
 				}
+#if 0
 				if (f1 != f2){
 					printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 					fail = true;
@@ -645,18 +656,23 @@ class Benchmark {
 					fail = true;
 					break;
 				}
-				
+#endif				
 				leveldb::DBTX tx2( store);
 				b = false;
 				while (b == false) {
 					tx2.Begin();
+//					printf("[%ld] TX2 Begin\n", pthread_self());
 
 					uint64_t *value = new uint64_t();
 					*value = i;
+					
+//					printf("[%ld] TX2 Put 3\n", pthread_self());
 					tx.Add(0, 3, value);	
 
+//					printf("[%ld] TX2 Delete 4\n", pthread_self());
 
 					tx2.Delete(0, 4);			
+#if 0
 
 					tx2.Delete(0, 5);
 
@@ -665,8 +681,11 @@ class Benchmark {
 					uint64_t *value1 = new uint64_t();
 					*value1 = i;
 					tx.Add(0, 6, value1);	
-					
+#endif			
+
 					b = tx2.End();
+//				printf("[%ld] TX2 End\n", pthread_self());
+
 	
 				}
 #if 0				
