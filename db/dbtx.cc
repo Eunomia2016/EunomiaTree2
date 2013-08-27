@@ -413,7 +413,7 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&rtmProf);
+		RTMScope rtm(NULL);
 #endif
 		if(kvs[i].node->value == (uint64_t *)1) {
 			kvs[i].node->value = (uint64_t *)2;
@@ -426,25 +426,9 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 
 	  if(remove == true) {
 	  	
-		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-
-		 {		
-#if GLOBALOCK
-			SpinLockScope spinlock(&slock);
-#else
-			RTMScope rtm(&rtmProf);
-#endif
-			//update the sequence number here to handle the concurrent read
-			//if(node != NULL)
-			//	node->seq++;
-	 		 if(!(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2)))
-	 		 {
-	 			printf("Thread %ld node %ld, counter %d, value %lx\n",  pthread_self(), node, node->counter, node->value);
-	 			tables->tables[kvs[i].tableid]->PrintStore();
-	 		 }
-	 				
-	 		 assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
-		}
+		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);	
+  		  assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
+	
 	  }
 	  
 	}
