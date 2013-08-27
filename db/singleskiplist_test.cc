@@ -587,17 +587,22 @@ class Benchmark {
 			
 			bool fail = false;
 			for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
-	
+				//printf("the %d\n",i);
 				leveldb::DBTX tx( store);
 				bool b = false; 
 				bool f = true;
 				bool check1 = false;
 				bool check2 = false;
 				bool check3 = false;
+				uint64_t start = 10;
 				while (b == false) {
 					tx.Begin();
+					check1 = false;
+					check2 = false;
+					check3 = false;
+					f = true;
 					uint64_t *value;
-					uint64_t start = 10;
+					start = 10;
 					while (f) {
 						if (start > (10 + FLAGS_threads)) {
 							check1 = true;
@@ -606,6 +611,7 @@ class Benchmark {
 						f = tx.Get(0, start, &value);
 						start++;
 					}
+					if (start <= 10) printf("~!\n");
 					if (!check1) { 
 
 					for (int j = start; i < start+9; i++) {
@@ -616,17 +622,19 @@ class Benchmark {
 						}
 					}
 					if (!check2) {
-
-					f = tx.Get(0, start + 10, &value);
+					//
+					f = tx.Get(0, start + 9, &value);
 					if (!f) {
 						check3 = true;
+						//printf("Get %d\n",start+9);
 					}
 					if (!check3) {
 					//operation
-					uint64_t *value1 = new uint64_t();
-					*value1 = 1;
-					tx.Add(0, 10+tid-1, value1);	
-					
+					for (int j=10; j<10+tid; j++) {
+						uint64_t *value1 = new uint64_t();
+						*value1 = 1;
+						tx.Add(0, j, value1);	
+					}
 					for (int j = 0; j<10; j++) {
 						tx.Delete(0, 10+tid+j);
 					}
@@ -641,7 +649,7 @@ class Benchmark {
 					b = tx.End();
 	
 				}
-
+				//
 				if (check1) {
 					printf("none of 10 to 10+num_threads-1 does not exist\n");
 					fail = true;
@@ -653,6 +661,7 @@ class Benchmark {
 					break;
 				}
 				if (check3) {
+					printf("start %d\n",start-1);
 					printf("Get more than 10 continuous not found\n");
 					fail = true;
 					break;
@@ -699,7 +708,7 @@ class Benchmark {
 					*value = i;
 //					printf("[%ld] TX1 Put 4\n", pthread_self());
 					tx.Add(0, 4, value);			
-#if 0
+#if 1
 					uint64_t *value1 = new uint64_t();
 					*value1 = i;
 					tx.Add(0, 5, value1);	
@@ -744,7 +753,7 @@ class Benchmark {
 					fail = true;
 					break;
 				}
-#if 0
+#if 1
 				if (f1 != f2){
 					printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 					fail = true;
@@ -771,7 +780,7 @@ class Benchmark {
 //					printf("[%ld] TX2 Delete 4\n", pthread_self());
 
 					tx2.Delete(0, 4);			
-#if 0
+#if 1
 
 					tx2.Delete(0, 5);
 
@@ -1242,7 +1251,7 @@ class Benchmark {
 			
 			//if (b==true)printf("%d\n", i);
 			}
-			store->tables[0]->PrintStore();
+			//store->tables[0]->PrintStore();
 		}
 		if (name == Slice("bigdelete")) {
 			leveldb::DBTX tx(store);
@@ -1250,7 +1259,7 @@ class Benchmark {
 				bool b = false;
 				while (b == false) {
 					tx.Begin();
-					for (int j = i; j<10; j++) {
+					for (int j = 0; j<10; j++) {
 					    uint64_t *value = new uint64_t();
 					    *value = 1;			
 					    tx.Add(0, i+j, value);				
@@ -1259,6 +1268,7 @@ class Benchmark {
 						
 				}
 			}
+			//store->tables[0]->PrintStore();
 		}
 		SharedState shared;
 		shared.total = num;
