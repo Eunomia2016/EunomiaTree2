@@ -8,8 +8,8 @@
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
-#define M  20
-#define N  20
+#define M  3
+#define N  3
 
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
@@ -505,6 +505,13 @@ public:
 		calls++;
 #endif
 
+		if (root == NULL) {
+			root = new_leaf_node();
+			reinterpret_cast<LeafNode*>(root)->left = NULL;
+			reinterpret_cast<LeafNode*>(root)->right = NULL;
+			reinterpret_cast<LeafNode*>(root)->seq = 0;
+			depth = 0;
+		}
 		MemNode* val = NULL;
 		if (depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);

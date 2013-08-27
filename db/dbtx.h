@@ -71,7 +71,7 @@ class DBTX {
 	void Begin();
 	bool Abort();
 	bool End();
-	
+	void Cleanup();
 
 	void Add(int tableid, uint64_t key, uint64_t* val);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);

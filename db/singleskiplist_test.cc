@@ -572,7 +572,105 @@ class Benchmark {
 
 	}
 
+	
+	static void BigdeleteTest(void* v) {
+	
+			ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+			int tid = (arg->thread)->tid;
+			SharedState *shared = arg->thread->shared;
+			DBTables *store = arg->store;
+			
+	
+	
+			//printf("In tid %lx\n", arg);
+			//printf("start %d\n",tid);
+			
+			bool fail = false;
+			for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
+	
+				leveldb::DBTX tx( store);
+				bool b = false; 
+				bool f = true;
+				bool check1 = false;
+				bool check2 = false;
+				bool check3 = false;
+				while (b == false) {
+					tx.Begin();
+					uint64_t *value;
+					uint64_t start = 10;
+					while (f) {
+						if (start > (10 + FLAGS_threads)) {
+							check1 = true;
+							break;
+						}
+						f = tx.Get(0, start, &value);
+						start++;
+					}
+					if (!check1) { 
 
+					for (int j = start; i < start+9; i++) {
+						f = tx.Get(0, j, &value);
+						if (f) {
+							check2 = true;
+							break;
+						}
+					}
+					if (!check2) {
+
+					f = tx.Get(0, start + 10, &value);
+					if (!f) {
+						check3 = true;
+					}
+					if (!check3) {
+					//operation
+					uint64_t *value1 = new uint64_t();
+					*value1 = 1;
+					tx.Add(0, 10+tid-1, value1);	
+					
+					for (int j = 0; j<10; j++) {
+						tx.Delete(0, 10+tid+j);
+					}
+					for (int j = 0; j<5; j++) {
+						uint64_t *value2 = new uint64_t();
+						*value2 = 1;
+						tx.Add(0, 20+tid+j, value2);
+					}
+					}
+					}
+					}
+					b = tx.End();
+	
+				}
+
+				if (check1) {
+					printf("none of 10 to 10+num_threads-1 does not exist\n");
+					fail = true;
+					break;
+				}
+				if (check2){
+					printf("Did not get continuous not found\n");
+					fail = true;
+					break;
+				}
+				if (check3) {
+					printf("Get more than 10 continuous not found\n");
+					fail = true;
+					break;
+				}
+				
+				
+	
+			}
+			{
+			  MutexLock l(&shared->mu);
+			  if (fail) shared->fail = fail;
+			  shared->num_done++;
+			  if (shared->num_done >= shared->total) {
+				shared->cv.SignalAll();
+			  }
+			}
+	
+	}
 	
 	static void DeleteTest(void* v) {
 	
@@ -631,7 +729,7 @@ class Benchmark {
 	
 				}
 				if (f1 == f3) {
-					printf("Get Key 4 return %d, Get Key 3 return %d, not equal\n", f1,f3);
+					printf("Get Key 4 return %d, Get Key 3 return %d, should be diff\n", f1,f3);
 					fail = true;
 					break;
 				}
@@ -670,7 +768,7 @@ class Benchmark {
 	
 				}
 				
-				leveldb::DBROTX tx3( store);
+	/*			leveldb::DBROTX tx3( store);
 				
 				f1 = true; f2 = false;
 				
@@ -688,7 +786,7 @@ class Benchmark {
 					printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 					fail = true;
 					break;
-				}
+				}*/
 	
 			}
 			{
@@ -1101,7 +1199,7 @@ class Benchmark {
 			//if (b==true)printf("%d\n", i);
 			}
 		}
-	    else if (name == Slice("delete")) {
+	    else if (name == Slice("delete") || name == Slice("bigdelete")) {
 			leveldb::DBTX tx( store);
 			bool b =false;
 			while (b==false) {
@@ -1119,8 +1217,24 @@ class Benchmark {
 			
 			//if (b==true)printf("%d\n", i);
 			}
+			store->tables[0]->PrintStore();
 		}
-
+		if (name == Slice("bigdelete")) {
+			leveldb::DBTX tx(store);
+			for (int i=20; i<100; i+=10) {
+				bool b = false;
+				while (b == false) {
+					tx.Begin();
+					for (int j = i; j<10; j++) {
+					    uint64_t *value = new uint64_t();
+					    *value = 1;			
+					    tx.Add(0, i+j, value);				
+					}									
+					b = tx.End();
+						
+				}
+			}
+		}
 		SharedState shared;
 		shared.total = num;
 		shared.num_initialized = 0;
@@ -1154,6 +1268,7 @@ class Benchmark {
 		 else if (name == Slice("nocycle")) printf("NocycleTest pass!\n");
 		 else if (name == Slice("nocycle_readonly")) printf("NocycleReadonlyTest pass!\n");		 
 		 else if (name == Slice("delete")) printf("DeleteTest pass!\n");
+		 else if (name == Slice("bigdelete")) printf("BigDeleteTest pass!\n");
 		 else if (name == Slice("counter")) {
 		 	
 		 	
@@ -1247,7 +1362,9 @@ int main(int argc, char**argv)
 	  else if (name == leveldb::Slice("rwiter")) {
 	  	method = &leveldb::Benchmark::InsertNode;
 	  }
-
+	  else if (name == leveldb::Slice("bigdelete")) {
+	  	method = &leveldb::Benchmark::BigdeleteTest;
+	  }
 	 leveldb::DBTables *store = new leveldb::DBTables();
 	
 	  
