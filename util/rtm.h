@@ -15,7 +15,7 @@ namespace leveldb {
 #define MAXZERO 3
 #define MAXCAPACITY 10
 #define MAXCONFLICT 100
-#define RTMPROFILE 0
+#define RTMPROFILE 1
 
 
 class RTMScope {
