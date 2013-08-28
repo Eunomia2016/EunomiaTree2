@@ -680,8 +680,164 @@ class Benchmark {
 			}
 	
 	}
-	
+
 	static void DeleteTest(void* v) {
+					ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+					int tid = (arg->thread)->tid;
+					SharedState *shared = arg->thread->shared;
+					DBTables *store = arg->store;
+					
+			
+			
+					//printf("In tid %lx\n", arg);
+					//printf("start %d\n",tid);
+					
+					bool fail = false;
+					for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
+			
+						leveldb::DBTX tx( store);
+						bool b = false;
+						while (b == false) {
+							tx.Begin();
+		//					printf("[%ld] TX1 Begin\n", pthread_self());
+		//					printf("[%ld]TX1 Delete 3\n", pthread_self());
+							tx.Delete(0, 3);	
+							
+							uint64_t *value = new uint64_t();
+							*value = i;
+		//					printf("[%ld] TX1 Put 4\n", pthread_self());
+							tx.Add(0, 4, value);			
+#if 1
+							uint64_t *value1 = new uint64_t();
+							*value1 = i;
+							tx.Add(0, 5, value1);	
+#endif					
+							
+							b = tx.End();
+		//				printf("[%ld] TX1 End\n", pthread_self());
+		
+			
+						}
+		
+						leveldb::DBTX tx1( store);
+						b = false; 
+						bool f1 = true; 
+						bool f2 = false;
+						bool f3 = true;
+						uint64_t *value; uint64_t *value1;
+						while (b == false) {
+							tx1.Begin();
+				//			printf("[%ld] RTX Begin\n", pthread_self());						
+				
+		
+		
+			//				printf("[%ld]RTX Get 4\n", pthread_self());
+						
+							f1 = tx1.Get(0, 4, &value);
+							f2 = tx1.Get(0, 5, &value); 
+		//					printf("[%ld]RTX Get 3\n", pthread_self());
+							f3 = tx1.Get(0, 3, &value);
+							
+						
+							tx1.Get(0, 6, &value1); 
+						
+							b = tx1.End();
+				//			if(b == true)
+			//					printf("[%ld]RTX End\n", pthread_self());
+		//					else
+		//						printf("[%ld]RTX Rollback\n", pthread_self());
+						}
+						if (f1 == f3) {
+							printf("[%ld] Get Key 4 return %d, Get Key 3 return %d, should be diff\n", pthread_self(), f1,f3);
+		
+							fail = true;
+							break;
+						}
+#if 1
+						if (f1 != f2){
+							printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
+							fail = true;
+							break;
+						}
+						if (f3 && *value != *value1) {
+							printf("Key 3 value %d and Key 6 value %d, should have same values\n",*value, *value1);
+							fail = true;
+							break;
+						}
+#endif				
+						leveldb::DBTX tx2( store);
+						b = false;
+						while (b == false) {
+							tx2.Begin();
+		//					printf("[%ld] TX2 Begin\n", pthread_self());
+		
+							uint64_t *value = new uint64_t();
+							*value = i;
+							
+		//					printf("[%ld] TX2 Put 3\n", pthread_self());
+							tx.Add(0,  3,  value);	
+		
+		//					printf("[%ld] TX2 Delete 4\n", pthread_self());
+		
+							tx2.Delete(0, 4);			
+#if 1
+		
+							tx2.Delete(0, 5);
+		
+				
+		
+							uint64_t *value1 = new uint64_t();
+							*value1 = i;
+							tx.Add(0,  6, value1);	
+#endif			
+		
+							b = tx2.End();
+		//				printf("[%ld] TX2 End\n", pthread_self());
+		
+			
+						}
+		
+#if 0				
+						leveldb::DBROTX tx3( store);
+		
+						
+						f1 = true; f2 = false;
+						
+						
+						tx3.Begin();				
+																
+						f1 = tx3.Get(0, 4, &value);
+						f2 = tx3.Get(0, 5, &value); 
+						
+						tx3.End();
+			
+						
+						
+						if (f1 != f2){
+							printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
+							fail = true;
+							break;
+		
+						}
+#endif
+		
+			
+					}
+					{
+					  MutexLock l(&shared->mu);
+					  if (fail) shared->fail = fail;
+					  shared->num_done++;
+					  if (shared->num_done >= shared->total) {
+						shared->cv.SignalAll();
+					  }
+					}
+			
+			}
+		
+
+
+	
+	static void SecDeleteTest(void* v) {
 	
 			ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 			int tid = (arg->thread)->tid;
@@ -770,8 +926,9 @@ class Benchmark {
 						check3 = true;		
 						sk2 = num+num1;
 					}
-					else if (!f3 && (num+num1)!=1) {
+					else if (!f3 && !(num == 1 && num1 == 1)) {
 						check4 = true;
+						printf("%d %d\n", num, num1);
 						sk2 = num+num1;
 					}
 					b = tx1.End();

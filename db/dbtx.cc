@@ -652,8 +652,8 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 	int i = 0;
 	SecondIndex::MemNodeWrapper* mnw = sn->head;
 	while(mnw != NULL) {
-
-		if (mnw->valid) {
+		if (mnw->valid && mnw->memnode->value!=NULL && mnw->memnode->value!=(uint64_t *)1 
+			&& mnw->memnode->value!=(uint64_t *)2) {
 			kvs->keys[i] = mnw->key;
 			kvs->values[i] = mnw->memnode->value;
 			//put the record seq into the read set
@@ -671,6 +671,8 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 
 DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 {
+
+retryGBI:
 	assert(txdb_->secondIndexes[indextableid] != NULL);
 	SecondIndex::SecondNode* sn = txdb_->secondIndexes[indextableid]->Get(seckey);
 	assert(sn != NULL);
@@ -698,7 +700,7 @@ DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 	}
 
 	int i = ScanSecondNode(sn, kvs);
-	
+			
 	if(i > knum) {
 		while(_xtest())
 			_xend();
