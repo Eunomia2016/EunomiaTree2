@@ -726,33 +726,32 @@ class Benchmark {
 				bool f2 = false;
 				bool f3 = true;
 				uint64_t *value; uint64_t *value1;
-				bool check1; uint64_t sk1;
-				bool check2; 
+				bool check1; uint64_t sk1; uint64_t sk2;
+				bool check2; bool check3; bool check4;
+				uint64_t num1;
 				while (b == false) {
 					tx1.Begin();
 		//			printf("[%ld] RTX Begin\n", pthread_self());
-					check1 = false;
+					check4 = false;
+					check3 = false;
+					check2 = false;
+					check1 = false; 
 					DBTX::KeyValues* kvs = tx1.GetByIndex(0, 1);
-					int num = kvs->num;
+					int num;
+					if (kvs == NULL) num = 0;
+					else num = kvs->num;
 					if (num != 0 && num != 2) {
 						check1 = true;
 						sk1 = kvs->keys[0];
 					}
-					DBTX::KeyValues* kvs = tx1.GetByIndex(0, 2);
-					int num1 = kvs->num;
+					kvs = tx1.GetByIndex(0, 2);
+					if (kvs == NULL) num1 = 0;
+					else num1 = kvs->num;
+					
 					if (num == 2 && num1 != 0) {
 						check2 = true;
 					}
 					
-
-
-
-
-
-
-
-
-
 
 
 
@@ -767,12 +766,39 @@ class Benchmark {
 				
 					tx1.Get(0, 6, &value1);	
 				
-					
+					if (f3 && (num+num1)!=2) {
+						check3 = true;		
+						sk2 = num+num1;
+					}
+					else if (!f3 && (num+num1)!=1) {
+						check4 = true;
+						sk2 = num+num1;
+					}
 					b = tx1.End();
 		//			if(b == true)
 	//					printf("[%ld]RTX End\n", pthread_self());
 //					else
 //						printf("[%ld]RTX Rollback\n", pthread_self());
+				}
+				if (check1) {
+					printf("Get %d from second key 1, should also get %d", sk1, 9-sk1);
+					fail = true;
+					break;
+				}
+				if (check2) {
+					printf("second key 1 has two keys second key 2 should has no");
+					fail = true;
+					break;
+				}
+				if (check3) {
+					printf("key 3 exists , secondary index found %d\n", sk2);
+					fail = true;
+					break;
+				}
+				if (check4) {
+					printf("key 3 does not exist , secondary index found %d\n", sk2);
+					fail = true;
+					break;
 				}
 				if (f1 == f3) {
 					printf("[%ld] Get Key 4 return %d, Get Key 3 return %d, should be diff\n", pthread_self(), f1,f3);
