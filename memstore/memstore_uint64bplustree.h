@@ -46,7 +46,7 @@ private:
 //		uint64_t padding[8];
 //		unsigned padding;
 		unsigned num_keys;
-		uint64_t keys[IM];
+		uint64_t keys[IN];
 		void*	 children[IN+1];
 //		uint64_t writes;
 //		uint64_t reads;

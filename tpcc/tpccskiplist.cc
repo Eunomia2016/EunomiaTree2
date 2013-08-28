@@ -318,11 +318,13 @@ namespace leveldb {
 		else if (i == ORDE) store->AddTable(i, BTREE, IBTREE);
 		else store->AddTable(i, BTREE, NONE);
 #endif
-	
+	Memstore::MemNode *mn;
 	for (int i=0; i<9; i++) {
 		//Fixme: invalid value pointer
-		store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)3);
+		Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)3);		
+		if (i == ORDE) mn = node;
 	}
+	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
 	abort = 0;
     conflict = 0;
     capacity = 0;
@@ -1648,6 +1650,7 @@ namespace leveldb {
 	  iter.Seek(start);
 	  if(iter.Valid())
     	iter.Prev();
+	  else printf("Seek out\n");
 	  if (iter.Valid() && iter.Key() >= end) {
 	  
 #if SLDBTX

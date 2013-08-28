@@ -726,12 +726,39 @@ class Benchmark {
 				bool f2 = false;
 				bool f3 = true;
 				uint64_t *value; uint64_t *value1;
+				bool check1; uint64_t sk1;
+				bool check2; 
 				while (b == false) {
 					tx1.Begin();
 		//			printf("[%ld] RTX Begin\n", pthread_self());
+					check1 = false;
+					DBTX::KeyValues* kvs = tx1.GetByIndex(0, 1);
+					int num = kvs->num;
+					if (num != 0 && num != 2) {
+						check1 = true;
+						sk1 = kvs->keys[0];
+					}
+					DBTX::KeyValues* kvs = tx1.GetByIndex(0, 2);
+					int num1 = kvs->num;
+					if (num == 2 && num1 != 0) {
+						check2 = true;
+					}
+					
+
+
+
+
+
+
+
+
+
+
+
+
+
 	//				printf("[%ld]RTX Get 4\n", pthread_self());
-										
-						
+				
 					f1 = tx1.Get(0, 4, &value);
 					f2 = tx1.Get(0, 5, &value);	
 //					printf("[%ld]RTX Get 3\n", pthread_self());
@@ -775,7 +802,7 @@ class Benchmark {
 					*value = i;
 					
 //					printf("[%ld] TX2 Put 3\n", pthread_self());
-					tx.Add(0, 3, value);	
+					tx.Add(0, 0, 3, tid % 2 + 1, value);	
 
 //					printf("[%ld] TX2 Delete 4\n", pthread_self());
 
@@ -788,7 +815,7 @@ class Benchmark {
 
 					uint64_t *value1 = new uint64_t();
 					*value1 = i;
-					tx.Add(0, 6, value1);	
+					tx.Add(0, 0, 6, tid % 2 + 1, value1);	
 #endif			
 
 					b = tx2.End();
@@ -1244,8 +1271,9 @@ class Benchmark {
 			  *key = i;
 			  uint64_t *value = new uint64_t();
 			  *value = 1;
-			
-			  tx.Add(0, *key, value);				
+			  if (i == 3 || i == 6 || i == 4) 
+			  	tx.Add(0, 0, i, 2, value);
+			  else tx.Add(0, 0, *key, 0, value);				
 			}									
 			b = tx.End();
 			
@@ -1402,8 +1430,9 @@ int main(int argc, char**argv)
 	  else if (name == leveldb::Slice("bigdelete")) {
 	  	method = &leveldb::Benchmark::BigdeleteTest;
 	  }
-	 leveldb::DBTables *store = new leveldb::DBTables();
-	
+	 //leveldb::DBTables *store = new leveldb::DBTables();
+	 leveldb::DBTables *store = new leveldb::DBTables(1);
+	 store->AddTable(0, BTREE, IBTREE);
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);
 
