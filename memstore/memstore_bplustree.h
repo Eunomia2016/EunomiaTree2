@@ -288,7 +288,7 @@ public:
 		}
 
 		
-		 assert(cur->values[slot]->value == (uint64_t *)2);
+//		 assert(cur->values[slot]->value == (uint64_t *)2);
 
 	//	printf("delete node\n");
 		DeleteResult *res = new DeleteResult();

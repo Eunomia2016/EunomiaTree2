@@ -171,6 +171,7 @@ DBTX::WriteSet::WriteSet()
   max_length = MAXSIZE; //first allocate 1024 numbers
   elems = 0;
   cursindex = 0;
+  dbtx_ = NULL;
   
   kvs = new WSKV[max_length];
   sindexes = new WSSEC[max_length];
@@ -193,6 +194,7 @@ DBTX::WriteSet::WriteSet()
 #endif
 
 }
+
 
 DBTX::WriteSet::~WriteSet() {
 	//FIXME: Do nothing here
@@ -332,6 +334,11 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 	}
 }
 
+inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
+{
+	dbtx_ = dbtx;
+}
+
 //gcounter should be added into the rtm readset
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
 {
@@ -344,15 +351,32 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	if(kvs[i].node->counter == 0)
 		kvs[i].node->counter = gcounter;
 	
+	//If counter of the node is equal to the global counter, then just change the value pointer
     if(kvs[i].node->counter == gcounter) {
+	 		  	  
 
+#if CLEANUPPHASE
+	
+	//FIXME: the old value should be deleted eventually
+	kvs[i].node->value = kvs[i].val;
 
-//	  printf("Thread %ld write %ld value %ld\n", pthread_self(), kvs[i].key, kvs[i].val);
-	 		  
-	  //If counter of the node is equal to the global counter, then just change the value pointer
-	 
-	  //FIXME: the old value should be deleted eventually
-	  kvs[i].node->value = kvs[i].val;
+#else
+	
+	if(kvs[i].val == (uint64_t *)1) {
+		//Directly remove the node from the memstore
+		assert(dbtx_ != NULL);
+		
+		Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
+
+		assert(n == NULL || kvs[i].node == n);
+
+		
+	} else {
+		
+		kvs[i].node->value = kvs[i].val;
+	}
+
+#endif
 
 	  //Should first update the value, then the seq, to guarantee the seq is always older than the value
 	  kvs[i].node->seq++;
@@ -426,7 +450,7 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 
 	  if(remove == true) {
 	  	
-		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);	
+		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
   		  assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
 	
 	  }
@@ -512,11 +536,18 @@ bool DBTX::End()
     RTMScope rtm(&rtmProf);
 #endif
 
-    if(!readset->Validate() || !writeset->CheckWriteSet()) {
-	return false;
-    }
+    if(!readset->Validate())
+		return false;
+    
   
-  
+#if CLEANUPPHASE
+	if(!writeset->CheckWriteSet())
+		return false;
+#else
+
+	writeset->SetDBTX(this);
+
+#endif
  
     //step 2.  update the the seq set 
     //can't use the iterator because the cur node may be deleted 
@@ -528,12 +559,13 @@ bool DBTX::End()
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
  
   }
-
+  
+#if CLEANUPPHASE
   //Phase 2. Cleanup
   {
     writeset->Cleanup(txdb_);
   }
-
+#endif
   return true;
 }
 
@@ -633,8 +665,18 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 void DBTX::Delete(int tableid, uint64_t key)
 {
 
-	//Logically delete, set the value pointer to be 0x1
+#if CLEANUPPHASE
 	Add(tableid, key, (uint64_t *)1);
+
+#else
+	uint64_t *val;
+	bool res = Get(tableid, key, &val);
+	if(res == false)
+		return;
+	Add(tableid, key, (uint64_t *)1);
+#endif
+	//Logically delete, set the value pointer to be 0x1
+	
 }
 
 void DBTX::PrintKVS(KeyValues* kvs)

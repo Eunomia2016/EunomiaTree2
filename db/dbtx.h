@@ -23,6 +23,7 @@
 #define AGGRESSIVEDETECT 0
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
+#define CLEANUPPHASE 0
 
 namespace leveldb {
 
@@ -77,7 +78,6 @@ class DBTX {
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);
 	bool Get(int tableid, uint64_t key, uint64_t** val);
 	void Delete(int tableid, uint64_t key);
-	bool Cleanup(DBTables* tables);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);
 	void PrintKVS(KeyValues* kvs);
@@ -244,6 +244,8 @@ public:
 		WSKV *kvs;
 		WSSEC *sindexes;
 
+		DBTX* dbtx_;
+		
 		void Resize();
 			
 	  public:
@@ -255,6 +257,7 @@ public:
 		inline void Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw);
 		inline bool Lookup(int tableid, uint64_t key, uint64_t** val);
 		inline void UpdateSecondaryIndex();
+		inline void SetDBTX(DBTX* dbtx);
 		inline void Write(uint64_t gcounter);
 		inline bool CheckWriteSet();
 		inline void Cleanup(DBTables* tables);
