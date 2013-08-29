@@ -359,10 +359,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	//If counter of the node is equal to the global counter, then just change the value pointer
     if(kvs[i].node->counter == gcounter) {
 		
-	 	//Invalidate secondary index when deletion 	  	  
-		if(kvs[i].val == (uint64_t *)1)
-			if (kvs[i].node->secIndexValidateAddr != NULL)
-				*(kvs[i].node->secIndexValidateAddr) = 0;
+	 	
 
 #if CLEANUPPHASE
 		//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
@@ -379,7 +376,9 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 			kvs[i].node->value = (uint64_t *)2;
 
 			
-			
+			//Invalidate secondary index when deletion 	  	  			
+			if (kvs[i].node->secIndexValidateAddr != NULL)
+				*(kvs[i].node->secIndexValidateAddr) = -1;	
 
 
 			//Directly remove the node from the memstore	
@@ -463,6 +462,12 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 		if(kvs[i].node->value == (uint64_t *)1) {
 			kvs[i].node->value = (uint64_t *)2;
 			kvs[i].node->seq++;
+
+			//Invalidate secondary index when deletion 	  	  			
+			if (kvs[i].node->secIndexValidateAddr != NULL)
+				*(kvs[i].node->secIndexValidateAddr) = -1;
+			
+			
 			remove = true;
 //			printf("Thread %ld remove %ld seq %ld\n", pthread_self(), kvs[i].key, kvs[i].node->seq);
 		}
@@ -715,6 +720,10 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 	//1.  put the secondary node seq into the readset
 	readset->Add(&sn->seq);
 
+	//KVS is NULL because there is no entry in the second node
+	if(kvs == NULL)
+		return 0;
+	
 	//2. get every record and put the record seq into the readset
 	int i = 0;
 	SecondIndex::MemNodeWrapper* mnw = sn->head;
@@ -733,7 +742,6 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 	}
 	//printf("\n");
 	kvs->num = i;
-
 	return i;
 }
 
@@ -752,10 +760,8 @@ retryGBI:
 	//FIXME: the seq number maybe much larger than the real number of nodes
 	uint64_t knum = sn->seq;
 
-	if(knum == 0)
-		return NULL;
-	
-	kvs = new KeyValues(knum);
+	if(knum != 0)
+		kvs = new KeyValues(knum);
 
 	
 #if GLOBALOCK
@@ -773,6 +779,10 @@ retryGBI:
 	}
 
 	int i = ScanSecondNode(sn, kvs);
+/*	if (i == 0) {
+		printf("Empty %ld\n",seckey);
+		txdb_->secondIndexes[0]->PrintStore();
+	}*/
 			
 	if(i > knum) {
 		while(_xtest())
@@ -781,7 +791,9 @@ retryGBI:
 	}
 
 	if( i == 0) {
-		delete kvs;
+		//printf("[%ld] Get tag2 %ld No Entry\n", pthread_self(), seckey);
+		if(kvs != NULL)
+			delete kvs;
 		return NULL;
 	}
 	return kvs;

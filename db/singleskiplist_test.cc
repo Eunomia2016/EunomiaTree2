@@ -775,7 +775,7 @@ class Benchmark {
 							*value = i;
 							
 		//					printf("[%ld] TX2 Put 3\n", pthread_self());
-							tx.Add(0,  3,  value);	
+							tx2.Add(0,  3,  value);	
 		
 		//					printf("[%ld] TX2 Delete 4\n", pthread_self());
 		
@@ -788,7 +788,7 @@ class Benchmark {
 		
 							uint64_t *value1 = new uint64_t();
 							*value1 = i;
-							tx.Add(0,  6, value1);	
+							tx2.Add(0,  6, value1);	
 #endif			
 		
 							b = tx2.End();
@@ -848,13 +848,14 @@ class Benchmark {
 	
 			//printf("In tid %lx\n", arg);
 			//printf("start %d\n",tid);
-			
+		
 			uint64_t *value; uint64_t *value1;
 			bool fail = false;
 			for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
-	
-				leveldb::DBTX tx( store);
+				if (shared->fail) break;
 				bool b = false;
+					leveldb::DBTX tx( store);
+				
 				while (b == false) {
 					tx.Begin();
 //					printf("[%ld] TX1 Begin\n", pthread_self());
@@ -904,13 +905,18 @@ class Benchmark {
 					if (kvs1 == NULL) num1 = 0;
 					else num1 = kvs1->num;
 					
-							
+					if (num == 0 && num1 == 0)	{
+						check1 = true;
+					}
 
 
 	//				printf("[%ld]RTX Get 4\n", pthread_self());
-				
-					f1 = tx1.Get(0, 4, &value);
+#if 1	
 					f2 = tx1.Get(0, 5, &value);	
+
+
+					f1 = tx1.Get(0, 4, &value);
+					
 //					printf("[%ld]RTX Get 3\n", pthread_self());
 					f3 = tx1.Get(0, 3, &value);
 					
@@ -931,13 +937,24 @@ class Benchmark {
 					//	if (num == 1) 
 					//		printf("%d\n", kvs->keys[0]);
 					}
+
+#endif
+
+					
 					b = tx1.End();
 		//			if(b == true)
 	//					printf("[%ld]RTX End\n", pthread_self());
 //					else
 //						printf("[%ld]RTX Rollback\n", pthread_self());
 				}
-				
+
+				if (check1) {
+					//store->secondIndexes[0]->PrintStore();
+					//printf("[%ld] TX num %d\n", pthread_self(), (i - tid*FLAGS_txs));
+					fail = true;
+					break;
+				}
+#if 1				
 				if (f1 == f3) {
 					printf("[%ld] Get Key 4 return %d, Get Key 3 return %d, should be diff\n", pthread_self(), f1,f3);
 
@@ -945,18 +962,15 @@ class Benchmark {
 					break;
 				}
 
+
 				if (f1 != f2){
 					printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 					fail = true;
 					break;
 				}
-#if 0				
-				if (f3 && *value != *value1) {
-					printf("Key 3 value %d and Key 6 value %d, should have same values\n",*value, *value1);
-					fail = true;
-					break;
-				}
-#endif				
+				
+
+				
 				if (check3) {
 					printf("key 3 exists , secondary key 1 get %d , key 2 get %d\n", num, num1);
 					printf("sec 1\n");
@@ -972,14 +986,16 @@ class Benchmark {
 					//store->secondIndexes[0]->PrintStore();
 					break;
 				}
-/*				
+				
 				if (check4) {
 					printf("key 3 does not exist , secondary key 1 get %d , key 2 get %d\n", num, num1);
 					fail = true;
 					break;
-				}*/
+				}
+#endif
 				delete kvs;
 				delete kvs1;
+				if (shared->fail) break;
 				leveldb::DBTX tx2( store);
 				b = false;
 				while (b == false) {
@@ -989,20 +1005,23 @@ class Benchmark {
 					
 					
 //					printf("[%ld] TX2 Put 3\n", pthread_self());
-					tx.Add(0, 0, 3, (tid%2)+1, (uint64_t *)10);	
+					
 
 //					printf("[%ld] TX2 Delete 4\n", pthread_self());
+#if 1
+					tx2.Add(0, 0, 3, (tid%2)+1, (uint64_t *)10);	
 
 					tx2.Delete(0, 4);			
-#if 1
+
 
 					tx2.Delete(0, 5);
 
 		
+#endif	
 
 					
-					tx.Add(0, 0, 6, (tid%2)+1, (uint64_t *)10);	
-#endif			
+					tx2.Add(0, 0, 6, (tid%2)+1, (uint64_t *)10);	
+		
 
 					b = tx2.End();
 //				printf("[%ld] TX2 End\n", pthread_self());
@@ -1457,7 +1476,7 @@ class Benchmark {
 			  *key = i;
 			  uint64_t *value = new uint64_t();
 			  *value = 1;
-			  if (i == 3 || i == 6 || i == 4) 
+			  if ( i == 3 ||i == 6 || i == 4)//) 
 			  	tx.Add(0, 0, i, 2, value);
 			  //else tx.Add(0, 0, *key, 0, value);				
 			}									
