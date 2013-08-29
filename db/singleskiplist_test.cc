@@ -797,7 +797,7 @@ class Benchmark {
 			
 						}
 		
-#if 1				
+#if 0				
 						leveldb::DBROTX tx3( store);
 		
 						
