@@ -19,7 +19,7 @@
 
 
 #define CACHESIM 0
-#define GLOBALOCK 0
+#define GLOBALOCK 1
 #define AGGRESSIVEDETECT 0
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
