@@ -234,7 +234,7 @@ public:
 		uint64_t *secseq;
 		MemNodeWrapper *w = GetWithInsert(seckey, prikey, &secseq);
 		w->memnode = memnode;
-		w->valid = true;
+		w->valid = 1;
 	}
 	
 	inline MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t prikey, uint64_t **secseq) {

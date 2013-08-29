@@ -15,7 +15,7 @@ class Memstore {
 	uint64_t seq;
 	uint64_t* value; //pointer of the real value. 1: logically delete 2: Node is removed from memstore
 	MemNode* oldVersions;
-	bool* secIndexValidateAddr;
+	int* secIndexValidateAddr;
 
 	MemNode()
 	{

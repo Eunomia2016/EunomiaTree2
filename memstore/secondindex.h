@@ -14,11 +14,12 @@ class SecondIndex {
 	uint64_t key;
 	Memstore::MemNode *memnode;
 	MemNodeWrapper *next;
-	bool valid;
+	int valid;
 
 	MemNodeWrapper()
 	{
-		valid = false;
+		valid = 0;
+		memnode = NULL;
 	}
   };
   

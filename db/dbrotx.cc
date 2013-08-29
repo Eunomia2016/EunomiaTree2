@@ -60,7 +60,7 @@ bool DBROTX::ScanMemNode(Memstore::MemNode* n, uint64_t** val)
   if(n == NULL)
 	return false;
   if(n->counter <= oldsnapshot) {
-    if(n->value == NULL) {
+    if(n->value == NULL || n->value == (uint64_t *)1 || n->value == (uint64_t *)2) {
       return false;
     }else {
       *val = n->value;
@@ -74,7 +74,7 @@ bool DBROTX::ScanMemNode(Memstore::MemNode* n, uint64_t** val)
   }
    
   if(n != NULL && n->counter <= oldsnapshot) {
-    if(n->value == NULL) {
+    if(n->value == NULL || n->value == (uint64_t *)1 || n->value == (uint64_t *)2) {
        return false;
      } else {
    	   *val = n->value;

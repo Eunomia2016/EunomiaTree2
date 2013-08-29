@@ -323,15 +323,16 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 {
 	for(int i = 0; i < cursindex; i++) {
 		
-		
+		//1. set memnode in wrapper
 		sindexes[i].sindex->memnode = sindexes[i].memnode;
+		
 		//if (sindexes[i].sindex->memnode->value == (uint64_t *)2) printf("---\n");
-		//1. logically delete the old secondary index
+		//2. logically delete the old secondary index
 		if(sindexes[i].sindex->memnode->secIndexValidateAddr != NULL)
-			*sindexes[i].sindex->memnode->secIndexValidateAddr = false;
+			*sindexes[i].sindex->memnode->secIndexValidateAddr = 0;
 
-		//2. update the new secondary index
-		sindexes[i].sindex->valid = true;
+		//3. update the new secondary index
+		sindexes[i].sindex->valid = 1;
 		sindexes[i].sindex->memnode->secIndexValidateAddr 
 					= &sindexes[i].sindex->valid;
 		*sindexes[i].seq += 1;
@@ -357,40 +358,50 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	
 	//If counter of the node is equal to the global counter, then just change the value pointer
     if(kvs[i].node->counter == gcounter) {
-	 		  	  
+		
+	 	//Invalidate secondary index when deletion 	  	  
+		if(kvs[i].val == (uint64_t *)1)
+			if (kvs[i].node->secIndexValidateAddr != NULL)
+				*(kvs[i].node->secIndexValidateAddr) = 0;
 
 #if CLEANUPPHASE
-	//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
-	//FIXME: the old value should be deleted eventually
-	kvs[i].node->value = kvs[i].val;
-
-#else
-	
-	if(kvs[i].val == (uint64_t *)1) {
-		//Directly remove the node from the memstore
-		assert(dbtx_ != NULL);
-		
-		kvs[i].node->value = (uint64_t *)2;
-		
-		Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-			
-		assert(n == NULL || kvs[i].node == n);
-		//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
-			//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
-		
-	} else {
-//		if(kvs[i].key == 3 || kvs[i].key == 4)		
-	//		printf("Thread %ld Put [%lx] %ld seq %ld\n", 
-		//		pthread_self(), kvs[i].node, kvs[i].key, kvs[i].node->seq);
-		
+		//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
+		//FIXME: the old value should be deleted eventually
 		kvs[i].node->value = kvs[i].val;
-	}
+
+		
+#else
+		
+		if(kvs[i].val == (uint64_t *)1) {
+			
+			assert(dbtx_ != NULL);
+			
+			kvs[i].node->value = (uint64_t *)2;
+
+			
+			
+
+
+			//Directly remove the node from the memstore	
+			Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
+				
+			assert(n == NULL || kvs[i].node == n);
+			//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
+				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
+			
+		} else {
+	//		if(kvs[i].key == 3 || kvs[i].key == 4)		
+		//		printf("Thread %ld Put [%lx] %ld seq %ld\n", 
+			//		pthread_self(), kvs[i].node, kvs[i].key, kvs[i].node->seq);
+			
+			kvs[i].node->value = kvs[i].val;
+		}
 
 #endif
 
-	  //Should first update the value, then the seq, to guarantee the seq is always older than the value
-	  kvs[i].node->seq++;
-		
+		  //Should first update the value, then the seq, to guarantee the seq is always older than the value
+		  kvs[i].node->seq++;
+			
 	} else if(kvs[i].node->counter < gcounter){
 
 	  //If global counter is updated, just update the counter and store a old copy into the dummy node
@@ -708,7 +719,7 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 	int i = 0;
 	SecondIndex::MemNodeWrapper* mnw = sn->head;
 	while(mnw != NULL) {
-		if (mnw->valid && mnw->memnode->value!=NULL && mnw->memnode->value!=(uint64_t *)1 
+		if (mnw->valid == 1 && mnw->memnode->value!=NULL && mnw->memnode->value!=(uint64_t *)1 
 			&& mnw->memnode->value!=(uint64_t *)2) {
 			kvs->keys[i] = mnw->key;
 			kvs->values[i] = mnw->memnode->value;
