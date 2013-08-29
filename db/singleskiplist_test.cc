@@ -707,7 +707,7 @@ class Benchmark {
 							*value = i;
 		//					printf("[%ld] TX1 Put 4\n", pthread_self());
 							tx.Add(0, 4, value);			
-#if 0
+#if 1
 							uint64_t *value1 = new uint64_t();
 							*value1 = i;
 							tx.Add(0, 5, value1);	
@@ -753,7 +753,7 @@ class Benchmark {
 							fail = true;
 							break;
 						}
-#if 0
+#if 1
 						if (f1 != f2){
 							printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 							fail = true;
@@ -780,7 +780,7 @@ class Benchmark {
 		//					printf("[%ld] TX2 Delete 4\n", pthread_self());
 		
 							tx2.Delete(0, 4);			
-#if 0
+#if 1
 		
 							tx2.Delete(0, 5);
 		
@@ -797,7 +797,7 @@ class Benchmark {
 			
 						}
 		
-#if 0				
+#if 1				
 						leveldb::DBROTX tx3( store);
 		
 						
