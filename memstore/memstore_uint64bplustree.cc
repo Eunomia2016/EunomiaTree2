@@ -9,9 +9,17 @@ namespace leveldb {
 
 	void MemstoreUint64BPlusTree::printLeaf(LeafNode *n) {
 			printf("Leaf Key num %d\n", n->num_keys);
-			for (int i=0; i<n->num_keys;i++)
-				printf("key  %lx value %lx \t ",n->keys[i], n->values[i]);
+			for (int i=0; i<n->num_keys;i++){
+				printf("key  %ld value %lx \n",n->keys[i], n->values[i]);
+				SecondIndex::SecondNode *sn = n->values[i];
+				MemNodeWrapper *w = sn->head;
+				while (w!=NULL) {
+					printf("%ld %d %lx\t ",w->key, w->valid, w->memnode->value);
+					w = w->next;
+				}
 				printf("\n");
+			}
+				
 //			total_key += n->num_keys;
 		}
 	
@@ -27,6 +35,7 @@ namespace leveldb {
 	}
 
 	void MemstoreUint64BPlusTree::PrintStore() {
+		
 		 printf("===============B+ Tree=========================\n");
 //		 total_key = 0;
 		 if (depth == 0) printLeaf(reinterpret_cast<LeafNode*>(root));

@@ -849,6 +849,7 @@ class Benchmark {
 			//printf("In tid %lx\n", arg);
 			//printf("start %d\n",tid);
 			
+			uint64_t *value; uint64_t *value1;
 			bool fail = false;
 			for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
 	
@@ -860,16 +861,16 @@ class Benchmark {
 //					printf("[%ld]TX1 Delete 3\n", pthread_self());
 					tx.Delete(0, 3);	
 					
-					uint64_t *value = new uint64_t();
-					*value = i;
+					//uint64_t *value = new uint64_t();
+					//*value = i;
 //					printf("[%ld] TX1 Put 4\n", pthread_self());
-					tx.Add(0, 4, value);			
+					tx.Add(0, 0, 4, 2, (uint64_t*)10);			
 #if 1
-					uint64_t *value1 = new uint64_t();
-					*value1 = i;
-					tx.Add(0, 5, value1);	
+					//uint64_t *value1 = new uint64_t();
+					//*value1 = i;
+					tx.Add(0, 5, (uint64_t*)10);	
 #endif					
-                    
+                   
 					b = tx.End();
 //				printf("[%ld] TX1 End\n", pthread_self());
 
@@ -881,35 +882,29 @@ class Benchmark {
 				bool f1 = true; 
 				bool f2 = false;
 				bool f3 = true;
-				uint64_t *value; uint64_t *value1;
 				bool check1; uint64_t sk1; uint64_t sk2;
 				bool check2; bool check3; bool check4;
-				uint64_t num1;
+				uint64_t num,num1;
+				DBTX::KeyValues* kvs = NULL;
+				DBTX::KeyValues* kvs1 = NULL;
 				while (b == false) {
 					tx1.Begin();
+					if (kvs != NULL) delete kvs;
+					if (kvs1 != NULL) delete kvs1;
 		//			printf("[%ld] RTX Begin\n", pthread_self());
 					check4 = false;
 					check3 = false;
 					check2 = false;
 					check1 = false; 
-					DBTX::KeyValues* kvs = tx1.GetByIndex(0, 1);
-					int num;
+					kvs = tx1.GetByIndex(0, 1);
 					if (kvs == NULL) num = 0;
 					else num = kvs->num;
-					if (num != 0 && num != 2) {
-						check1 = true;
-						sk1 = kvs->keys[0];
-					}
-					kvs = tx1.GetByIndex(0, 2);
-					if (kvs == NULL) num1 = 0;
-					else num1 = kvs->num;
 					
-					if (num == 2 && num1 != 0) {
-						check2 = true;
-					}
+					kvs1 = tx1.GetByIndex(0, 2);
+					if (kvs1 == NULL) num1 = 0;
+					else num1 = kvs1->num;
 					
-
-
+							
 
 
 	//				printf("[%ld]RTX Get 4\n", pthread_self());
@@ -922,14 +917,19 @@ class Benchmark {
 				
 					tx1.Get(0, 6, &value1);	
 				
-					if (f3 && (num+num1)!=2) {
-						check3 = true;		
-						sk2 = num+num1;
+					if (f3 && !((num == 2 && num1 == 0) || (num == 0 && num1 == 2))) {
+						check3 = true;	
+						
 					}
-					else if (!f3 && !(num == 1 && num1 == 1)) {
+					else if (!f3 && !((num == 1 && num1 == 1) || (num == 0 && num1 == 2))) {
+/*
+						if (num1 == 3) {
+							printf("%d %d %d\n",kvs1->keys[0],kvs1->keys[1],kvs1->keys[2]);
+							printf("%lx %lx %lx\n",kvs1->values[0],kvs1->values[1],kvs1->values[2]);
+						}*/
 						check4 = true;
-						printf("%d %d\n", num, num1);
-						sk2 = num+num1;
+					//	if (num == 1) 
+					//		printf("%d\n", kvs->keys[0]);
 					}
 					b = tx1.End();
 		//			if(b == true)
@@ -937,55 +937,59 @@ class Benchmark {
 //					else
 //						printf("[%ld]RTX Rollback\n", pthread_self());
 				}
-				if (check1) {
-					printf("Get %d from second key 1, should also get %d", sk1, 9-sk1);
-					fail = true;
-					break;
-				}
-				if (check2) {
-					printf("second key 1 has two keys second key 2 should has no");
-					fail = true;
-					break;
-				}
-				if (check3) {
-					printf("key 3 exists , secondary index found %d\n", sk2);
-					fail = true;
-					break;
-				}
-				if (check4) {
-					printf("key 3 does not exist , secondary index found %d\n", sk2);
-					fail = true;
-					break;
-				}
+				
 				if (f1 == f3) {
 					printf("[%ld] Get Key 4 return %d, Get Key 3 return %d, should be diff\n", pthread_self(), f1,f3);
 
 					fail = true;
 					break;
 				}
-#if 1
+
 				if (f1 != f2){
 					printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 					fail = true;
 					break;
 				}
+#if 0				
 				if (f3 && *value != *value1) {
 					printf("Key 3 value %d and Key 6 value %d, should have same values\n",*value, *value1);
 					fail = true;
 					break;
 				}
 #endif				
+				if (check3) {
+					printf("key 3 exists , secondary key 1 get %d , key 2 get %d\n", num, num1);
+					printf("sec 1\n");
+					for (int l=0; l<num ; l++)
+						printf("%d\n", kvs->keys[l]);
+					
+					printf("sec 2\n");
+					for (int l=0; l<num1 ; l++)
+						printf("%d\n", kvs1->keys[l]);
+					fail = true;
+
+
+					//store->secondIndexes[0]->PrintStore();
+					break;
+				}
+/*				
+				if (check4) {
+					printf("key 3 does not exist , secondary key 1 get %d , key 2 get %d\n", num, num1);
+					fail = true;
+					break;
+				}*/
+				delete kvs;
+				delete kvs1;
 				leveldb::DBTX tx2( store);
 				b = false;
 				while (b == false) {
 					tx2.Begin();
 //					printf("[%ld] TX2 Begin\n", pthread_self());
 
-					uint64_t *value = new uint64_t();
-					*value = i;
+					
 					
 //					printf("[%ld] TX2 Put 3\n", pthread_self());
-					tx.Add(0, 0, 3, tid % 2 + 1, value);	
+					tx.Add(0, 0, 3, (tid%2)+1, (uint64_t *)10);	
 
 //					printf("[%ld] TX2 Delete 4\n", pthread_self());
 
@@ -996,9 +1000,8 @@ class Benchmark {
 
 		
 
-					uint64_t *value1 = new uint64_t();
-					*value1 = i;
-					tx.Add(0, 0, 6, tid % 2 + 1, value1);	
+					
+					tx.Add(0, 0, 6, (tid%2)+1, (uint64_t *)10);	
 #endif			
 
 					b = tx2.End();
@@ -1443,7 +1446,7 @@ class Benchmark {
 			//if (b==true)printf("%d\n", i);
 			}
 		}
-	    else if (name == Slice("delete") || name == Slice("bigdelete")) {
+	    else if (name == Slice("delete") || name == Slice("bigdelete") || name == Slice("secdelete")) {
 			leveldb::DBTX tx( store);
 			bool b =false;
 			while (b==false) {
@@ -1456,7 +1459,7 @@ class Benchmark {
 			  *value = 1;
 			  if (i == 3 || i == 6 || i == 4) 
 			  	tx.Add(0, 0, i, 2, value);
-			  else tx.Add(0, 0, *key, 0, value);				
+			  //else tx.Add(0, 0, *key, 0, value);				
 			}									
 			b = tx.End();
 			
@@ -1517,6 +1520,7 @@ class Benchmark {
 		 else if (name == Slice("nocycle_readonly")) printf("NocycleReadonlyTest pass!\n");		 
 		 else if (name == Slice("delete")) printf("DeleteTest pass!\n");
 		 else if (name == Slice("bigdelete")) printf("BigDeleteTest pass!\n");
+		 else if (name == Slice("secdelete")) printf("SecDeleteTest pass!\n");
 		 else if (name == Slice("counter")) {
 		 	
 		 	
@@ -1612,6 +1616,9 @@ int main(int argc, char**argv)
 	  }
 	  else if (name == leveldb::Slice("bigdelete")) {
 	  	method = &leveldb::Benchmark::BigdeleteTest;
+	  }
+	  else if (name == leveldb::Slice("secdelete")) {
+	  	method = &leveldb::Benchmark::SecDeleteTest;
 	  }
 	 //leveldb::DBTables *store = new leveldb::DBTables();
 	 leveldb::DBTables *store = new leveldb::DBTables(1);

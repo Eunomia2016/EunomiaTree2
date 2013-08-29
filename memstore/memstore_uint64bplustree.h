@@ -13,7 +13,7 @@
 #define IN  3
 
 #define IBTREE_PROF 0
-#define IBTREE_LOCK 1
+#define IBTREE_LOCK 0
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -270,6 +270,7 @@ public:
 	}
 
 	inline MemNodeWrapper* Insert_Sec(SecondNode *secn, uint64_t prikey) {
+		
 #if IBTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
@@ -278,8 +279,8 @@ public:
 		MemNodeWrapper *wrapper = secn->head;
 		while (wrapper != NULL) {
 			if (wrapper->key == prikey) 
-				if (wrapper->valid) return NULL;
-				else return wrapper;
+		//		if (wrapper->valid) return NULL; else
+				return wrapper;
 			wrapper = wrapper->next;
 		}
 		dummywrapper_->key = prikey;

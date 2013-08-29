@@ -290,7 +290,7 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
   
 }
 
-inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw)
+inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw, Memstore::MemNode* node)
 {
 	if(cursindex >= max_length) {
 	  //FIXME: No resize support!
@@ -299,7 +299,7 @@ inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw)
 
 	sindexes[cursindex].seq = seq;
 	sindexes[cursindex].sindex = mnw;
-
+	sindexes[cursindex].memnode = node;
 	cursindex++;
 }
 
@@ -322,6 +322,10 @@ inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
 inline void DBTX::WriteSet::UpdateSecondaryIndex()
 {
 	for(int i = 0; i < cursindex; i++) {
+		
+		
+		sindexes[i].sindex->memnode = sindexes[i].memnode;
+		//if (sindexes[i].sindex->memnode->value == (uint64_t *)2) printf("---\n");
 		//1. logically delete the old secondary index
 		if(sindexes[i].sindex->memnode->secIndexValidateAddr != NULL)
 			*sindexes[i].sindex->memnode->secIndexValidateAddr = false;
@@ -356,7 +360,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	 		  	  
 
 #if CLEANUPPHASE
-	
+	//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
 	//FIXME: the old value should be deleted eventually
 	kvs[i].node->value = kvs[i].val;
 
@@ -618,6 +622,7 @@ retry:
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
 {
+retryA:
 	uint64_t *seq;
 
 #if PROFILEBUFFERNODE
@@ -646,19 +651,22 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 	}
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
+	if(node->value == (uint64_t *)2)
+  		goto retryA;
+
 #endif
 
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =  
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
 	
-	mw->memnode = node;
+	//mw->memnode = node;
 	
 	//2. add the record seq number into write set
-	writeset->Add(tableid, key, val, mw->memnode);
+	writeset->Add(tableid, key, val, node);
 	
 	//3. add the seq number of the second node and the validation flag address into the write set
-	writeset->Add(seq, mw);
+	writeset->Add(seq, mw, node);
 }
 
 
@@ -701,11 +709,12 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 			//put the record seq into the read set
 			readset->Add(&mnw->memnode->seq);
 			i++;
-			
+			//printf("%ld \t", kvs->keys[i]);
+			//if (kvs->keys[i] == 0) printf("!!!\n");
 		}
 		mnw = mnw->next;
 	}
-	
+	//printf("\n");
 	kvs->num = i;
 
 	return i;
@@ -713,11 +722,15 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 
 DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 {
+	KeyValues* kvs = NULL;
 
-retryGBI:
+	
 	assert(txdb_->secondIndexes[indextableid] != NULL);
 	SecondIndex::SecondNode* sn = txdb_->secondIndexes[indextableid]->Get(seckey);
 	assert(sn != NULL);
+	
+retryGBI:
+	if (kvs != NULL) delete kvs;	
 	
 	//FIXME: the seq number maybe much larger than the real number of nodes
 	uint64_t knum = sn->seq;
@@ -725,7 +738,7 @@ retryGBI:
 	if(knum == 0)
 		return NULL;
 	
-	KeyValues* kvs = new KeyValues(knum);
+	kvs = new KeyValues(knum);
 
 	
 #if GLOBALOCK
@@ -736,9 +749,10 @@ retryGBI:
 
 	//FIXME: the number of node may be changed before the RTM acquired
 	if(knum != sn->seq) {
-		while(_xtest())
-			_xend();
-		printf("[GetByIndex] Error OCCURRED\n");
+		//while(_xtest())
+		//	_xend();
+		//printf("[GetByIndex] Error OCCURRED\n");
+		goto retryGBI;
 	}
 
 	int i = ScanSecondNode(sn, kvs);

@@ -320,8 +320,8 @@ public:
 		MemNodeWrapper *wrapper = secn->head;
 		while (wrapper != NULL) {
 			if (wrapper->key == prikey) 
-				if (wrapper->valid) return NULL;
-				else return wrapper;
+				//if (wrapper->valid) return NULL;else
+				 return wrapper;
 			wrapper = wrapper->next;
 		}
 		dummywrapper_->key = prikey;
