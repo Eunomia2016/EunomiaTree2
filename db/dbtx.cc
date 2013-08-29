@@ -366,12 +366,18 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		//Directly remove the node from the memstore
 		assert(dbtx_ != NULL);
 		
+		kvs[i].node->value = (uint64_t *)2;
+		
 		Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-
+			
 		assert(n == NULL || kvs[i].node == n);
-
+		//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
+			//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
 		
 	} else {
+//		if(kvs[i].key == 3 || kvs[i].key == 4)		
+	//		printf("Thread %ld Put [%lx] %ld seq %ld\n", 
+		//		pthread_self(), kvs[i].node, kvs[i].key, kvs[i].node->seq);
 		
 		kvs[i].node->value = kvs[i].val;
 	}
@@ -443,7 +449,7 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 			kvs[i].node->value = (uint64_t *)2;
 			kvs[i].node->seq++;
 			remove = true;
-			//printf("Thread %ld remove %ld seq %ld\n", pthread_self(), kvs[i].key, kvs[i].node->seq);
+//			printf("Thread %ld remove %ld seq %ld\n", pthread_self(), kvs[i].key, kvs[i].node->seq);
 		}
 
 	  }
@@ -540,10 +546,10 @@ bool DBTX::End()
 		return false;
     
   
-#if CLEANUPPHASE
 	if(!writeset->CheckWriteSet())
 		return false;
-#else
+
+#if !CLEANUPPHASE
 
 	writeset->SetDBTX(this);
 
