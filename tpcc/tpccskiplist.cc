@@ -11,7 +11,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	1
-#define CHECKTPCC 0
+#define CHECKTPCC 1
 
 #define WARE 0
 #define DIST 1
@@ -585,13 +585,9 @@ namespace leveldb {
 	  Order *o = reinterpret_cast<Order *>(o_value);
 	  assert(o->o_c_id == customer_id);
 	  
-	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, output->o_id);
-  	  uint64_t *no_value;
-  	  found = tx.Get(NEWO, o_key, &no_value);	  
-	  assert(found);	  
+	  
 //	  printf("oid%d \n", output->o_id);
 	  
-	  NewOrder *no = reinterpret_cast<NewOrder *>(no_value);
 	  uint64_t l_key = makeOrderLineKey(warehouse_id, district_id, output->o_id, 2);
 	  uint64_t *l_value;
 	  found = tx.Get(ORLI, l_key, &l_value);
@@ -612,7 +608,9 @@ namespace leveldb {
   	}
 
 
-	DBROTX rotx(store);
+	DBTX rotx(store);
+	bool f = false;
+	while (!f) {
 	rotx.Begin();
 
 	//Consistency 2	
@@ -624,7 +622,7 @@ namespace leveldb {
 	District *d = reinterpret_cast<District *>(d_value);
 
 	int32_t o_id;
-	DBROTX::Iterator iter(&rotx, ORDE);
+	DBTX::Iterator iter(&rotx, ORDE);
 	uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	iter.Seek(start);
@@ -636,7 +634,7 @@ namespace leveldb {
 
 	start = makeNewOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	end = makeNewOrderKey(warehouse_id, district_id, 1);
-	DBROTX::Iterator iter1(&rotx, NEWO);
+	DBTX::Iterator iter1(&rotx, NEWO);
 	iter1.Seek(start);
 	assert(iter1.Valid());
     iter1.Prev();
@@ -674,15 +672,15 @@ namespace leveldb {
 	start = makeOrderLineKey(warehouse_id, district_id, 1, 1);
 	end = makeOrderLineKey(warehouse_id, district_id, Order::MAX_ORDER_ID, Order::MAX_OL_CNT);
 	int32_t c1 = 0;
-	DBROTX::Iterator iter2(&rotx, ORLI);
+	DBTX::Iterator iter2(&rotx, ORLI);
 	iter2.Seek(start);
 	while (iter2.Valid() && iter2.Key() <= end) {
 		c1++;
 		iter2.Next();
 	}
 	assert(c == c1);
-	rotx.End();
-	
+	f = rotx.End();
+	}
 #endif
 	
     return true;

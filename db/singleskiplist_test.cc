@@ -724,23 +724,30 @@ class Benchmark {
 						bool f1 = true; 
 						bool f2 = false;
 						bool f3 = true;
+						bool c1 = false;
+						bool c2 = false;
 						uint64_t *value; uint64_t *value1;
 						while (b == false) {
 							tx1.Begin();
 				//			printf("[%ld] RTX Begin\n", pthread_self());						
 				
-		
-		
+							c1 = false;
+							c2 = false;
 			//				printf("[%ld]RTX Get 4\n", pthread_self());
 						
 							f1 = tx1.Get(0, 4, &value);
 							f2 = tx1.Get(0, 5, &value); 
 		//					printf("[%ld]RTX Get 3\n", pthread_self());
-							f3 = tx1.Get(0, 3, &value);
-							
-						
+							f3 = tx1.Get(0, 3, &value);					
 							tx1.Get(0, 6, &value1); 
-						
+
+							DBTX::Iterator iter(&tx1, 0);
+							iter.Seek(3);
+							if (f3 && iter.Key()!=3) c1 = true;
+							if (!f3 && iter.Key()!=4) c1 = true;
+							iter.Next();
+							if (f3 && iter.Key()!=6) c2 = true;
+							if (!f3 && iter.Key()!=5) c2 = true;
 							b = tx1.End();
 				//			if(b == true)
 			//					printf("[%ld]RTX End\n", pthread_self());
@@ -765,6 +772,16 @@ class Benchmark {
 							break;
 						}
 #endif				
+						if (c1) {
+							printf("Get Key 3 return %d, Seek Wrong\n");
+							fail = true;
+							break;
+						}
+						if (c2) {
+							printf("Get Key 3 return %d, Next Wrong\n");
+							fail = true;
+							break;
+						}
 						leveldb::DBTX tx2( store);
 						b = false;
 						while (b == false) {

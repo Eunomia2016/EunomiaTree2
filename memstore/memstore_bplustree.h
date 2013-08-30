@@ -256,6 +256,7 @@ public:
 	inline Memstore::MemNode* removeLeafEntry(LeafNode* cur, int slot) {
 		
 		assert(slot < cur->num_keys);
+		cur->seq = cur->seq + 1;
 		
 		Memstore::MemNode* value = cur->values[slot];
 
