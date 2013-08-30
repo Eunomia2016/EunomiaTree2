@@ -1012,9 +1012,10 @@ void DBTX::Iterator::Next()
 			return;
 		
 		}
+#if 0		
 		else
 		  printf("key %ld val_ %d\n",iter_->Key(), cur_->value);
-
+#endif
 	  }
 	  iter_->Next();
 	}
