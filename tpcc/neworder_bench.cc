@@ -239,6 +239,8 @@ class Benchmark {
   }
 
   void doOne(ThreadState* thread) {
+	((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
+	
   	// Change the constants for run
 #if TIMEPROFILE
 	double start_time = leveldb::Env::Default()->NowMicros();
@@ -276,6 +278,7 @@ class Benchmark {
   }
 
   void doNewOrder(ThreadState* thread) {
+  	((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
   	// Change the constants for run
 #if LOCALRANDOM
 		tpcc::TXDBRandomGenerator* random = new tpcc::TXDBRandomGenerator();
@@ -304,6 +307,7 @@ class Benchmark {
 
   
   void doReadOnly(ThreadState* thread) {
+  	  ((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
 	  // Change the constants for run
 #if LOCALRANDOM
 		  tpcc::TXDBRandomGenerator* random = new tpcc::TXDBRandomGenerator();
@@ -373,6 +377,7 @@ int main(int argc, const char* argv[]) {
     //leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
     //TPCCDB* tables = new leveldb::TPCCSkiplist();
     leveldb::TPCCSkiplist* tables = new leveldb::TPCCSkiplist();
+	tables->store->InitEpoch(NUM_WAREHOUSE);
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.
