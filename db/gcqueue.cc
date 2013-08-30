@@ -1,6 +1,8 @@
 #include "port/atomic.h"
 #include "gcqueue.h"
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 GCQueue::GCQueue()
 {

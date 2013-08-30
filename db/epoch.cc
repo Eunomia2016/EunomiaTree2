@@ -42,7 +42,8 @@ Epoch* Epoch::getEpoch() {
 void Epoch::updateEpoch()
 {
 	assert(tid < thrs_num);
-	atomic_inc64(&counters[tid]);
+	counters[tid]++;
+	//atomic_inc64(&counters[tid]);
 }
 
 //Compare with another epoch: 1: this > e  0: this == e   < 0: this < e

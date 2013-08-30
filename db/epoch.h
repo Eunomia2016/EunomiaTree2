@@ -23,7 +23,7 @@ public:
 	Epoch* getEpoch();
 
 	//update current's thread's epoch number
-	void updateEpoch(int thr);
+	void updateEpoch();
 
 	//Compare with another epoch: 1: this > e  0: this == e   -1: this < e
 	int Compare(Epoch* e);

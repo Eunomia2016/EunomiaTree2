@@ -531,7 +531,7 @@ DBTX::~DBTX()
 void DBTX::Begin()
 {
 //reset the local read set and write set
-  txdb_->ThreadLocalInit();
+  //txdb_->ThreadLocalInit();
   ThreadLocalInit();
   readset->Reset();
   writeset->Reset();

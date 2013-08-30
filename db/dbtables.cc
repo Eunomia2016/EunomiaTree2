@@ -13,6 +13,7 @@ DBTables::DBTables() {
 	types = new int[1];
 	types[0] = BTREE;
 	snapshot = 1;
+	epoch = NULL;
 }
 
 
@@ -26,6 +27,7 @@ DBTables::DBTables(int n) {
 	types = new int[n];	
 	indextypes = new int[n];
 	snapshot = 1;
+	epoch = NULL;
 }
 
 DBTables::~DBTables() {
@@ -45,8 +47,17 @@ DBTables::~DBTables() {
 	delete indextypes;
 }
 
-void DBTables::ThreadLocalInit()
+
+void DBTables::InitEpoch(int thr_num)
 {
+	epoch = new Epoch(thr_num);
+}
+
+void DBTables::ThreadLocalInit(int tid)
+{
+	if(epoch != NULL)
+		epoch->setTID(tid);
+		
 	for (int i=0; i<next; i++)
 		tables[i]->ThreadLocalInit();
 }
