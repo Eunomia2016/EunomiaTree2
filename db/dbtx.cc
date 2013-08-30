@@ -387,6 +387,11 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 			if(n != NULL) {
 				dbtx_->gcnodes[dbtx_->gcnindex] = (uint64_t *)n;
 				dbtx_->gcnindex++;
+				
+				if(dbtx_->gcnindex > dbtx_->deleteNum) {
+					printf("%d %d\n", dbtx_->gcnindex, dbtx_->deleteNum);
+					printf("delete key %ld\n", kvs[i].key);
+				}
 				assert(dbtx_->gcnindex <= dbtx_->deleteNum);
 			}
 #endif
@@ -640,6 +645,7 @@ bool DBTX::End()
 	txdb_->GCDeletedNodes();
 	if(gcnindex > 0)
 		txdb_->AddDeletedNodes(gcnodes, gcnindex);
+	txdb_->UpdateEpoch();
 #endif
 
   return true;

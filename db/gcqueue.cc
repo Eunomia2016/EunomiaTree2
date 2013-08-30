@@ -30,7 +30,7 @@ void GCQueue::AddGCElement(Epoch* e, uint64_t** arr, int len)
 {
 	//the queue is empty
 	queue[tail] = new GCElement(e, arr, len);
-	tail += (tail + 1) % qsize;
+	tail = (tail + 1) % qsize;
 	assert(tail != head);
 	if(tail == head) {
 		printf("ERROR: GCQUEUE Over Flow \n");
