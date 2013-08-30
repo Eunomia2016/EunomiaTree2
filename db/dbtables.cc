@@ -64,7 +64,8 @@ void DBTables::AddDeletedNodes(uint64_t **nodes, int len)
 
 void DBTables::GCDeletedNodes()
 {
-	nodeGCQueue->GC(epoch);
+	if(nodeGCQueue != NULL)
+		nodeGCQueue->GC(epoch);
 }
 
 void DBTables::ThreadLocalInit(int tid)
