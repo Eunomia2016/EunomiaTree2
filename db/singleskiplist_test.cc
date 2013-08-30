@@ -864,7 +864,7 @@ class Benchmark {
 				tx1.Add(0, 5, (uint64_t *)500);
 				for (int j=10; j<20; j++)
 					tx1.Delete(0, j);
-				b = tx.End();
+				b = tx1.End();
 			}
 		}
 
@@ -902,7 +902,14 @@ class Benchmark {
 				store->nodeGCQueue->need_del, store->nodeGCQueue->actual_del);
 
 
-		
+		{
+			  MutexLock l(&shared->mu);
+			  if (fail) shared->fail = fail;
+			  shared->num_done++;
+			  if (shared->num_done >= shared->total) {
+				shared->cv.SignalAll();
+			  }
+		}
 	}
 	
 	static void SecDeleteTest(void* v) {
