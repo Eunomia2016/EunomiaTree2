@@ -21,10 +21,10 @@ namespace leveldb{
 
 class DBTables {
 
-  static __thread GCQueue* nodeGCQueue;
+  
 
   public:
-	
+	static __thread GCQueue* nodeGCQueue;
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
 	Memstore **tables;

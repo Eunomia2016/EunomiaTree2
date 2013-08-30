@@ -10,6 +10,9 @@ GCQueue::GCQueue()
 	qsize = 64;
 	head = tail = 0;
 	queue = new GCElement*[qsize];
+	need_del = 0;
+	actual_del = 0;
+	
 }
 	
 GCQueue::~GCQueue()
@@ -20,6 +23,7 @@ GCQueue::~GCQueue()
 	}
 
 	delete[] queue;
+
 }
 
 void GCQueue::AddGCElement(Epoch* e, uint64_t** arr, int len)
@@ -32,6 +36,9 @@ void GCQueue::AddGCElement(Epoch* e, uint64_t** arr, int len)
 		printf("ERROR: GCQUEUE Over Flow \n");
 		exit(1);
 	}
+#if GCTEST
+	need_del++;
+#endif	
 }
 
 void GCQueue::GC(Epoch* current)
@@ -39,5 +46,9 @@ void GCQueue::GC(Epoch* current)
 	while(head != tail && queue[head]->epoch->Compare(current) < 0) {
 		delete queue[head];
 		head = (head + 1) % qsize;
+
+#if GCTEST
+		actual_del++;
+#endif
 	}
 }

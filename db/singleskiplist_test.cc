@@ -895,6 +895,14 @@ class Benchmark {
 			tx3.Add(0, 4, (uint64_t *)400);
 			f = tx3.End();
 		}
+
+
+		if (store->nodeGCQueue->need_del != store->nodeGCQueue->actual_del) 
+			printf("Thread [%d] GC Need deleted %ld , actually deleted %ld\n", tid,
+				store->nodeGCQueue->need_del, store->nodeGCQueue->actual_del);
+
+
+		
 	}
 	
 	static void SecDeleteTest(void* v) {

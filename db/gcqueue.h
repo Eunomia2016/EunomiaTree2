@@ -4,7 +4,7 @@
 #include "db/epoch.h"
 #include <stdint.h>
 
-
+#define GCTEST 1
 class GCQueue {
 
 struct GCElement {
@@ -36,7 +36,6 @@ private:
 	int tail;
 	GCElement** queue;
 	
-	
 public:
 	GCQueue();
 	
@@ -45,6 +44,10 @@ public:
 	void AddGCElement(Epoch* e, uint64_t** arr, int len);
 
 	void GC(Epoch* current);
+
+	uint64_t need_del;
+	uint64_t actual_del;
+	
 };
 
 
