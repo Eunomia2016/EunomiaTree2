@@ -1565,7 +1565,7 @@ class Benchmark {
 		}
 
 		if (name == Slice("freedelete")) {
-			store->InitEpoch(num);
+			
 			leveldb::DBTX tx(store);
 			bool b = false;
 			while (!b) {
@@ -1719,6 +1719,7 @@ int main(int argc, char**argv)
 	  }
 	 //leveldb::DBTables *store = new leveldb::DBTables();
 	 leveldb::DBTables *store = new leveldb::DBTables(1);
+	 store->InitEpoch(FLAGS_threads);
 	 store->AddTable(0, BTREE, IBTREE);
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);
