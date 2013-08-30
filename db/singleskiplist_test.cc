@@ -43,7 +43,7 @@ struct SharedState {
   int num_done;
   bool start;
   bool fail;
-	
+  int num_phase;	
   SharedState() : cv(&mu) { }
 };
 
@@ -79,7 +79,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		DBTables *store = arg->store;
-		
+		store->ThreadLocalInit(tid);
 		
 		int num = shared->total;
 		assert(num >  1);
@@ -188,7 +188,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		DBTables *store = arg->store;
-		
+		store->ThreadLocalInit(tid);
 		
 		int num = shared->total;
 		assert(num > 1);
@@ -270,7 +270,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		DBTables *store = arg->store;
-		
+		store->ThreadLocalInit(tid);
 		
 		//printf("start %d\n",tid);
 		
@@ -315,7 +315,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		DBTables *store = arg->store;
-		
+		store->ThreadLocalInit(tid);
 	//	store->tables[0]->PrintStore();
 
 		
@@ -430,7 +430,7 @@ class Benchmark {
 		int tid = (arg->thread)->tid;
 		SharedState *shared = arg->thread->shared;
 		DBTables *store = arg->store;
-		
+		store->ThreadLocalInit(tid);
 
 		
 		uint64_t* str  = new uint64_t[3];
@@ -579,7 +579,7 @@ class Benchmark {
 			int tid = (arg->thread)->tid;
 			SharedState *shared = arg->thread->shared;
 			DBTables *store = arg->store;
-			
+			store->ThreadLocalInit(tid);
 	
 	
 			//printf("In tid %lx\n", arg);
@@ -686,7 +686,7 @@ class Benchmark {
 					int tid = (arg->thread)->tid;
 					SharedState *shared = arg->thread->shared;
 					DBTables *store = arg->store;
-					
+					store->ThreadLocalInit(tid);
 			
 			
 					//printf("In tid %lx\n", arg);
@@ -836,6 +836,65 @@ class Benchmark {
 		
 
 	static void FreeDeleteTest(void* v) {
+		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+		int tid = (arg->thread)->tid;
+		SharedState *shared = arg->thread->shared;
+		DBTables *store = arg->store;
+		store->ThreadLocalInit(tid);
+
+
+		for (int i = 0; i < FLAGS_txs; i++) {
+			bool b = false;
+			DBTX tx(store);
+			while (!b) {
+				tx.Begin();
+				tx.Delete(0, 1);
+				tx.Delete(0, 3);
+				tx.Delete(0, 5);
+				for (int j=10; j<20; j++)
+					tx.Add(0, j, (uint64_t *)j);
+				b = tx.End();
+			}
+			b = false;
+			DBTX tx1(store);
+			while (!b) {
+				tx1.Begin();
+				tx1.Add(0, 1, (uint64_t *)100);
+				tx1.Add(0, 3, (uint64_t *)300);
+				tx1.Add(0, 5, (uint64_t *)500);
+				for (int j=10; j<20; j++)
+					tx1.Delete(0, j);
+				b = tx.End();
+			}
+		}
+
+		{
+			  MutexLock l(&shared->mu);
+			  shared->num_phase++;
+		}
+		while (shared->num_phase < shared->total);
+		
+		bool f = false;
+		DBTX tx2(store);
+		while (!f) {
+			tx2.Begin();
+			tx2.Add(0, 2, (uint64_t *)200);
+			f = tx2.End();
+		}
+
+		{
+			  MutexLock l(&shared->mu);
+			  shared->num_phase++;
+		}
+		while (shared->num_phase < shared->total*2);
+
+		f = false;
+		DBTX tx3(store);
+		while (!f) {
+			tx3.Begin();
+			tx3.Add(0, 4, (uint64_t *)400);
+			f = tx3.End();
+		}
 	}
 	
 	static void SecDeleteTest(void* v) {
@@ -844,7 +903,7 @@ class Benchmark {
 			int tid = (arg->thread)->tid;
 			SharedState *shared = arg->thread->shared;
 			DBTables *store = arg->store;
-			
+			store->ThreadLocalInit(tid);
 	
 	
 			//printf("In tid %lx\n", arg);
@@ -855,7 +914,7 @@ class Benchmark {
 			for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
 				if (shared->fail) break;
 				bool b = false;
-					leveldb::DBTX tx( store);
+				leveldb::DBTX tx( store);
 				
 				while (b == false) {
 					tx.Begin();
@@ -1070,7 +1129,7 @@ class Benchmark {
 
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		DBTables *store = arg->store;
-		
+		store->ThreadLocalInit(1);
 		while (arg->start == 0) ;
 		
 		leveldb::DBTX tx( store);
@@ -1101,7 +1160,7 @@ class Benchmark {
 
 		ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
 		DBTables *store = arg->store;
-		
+		store->ThreadLocalInit(1);
 		while (arg->start == 0) ;
 		
 		leveldb::DBTX tx( store);
@@ -1143,7 +1202,7 @@ class Benchmark {
 
 
 		if (name == Slice("readonly")  || name == Slice("range") || name == Slice("rwiter")) {
-			
+			store->ThreadLocalInit(0);
 			for (int j = 1; j<=3; j++) {
 			  leveldb::DBTX tx( store);
 			  bool b =false;
@@ -1504,12 +1563,28 @@ class Benchmark {
 			}
 			//store->tables[0]->PrintStore();
 		}
+
+		if (name == Slice("freedelete")) {
+			store->InitEpoch(num);
+			leveldb::DBTX tx(store);
+			bool b = false;
+			while (!b) {
+				tx.Begin();
+				for (int i=0; i<30; i++) {
+					uint64_t *value = new uint64_t();
+					*value = 5;
+					tx.Add(0, i, value);
+				b = tx.End();
+			}	
+		}
+		
 		SharedState shared;
 		shared.total = num;
 		shared.num_initialized = 0;
 		shared.start_time = 0;
 		shared.end_time = 0;
 		shared.num_done = 0;
+		shared.num_phase = 0;
 		shared.start = false;
 		shared.fail = false;
 		 ThreadArg* arg = new ThreadArg[num];
