@@ -252,7 +252,7 @@ class Benchmark {
     random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
 	random->seed(0xdeadbeef + thread->tid << 10);
     // Client owns all the parameters
-    TPCCClient client(thread->tid, clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
+    TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
 	client.bindWarehouseDistrict(thread->tid + 1, 0);
 	
@@ -285,7 +285,7 @@ class Benchmark {
     random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
 	random->seed(0xdeadbeef + thread->tid << 10);
     // Client owns all the parameters
-    TPCCClient client(thread->tid, clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
+    TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
 	client.bindWarehouseDistrict(thread->tid + 1, 0);
 	
@@ -313,7 +313,7 @@ class Benchmark {
 	  random->setC(tpcc::NURandC::makeRandomForRun(random, cLoad));
   	  random->seed(0xdeadbeef + thread->tid << 10);
 	  // Client owns all the parameters
-	  TPCCClient client(thread->tid, clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
+	  TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
 			  District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
 	  client.bindWarehouseDistrict(thread->tid + 1, 0);
 	  

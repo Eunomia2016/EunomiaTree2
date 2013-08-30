@@ -835,7 +835,8 @@ class Benchmark {
 			}
 		
 
-
+	static void FreeDeleteTest(void* v) {
+	}
 	
 	static void SecDeleteTest(void* v) {
 	
@@ -1472,13 +1473,11 @@ class Benchmark {
 			tx.Begin();
 			
 			for (int i=0; i<10; i++) {
-			  uint64_t *key = new uint64_t();
-			  *key = i;
 			  uint64_t *value = new uint64_t();
 			  *value = 1;
 			  if ( i == 3 ||i == 6 || i == 4)//) 
 			  	tx.Add(0, 0, i, 2, value);
-			  //else tx.Add(0, 0, *key, 0, value);				
+			  else tx.Add(0, i , value);				
 			}									
 			b = tx.End();
 			
@@ -1638,6 +1637,9 @@ int main(int argc, char**argv)
 	  }
 	  else if (name == leveldb::Slice("secdelete")) {
 	  	method = &leveldb::Benchmark::SecDeleteTest;
+	  }
+	  else if (name == leveldb::Slice("freedelete")) {
+	  	method = &leveldb::Benchmark::FreeDeleteTest;
 	  }
 	 //leveldb::DBTables *store = new leveldb::DBTables();
 	 leveldb::DBTables *store = new leveldb::DBTables(1);
