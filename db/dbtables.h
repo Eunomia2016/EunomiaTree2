@@ -44,6 +44,7 @@ class DBTables {
 
 	//For GC
 	void InitEpoch(int thr_num);
+	void UpdateEpoch();
 	void AddDeletedNodes(uint64_t **nodes, int len);
 	void GCDeletedNodes();
 	

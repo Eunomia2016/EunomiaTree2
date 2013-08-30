@@ -56,6 +56,11 @@ void DBTables::InitEpoch(int thr_num)
 	epoch = new Epoch(thr_num);
 }
 
+void DBTables::UpdateEpoch()
+{
+	epoch->updateEpoch();
+}
+
 
 void DBTables::AddDeletedNodes(uint64_t **nodes, int len)
 {
@@ -67,6 +72,8 @@ void DBTables::GCDeletedNodes()
 	if(nodeGCQueue != NULL)
 		nodeGCQueue->GC(epoch);
 }
+
+
 
 void DBTables::ThreadLocalInit(int tid)
 {

@@ -864,7 +864,7 @@ class Benchmark {
 				tx1.Add(0, 5, (uint64_t *)500);
 				for (int j=10; j<20; j++)
 					tx1.Delete(0, j);
-				b = tx.End();
+				b = tx1.End();
 			}
 		}
 
