@@ -637,6 +637,7 @@ bool DBTX::End()
 #endif
 
 #if FREEMEMNODE
+	txdb_->GCDeletedNodes();
 	if(gcnindex > 0)
 		txdb_->AddDeletedNodes(gcnodes, gcnindex);
 #endif
