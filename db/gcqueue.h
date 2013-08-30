@@ -3,6 +3,8 @@
 
 #include "db/epoch.h"
 #include <stdint.h>
+#include <stdio.h>
+
 
 #define GCTEST 1
 class GCQueue {

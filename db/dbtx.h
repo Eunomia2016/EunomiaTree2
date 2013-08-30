@@ -24,7 +24,7 @@
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
 #define CLEANUPPHASE 0
-#define FREEMEMNODE 1
+#define FREEMEMNODE 0
 
 namespace leveldb {
 

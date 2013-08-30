@@ -8,7 +8,7 @@ class Epoch {
 static __thread int tid;
 
 public:
-	uint64_t *counters;
+	volatile uint64_t *counters;
 	int thrs_num;
 	
 
@@ -27,6 +27,8 @@ public:
 
 	//Compare with another epoch: 1: this > e  0: this == e   -1: this < e
 	int Compare(Epoch* e);
+
+	void Print();
 };
 
 

@@ -1,6 +1,7 @@
 #include "port/atomic.h"
 #include "epoch.h"
 #include <assert.h>
+#include <stdio.h>
 
 __thread int Epoch::tid = 0;
 
@@ -50,16 +51,18 @@ void Epoch::updateEpoch()
 int Epoch::Compare(Epoch* e)
 {
 	int res  = 0;
-	for(int i = 0; i < thrs_num; i++) {
-		if (counters[i] < e->counters[i]) {
-			
-			res++;
-			
-		} else if (counters[i] == e->counters[i]) {
+	int tmp = 0;
+	for(int i = 0; i < thrs_num; i++) {		
+		 if (counters[i] == e->counters[i]) {
 		
 			return 0;
 			
-		}
+		} else if (counters[i] < e->counters[i]) {
+			
+			res++;
+			
+		} 
+
 	}
 	
 	if(res == thrs_num) {
@@ -67,6 +70,17 @@ int Epoch::Compare(Epoch* e)
 	} else if(res == 0) {
 		return 1;
 	}
-	
+
 	assert(0);
 }
+
+
+void Epoch::Print()
+{
+	printf("Epoch[%d] ", tid);
+	for(int i = 0; i < thrs_num; i++) {
+		printf("[%d]: %d ", i, counters[i]);
+	}
+	printf("\n");
+}
+
