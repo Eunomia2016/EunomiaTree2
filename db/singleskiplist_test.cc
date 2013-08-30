@@ -852,7 +852,7 @@ class Benchmark {
 				tx.Delete(0, 3);
 				tx.Delete(0, 5);
 				for (int j=10; j<20; j++)
-					tx.Add(0, j, (uint64_t *)j);
+					tx.Add(0, j, (uint64_t *)20);
 				b = tx.End();
 			}
 			b = false;
@@ -1574,6 +1574,7 @@ class Benchmark {
 					uint64_t *value = new uint64_t();
 					*value = 5;
 					tx.Add(0, i, value);
+				}
 				b = tx.End();
 			}	
 		}
