@@ -896,10 +896,12 @@ class Benchmark {
 			f = tx3.End();
 		}
 
-
-		if (store->nodeGCQueue->need_del != store->nodeGCQueue->actual_del) 
+		bool fail = false;
+		if (store->nodeGCQueue->need_del != store->nodeGCQueue->actual_del) {
 			printf("Thread [%d] GC Need deleted %ld , actually deleted %ld\n", tid,
 				store->nodeGCQueue->need_del, store->nodeGCQueue->actual_del);
+			fail = true;
+		}
 
 
 		{
@@ -1630,6 +1632,7 @@ class Benchmark {
 		 else if (name == Slice("delete")) printf("DeleteTest pass!\n");
 		 else if (name == Slice("bigdelete")) printf("BigDeleteTest pass!\n");
 		 else if (name == Slice("secdelete")) printf("SecDeleteTest pass!\n");
+		 else if (name == Slice("freedelete")) printf("FreeDeleteTest pass!\n");
 		 else if (name == Slice("counter")) {
 		 	
 		 	
