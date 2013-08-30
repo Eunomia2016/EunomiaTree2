@@ -2,6 +2,9 @@
 
 namespace leveldb {
 
+
+__thread GCQueue* DBTables::nodeGCQueue = NULL;
+
 //FOR TEST
 DBTables::DBTables() {
 	number = 1;
@@ -53,11 +56,24 @@ void DBTables::InitEpoch(int thr_num)
 	epoch = new Epoch(thr_num);
 }
 
+
+void DBTables::AddDeletedNodes(uint64_t **nodes, int len)
+{
+	nodeGCQueue->AddGCElement(epoch->getEpoch(), nodes, len);
+}
+
+void DBTables::GCDeletedNodes()
+{
+	nodeGCQueue->GC(epoch);
+}
+
 void DBTables::ThreadLocalInit(int tid)
 {
 	if(epoch != NULL)
 		epoch->setTID(tid);
-		
+
+	nodeGCQueue = new GCQueue();
+	
 	for (int i=0; i<next; i++)
 		tables[i]->ThreadLocalInit();
 }

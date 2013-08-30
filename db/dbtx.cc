@@ -365,8 +365,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
 		//FIXME: the old value should be deleted eventually
 		kvs[i].node->value = kvs[i].val;
-
-		
 #else
 		
 		if(kvs[i].val == (uint64_t *)1) {
@@ -383,7 +381,16 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 
 			//Directly remove the node from the memstore	
 			Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-				
+
+#if FREEMEMNODE
+			//put the node into the delete queue
+			if(n != NULL) {
+				dbtx_->gcnodes[dbtx_->gcnindex] = (uint64_t *)n;
+				dbtx_->gcnindex++;
+				assert(dbtx_->gcnindex <= dbtx_->deleteNum);
+			}
+#endif
+
 			assert(n == NULL || kvs[i].node == n);
 			//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
 				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
@@ -478,7 +485,16 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 	  	
 		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
   		  assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
-	
+
+#if FREEMEMNODE
+		  //put the node into the delete queue
+		  if(node != NULL) {
+			  dbtx_->gcnodes[dbtx_->gcnindex] = (uint64_t *)node;
+			  dbtx_->gcnindex++;
+			  assert(dbtx_->gcnindex <= dbtx_->deleteNum);
+		  }
+#endif
+
 	  }
 	  
 	}
@@ -507,7 +523,12 @@ void DBTX::WriteSet::Print()
 DBTX::DBTX(DBTables* store)
 {
   txdb_ = store;
-  count = 0;
+  count = 0;  
+
+  deleteNum = 0;
+  gcnindex = 0;
+  gcnodes = NULL;
+  
   abort = false;
 #if PROFILEBUFFERNODE
   bufferGet = 0;
@@ -532,6 +553,11 @@ void DBTX::Begin()
 {
 //reset the local read set and write set
   //txdb_->ThreadLocalInit();
+
+  deleteNum = 0;
+  gcnindex = 0;
+  gcnodes = NULL;
+
   ThreadLocalInit();
   readset->Reset();
   writeset->Reset();
@@ -553,6 +579,11 @@ bool DBTX::End()
 {
   if (abort) return false;
 
+#if FREEMEMNODE
+	if(deleteNum > 0)
+		gcnodes = new uint64_t*[deleteNum];
+#endif
+
   //printf("TXEND\n");
   //Phase 1. Validation & Commit
   {
@@ -562,13 +593,25 @@ bool DBTX::End()
     RTMScope rtm(&rtmProf);
 #endif
 
-    if(!readset->Validate())
-		return false;
-    
-  
-	if(!writeset->CheckWriteSet())
+    if(!readset->Validate()) {
+		
+#if FREEMEMNODE
+		if(gcnodes != NULL)
+			delete[] gcnodes;
+#endif
 		return false;
 
+	}
+    
+  
+	if(!writeset->CheckWriteSet()) {
+#if FREEMEMNODE
+		if(gcnodes != NULL)
+			delete[] gcnodes;
+#endif
+
+		return false;
+	}
 #if !CLEANUPPHASE
 
 	writeset->SetDBTX(this);
@@ -592,6 +635,12 @@ bool DBTX::End()
     writeset->Cleanup(txdb_);
   }
 #endif
+
+#if FREEMEMNODE
+	if(gcnindex > 0)
+		txdb_->AddDeletedNodes(gcnodes, gcnindex);
+#endif
+
   return true;
 }
 
@@ -694,6 +743,10 @@ retryA:
 
 void DBTX::Delete(int tableid, uint64_t key)
 {
+
+#if FREEMEMNODE
+	deleteNum++;
+#endif
 
 #if CLEANUPPHASE
 	Add(tableid, key, (uint64_t *)1);

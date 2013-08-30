@@ -24,6 +24,7 @@
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
 #define CLEANUPPHASE 0
+#define FREEMEMNODE 1
 
 namespace leveldb {
 
@@ -294,6 +295,11 @@ public:
 	static port::Mutex storemutex;
 	static SpinLock slock;
 
+	//For gc collection
+	int deleteNum;
+	int gcnindex;
+	uint64_t** gcnodes;
+	
 	bool abort;
 	DBTables *txdb_;
 

@@ -8,6 +8,7 @@
 #include "memstore/memstore_stringbplustree.h"
 #include "memstore/memstore_uint64bplustree.h"
 #include "db/epoch.h"
+#include "db/gcqueue.h"
 
 namespace leveldb{
 
@@ -19,6 +20,9 @@ namespace leveldb{
 #define SBTREE 5
 
 class DBTables {
+
+  static __thread GCQueue* nodeGCQueue;
+
   public:
 	
 	uint64_t snapshot; // the counter for current snapshot
@@ -35,9 +39,14 @@ class DBTables {
 	DBTables(int n);
 	~DBTables();
 
-	void InitEpoch(int thr_num);
 	void ThreadLocalInit(int tid);
 	int AddTable(int tableid, int index_type, int secondary_index_type);
+
+	//For GC
+	void InitEpoch(int thr_num);
+	void AddDeletedNodes(uint64_t **nodes, int len);
+	void GCDeletedNodes();
+	
 };
 
 }
