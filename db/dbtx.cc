@@ -290,7 +290,7 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
   
 }
 
-inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw)
+inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw, Memstore::MemNode* node)
 {
 	if(cursindex >= max_length) {
 	  //FIXME: No resize support!
@@ -299,7 +299,7 @@ inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw)
 
 	sindexes[cursindex].seq = seq;
 	sindexes[cursindex].sindex = mnw;
-
+	sindexes[cursindex].memnode = node;
 	cursindex++;
 }
 
@@ -322,12 +322,17 @@ inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
 inline void DBTX::WriteSet::UpdateSecondaryIndex()
 {
 	for(int i = 0; i < cursindex; i++) {
-		//1. logically delete the old secondary index
+		
+		//1. set memnode in wrapper
+		sindexes[i].sindex->memnode = sindexes[i].memnode;
+		
+		//if (sindexes[i].sindex->memnode->value == (uint64_t *)2) printf("---\n");
+		//2. logically delete the old secondary index
 		if(sindexes[i].sindex->memnode->secIndexValidateAddr != NULL)
-			*sindexes[i].sindex->memnode->secIndexValidateAddr = false;
+			*sindexes[i].sindex->memnode->secIndexValidateAddr = 0;
 
-		//2. update the new secondary index
-		sindexes[i].sindex->valid = true;
+		//3. update the new secondary index
+		sindexes[i].sindex->valid = 1;
 		sindexes[i].sindex->memnode->secIndexValidateAddr 
 					= &sindexes[i].sindex->valid;
 		*sindexes[i].seq += 1;
@@ -353,40 +358,49 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	
 	//If counter of the node is equal to the global counter, then just change the value pointer
     if(kvs[i].node->counter == gcounter) {
-	 		  	  
+		
+	 	
 
 #if CLEANUPPHASE
-	
-	//FIXME: the old value should be deleted eventually
-	kvs[i].node->value = kvs[i].val;
-
-#else
-	
-	if(kvs[i].val == (uint64_t *)1) {
-		//Directly remove the node from the memstore
-		assert(dbtx_ != NULL);
-		
-		kvs[i].node->value = (uint64_t *)2;
-		
-		Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-			
-		assert(n == NULL || kvs[i].node == n);
-		//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
-			//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
-		
-	} else {
-//		if(kvs[i].key == 3 || kvs[i].key == 4)		
-	//		printf("Thread %ld Put [%lx] %ld seq %ld\n", 
-		//		pthread_self(), kvs[i].node, kvs[i].key, kvs[i].node->seq);
-		
+		//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
+		//FIXME: the old value should be deleted eventually
 		kvs[i].node->value = kvs[i].val;
-	}
+
+		
+#else
+		
+		if(kvs[i].val == (uint64_t *)1) {
+			
+			assert(dbtx_ != NULL);
+			
+			kvs[i].node->value = (uint64_t *)2;
+
+			
+			//Invalidate secondary index when deletion 	  	  			
+			if (kvs[i].node->secIndexValidateAddr != NULL)
+				*(kvs[i].node->secIndexValidateAddr) = -1;	
+
+
+			//Directly remove the node from the memstore	
+			Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
+				
+			assert(n == NULL || kvs[i].node == n);
+			//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
+				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
+			
+		} else {
+	//		if(kvs[i].key == 3 || kvs[i].key == 4)		
+		//		printf("Thread %ld Put [%lx] %ld seq %ld\n", 
+			//		pthread_self(), kvs[i].node, kvs[i].key, kvs[i].node->seq);
+			
+			kvs[i].node->value = kvs[i].val;
+		}
 
 #endif
 
-	  //Should first update the value, then the seq, to guarantee the seq is always older than the value
-	  kvs[i].node->seq++;
-		
+		  //Should first update the value, then the seq, to guarantee the seq is always older than the value
+		  kvs[i].node->seq++;
+			
 	} else if(kvs[i].node->counter < gcounter){
 
 	  //If global counter is updated, just update the counter and store a old copy into the dummy node
@@ -448,6 +462,12 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 		if(kvs[i].node->value == (uint64_t *)1) {
 			kvs[i].node->value = (uint64_t *)2;
 			kvs[i].node->seq++;
+
+			//Invalidate secondary index when deletion 	  	  			
+			if (kvs[i].node->secIndexValidateAddr != NULL)
+				*(kvs[i].node->secIndexValidateAddr) = -1;
+			
+			
 			remove = true;
 //			printf("Thread %ld remove %ld seq %ld\n", pthread_self(), kvs[i].key, kvs[i].node->seq);
 		}
@@ -624,6 +644,7 @@ retry:
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
 {
+retryA:
 	uint64_t *seq;
 
 #if PROFILEBUFFERNODE
@@ -652,19 +673,22 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 	}
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
+	if(node->value == (uint64_t *)2)
+  		goto retryA;
+
 #endif
 
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =  
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
 	
-	mw->memnode = node;
+	//mw->memnode = node;
 	
 	//2. add the record seq number into write set
-	writeset->Add(tableid, key, val, mw->memnode);
+	writeset->Add(tableid, key, val, node);
 	
 	//3. add the seq number of the second node and the validation flag address into the write set
-	writeset->Add(seq, mw);
+	writeset->Add(seq, mw, node);
 }
 
 
@@ -696,42 +720,48 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 	//1.  put the secondary node seq into the readset
 	readset->Add(&sn->seq);
 
+	//KVS is NULL because there is no entry in the second node
+	if(kvs == NULL)
+		return 0;
+	
 	//2. get every record and put the record seq into the readset
 	int i = 0;
 	SecondIndex::MemNodeWrapper* mnw = sn->head;
 	while(mnw != NULL) {
-		if (mnw->valid && mnw->memnode->value!=NULL && mnw->memnode->value!=(uint64_t *)1 
+		if (mnw->valid == 1 && mnw->memnode->value!=NULL && mnw->memnode->value!=(uint64_t *)1 
 			&& mnw->memnode->value!=(uint64_t *)2) {
 			kvs->keys[i] = mnw->key;
 			kvs->values[i] = mnw->memnode->value;
 			//put the record seq into the read set
 			readset->Add(&mnw->memnode->seq);
 			i++;
-			
+			//printf("%ld \t", kvs->keys[i]);
+			//if (kvs->keys[i] == 0) printf("!!!\n");
 		}
 		mnw = mnw->next;
 	}
-	
+	//printf("\n");
 	kvs->num = i;
-
 	return i;
 }
 
 DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey)
 {
+	KeyValues* kvs = NULL;
 
-retryGBI:
+	
 	assert(txdb_->secondIndexes[indextableid] != NULL);
 	SecondIndex::SecondNode* sn = txdb_->secondIndexes[indextableid]->Get(seckey);
 	assert(sn != NULL);
 	
+retryGBI:
+	if (kvs != NULL) delete kvs;	
+	
 	//FIXME: the seq number maybe much larger than the real number of nodes
 	uint64_t knum = sn->seq;
 
-	if(knum == 0)
-		return NULL;
-	
-	KeyValues* kvs = new KeyValues(knum);
+	if(knum != 0)
+		kvs = new KeyValues(knum);
 
 	
 #if GLOBALOCK
@@ -742,12 +772,17 @@ retryGBI:
 
 	//FIXME: the number of node may be changed before the RTM acquired
 	if(knum != sn->seq) {
-		while(_xtest())
-			_xend();
-		printf("[GetByIndex] Error OCCURRED\n");
+		//while(_xtest())
+		//	_xend();
+		//printf("[GetByIndex] Error OCCURRED\n");
+		goto retryGBI;
 	}
 
 	int i = ScanSecondNode(sn, kvs);
+/*	if (i == 0) {
+		printf("Empty %ld\n",seckey);
+		txdb_->secondIndexes[0]->PrintStore();
+	}*/
 			
 	if(i > knum) {
 		while(_xtest())
@@ -756,7 +791,9 @@ retryGBI:
 	}
 
 	if( i == 0) {
-		delete kvs;
+		//printf("[%ld] Get tag2 %ld No Entry\n", pthread_self(), seckey);
+		if(kvs != NULL)
+			delete kvs;
 		return NULL;
 	}
 	return kvs;

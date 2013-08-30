@@ -195,7 +195,7 @@ public:
 	  private:
 
 	    int max_length;
-	    int elems;
+	    
 	    RSSeqPair *seqs;
 
 		int rangeElems;
@@ -204,6 +204,7 @@ public:
 	    void Resize();
 			
 	  public:
+	  	int elems;	
 	    ReadSet();
 	    ~ReadSet();
 		inline void Reset();
@@ -228,6 +229,7 @@ public:
 		struct WSSEC{
 			uint64_t *seq;
 			SecondIndex::MemNodeWrapper* sindex;
+			Memstore::MemNode* memnode;
 		};
 		
 		
@@ -254,7 +256,7 @@ public:
 		void TouchAddr(uint64_t addr, int type);
 		
 		inline void Add(int tableid, uint64_t key, uint64_t* val, Memstore::MemNode* node);
-		inline void Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw);
+		inline void Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw, Memstore::MemNode* node);
 		inline bool Lookup(int tableid, uint64_t key, uint64_t** val);
 		inline void UpdateSecondaryIndex();
 		inline void SetDBTX(DBTX* dbtx);

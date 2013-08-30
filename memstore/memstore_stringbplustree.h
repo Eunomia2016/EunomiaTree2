@@ -276,7 +276,7 @@ public:
 		uint64_t *secseq;
 		MemNodeWrapper *w = GetWithInsert(seckey, prikey, &secseq);
 		w->memnode = memnode;
-		w->valid = true;
+		w->valid = 1;
 	}
 
 	inline MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t prikey, uint64_t **secseq) {
@@ -320,8 +320,8 @@ public:
 		MemNodeWrapper *wrapper = secn->head;
 		while (wrapper != NULL) {
 			if (wrapper->key == prikey) 
-				if (wrapper->valid) return NULL;
-				else return wrapper;
+				//if (wrapper->valid) return NULL;else
+				 return wrapper;
 			wrapper = wrapper->next;
 		}
 		dummywrapper_->key = prikey;
