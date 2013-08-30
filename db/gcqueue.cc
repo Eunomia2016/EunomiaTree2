@@ -7,11 +7,12 @@
 GCQueue::GCQueue()
 {
 	//the default size of the gc queue is 64
-	qsize = 1204;
+	qsize = 64;
 	head = tail = 0;
 	queue = new GCElement*[qsize];
 	need_del = 0;
 	actual_del = 0;
+	elems = 0;
 	
 }
 	
@@ -29,13 +30,18 @@ GCQueue::~GCQueue()
 void GCQueue::AddGCElement(Epoch* e, uint64_t** arr, int len)
 {
 	//the queue is empty
+	elems++;
 	queue[tail] = new GCElement(e, arr, len);
-	tail = (tail + 1) % qsize;
-	if(tail == head) {
-		printf("ERROR: GCQUEUE Over Flow \n");
+	
+	if((tail + 1) % qsize == head) {
+		printf("ERROR: GCQUEUE Over Flow %d\n", elems);
+		printf("Cur \n");
+		e->Print();
+		printf("Queue \n");
+		Print();
 		exit(1);
 	}
-	
+	tail = (tail + 1) % qsize;
 	assert(tail != head);
 	
 #if GCTEST
@@ -45,12 +51,25 @@ void GCQueue::AddGCElement(Epoch* e, uint64_t** arr, int len)
 
 void GCQueue::GC(Epoch* current)
 {
+	
 	while(head != tail && queue[head]->epoch->Compare(current) < 0) {
 		delete queue[head];
 		head = (head + 1) % qsize;
-
+		elems--;
 #if GCTEST
 		actual_del++;
 #endif
+	}
+	
+}
+
+void GCQueue::Print()
+{
+	int index = head;
+	while(index != tail) {
+		
+		queue[index]->epoch->Print();
+		
+		index = (index + 1) % qsize;
 	}
 }

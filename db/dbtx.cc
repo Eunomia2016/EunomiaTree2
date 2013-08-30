@@ -286,7 +286,7 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
 
   //Allocate the dummy node
   //FIXME: Just allocate the dummy node as 1 height
-  kvs[cur].dummy = Memstore::GetMemNode();
+//  kvs[cur].dummy = Memstore::GetMemNode();
   
 }
 
@@ -646,6 +646,8 @@ bool DBTX::End()
 	if(gcnindex > 0)
 		txdb_->AddDeletedNodes(gcnodes, gcnindex);
 	txdb_->UpdateEpoch();
+	
+	
 #endif
 
   return true;

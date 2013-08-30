@@ -13,6 +13,7 @@ struct GCElement {
 	Epoch* epoch;
 	uint64_t** gcarray;
 	int len;
+	
 
 	GCElement(Epoch* e, uint64_t** arr, int l) 
 	{
@@ -37,6 +38,7 @@ private:
 	int head;
 	int tail;
 	GCElement** queue;
+	int elems;
 	
 public:
 	GCQueue();
@@ -46,6 +48,8 @@ public:
 	void AddGCElement(Epoch* e, uint64_t** arr, int len);
 
 	void GC(Epoch* current);
+
+	void Print();
 
 	uint64_t need_del;
 	uint64_t actual_del;
