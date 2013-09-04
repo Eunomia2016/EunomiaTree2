@@ -24,8 +24,12 @@
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
 #define CLEANUPPHASE 0
-#define FREEMEMNODE 1
 
+//For deletion
+#define FREEMEMNODE 0
+#define FREEOLDVALUE 1
+
+//For interface
 #define COPY_WHEN_ADD 1
 
 
@@ -272,7 +276,7 @@ public:
 		inline void Write(uint64_t gcounter);
 		inline bool CheckWriteSet();
 		inline void Cleanup(DBTables* tables);
-		
+		inline uint64_t** GetDeletedValues();
 		void Print();
 		void Reset();
 	};

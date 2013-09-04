@@ -370,6 +370,9 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		if(kvs[i].val == (uint64_t *)1) {
 			
 			assert(dbtx_ != NULL);
+
+			//use the write set buffer the old value
+			kvs[i].val = kvs[i].node->value;
 			
 			kvs[i].node->value = (uint64_t *)2;
 
@@ -401,11 +404,9 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
 			
 		} else {
-	//		if(kvs[i].key == 3 || kvs[i].key == 4)		
-		//		printf("Thread %ld Put [%lx] %ld seq %ld\n", 
-			//		pthread_self(), kvs[i].node, kvs[i].key, kvs[i].node->seq);
-			
+			uint64_t* oldval = kvs[i].node->value;
 			kvs[i].node->value = kvs[i].val;
+			kvs[i].val = oldval;
 		}
 
 #endif
@@ -450,6 +451,32 @@ inline bool DBTX::WriteSet::CheckWriteSet()
 		return false;
   }
   return true;
+}
+
+inline uint64_t** DBTX::WriteSet::GetDeletedValues()
+{
+	if(elems == 0)
+		return NULL;
+	
+	uint64_t** arr = new uint64_t*[elems];
+	
+	for(int i = 0; i < elems; i++) {
+		
+		if(kvs[i].val == (uint64_t *)1 
+			|| kvs[i].val == (uint64_t *)2 
+			||kvs[i].val == (uint64_t *)3 ) { 
+			
+			arr[i] = NULL;
+			
+		} else {
+
+			arr[i] = kvs[i].val;
+						if(arr[i] == (uint64_t *)3)
+				printf("!!!!!\n");
+		}
+  	}
+
+	return arr;
 }
 
 //Remove the deleted node from the memstore 
@@ -633,14 +660,19 @@ bool DBTX::End()
   }
 #endif
 
+#if FREEOLDVALUE
+	txdb_->GCDeletedNodes();
+	if(writeset->elems > 0)
+		txdb_->AddDeletedNodes(writeset->GetDeletedValues(), writeset->elems);
+#endif
+
 #if FREEMEMNODE
 	txdb_->GCDeletedNodes();
 	if(gcnindex > 0)
-		txdb_->AddDeletedNodes(gcnodes, gcnindex);
-	txdb_->UpdateEpoch();
-	
-	
+		txdb_->AddDeletedNodes(gcnodes, gcnindex);	
 #endif
+
+  txdb_->UpdateEpoch();
 
   return true;
 
