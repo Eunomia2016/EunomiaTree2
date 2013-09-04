@@ -1174,10 +1174,10 @@ namespace leveldb {
 //			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
 			//if (c_value == NULL) exit(0);
-			delete fstart;
-			delete fend;
-			delete c_values;
-			delete c_keys;
+			delete[] fstart;
+			delete[] fend;
+			delete[] c_values;
+			delete[] c_keys;
 			assert(found);
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 			// printf("customer %d %lx\n",j,c_value);
@@ -1628,10 +1628,10 @@ namespace leveldb {
 			//			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
 			//if (c_value == NULL) exit(0);
-			delete fstart;
-			delete fend;
-			delete c_values;
-			delete c_keys;
+			delete[] fstart;
+			delete[] fend;
+			delete[] c_values;
+			delete[] c_keys;
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 	  		
 	  		int64_t customer_id = c_key - (warehouse_id * District::NUM_PER_WAREHOUSE + district_id)

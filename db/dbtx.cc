@@ -35,6 +35,7 @@ __thread DBTX::BufferNode* DBTX::buffer = NULL;
 void DBTX::ThreadLocalInit()
 {
    if ( false == localinit) {
+   	//printf("%ld localinit AA\n",pthread_self());
 	  readset = new ReadSet();
 	  writeset = new WriteSet();
 #if BUFFERNODE
@@ -42,6 +43,7 @@ void DBTX::ThreadLocalInit()
 	  buffer = new BufferNode[txdb_->number];
 #endif
 	  localinit = true;
+	//	printf("%ld localinit BB\n", pthread_self());
    }
 	
 }
