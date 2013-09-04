@@ -372,7 +372,9 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		if(kvs[i].val == (uint64_t *)1) {
 			
 			assert(dbtx_ != NULL);
-			
+
+			//use the write set buffer the old value
+			//kvs[i].val = kvs[i].node->value;						
 			kvs[i].node->value = (uint64_t *)2;
 
 			
@@ -383,7 +385,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 
 			//Directly remove the node from the memstore	
 			Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-
+			
 #if FREEMEMNODE
 			//put the node into the delete queue
 			if(n != NULL) {
@@ -403,12 +405,11 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
 			
 		} else {
-	//		if(kvs[i].key == 3 || kvs[i].key == 4)		
-		//		printf("Thread %ld Put [%lx] %ld seq %ld\n", 
-			//		pthread_self(), kvs[i].node, kvs[i].key, kvs[i].node->seq);
-			
+			uint64_t* oldval = kvs[i].node->value;
 			kvs[i].node->value = kvs[i].val;
+			//kvs[i].val = oldval;
 		}
+
 
 #endif
 
@@ -452,6 +453,29 @@ inline bool DBTX::WriteSet::CheckWriteSet()
 		return false;
   }
   return true;
+}
+
+inline uint64_t** DBTX::WriteSet::GetDeletedValues()
+{
+	if(elems == 0)
+		return NULL;
+	
+	uint64_t** arr = new uint64_t*[elems];
+	
+	for(int i = 0; i < elems; i++) {
+		
+		if(kvs[i].val == (uint64_t *)1 
+			|| kvs[i].val == (uint64_t *)2 
+			||kvs[i].val == (uint64_t *)3 ) { 
+			
+			arr[i] = NULL;
+			
+		} else {
+			arr[i] = kvs[i].val;
+		}
+  	}
+
+	return arr;
 }
 
 //Remove the deleted node from the memstore 
@@ -568,6 +592,9 @@ void DBTX::Begin()
   ThreadLocalInit();
   readset->Reset();
   writeset->Reset();
+
+  
+  txdb_->EpochTXBegin();
   
 //printf("Begin\n");
   
@@ -635,14 +662,21 @@ bool DBTX::End()
   }
 #endif
 
+txdb_->EpochTXEnd();
+
+
+#if FREEOLDVALUE
+	txdb_->GCDeletedNodes();
+	if(writeset->elems > 0)
+		txdb_->AddDeletedNodes(writeset->GetDeletedValues(), writeset->elems);
+#endif
+
 #if FREEMEMNODE
 	txdb_->GCDeletedNodes();
 	if(gcnindex > 0)
-		txdb_->AddDeletedNodes(gcnodes, gcnindex);
-	txdb_->UpdateEpoch();
-	
-	
+		txdb_->AddDeletedNodes(gcnodes, gcnindex);	
 #endif
+
 
   return true;
 
@@ -706,7 +740,7 @@ retry:
 
   if(node->value == (uint64_t *)2)
   	goto retry;
-
+  
   writeset->Add(tableid, key, val, node);
 
 }
@@ -762,6 +796,13 @@ retry:
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
 {
+
+	if(val > (uint64_t *)0x7f0000000000) {
+		printf("DBTX::Add Wrong Add Value %lx\n",val);
+		while(1);
+	}
+
+
 retryA:
 	uint64_t *seq;
 

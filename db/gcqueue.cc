@@ -53,6 +53,7 @@ void GCQueue::GC(Epoch* current)
 {
 	
 	while(head != tail && queue[head]->epoch->Compare(current) < 0) {
+		
 		delete queue[head];
 		head = (head + 1) % qsize;
 		elems--;

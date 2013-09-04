@@ -4,7 +4,7 @@
 #include "db/epoch.h"
 #include <stdint.h>
 #include <stdio.h>
-
+#include <assert.h>
 
 #define GCTEST 1
 class GCQueue {
@@ -26,9 +26,13 @@ struct GCElement {
 	{
 		delete epoch;
 
-		for(int i; i < len; i++)
-			delete gcarray[i];
-		
+		for(int i; i < len; i++) {
+			if(gcarray[i] != NULL) {
+				delete gcarray[i];
+			}
+
+		}
+
 		delete[] gcarray;
 	}
 };

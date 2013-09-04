@@ -3,14 +3,19 @@
 #include <assert.h>
 #include <stdio.h>
 
+#define ENDMASK ((uint64_t)1<<63)
+#define BEGMASK ~((uint64_t)1<<63)
+
 __thread int Epoch::tid = 0;
 
 Epoch::Epoch(int thrs) {
 
 	thrs_num = thrs;
 	counters = new uint64_t[thrs];
-	for(int i = 0; i < thrs_num; i++)
-		counters[i] = 0;
+	for(int i = 0; i < thrs_num; i++) {
+		counters[i] = ENDMASK | 0;
+		//printf("%lx %ld\n", counters[i], counters[i]);
+	}
 }
 
 Epoch::Epoch(int thrs, uint64_t* cs) {
@@ -29,22 +34,26 @@ void Epoch::setTID(int i) {
 	tid = i;	
 }
 
-Epoch* Epoch::getEpoch() {
+Epoch* Epoch::getCurrentEpoch() {
 	
 	uint64_t * cs = new uint64_t[thrs_num];
 
 	for(int i = 0; i < thrs_num; i++)
-		cs[i] = counters[i];
+		cs[i] = (counters[i] & BEGMASK);
 	
 	return new Epoch(thrs_num, cs);
 }
 
-//update current's thread's epoch number
-void Epoch::updateEpoch()
+
+void Epoch::beginTX()
 {
-	assert(tid < thrs_num);
 	counters[tid]++;
-	//atomic_inc64(&counters[tid]);
+	counters[tid] &= BEGMASK;
+}
+
+void Epoch::endTX()
+{
+	counters[tid] |= ENDMASK;
 }
 
 //Compare with another epoch: 1: this > e  0: this == e   < 0: this < e
