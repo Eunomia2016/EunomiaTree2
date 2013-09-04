@@ -43,7 +43,7 @@ struct SharedState {
   int num_done;
   bool start;
   bool fail;
-  int num_phase;	
+  volatile int num_phase;	
   SharedState() : cv(&mu) { }
 };
 
@@ -499,6 +499,7 @@ class Benchmark {
 				break;
 			}
 			//printf("Pass 1\n");
+#if 0			
 			{
 				leveldb::DBROTX tx2( store);
 				bool found[3];
@@ -557,8 +558,11 @@ class Benchmark {
 				}
 				
 			}
+#endif
+
 			//printf("Pass 2\n");
 		}
+		
 		{
 		  MutexLock l(&shared->mu);
 		  if (fail) shared->fail = fail;
@@ -863,13 +867,17 @@ class Benchmark {
 		DBTables *store = arg->store;
 		store->ThreadLocalInit(tid);
 
-
+		printf("Thread[%d] start\n",tid);	
 		for (int i = 0; i < FLAGS_txs; i++) {
+			//printf("Thread[%d] Tx[%d]\n",tid,i);
 			bool b = false;
 			DBTX tx(store);
 			while (!b) {
+				if (i == 0) printf("!!!! Thread[%d] Tx[%d]\n",tid,i);
 				tx.Begin();
+				if (i == 0) printf("---- Thread[%d] Tx[%d]\n",tid,i);
 				tx.Delete(0, 1);
+				
 				tx.Delete(0, 3);
 				tx.Delete(0, 5);
 				for (int j=10; j<20; j++) {
@@ -879,6 +887,7 @@ class Benchmark {
 					delete value;
 				}
 				b = tx.End();
+				if (i == 0) printf("**** Thread[%d] Tx[%d]\n",tid,i);
 			}
 			b = false;
 			DBTX tx1(store);
@@ -900,14 +909,21 @@ class Benchmark {
 					tx1.Delete(0, j);
 				b = tx1.End();
 			}
-		}
 
+			//printf("Thread[%d] Tx[%d]\n",tid,i);
+		}
+		//printf("Thread[%d] phase %d\n",tid, shared->num_phase );
+		
 		{
 			  MutexLock l(&shared->mu);
 			  shared->num_phase++;
 		}
-		while (shared->num_phase < shared->total);
+
+		//printf("Thread[%d] Main completed\n",tid);
 		
+		//printf("Thread[%d] phase %d\n",tid, shared->num_phase );
+		while (shared->num_phase < shared->total);
+		//printf("Thread[%d] Enter sec\n",tid);
 		bool f = false;
 		DBTX tx2(store);
 		while (!f) {
@@ -923,8 +939,14 @@ class Benchmark {
 			  MutexLock l(&shared->mu);
 			  shared->num_phase++;
 		}
-		while (shared->num_phase < shared->total*2);
 
+		//printf("Thread[%d] Second completed\n",tid);
+		//printf("Thread[%d] phase %d\n",tid, shared->num_phase );
+		
+		while (shared->num_phase < shared->total*2){
+	//		printf("---------%d %d\n", shared->num_phase, shared->total*2);
+		}
+		//printf("Thread[%d] Enter third\n",tid);
 		f = false;
 		DBTX tx3(store);
 		while (!f) {
@@ -936,6 +958,10 @@ class Benchmark {
 			f = tx3.End();
 		}
 
+		//printf("Thread[%d] Third completed\n",tid);
+		//printf("Thread[%d] phase %d\n",tid, shared->num_phase );
+
+
 		bool fail = false;
 		if (store->nodeGCQueue->need_del != store->nodeGCQueue->actual_del) {
 			printf("Thread [%d] GC Need deleted %ld , actually deleted %ld\n", tid,
@@ -943,6 +969,7 @@ class Benchmark {
 			fail = true;
 		}
 
+		
 
 		{
 			  MutexLock l(&shared->mu);
@@ -1292,8 +1319,8 @@ class Benchmark {
 				}
 				
 			
-				leveldb::DBROTX tx1( store);
-
+			//	leveldb::DBROTX tx1( store);
+				leveldb::DBTX tx1( store);
 				tx1.Begin();
 
 					
@@ -1658,7 +1685,7 @@ class Benchmark {
 			arg[i].store = store;
 			
 			arg[i].thread->shared = &shared;
-			//printf("Out tid %lx\n", &arg[i]);
+			printf("Out tid %lx\n", &arg[i]);
 			Env::Default()->StartThread(method, &arg[i]);
 			
 		 }

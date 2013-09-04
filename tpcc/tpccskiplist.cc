@@ -547,7 +547,7 @@ namespace leveldb {
 	neworder->no_w_id = w_id;
 	neworder->no_d_id = d_id;
 	neworder->no_o_id = o_id;
-	uint64_t *value = reinterpret_cast<uint64_t *>(&neworder);
+	uint64_t *value = reinterpret_cast<uint64_t *>(neworder);
   	
   	store->tables[NEWO]->Put(key, value);
   	

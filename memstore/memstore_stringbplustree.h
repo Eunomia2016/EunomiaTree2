@@ -184,12 +184,14 @@ public:
 	}
 
 	inline LeafNode* new_leaf_node() {
-			LeafNode* result = (LeafNode *)(arena_->AllocateAligned(sizeof(LeafNode)));
+			LeafNode* result = new LeafNode();
+			//LeafNode* result = (LeafNode *)(arena_->AllocateAligned(sizeof(LeafNode)));
 			return result;
 	}
 		
 	inline InnerNode* new_inner_node() {
-			InnerNode* result = (InnerNode *)(arena_->AllocateAligned(sizeof(InnerNode)));
+			InnerNode* result = new InnerNode();
+			//InnerNode* result = (InnerNode *)(arena_->AllocateAligned(sizeof(InnerNode)));
 			return result;
 	}
 
