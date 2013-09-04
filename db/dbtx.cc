@@ -582,8 +582,9 @@ bool DBTX::Abort()
 
 bool DBTX::End()
 {
-  if (abort) return false;
 
+  if (abort) goto ABORT;
+  
 #if FREEMEMNODE
 	if(deleteNum > 0)
 		gcnodes = new uint64_t*[deleteNum];
@@ -600,22 +601,14 @@ bool DBTX::End()
 
     if(!readset->Validate()) {
 		
-#if FREEMEMNODE
-		if(gcnodes != NULL)
-			delete[] gcnodes;
-#endif
-		return false;
+		goto ABORT;
 
 	}
     
   
 	if(!writeset->CheckWriteSet()) {
-#if FREEMEMNODE
-		if(gcnodes != NULL)
-			delete[] gcnodes;
-#endif
 
-		return false;
+		goto ABORT;
 	}
 #if !CLEANUPPHASE
 
@@ -631,7 +624,6 @@ bool DBTX::End()
     writeset->UpdateSecondaryIndex();
 
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
- 
   }
   
 #if CLEANUPPHASE
@@ -651,6 +643,23 @@ bool DBTX::End()
 #endif
 
   return true;
+
+ABORT:
+
+#if FREEMEMNODE
+	  if(gcnodes != NULL)
+		  delete[] gcnodes;
+#endif
+
+	
+	for(int i = 0; i < writeset->elems; i++) {
+		if (writeset->kvs[i].val != NULL && writeset->kvs[i].val != (uint64_t *)1)
+			delete writeset->kvs[i].val;
+	}
+	
+ 	return false;
+  
+
 }
 
 
@@ -695,7 +704,56 @@ retry:
 
   if(node->value == (uint64_t *)2)
   	goto retry;
+
   writeset->Add(tableid, key, val, node);
+
+}
+
+
+void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len)
+
+{
+//  SpinLockScope spinlock(&slock);
+
+retry:
+
+  Memstore::MemNode* node;
+
+#if PROFILEBUFFERNODE
+  bufferGet++;
+#endif
+
+
+  //Get the seq addr from the hashtable
+#if BUFFERNODE
+  if(buffer[tableid].key == key) {
+
+#if PROFILEBUFFERNODE
+  bufferHit++;
+#endif
+
+ 	node = buffer[tableid].node;
+	assert(node != NULL);
+  } else {
+
+#if PROFILEBUFFERNODE
+  bufferMiss++;
+#endif
+
+  	node = txdb_->tables[tableid]->GetWithInsert(key);
+	buffer[tableid].node = node;
+	buffer[tableid].key = key;
+	assert(node != NULL);
+  }
+#else
+	node = txdb_->tables[tableid]->GetWithInsert(key);
+#endif
+
+  if(node->value == (uint64_t *)2)
+  	goto retry;
+  char* value = new char[len];
+  memcpy(value, val, len);
+  writeset->Add(tableid, key, (uint64_t *)value, node);
 
 }
 
@@ -743,7 +801,62 @@ retryA:
 	//mw->memnode = node;
 	
 	//2. add the record seq number into write set
-	writeset->Add(tableid, key, val, node);
+    writeset->Add(tableid, key, val, node);
+	
+	//3. add the seq number of the second node and the validation flag address into the write set
+	writeset->Add(seq, mw, node);
+}
+
+
+
+
+//Update a column which has a secondary key
+void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len)
+{
+retryA:
+	uint64_t *seq;
+
+#if PROFILEBUFFERNODE
+  bufferGet++;
+#endif
+
+
+	Memstore::MemNode* node;
+#if BUFFERNODE
+	//Get the seq addr from the hashtable
+	if(buffer[tableid].key == key) {
+#if PROFILEBUFFERNODE
+  bufferHit++;
+#endif
+		node = buffer[tableid].node;
+		assert(node != NULL);
+	} else {
+#if PROFILEBUFFERNODE
+  bufferMiss++;
+#endif
+
+		node = txdb_->tables[tableid]->GetWithInsert(key);
+		buffer[tableid].node = node;
+		buffer[tableid].key = key;
+		assert(node != NULL);
+	}
+#else
+	node = txdb_->tables[tableid]->GetWithInsert(key);
+	if(node->value == (uint64_t *)2)
+  		goto retryA;
+
+#endif
+
+	//1. get the memnode wrapper of the secondary key
+	SecondIndex::MemNodeWrapper* mw =  
+		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
+	
+	//mw->memnode = node;
+	
+	//2. add the record seq number into write set
+	char* value = new char[len];
+	memcpy(value, val, len);
+    writeset->Add(tableid, key, (uint64_t *)value, node);
 	
 	//3. add the seq number of the second node and the validation flag address into the write set
 	writeset->Add(seq, mw, node);

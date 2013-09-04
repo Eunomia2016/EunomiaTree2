@@ -24,7 +24,10 @@
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
 #define CLEANUPPHASE 0
-#define FREEMEMNODE 0
+#define FREEMEMNODE 1
+
+#define COPY_WHEN_ADD 1
+
 
 namespace leveldb {
 
@@ -77,6 +80,11 @@ class DBTX {
 
 	void Add(int tableid, uint64_t key, uint64_t* val);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);
+
+	//Copy value
+	void Add(int tableid, uint64_t key, uint64_t* val, int len);
+	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len);
+	
 	bool Get(int tableid, uint64_t key, uint64_t** val);
 	void Delete(int tableid, uint64_t key);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);

@@ -18,7 +18,7 @@ static const char* FLAGS_benchmarks =
 	"equal,"
 	"counter,"
 	"nocycle,"
-	"delete,"	
+//	"delete,"	
 	"readonly,"
    "range,"
    "equalrange,"
@@ -93,17 +93,18 @@ class Benchmark {
 			bool b = false;
 			while (b==false) {
 				tx.Begin();
-				uint64_t* key = new uint64_t(); 
-				*key = tid;
+
 				uint64_t* value = new uint64_t(); 
 				*value = 1;
-				tx.Add(0, *key, value);
+				tx.Add(0, tid, value, 8);
+				delete value;
 		
-				uint64_t* key1 = new uint64_t(); 
-				*key1 = (tid+1) % num;
+
 				uint64_t* value1 = new uint64_t(); 
 				*value1 = 2;
-				tx.Add(0, *key1, value1);
+				tx.Add(0, (tid+1) % num, value1, 8);
+				delete value1;
+				
 				b = tx.End();
 			}
 			
@@ -114,11 +115,10 @@ class Benchmark {
 			
 				for (int j=0; j<num; j++) {
 
-					uint64_t *k = new uint64_t();
-					*k = j;
+
 					uint64_t *v;
 					
-					tx1.Get(0, *k, &v);
+					tx1.Get(0, j, &v);
 					str[j] = *v;
 					
 				}						
@@ -202,17 +202,17 @@ class Benchmark {
 			bool b = false;
 			while (b==false) {
 				tx.Begin();
-				uint64_t* key = new uint64_t(); 
-				*key = tid;
+
 				uint64_t* value = new uint64_t(); 
 				*value = 1;
-				tx.Add(0, *key, value);
+				tx.Add(0, tid, value, 8);
+				delete value;
 		
-				uint64_t* key1 = new uint64_t(); 
-				*key1 = (tid+1) % num;
+
 				uint64_t* value1 = new uint64_t(); 
 				*value1 = 2;
-				tx.Add(0, *key1, value1);
+				tx.Add(0, (tid+1) % num, value1, 8);
+				delete value1;
 				b = tx.End();
 			}
 			//printf("Add %d %d\n",tid,(tid+1) % num);
@@ -225,11 +225,10 @@ class Benchmark {
 			
 				for (int j=0; j<num; j++) {
 
-					uint64_t *k = new uint64_t();
-					*k = j;
+
 					uint64_t *v;
 					
-					tx1.Get(0, *k, &v);
+					tx1.Get(0, j, &v);
 					//printf("%d-----1\n",j);
 					str[j] = *v;
 					//printf("%d------2\n",j);
@@ -292,7 +291,8 @@ class Benchmark {
 
 			//printf("Insert %s ", key);
 			//printf(" Value %s\n", value);
-			tx.Add(0, k, value);			
+			tx.Add(0, k, value, 8);			
+			delete value;
 			
 			b = tx.End();
 			
@@ -334,12 +334,12 @@ class Benchmark {
 				
 				for (int j=0; j<10; j++) {
 		 			
-					uint64_t *key = new uint64_t();
-					*key = j;
+
 					uint64_t *value = new uint64_t();
 					*value = i;
 				//	printf("[Test] insert key %lx\n", *key);
-		 			tx.Add(0, *key, value);			
+		 			tx.Add(0, j, value, 8);
+					delete value;				
 				}
 				b = tx.End();
 
@@ -372,7 +372,7 @@ class Benchmark {
 							fail = true;
 							break;
 						}
-							
+						delete value;	
 						iter.Next();
 						
 					}						
@@ -404,7 +404,7 @@ class Benchmark {
 							fail = true;
 							break;
 						}
-							
+						delete value;
 						iter.Next();
 						
 					}						
@@ -449,12 +449,12 @@ class Benchmark {
 				
 				for (int j=1; j<4; j++) {
 		 			
-					uint64_t *key = new uint64_t();
-					*key = j;
+
 					uint64_t *value = new uint64_t();
 					*value = i;
 		 			
-					tx.Add(0, *key, value);			
+					tx.Add(0, j, value, 8);
+					delete value;
 				}
 				b = tx.End();
 
@@ -467,11 +467,10 @@ class Benchmark {
 				
 				for (int j = 1; j < 4; j++) {
 					
-					uint64_t *key = new uint64_t();
-					*key = j;
+
 					uint64_t *value;					
 					
-					tx1.Get(0, *key, &value);
+					tx1.Get(0, j, &value);
 					str[j-1] = *value;
 				
 				}						
@@ -510,11 +509,10 @@ class Benchmark {
 				int j;
 				for (j = 1; j < 4; j++) {
 					
-					uint64_t *key = new uint64_t();
-					*key = j;
+
 					uint64_t *value;					
 						
-					found[j-1] = tx2.Get(0, *key, &value);
+					found[j-1] = tx2.Get(0, j, &value);
 					if (found[j-1]) str[j-1] = *value;
 					
 				}						
@@ -631,17 +629,19 @@ class Benchmark {
 					if (!check3) {
 					//operation
 					for (int j=10; j<10+tid; j++) {
-						//uint64_t *value1 = new uint64_t();
-						//*value1 = 1;
-						tx.Add(0, j, (uint64_t *)8);	
+						uint64_t *value1 = new uint64_t();
+						*value1 = 1;
+						tx.Add(0, j, value1, 8);
+						delete value1;
 					}
 					for (int j = 0; j<10; j++) {
 						tx.Delete(0, 10+tid+j);
 					}
 					for (int j = 0; j<5; j++) {
-						//uint64_t *value2 = new uint64_t();
-						//*value2 = 1;
-						tx.Add(0, 20+tid+j, (uint64_t *)8);
+						uint64_t *value2 = new uint64_t();
+						*value2 = 1;
+						tx.Add(0, 20+tid+j, value2, 8);
+						delete value2;
 					}
 					}
 					}
@@ -706,11 +706,13 @@ class Benchmark {
 							uint64_t *value = new uint64_t();
 							*value = i;
 		//					printf("[%ld] TX1 Put 4\n", pthread_self());
-							tx.Add(0, 4, value);			
+							tx.Add(0, 4, value, 8);
+							delete value;
 #if 1
 							uint64_t *value1 = new uint64_t();
 							*value1 = i;
-							tx.Add(0, 5, value1);	
+							tx.Add(0, 5, value1, 8);
+							delete value1;
 #endif					
 							
 							b = tx.End();
@@ -734,7 +736,7 @@ class Benchmark {
 							c1 = false;
 							c2 = false;
 			//				printf("[%ld]RTX Get 4\n", pthread_self());
-						
+							uint64_t sum = 0;
 							f1 = tx1.Get(0, 4, &value);
 							f2 = tx1.Get(0, 5, &value); 
 		//					printf("[%ld]RTX Get 3\n", pthread_self());
@@ -792,7 +794,8 @@ class Benchmark {
 							*value = i;
 							
 		//					printf("[%ld] TX2 Put 3\n", pthread_self());
-							tx2.Add(0,  3,  value);	
+							tx2.Add(0,  3,  value, 8);
+							delete value;
 		
 		//					printf("[%ld] TX2 Delete 4\n", pthread_self());
 		
@@ -805,7 +808,8 @@ class Benchmark {
 		
 							uint64_t *value1 = new uint64_t();
 							*value1 = i;
-							tx2.Add(0,  6, value1);	
+							tx2.Add(0,  6, value1, 8);
+							delete value1;
 #endif			
 		
 							b = tx2.End();
@@ -868,17 +872,30 @@ class Benchmark {
 				tx.Delete(0, 1);
 				tx.Delete(0, 3);
 				tx.Delete(0, 5);
-				for (int j=10; j<20; j++)
-					tx.Add(0, j, (uint64_t *)20);
+				for (int j=10; j<20; j++) {
+					uint64_t *value = new uint64_t();
+					*value = 20;
+					tx.Add(0, j, value, 8);
+					delete value;
+				}
 				b = tx.End();
 			}
 			b = false;
 			DBTX tx1(store);
 			while (!b) {
 				tx1.Begin();
-				tx1.Add(0, 1, (uint64_t *)100);
-				tx1.Add(0, 3, (uint64_t *)300);
-				tx1.Add(0, 5, (uint64_t *)500);
+				uint64_t *value = new uint64_t();
+				*value = 100;
+				tx1.Add(0, 1, value,8);
+				delete value;
+				value = new uint64_t();
+				*value = 100;
+				tx1.Add(0, 3, value,8);
+				delete value;
+				value = new uint64_t();
+				*value = 100;
+				tx1.Add(0, 5, value,8);
+				delete value;
 				for (int j=10; j<20; j++)
 					tx1.Delete(0, j);
 				b = tx1.End();
@@ -895,7 +912,10 @@ class Benchmark {
 		DBTX tx2(store);
 		while (!f) {
 			tx2.Begin();
-			tx2.Add(0, 2, (uint64_t *)200);
+			uint64_t *value = new uint64_t();
+			*value = 100;
+			tx2.Add(0, 2, value, 8);
+			delete value;
 			f = tx2.End();
 		}
 
@@ -909,7 +929,10 @@ class Benchmark {
 		DBTX tx3(store);
 		while (!f) {
 			tx3.Begin();
-			tx3.Add(0, 4, (uint64_t *)400);
+			uint64_t *value = new uint64_t();
+			*value = 100;
+			tx3.Add(0, 4, value, 8);
+			delete value;
 			f = tx3.End();
 		}
 
@@ -956,14 +979,16 @@ class Benchmark {
 //					printf("[%ld]TX1 Delete 3\n", pthread_self());
 					tx.Delete(0, 3);	
 					
-					//uint64_t *value = new uint64_t();
-					//*value = i;
+					uint64_t *value = new uint64_t();
+					*value = i;
 //					printf("[%ld] TX1 Put 4\n", pthread_self());
-					tx.Add(0, 0, 4, 2, (uint64_t*)10);			
+					tx.Add(0, 0, 4, 2, value, 8);
+					delete value;
 #if 1
-					//uint64_t *value1 = new uint64_t();
-					//*value1 = i;
-					tx.Add(0, 5, (uint64_t*)10);	
+					uint64_t *value1 = new uint64_t();
+					*value1 = i;
+					tx.Add(0, 5, value1, 8);
+					delete value1;
 #endif					
                    
 					b = tx.End();
@@ -1103,7 +1128,11 @@ class Benchmark {
 
 //					printf("[%ld] TX2 Delete 4\n", pthread_self());
 #if 1
-					tx2.Add(0, 0, 3, (tid%2)+1, (uint64_t *)10);	
+
+					uint64_t *value = new uint64_t();
+					*value = 10;
+					tx2.Add(0, 0, 3, (tid%2)+1, value, 8);
+					delete value;
 
 					tx2.Delete(0, 4);			
 
@@ -1113,8 +1142,10 @@ class Benchmark {
 		
 #endif	
 
-					
-					tx2.Add(0, 0, 6, (tid%2)+1, (uint64_t *)10);	
+					uint64_t *value1 = new uint64_t();
+					*value1 = 10;
+					tx2.Add(0, 0, 6, (tid%2)+1, value1, 8);
+					delete value1;
 		
 
 					b = tx2.End();
@@ -1176,11 +1207,11 @@ class Benchmark {
 			while (b==false) {
 				tx.Begin();	
 				  		
-			  	uint64_t *key = new uint64_t();
-			  	*key = i;
+
 			  	uint64_t *value = new uint64_t();
 			  	*value = 4;			
-			  	tx.Add(0, *key, value);				
+			  	tx.Add(0, i, value, 8);
+				delete value;
 				b = tx.End();
 						  
 			}
@@ -1203,11 +1234,11 @@ class Benchmark {
 		b = false;
 		while (b==false) {
 			tx.Begin();					  		
-		  	uint64_t *key = new uint64_t();
-		  	*key = 12;
+
 		  	uint64_t *value = new uint64_t();
 		  	*value = 4;			
-		  	tx.Add(0, *key, value);				
+		  	tx.Add(0, 12, value, 8);				
+			delete value;
 			b = tx.End();						  
 		}			  
 		arg->start = 2;
@@ -1217,11 +1248,11 @@ class Benchmark {
 		b = false;
 		while (b==false) {
 			tx.Begin();					  		
-		  	uint64_t *key = new uint64_t();
-		  	*key = 10;
+
 		  	uint64_t *value = new uint64_t();
 		  	*value = 4;			
-		  	tx.Add(0, *key, value);				
+		  	tx.Add(0, 10, value, 8);				
+			delete value;
 			b = tx.End();						  
 		}			  
 		arg->start = 4;	
@@ -1248,11 +1279,11 @@ class Benchmark {
 				 	while (b==false) {
 			    		tx.Begin();	
 				  		
-				  	  	uint64_t *key = new uint64_t();
-				  	  	*key = i;
+
 				  	  	uint64_t *value = new uint64_t();
 				  	  	*value = j;			
-					  	tx.Add(0, *key, value);				
+					  	tx.Add(0, i, value, 8);
+						delete value;
 				  		b = tx.End();
 						  
 					}
@@ -1264,11 +1295,10 @@ class Benchmark {
 				leveldb::DBROTX tx1( store);
 
 				tx1.Begin();
-				uint64_t* k = new uint64_t();
-				*k = 1;
+
 					
 				uint64_t *r;
-				tx1.Get(0, *k,  &r);
+				tx1.Get(0, 1,  &r);
 				if (*r != j) {
 					printf("Key 1 get %d should be %d\n", *r, j);
 					return;
@@ -1295,12 +1325,10 @@ class Benchmark {
 			for (m=1; m<FLAGS_txs;m++) {
 			  
 			    bool found;  
-			   		  		    
-			    uint64_t *key = new uint64_t();
-			    *key = m;
+
 			    
 			    
-			    found = tx2.Get(0, *key,  &r);		
+			    found = tx2.Get(0, m,  &r);		
 
 			    if (m % 10 == 0 ) {
 				  if (found) c1 = true;
@@ -1526,14 +1554,12 @@ class Benchmark {
 			while (b==false) {
 			tx.Begin();
 			
-			
-			uint64_t *key = new uint64_t();
-			*key = 1;
+
 			uint64_t *value = new uint64_t();
 			*value = 0;
 			
-			tx.Add(0, *key, value);				
-												
+			tx.Add(0, 1, value, 8);				
+			delete value;									
 			b = tx.End();
 			
 			//if (b==true)printf("%d\n", i);
@@ -1547,12 +1573,12 @@ class Benchmark {
 			tx.Begin();
 			
 			for (int i=0; i<num; i++) {
-			  uint64_t *key = new uint64_t();
-			  *key = i;
+
 			  uint64_t *value = new uint64_t();
 			  *value = 1;
 			
-			  tx.Add(0, *key, value);				
+			  tx.Add(0, i, value, 8);				
+			  delete value;
 			}									
 			b = tx.End();
 			
@@ -1569,8 +1595,9 @@ class Benchmark {
 			  uint64_t *value = new uint64_t();
 			  *value = 1;
 			  if ( i == 3 ||i == 6 || i == 4)//) 
-			  	tx.Add(0, 0, i, 2, value);
-			  else tx.Add(0, i , value);				
+			  	tx.Add(0, 0, i, 2, value, 8);
+			  else tx.Add(0, i , value, 8);
+			  delete value;
 			}									
 			b = tx.End();
 			
@@ -1589,7 +1616,8 @@ class Benchmark {
 					for (int j = 0; j<10; j++) {
 					    uint64_t *value = new uint64_t();
 					    *value = 1;			
-					    tx.Add(0, i+j, value);				
+					    tx.Add(0, i+j, value, 8);
+						delete value;
 					}									
 					b = tx.End();
 						
@@ -1607,7 +1635,8 @@ class Benchmark {
 				for (int i=0; i<30; i++) {
 					uint64_t *value = new uint64_t();
 					*value = 5;
-					tx.Add(0, i, value);
+					tx.Add(0, i, value, 8);
+					delete value;
 				}
 				b = tx.End();
 			}	
