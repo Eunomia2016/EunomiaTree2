@@ -547,7 +547,7 @@ namespace leveldb {
 	neworder->no_w_id = w_id;
 	neworder->no_d_id = d_id;
 	neworder->no_o_id = o_id;
-	uint64_t *value = reinterpret_cast<uint64_t *>(&neworder);
+	uint64_t *value = reinterpret_cast<uint64_t *>(neworder);
   	
   	store->tables[NEWO]->Put(key, value);
   	
@@ -784,6 +784,9 @@ namespace leveldb {
  	  assert(found);
 	  Customer *c = reinterpret_cast<Customer *>(c_value);
 	  //printf("3.1\n");
+	  if(c == (Customer *)3)
+	  	printf("key %ld\n", c_key);
+	  
   	  output->c_discount = c->c_discount;
 	  //printf("3.2\n");
   	  memcpy(output->c_last, c->c_last, sizeof(output->c_last));
