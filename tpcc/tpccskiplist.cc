@@ -297,6 +297,7 @@ namespace leveldb {
 	newol->ol_amount = oldol->ol_amount;
 
 	memcpy(newol->ol_delivery_d, now, 15);
+	assert (oldol->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
   }
   
   TPCCSkiplist::TPCCSkiplist() {
@@ -315,7 +316,10 @@ namespace leveldb {
 	store->AddTable(STOC, HASH, NONE);
 #else
 	for (int i=0; i<9; i++)
-		if (i == CUST) store->AddTable(i, BTREE, SBTREE);
+		if (i == CUST) {
+			int a = store->AddTable(i, BTREE, SBTREE);
+			if (a != CUST_INDEX) printf("Customer index Wrong!\n");
+		}
 		else if (i == ORDE) store->AddTable(i, BTREE, IBTREE);
 		else store->AddTable(i, BTREE, NONE);
 #endif
@@ -533,6 +537,7 @@ namespace leveldb {
   	int64_t key = makeOrderLineKey(orderline.ol_w_id, orderline.ol_d_id, orderline.ol_o_id, orderline.ol_number);
 	//printf("insert ol_key %ld\n", key);
 	OrderLine *ol = const_cast<OrderLine *>(&orderline);
+	if (ol->ol_i_id > Stock::NUM_STOCK_PER_WAREHOUSE) printf("IIIIIIIIIII\n");
 	uint64_t *value = reinterpret_cast<uint64_t *>(ol);
   	
   	store->tables[ORLI]->Put(key, value);
@@ -597,7 +602,8 @@ namespace leveldb {
 	  OrderLine *l = reinterpret_cast<OrderLine *>(l_value);
 	  if (l->ol_quantity != items[1].ol_quantity) 
 	  	printf("ol_quantity %d %d\n",l->ol_quantity, items[1].ol_quantity);
-	  assert(l->ol_quantity == items[1].ol_quantity);
+	  //assert(l->ol_quantity == items[1].ol_quantity);
+
 
 	  uint64_t s_key = makeStockKey(items[3].ol_supply_w_id, items[3].i_id);
       uint64_t *s_value;
@@ -965,6 +971,7 @@ namespace leveldb {
 		//printf("Step 11\n");
 		line->ol_number = i + 1;
 	    line->ol_i_id = items[i].i_id;
+		assert (line->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
     	line->ol_supply_w_id = items[i].ol_supply_w_id;
 	    line->ol_quantity = items[i].ol_quantity;
     	assert(sizeof(line->ol_dist_info) == sizeof(s->s_dist[district_id]));
@@ -1143,8 +1150,8 @@ namespace leveldb {
 #endif	
 			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
 			iter.Seek(c_start);
-			uint64_t **c_values = new uint64_t *[40];
-			uint64_t *c_keys = new uint64_t[40];
+			uint64_t **c_values = new uint64_t *[100];
+			uint64_t *c_keys = new uint64_t[100];
 			int j = 0;
 			while (iter.Valid()) {
 				
@@ -1166,6 +1173,10 @@ namespace leveldb {
 						j++;
 					}	
 					delete kvs;
+					if (j >= 100) {
+						printf("P Array Full\n");
+						exit(0);
+					}
 				}
 				else break;
 				iter.Next();
@@ -1177,10 +1188,10 @@ namespace leveldb {
 //			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
 			//if (c_value == NULL) exit(0);
-			delete fstart;
-			delete fend;
-			delete c_values;
-			delete c_keys;
+			delete[] fstart;
+			delete[] fend;
+			delete[] c_values;
+			delete[] c_keys;
 			assert(found);
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 			// printf("customer %d %lx\n",j,c_value);
@@ -1583,7 +1594,7 @@ namespace leveldb {
 				printf("%d ",((char *)c_start)[i]);
 			printf("\n");
 					
-			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
+			printf("end %d %d %s\n",warehouse_id, district_id, clast);
 #endif
 
 #if SLDBTX
@@ -1593,8 +1604,8 @@ namespace leveldb {
 			DBROTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
 #endif
 			citer.Seek(c_start);
-			uint64_t **c_values = new uint64_t *[40];
-			uint64_t *c_keys = new uint64_t[40];
+			uint64_t **c_values = new uint64_t *[100];
+			uint64_t *c_keys = new uint64_t[100];
 			int j = 0;
 			while (citer.Valid()) {
 					
@@ -1604,7 +1615,7 @@ namespace leveldb {
 				if (compareCustomerIndex(citer.Key(), c_end)){
 #if 0					
 								for (int i=0; i<38; i++)
-									printf("%d ",((char *)iter.Key())[i]);
+									printf("%d ",((char *)citer.Key())[i]);
 								printf("\n");
 #endif
 
@@ -1614,29 +1625,39 @@ namespace leveldb {
 #else
 					DBROTX::KeyValues *kvs = citer.Value();
 #endif
+#if 1
 					int num = kvs->num;
+			
 					for (int i=0; i<num; i++)  {
 						c_values[j] = kvs->values[i];
 						c_keys[j] = kvs->keys[i];
 			//				printf("j %d\n",j);
 						j++;
-					}	
+					}
+					if(j >= 100){
+						printf("OS Array Full\n");
+						exit(0);
+					}
 					delete kvs;
+#endif
 				}
 				else break;
 				citer.Next();
 				
 			}
+
+
+#if 1				
 			j = (j+1)/2 - 1;
 				
 			uint64_t *c_value = c_values[j];
 			//			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
 			//if (c_value == NULL) exit(0);
-			delete fstart;
-			delete fend;
-			delete c_values;
-			delete c_keys;
+			delete[] fstart;
+			delete[] fend;
+			delete[] c_values;
+			delete[] c_keys;
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 	  		
 	  		int64_t customer_id = c_key - (warehouse_id * District::NUM_PER_WAREHOUSE + district_id)
@@ -1648,7 +1669,7 @@ namespace leveldb {
 			strcpy(output->c_middle, c->c_middle);
 			strcpy(output->c_last, c->c_last);
 	  
-			
+		
 			//-------------------------------------------------------------------------
 			//The row in the ORDER table with matching O_W_ID (equals C_W_ID), O_D_ID (equals C_D_ID), O_C_ID
 			//(equals C_ID), and with the largest existing O_ID, is selected. This is the most recent order placed by that customer. 
@@ -1732,6 +1753,7 @@ namespace leveldb {
 				rcount++;
 #endif
 				OrderLine* line = reinterpret_cast<OrderLine *>(ol_value);
+				assert (line->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
 				output->lines[line_number-1].ol_i_id = line->ol_i_id;
 				output->lines[line_number-1].ol_supply_w_id = line->ol_supply_w_id;
 				output->lines[line_number-1].ol_quantity = line->ol_quantity;
@@ -1739,6 +1761,7 @@ namespace leveldb {
 				strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
 			  }
 			}
+#endif			
 			bool b = tx.End();
 			if(b)
 			  break;
@@ -1885,6 +1908,8 @@ namespace leveldb {
 		  rcount++;
 #endif
           OrderLine* line = reinterpret_cast<OrderLine *>(ol_value);
+		  
+		  assert (line->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
           output->lines[line_number-1].ol_i_id = line->ol_i_id;
           output->lines[line_number-1].ol_supply_w_id = line->ol_supply_w_id;
           output->lines[line_number-1].ol_quantity = line->ol_quantity;
@@ -1980,7 +2005,21 @@ retry:
 		  //-------------------------------------------------------------------------
 		  //printf("ol %lx\n",ol);
 		  //printf("ol_key %ld end %ld\n",ol_key, end);
+
 		  int32_t s_i_id = ol->ol_i_id;
+
+#if 0
+		  if (s_i_id < 1 || s_i_id > Stock::NUM_STOCK_PER_WAREHOUSE)  {
+		  	printf("1992 ol_key %ld start %ld end %ld\n",ol_key, start, end);
+		  	printf("1993 -------- %ld\n", ol->ol_i_id);
+			uint64_t *temp;
+			tx.Get(ORLI, ol_key, &temp);
+			ol = reinterpret_cast<OrderLine *>(temp);
+			printf("1997 TEMP %ld\n", ol->ol_i_id);
+			
+		  }
+#endif		  
+		  
 		  int64_t s_key = makeStockKey(warehouse_id, s_i_id);
 		  
 		  uint64_t *s_value;
@@ -2185,6 +2224,8 @@ retry:
 	  updateOrderLine(newol, ol, now);
 	  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
 	  //memcpy(ol->ol_delivery_d, now, 15);
+	  
+	  assert (newol->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
 #if COPY_WHEN_ADD
 	  tx.Add(ORLI, ol_key, ol_v, sizeof(OrderLine));
 #else

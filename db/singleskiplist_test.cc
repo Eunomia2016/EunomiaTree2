@@ -873,9 +873,9 @@ class Benchmark {
 			bool b = false;
 			DBTX tx(store);
 			while (!b) {
-				if (i == 0) printf("!!!! Thread[%d] Tx[%d]\n",tid,i);
+				//if (i == 0) printf("!!!! Thread[%d] Tx[%d]\n",tid,i);
 				tx.Begin();
-				if (i == 0) printf("---- Thread[%d] Tx[%d]\n",tid,i);
+				//if (i == 0) printf("---- Thread[%d] Tx[%d]\n",tid,i);
 				tx.Delete(0, 1);
 				
 				tx.Delete(0, 3);
@@ -887,7 +887,7 @@ class Benchmark {
 					delete value;
 				}
 				b = tx.End();
-				if (i == 0) printf("**** Thread[%d] Tx[%d]\n",tid,i);
+				//if (i == 0) printf("**** Thread[%d] Tx[%d]\n",tid,i);
 			}
 			b = false;
 			DBTX tx1(store);

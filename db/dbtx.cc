@@ -35,6 +35,7 @@ __thread DBTX::BufferNode* DBTX::buffer = NULL;
 void DBTX::ThreadLocalInit()
 {
    if ( false == localinit) {
+   	//printf("%ld localinit AA\n",pthread_self());
 	  readset = new ReadSet();
 	  writeset = new WriteSet();
 #if BUFFERNODE
@@ -42,6 +43,7 @@ void DBTX::ThreadLocalInit()
 	  buffer = new BufferNode[txdb_->number];
 #endif
 	  localinit = true;
+	//	printf("%ld localinit BB\n", pthread_self());
    }
 	
 }
@@ -212,7 +214,7 @@ void DBTX::WriteSet::Resize() {
 	nkv[i] = kvs[i];
   }
 
-  delete[] kvs;
+  //delete[] kvs;
 
   kvs = nkv;
 
@@ -660,20 +662,20 @@ bool DBTX::End()
   }
 #endif
 
-txdb_->EpochTXEnd();
-
 
 #if FREEOLDVALUE
-	txdb_->GCDeletedNodes();
 	if(writeset->elems > 0)
 		txdb_->AddDeletedNodes(writeset->GetDeletedValues(), writeset->elems);
 #endif
 
 #if FREEMEMNODE
-	txdb_->GCDeletedNodes();
 	if(gcnindex > 0)
-		txdb_->AddDeletedNodes(gcnodes, gcnindex);	
+		txdb_->AddDeletedNodes(gcnodes, gcnindex);
 #endif
+
+	txdb_->EpochTXEnd();
+	txdb_->GCDeletedNodes();
+
 
 
   return true;
@@ -793,12 +795,12 @@ retry:
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
 {
-
+#if 0
 	if(val > (uint64_t *)0x7f0000000000) {
 		printf("DBTX::Add Wrong Add Value %lx\n",val);
 		while(1);
 	}
-
+#endif
 
 retryA:
 	uint64_t *seq;
