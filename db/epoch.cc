@@ -79,7 +79,6 @@ int Epoch::Compare(Epoch* e)
 	} else if(res == 0) {
 		return 1;
 	}
-
 	assert(0);
 }
 
@@ -88,7 +87,7 @@ void Epoch::Print()
 {
 	printf("Epoch[%d] ", tid);
 	for(int i = 0; i < thrs_num; i++) {
-		printf("[%d]: %d ", i, counters[i]);
+		printf("[%d]: %ld ", i, counters[i]);
 	}
 	printf("\n");
 }

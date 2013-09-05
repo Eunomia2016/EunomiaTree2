@@ -27,12 +27,12 @@
 
 //For deletion
 
-#define FREEMEMNODE 1
+#define FREEMEMNODE 0
 
-#define FREEOLDVALUE 1
+#define FREEOLDVALUE 0
 
 //For interface
-#define COPY_WHEN_ADD 1
+#define COPY_WHEN_ADD 0
 
 
 namespace leveldb {

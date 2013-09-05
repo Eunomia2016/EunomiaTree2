@@ -7,7 +7,7 @@
 GCQueue::GCQueue()
 {
 	//the default size of the gc queue is 64
-	qsize = 64;
+	qsize = 1024;
 	head = tail = 0;
 	queue = new GCElement*[qsize];
 	need_del = 0;

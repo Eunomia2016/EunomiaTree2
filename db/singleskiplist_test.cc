@@ -18,12 +18,15 @@ static const char* FLAGS_benchmarks =
 	"equal,"
 	"counter,"
 	"nocycle,"
-//	"delete,"	
-	"readonly,"
-   "range,"
-   "equalrange,"
-	"nocycle_readonly,"
-	"rwiter";
+	"delete,"	
+//	"readonly,"
+ //  "range,"
+ //  "equalrange,"
+//	"nocycle_readonly,"
+//	"rwiter"
+	"freedelete,"
+	"secdelete,"
+	"bigdelete";
 	
 
 namespace leveldb {
@@ -446,7 +449,6 @@ class Benchmark {
 			bool b = false;
 			while (b == false) {
 				tx.Begin();
-				
 				for (int j=1; j<4; j++) {
 		 			
 
@@ -751,16 +753,14 @@ class Benchmark {
 								v3 = *value;	
 								//printf("k3 %ld\n",v3);
 							}
+							
 							if (f4 && f3) {
 								v6 = *value1;
 								//printf("k6 %ld\n",v6);
-								if (v3 != v6) {
-									printf("k3 %ld\n",v3);
-									printf("k6 %ld\n",v6);
-								}
-
-								
+			
 							}
+								
+						
 							
 							DBTX::Iterator iter(&tx1, 0);
 							iter.Seek(3);
@@ -943,10 +943,10 @@ class Benchmark {
 		DBTX tx2(store);
 		while (!f) {
 			tx2.Begin();
-			uint64_t *value = new uint64_t();
+	/*		uint64_t *value = new uint64_t();
 			*value = 100;
 			tx2.Add(0, 2, value, 8);
-			delete value;
+			delete value;*/
 			f = tx2.End();
 		}
 
@@ -966,10 +966,10 @@ class Benchmark {
 		DBTX tx3(store);
 		while (!f) {
 			tx3.Begin();
-			uint64_t *value = new uint64_t();
+	/*		uint64_t *value = new uint64_t();
 			*value = 100;
 			tx3.Add(0, 4, value, 8);
-			delete value;
+			delete value;*/
 			f = tx3.End();
 		}
 

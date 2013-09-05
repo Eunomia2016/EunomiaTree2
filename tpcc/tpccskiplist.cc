@@ -11,7 +11,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	1
-#define CHECKTPCC 0
+#define CHECKTPCC 1
 
 
 #define WARE 0
@@ -569,7 +569,7 @@ namespace leveldb {
         return false;
     }
 	
-#if CHECKTPCC
+#if 0
 
 	leveldb::DBTX tx(store);
 	//printf("Check\n");
@@ -610,13 +610,21 @@ namespace leveldb {
       uint64_t *s_value;
 	  found = tx.Get(STOC, s_key, &s_value);
 	  assert(found);
-
+	  Stock *s = reinterpret_cast<Stock *>(s_value);
+	  assert(s->s_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
 	  
 	  bool b = tx.End();  
   	  if (b) break;
   	}
 
-
+	
+	int32_t o_id_first = 0;
+	int32_t o_id_second = 0;
+	int32_t dnext = 0;
+	int32_t num = 0;
+	int32_t o_id_min = 0;
+	int32_t c = 0;
+	int32_t c1 = 0;
 	DBTX rotx(store);
 	bool f = false;
 	while (!f) {
@@ -638,7 +646,9 @@ namespace leveldb {
     iter.Prev();
 	if (iter.Valid() && iter.Key() >= end) {
 		o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
-		assert(o_id == d->d_next_o_id - 1);		
+		//assert(o_id == d->d_next_o_id - 1);		
+		o_id_first = o_id;
+		dnext = d->d_next_o_id - 1;
 	}  	
 
 	start = makeNewOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
@@ -650,20 +660,22 @@ namespace leveldb {
 	
 	if (iter1.Valid() && iter1.Key() >= end) {
 		o_id = static_cast<int32_t>(iter1.Key() << 32 >> 32);
-		assert(o_id == d->d_next_o_id - 1);		
+		//assert(o_id == d->d_next_o_id - 1);		
+		o_id_second = o_id;
 	}  	
 	
 	//Consistency 3
 	
 	iter1.Seek(end);
 	int32_t min = static_cast<int32_t>(iter1.Key() << 32 >> 32);
-	int32_t num = 0;
+	num = 0;
 	while (iter1.Valid() && iter1.Key() < start) {
 		num++;
 		iter1.Next();
 	}
-	if (o_id - min + 1 != num) printf("o_id %d %d %d",o_id, min, num);
-	assert(o_id - min + 1 == num);
+	//if (o_id - min + 1 != num) printf("o_id %d %d %d",o_id, min, num);
+	//assert(o_id - min + 1 == num);
+	o_id_min = o_id - min +1;
 
 	//Consistency 4
 
@@ -671,7 +683,7 @@ namespace leveldb {
 	start = makeOrderKey(warehouse_id, district_id, 1);
 	iter.Seek(start);
 	Order *o; 
-	int32_t c = 0;
+	c = 0;
 	while (iter.Valid() && iter.Key() <= end) {
 		uint64_t *o_value = iter.Value();
 		o = reinterpret_cast<Order *>(o_value);
@@ -680,16 +692,21 @@ namespace leveldb {
 	}
 	start = makeOrderLineKey(warehouse_id, district_id, 1, 1);
 	end = makeOrderLineKey(warehouse_id, district_id, Order::MAX_ORDER_ID, Order::MAX_OL_CNT);
-	int32_t c1 = 0;
+	c1 = 0;
 	DBTX::Iterator iter2(&rotx, ORLI);
 	iter2.Seek(start);
 	while (iter2.Valid() && iter2.Key() <= end) {
 		c1++;
 		iter2.Next();
 	}
-	assert(c == c1);
+	//assert(c == c1);
 	f = rotx.End();
 	}
+
+	assert(c == c1);
+	assert(dnext == o_id_first);
+	assert(dnext == o_id_second);
+	assert(o_id_min == num);
 #endif
 	
     return true;
@@ -1314,10 +1331,11 @@ namespace leveldb {
 #if CHECKTPCC
 	leveldb::DBTX tx(store);
 	//printf("Check\n");
+	float sum; float wytd;
 	while(true) {
 	  
 	  tx.Begin();
-
+	  sum = 0;
 	  int64_t c_key = makeCustomerKey(c_warehouse_id, c_district_id, customer_id);
   	  
   	  uint64_t *c_value;
@@ -1334,7 +1352,6 @@ namespace leveldb {
  	  found = tx.Get(WARE, w_key, &w_value);
 	  assert(found);
 	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
-	  float sum = 0;
 	  for (int i = 1; i<=District::NUM_PER_WAREHOUSE; i++) {
 		  int64_t d_key = makeDistrictKey(warehouse_id, i);
   		  uint64_t *d_value;
@@ -1343,12 +1360,15 @@ namespace leveldb {
 		  sum += d->d_ytd;
 		  //printf("%f\n", d->d_ytd);
 	  }
-	  if (sum - w->w_ytd >= 1000 || w->w_ytd - sum >= 1000) 
-	  	printf("Consistency 1, sum %f  warehouse %f\n", sum, w->w_ytd);
+	  wytd = w->w_ytd;
     
 	  bool b = tx.End();  
+	  
   	  if (b) break;
   	}
+
+	if (sum - wytd >= 1000 || wytd - sum >= 1000) 
+	  	printf("Consistency 1, sum %f  warehouse %f\n", sum, wytd);	
 #endif
 
   }

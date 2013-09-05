@@ -606,6 +606,8 @@ bool DBTX::Abort()
   readset->Reset();
   writeset->Reset();
   abort = false;
+  //Should not call End
+  txdb_->EpochTXEnd();
   return abort;
 }
 
@@ -687,12 +689,14 @@ ABORT:
 		  delete[] gcnodes;
 #endif
 
-	
+#if COPY_WHEN_ADD
 	for(int i = 0; i < writeset->elems; i++) {
 		if (writeset->kvs[i].val != NULL && writeset->kvs[i].val != (uint64_t *)1)
 			delete writeset->kvs[i].val;
 	}
-	
+#endif	
+	txdb_->EpochTXEnd();
+	txdb_->GCDeletedNodes();
  	return false;
   
 
