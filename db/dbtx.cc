@@ -273,7 +273,7 @@ void DBTX::WriteSet::TouchAddr(uint64_t addr, int type)
 void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::MemNode* node)
 {
   assert(elems <= max_length);
-
+  //printf("WriteSet ADD %lx\n", val);
   if(elems == max_length) {
 	Resize();
   }
@@ -374,7 +374,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 			assert(dbtx_ != NULL);
 
 			//use the write set buffer the old value
-			//kvs[i].val = kvs[i].node->value;						
+			kvs[i].val = kvs[i].node->value;						
 			kvs[i].node->value = (uint64_t *)2;
 
 			
@@ -407,7 +407,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		} else {
 			uint64_t* oldval = kvs[i].node->value;
 			kvs[i].node->value = kvs[i].val;
-			//kvs[i].val = oldval;
+			kvs[i].val = oldval;
 		}
 
 
@@ -750,7 +750,6 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len)
 
 {
 //  SpinLockScope spinlock(&slock);
-
 retry:
 
   Memstore::MemNode* node;

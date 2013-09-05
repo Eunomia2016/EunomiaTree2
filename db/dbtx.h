@@ -26,7 +26,9 @@
 #define CLEANUPPHASE 0
 
 //For deletion
+
 #define FREEMEMNODE 1
+
 #define FREEOLDVALUE 1
 
 //For interface
