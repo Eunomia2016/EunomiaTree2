@@ -240,7 +240,7 @@ class Benchmark {
 
   void doOne(ThreadState* thread) {
 	((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
-	
+	printf("thread %d\n",thread->tid);
   	// Change the constants for run
 #if TIMEPROFILE
 	double start_time = leveldb::Env::Default()->NowMicros();

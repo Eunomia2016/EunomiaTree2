@@ -9,7 +9,7 @@
 
 
 //Define if use secondary index or not
-#define SEC_INDEX 0
+#define SEC_INDEX 1
 
 
 // Avoid std::tr1::unordered_set on Mac OS X, which has compile errors
@@ -79,6 +79,7 @@ struct Warehouse {
     int32_t w_id;
     float w_tax;
     float w_ytd;
+    //int32_t w_ytd;
     char w_name[MAX_NAME+1];
     char w_street_1[Address::MAX_STREET+1];
     char w_street_2[Address::MAX_STREET+1];
@@ -100,6 +101,7 @@ struct District {
     int32_t d_w_id;
     float d_tax;
     float d_ytd;
+    //int32_t d_ytd;
     int32_t d_next_o_id;
     char d_name[MAX_NAME+1];
     char d_street_1[Address::MAX_STREET+1];

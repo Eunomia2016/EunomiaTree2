@@ -569,7 +569,7 @@ namespace leveldb {
         return false;
     }
 	
-#if 0
+#if CHECKTPCC
 
 	leveldb::DBTX tx(store);
 	//printf("Check\n");
@@ -1332,6 +1332,7 @@ namespace leveldb {
 	leveldb::DBTX tx(store);
 	//printf("Check\n");
 	float sum; float wytd;
+	//int32_t sum; int32_t wytd;
 	while(true) {
 	  
 	  tx.Begin();
@@ -1347,28 +1348,35 @@ namespace leveldb {
 	  //Consistency 1
 	  //Change h_amount range to (1000,5000) when doing this test 
 	  // TPCCClient.h : 35
+	  //Use int when numtx >= 1000000
 	  int64_t w_key = makeWarehouseKey(warehouse_id);	  
 	  uint64_t *w_value;  
  	  found = tx.Get(WARE, w_key, &w_value);
 	  assert(found);
 	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
+	  wytd = w->w_ytd;
+	  
+ 	 //	printf("%f\n",wytd);
 	  for (int i = 1; i<=District::NUM_PER_WAREHOUSE; i++) {
 		  int64_t d_key = makeDistrictKey(warehouse_id, i);
   		  uint64_t *d_value;
 	  	  found = tx.Get(DIST, d_key, &d_value);
 		  District *d = reinterpret_cast<District *>(d_value);   
 		  sum += d->d_ytd;
-		  //printf("%f\n", d->d_ytd);
+		//  printf("%f\n",d->d_ytd);
 	  }
-	  wytd = w->w_ytd;
-    
+	  //printf("%f DIFF\n",wytd-sum);
 	  bool b = tx.End();  
 	  
   	  if (b) break;
   	}
-
+#if 0	  
+	
 	if (sum - wytd >= 1000 || wytd - sum >= 1000) 
-	  	printf("Consistency 1, sum %f  warehouse %f\n", sum, wytd);	
+	if (sum!=wytd)
+	  printf("Consistency 1, id %d sum %d  warehouse %d\n", warehouse_id, sum, wytd);	
+#endif	  
+
 #endif
 
   }
