@@ -26,8 +26,8 @@
 #define CLEANUPPHASE 0
 
 //For deletion
-#define FREEMEMNODE 0
-#define FREEOLDVALUE 0
+#define FREEMEMNODE 1
+#define FREEOLDVALUE 1
 
 //For interface
 #define COPY_WHEN_ADD 1

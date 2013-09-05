@@ -350,7 +350,7 @@ inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
 {
   for(int i = 0; i < elems; i++) {
-
+	
 #if GLOBALOCK
 	assert(kvs[i].node->counter <= gcounter);
 #endif

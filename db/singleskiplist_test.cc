@@ -692,13 +692,13 @@ class Benchmark {
 					DBTables *store = arg->store;
 					store->ThreadLocalInit(tid);
 			
-			
+					assert( store->nodeGCQueue != NULL);
 					//printf("In tid %lx\n", arg);
 					//printf("start %d\n",tid);
-					
+					uint64_t v3; uint64_t v6;
 					bool fail = false;
 					for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
-			
+						//printf("Iter %d\n",i);
 						leveldb::DBTX tx( store);
 						bool b = false;
 						while (b == false) {
@@ -744,9 +744,24 @@ class Benchmark {
 							f1 = tx1.Get(0, 4, &value);
 							f2 = tx1.Get(0, 5, &value); 
 		//					printf("[%ld]RTX Get 3\n", pthread_self());
+		
 							f3 = tx1.Get(0, 3, &value);					
-							tx1.Get(0, 6, &value1); 
+							bool f4 = tx1.Get(0, 6, &value1); 
+							if (f3) {
+								v3 = *value;	
+								//printf("k3 %ld\n",v3);
+							}
+							if (f4 && f3) {
+								v6 = *value1;
+								//printf("k6 %ld\n",v6);
+								if (v3 != v6) {
+									printf("k3 %ld\n",v3);
+									printf("k6 %ld\n",v6);
+								}
 
+								
+							}
+							
 							DBTX::Iterator iter(&tx1, 0);
 							iter.Seek(3);
 							if (f3 && iter.Key()!=3) c1 = true;
@@ -772,8 +787,8 @@ class Benchmark {
 							fail = true;
 							break;
 						}
-						if (f3 && *value != *value1) {
-							printf("Key 3 value %d and Key 6 value %d, should have same values\n",*value, *value1);
+						if (f3 && v3 != v6) {
+							printf("Key 3 value %d and Key 6 value %d, should have same values\n",v3, v6);
 							fail = true;
 							break;
 						}
@@ -1339,7 +1354,7 @@ class Benchmark {
 		if (name == Slice("readonly")) {	
 			//check
 			leveldb::DBROTX tx2(store);
-			int m; uint64_t *r;
+			int m; uint64_t *r; uint64_t res;
 			bool c1 = false;bool c2 = false;bool c3 = false;
 			ThreadArg *arg = new ThreadArg();
 			arg->start = 0;
@@ -1366,6 +1381,7 @@ class Benchmark {
 				  break;
 			    }
 			    else if (*r != 3) {
+				  res = *r;
 			  	  c3 = true;
 				  break;			 			  
 			    }
@@ -1382,7 +1398,7 @@ class Benchmark {
 				return;
 			}
 			else if (c3) {
-			  	printf("Key %d get %d instead of 3\n", m, *r);
+			  	printf("Key %d get %d instead of 3\n", m, res);
 				return;			 			  
 			}
 			
@@ -1409,7 +1425,7 @@ class Benchmark {
 			 iter.Seek(1); 
 			 uint64_t key = 1;
 			 uint64_t m = 0;
-			 uint64_t *r;
+			 uint64_t *r; uint64_t res;
 			 while (iter.Valid()) {
 			    m = iter.Key();
 			    r = iter.Value();
@@ -1432,6 +1448,7 @@ class Benchmark {
 				  break;
 			    }
 			    else if (*r != 3) {
+				  res = *r;
 			  	  c3 = true;
 				  break;			 			  
 			    }
@@ -1454,7 +1471,7 @@ class Benchmark {
 				return;
 			}
 			else if (c3) {
-			  	printf("Key %d get %d instead of 3\n", m, *r);
+			  	printf("Key %d get %d instead of 3\n", m, res);
 				return;			 			  
 			}
 			else if (m!=end) {
@@ -1483,6 +1500,7 @@ class Benchmark {
 			    }
 			    else if (*r != 3 && *r != 4) {
 			  	  c3 = true;
+				  res = *r;
 				  break;			 			  
 			    }
 			    key--;
@@ -1501,7 +1519,7 @@ class Benchmark {
 				return;
 			}
 			else if (c3) {
-			  	printf("Prev Key %d get %d instead of 3\n", m, *r);
+			  	printf("Prev Key %d get %d instead of 3\n", m, res);
 				return;			 			  
 			}
 			else if (m!=end) {
@@ -1574,7 +1592,7 @@ class Benchmark {
 		}
 		
 		if (name == Slice("counter") ) {
-			
+			store->ThreadLocalInit(FLAGS_threads);
 			
 			leveldb::DBTX tx( store);
 			bool b =false;
@@ -1594,6 +1612,7 @@ class Benchmark {
 			//printf("init \n");
 		}
 		else if (name == Slice("nocycle") || name == Slice("nocycle_readonly")) {
+			store->ThreadLocalInit(0);
 			leveldb::DBTX tx( store);
 			bool b =false;
 			while (b==false) {
@@ -1613,6 +1632,7 @@ class Benchmark {
 			}
 		}
 	    else if (name == Slice("delete") || name == Slice("bigdelete") || name == Slice("secdelete")) {
+			store->ThreadLocalInit(FLAGS_threads);
 			leveldb::DBTX tx( store);
 			bool b =false;
 			while (b==false) {
@@ -1654,7 +1674,7 @@ class Benchmark {
 		}
 
 		if (name == Slice("freedelete")) {
-			
+			store->ThreadLocalInit(FLAGS_threads);
 			leveldb::DBTX tx(store);
 			bool b = false;
 			while (!b) {
@@ -1810,7 +1830,7 @@ int main(int argc, char**argv)
 	  }
 	 //leveldb::DBTables *store = new leveldb::DBTables();
 	 leveldb::DBTables *store = new leveldb::DBTables(1);
-	 store->InitEpoch(FLAGS_threads);
+	 store->InitEpoch(FLAGS_threads+1);
 	 store->AddTable(0, BTREE, IBTREE);
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);

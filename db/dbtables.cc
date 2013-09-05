@@ -70,6 +70,7 @@ void DBTables::EpochTXEnd()
 void DBTables::AddDeletedNodes(uint64_t **nodes, int len)
 {
 	assert(nodes != NULL);
+	assert(nodeGCQueue != NULL);
 	nodeGCQueue->AddGCElement(epoch->getCurrentEpoch(), nodes, len);
 }
 

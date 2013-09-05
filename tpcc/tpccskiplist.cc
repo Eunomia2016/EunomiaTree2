@@ -595,13 +595,14 @@ namespace leveldb {
 	  
 //	  printf("oid%d \n", output->o_id);
 	  
-	  uint64_t l_key = makeOrderLineKey(warehouse_id, district_id, output->o_id, 2);
+	  uint64_t l_key = makeOrderLineKey(warehouse_id, district_id, output->o_id, 1);
 	  uint64_t *l_value;
 	  found = tx.Get(ORLI, l_key, &l_value);
 	  assert(found);
 	  OrderLine *l = reinterpret_cast<OrderLine *>(l_value);
-	  if (l->ol_quantity != items[1].ol_quantity) 
-	  	printf("ol_quantity %d %d\n",l->ol_quantity, items[1].ol_quantity);
+	  if (l->ol_quantity != items[0].ol_quantity) 
+	  	printf("ol_quantity %d %d\n",l->ol_quantity, items[0].ol_quantity);
+	  assert(l->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
 	  //assert(l->ol_quantity == items[1].ol_quantity);
 
 
