@@ -23,7 +23,7 @@ static const char* FLAGS_benchmarks =
     "range,"
     "equalrange,"
 	"nocycle_readonly,"
-	"rwiter"
+	"rwiter,"
 	"freedelete,"
 	"secdelete,"
 	"bigdelete";
@@ -1835,7 +1835,7 @@ int main(int argc, char**argv)
 	 store->AddTable(0, BTREE, IBTREE);
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);
-
+	  printf("run %s\n", name.ToString().c_str());
 	  benchmark->Run(method, name);
 
 	  delete store;
