@@ -431,6 +431,9 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	  	  
 	  kvs[i].node->value = kvs[i].val;
 	  kvs[i].node->seq++;
+
+	  //Fix me: here we set the val in write set to be NULL
+	  kvs[i].val = NULL;
 	  
 //	  printf("[WS] write key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
 	   
