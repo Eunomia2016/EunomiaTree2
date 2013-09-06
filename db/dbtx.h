@@ -19,7 +19,7 @@
 
 
 #define CACHESIM 0
-#define GLOBALOCK 0
+#define GLOBALOCK 1
 #define AGGRESSIVEDETECT 0
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
@@ -27,9 +27,13 @@
 
 //For deletion
 
-#define FREEMEMNODE 1
+#define FREEMEMNODE 0
 
-#define FREEOLDVALUE 1
+#define FREEOLDVALUE 0
+
+//For deletion (read only TX)
+#define FREEOLDVERSION 1
+
 
 //For interface
 #define COPY_WHEN_ADD 1

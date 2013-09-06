@@ -19,11 +19,11 @@ static const char* FLAGS_benchmarks =
 	"counter,"
 	"nocycle,"
 	"delete,"	
-//	"readonly,"
- //  "range,"
- //  "equalrange,"
-//	"nocycle_readonly,"
-//	"rwiter"
+	"readonly,"
+    "range,"
+    "equalrange,"
+	"nocycle_readonly,"
+	"rwiter"
 	"freedelete,"
 	"secdelete,"
 	"bigdelete";
@@ -340,14 +340,14 @@ class Benchmark {
 
 					uint64_t *value = new uint64_t();
 					*value = i;
-				//	printf("[Test] insert key %lx\n", *key);
+					//printf("[%d] insert key %ld value %ld\n",tid, j, *value);
 		 			tx.Add(0, j, value, 8);
 					delete value;				
 				}
 				b = tx.End();
 
 			}
-			//store->tables[0]->PrintStore();
+//			store->tables[0]->PrintStore();
 
 			{
 					leveldb::DBROTX tx2( store);
@@ -368,20 +368,20 @@ class Benchmark {
 							break;
 						}
 						count++;
-						uint64_t *value = iter.Value();					
+						uint64_t *value = iter.Value();
 						if (v == 0) v = *value;
 						else if (v != *value) {
 							printf("tx2 Key %d has value %d, not same with others (%d)\n", key, *value, v);
 							fail = true;
 							break;
 						}
-						delete value;	
 						iter.Next();
 						
 					}						
 					if (fail) break;
 					tx2.End();
 			}
+
 			{
 					leveldb::DBROTX tx3( store);
 
@@ -404,10 +404,11 @@ class Benchmark {
 						if (v == 0) v = *value;
 						else if (v != *value) {
 							printf("tx3 Key %d has value %d, not same with others (%d)\n", key, *value, v);
+							store->tables[0]->PrintStore();
 							fail = true;
 							break;
 						}
-						delete value;
+
 						iter.Next();
 						
 					}						
@@ -1705,7 +1706,7 @@ class Benchmark {
 			arg[i].store = store;
 			
 			arg[i].thread->shared = &shared;
-			printf("Out tid %lx\n", &arg[i]);
+//			printf("Out tid %lx\n", &arg[i]);
 			Env::Default()->StartThread(method, &arg[i]);
 			
 		 }
