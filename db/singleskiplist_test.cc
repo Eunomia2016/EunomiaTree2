@@ -1314,7 +1314,6 @@ class Benchmark {
 			  leveldb::DBTX tx( store);
 			  bool b =false;
 			 
-			
 				for (int i=1; i<FLAGS_txs;i++) {
 					if (i % 10 == 0) continue;
 					b = false;
@@ -1432,10 +1431,10 @@ class Benchmark {
 			    r = iter.Value();
 				
 			   	if (m == FLAGS_txs - 3) {
-					store->epoch->endTX();
+
 					arg->start = 1;
 					while (arg->start <2) ;
-					store->epoch->beginTX();
+
 			   	}
 				
 			    if (m % 10 == 0 ) {

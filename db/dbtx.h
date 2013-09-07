@@ -26,14 +26,12 @@
 #define CLEANUPPHASE 0
 
 //For deletion
-
 #define FREEMEMNODE 1
 
 #define FREEOLDVALUE 1
 
 //For deletion (read only TX)
 #define FREEOLDVERSION 1
-
 
 //For interface
 #define COPY_WHEN_ADD 1
@@ -283,7 +281,8 @@ public:
 		inline bool CheckWriteSet();
 		inline void Cleanup(DBTables* tables);
 		inline uint64_t** GetDeletedValues(int* len);
-
+		inline uint64_t** GetOldVersions(int* len);
+		
 		void Print();
 		void Reset();
 	};

@@ -458,6 +458,56 @@ inline bool DBTX::WriteSet::CheckWriteSet()
   return true;
 }
 
+inline uint64_t** DBTX::WriteSet::GetOldVersions(int* len)
+{
+	*len = 0;
+	int ovn = 0;
+	
+	if(elems == 0) {
+		return NULL;
+	}
+
+	//First get the number of values needed to be deleted
+	for(int i = 0; i < elems; i++) {
+		
+		if(kvs[i].dummy->counter != 0) {
+			assert(kvs[i].dummy->counter > 0);
+			ovn++;
+		} else {
+			delete kvs[i].dummy;
+			kvs[i].dummy = NULL;
+		}
+		
+		
+	}
+
+	assert( ovn <= elems);
+
+	if(ovn == 0)
+		return NULL;
+
+	uint64_t** arr = new uint64_t*[ovn];
+	*len = ovn;
+	
+	int count = 0;
+	for(int i = 0; i < elems; i++) {
+		
+		if(kvs[i].dummy != NULL) {
+			assert(kvs[i].dummy->counter > 0);
+			//FIXME: only delete the dummy, the value won't be deleted
+			arr[count] = (uint64_t *)kvs[i].dummy;
+			count++;
+		} 
+		
+	}
+	assert(count == ovn);
+	
+	return arr;
+}
+
+
+
+
 inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 {
 	*len = 0;
@@ -647,6 +697,8 @@ bool DBTX::End()
 {
   int dvlen;
   uint64_t **dvs;
+  int ovlen;
+  uint64_t **ovs;
   
   if (abort) goto ABORT;
   
@@ -707,6 +759,17 @@ bool DBTX::End()
 		assert(dvlen <= writeset->elems);
 		txdb_->AddDeletedNodes(dvs, dvlen);
 	}
+#endif
+
+#if FREEOLDVERSION
+   	ovlen = 0;
+	ovs = writeset->GetOldVersions(&ovlen);
+	
+	if(ovlen > 0) {
+		assert(ovlen <= writeset->elems);
+		txdb_->AddDeletedNodes(ovs, ovlen);
+	}
+
 #endif
 
 #if FREEMEMNODE
