@@ -1335,8 +1335,8 @@ class Benchmark {
 				}
 				
 			
-			//	leveldb::DBROTX tx1( store);
-				leveldb::DBTX tx1( store);
+				leveldb::DBROTX tx1( store);
+			//	leveldb::DBTX tx1( store);
 				tx1.Begin();
 
 					
@@ -1361,10 +1361,11 @@ class Benchmark {
 			arg->start = 0;
 			arg->store = store;
 			Env::Default()->StartThread(method, arg);
-			tx2.Begin();				
+			
 			arg->start = 1;
-
 			while (arg->start <2) ;
+			
+			tx2.Begin();				
 			for (m=1; m<FLAGS_txs;m++) {
 			  
 			    bool found;  
@@ -1389,7 +1390,7 @@ class Benchmark {
 				
 			}
 			tx2.End();
-			
+
 			if (c1 ) {
 				printf("Key %d not inserted but found\n", m);
 				return;

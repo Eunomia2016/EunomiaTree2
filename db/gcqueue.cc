@@ -7,7 +7,7 @@
 GCQueue::GCQueue()
 {
 	//the default size of the gc queue is 64
-	qsize = 1024;
+	qsize = 16;
 	head = tail = 0;
 	queue = new GCElement*[qsize];
 	need_del = 0;
@@ -50,10 +50,8 @@ void GCQueue::AddGCElement(Epoch* e, uint64_t** arr, int len)
 }
 
 void GCQueue::GC(Epoch* current)
-{
-	
+{	
 	while(head != tail && queue[head]->epoch->Compare(current) < 0) {
-		
 		delete queue[head];
 		head = (head + 1) % qsize;
 		elems--;

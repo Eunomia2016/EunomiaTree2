@@ -41,16 +41,19 @@ void DBROTX::Begin()
 
   oldsnapshot = atomic_fetch_and_add64(&txdb_->snapshot, 1);
 
+  txdb_->EpochTXBegin();
   //printf("snapshot %ld\n", txdb_->snapshot);
 }
 
 bool DBROTX::Abort()
 {
+  txdb_->EpochTXEnd();
   return false;
 }
 
 bool DBROTX::End()
 {
+  txdb_->EpochTXEnd();
   return true;
 }
 
