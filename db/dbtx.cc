@@ -458,26 +458,45 @@ inline bool DBTX::WriteSet::CheckWriteSet()
   return true;
 }
 
-inline uint64_t** DBTX::WriteSet::GetDeletedValues()
+inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 {
-	if(elems == 0)
+	*len = 0;
+	if(elems == 0) {
 		return NULL;
-	
-	uint64_t** arr = new uint64_t*[elems];
-	
+	}
+
+	//First get the number of values needed to be deleted
 	for(int i = 0; i < elems; i++) {
 		
-		if(kvs[i].val == (uint64_t *)1 
+		if(kvs[i].val == (uint64_t *)NULL 
+			||kvs[i].val == (uint64_t *)1 
 			|| kvs[i].val == (uint64_t *)2 
 			||kvs[i].val == (uint64_t *)3 ) { 
 			
-			arr[i] = NULL;
+			kvs[i].val = NULL;
 			
 		} else {
-			arr[i] = kvs[i].val;
+			*len++;
 		}
+		
   	}
 
+	assert( (*len) <= elems);
+	
+	if(*len == 0)
+		return NULL;
+		
+	uint64_t** arr = new uint64_t*[*len];
+
+	for(int i = 0; i < elems; i++) {
+		
+		if(kvs[i].val != (uint64_t *)NULL) { 
+			arr[i] = kvs[i].val;
+		} 
+
+		assert(i <= (*len));
+  	}
+	
 	return arr;
 }
 
@@ -616,7 +635,9 @@ bool DBTX::Abort()
 
 bool DBTX::End()
 {
-
+  int dvlen;
+  uint64_t **dvs;
+  
   if (abort) goto ABORT;
   
 #if FREEMEMNODE
@@ -669,8 +690,11 @@ bool DBTX::End()
 
 
 #if FREEOLDVALUE
-	if(writeset->elems > 0)
-		txdb_->AddDeletedNodes(writeset->GetDeletedValues(), writeset->elems);
+	dvlen = 0;
+	dvs = writeset->GetDeletedValues(&dvlen);
+	if(dvlen > 0) {
+		txdb_->AddDeletedNodes(dvs, dvlen);
+	}
 #endif
 
 #if FREEMEMNODE

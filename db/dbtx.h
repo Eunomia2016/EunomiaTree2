@@ -19,7 +19,7 @@
 
 
 #define CACHESIM 0
-#define GLOBALOCK 1
+#define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
 #define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
@@ -282,7 +282,7 @@ public:
 		inline void Write(uint64_t gcounter);
 		inline bool CheckWriteSet();
 		inline void Cleanup(DBTables* tables);
-		inline uint64_t** GetDeletedValues();
+		inline uint64_t** GetDeletedValues(int* len);
 		void Print();
 		void Reset();
 	};
