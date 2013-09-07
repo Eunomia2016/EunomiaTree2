@@ -492,7 +492,7 @@ inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 
 	if(dvn == 0)
 		return NULL;
-		
+
 	uint64_t** arr = new uint64_t*[dvn];
 	*len = dvn;
 	
@@ -500,7 +500,7 @@ inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 	for(int i = 0; i < elems; i++) {
 		
 		if(kvs[i].val != (uint64_t *)NULL) { 
-			arr[i] = kvs[i].val;
+			arr[count] = kvs[i].val;
 			count++;
 		} 
 		

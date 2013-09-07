@@ -35,7 +35,7 @@ void Epoch::setTID(int i) {
 }
 
 Epoch* Epoch::getCurrentEpoch() {
-	
+
 	uint64_t * cs = new uint64_t[thrs_num];
 
 	for(int i = 0; i < thrs_num; i++)
