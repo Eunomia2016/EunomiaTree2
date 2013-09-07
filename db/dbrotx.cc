@@ -54,6 +54,7 @@ bool DBROTX::Abort()
 bool DBROTX::End()
 {
   txdb_->EpochTXEnd();
+  txdb_->GCDeletedNodes();
   return true;
 }
 

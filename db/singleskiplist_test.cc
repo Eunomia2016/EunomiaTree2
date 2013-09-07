@@ -1005,9 +1005,8 @@ class Benchmark {
 			DBTables *store = arg->store;
 			store->ThreadLocalInit(tid);
 	
-	
+
 			//printf("In tid %lx\n", arg);
-			//printf("start %d\n",tid);
 		
 			uint64_t *value; uint64_t *value1;
 			bool fail = false;
@@ -1197,7 +1196,7 @@ class Benchmark {
 	
 				}
 
-#if 0				
+#if 1				
 				leveldb::DBROTX tx3( store);
 
 				
@@ -1433,9 +1432,10 @@ class Benchmark {
 			    r = iter.Value();
 				
 			   	if (m == FLAGS_txs - 3) {
-					
+					store->epoch->endTX();
 					arg->start = 1;
 					while (arg->start <2) ;
+					store->epoch->beginTX();
 			   	}
 				
 			    if (m % 10 == 0 ) {
