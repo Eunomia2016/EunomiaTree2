@@ -461,6 +461,8 @@ inline bool DBTX::WriteSet::CheckWriteSet()
 inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 {
 	*len = 0;
+	int dvn = 0;
+	
 	if(elems == 0) {
 		return NULL;
 	}
@@ -476,26 +478,34 @@ inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 			kvs[i].val = NULL;
 			
 		} else {
-			*len++;
+			dvn++;
+			
 		}
 		
   	}
 
-	assert( (*len) <= elems);
-	
-	if(*len == 0)
+	if( dvn > elems) {
+		printf("len %d elems %d\n", *len, elems);
+	}
+
+	assert( dvn <= elems);
+
+	if(dvn == 0)
 		return NULL;
 		
-	uint64_t** arr = new uint64_t*[*len];
-
+	uint64_t** arr = new uint64_t*[dvn];
+	*len = dvn;
+	
+	int count = 0;
 	for(int i = 0; i < elems; i++) {
 		
 		if(kvs[i].val != (uint64_t *)NULL) { 
 			arr[i] = kvs[i].val;
+			count++;
 		} 
-
-		assert(i <= (*len));
+		
   	}
+	assert(count == dvn);
 	
 	return arr;
 }
@@ -692,7 +702,9 @@ bool DBTX::End()
 #if FREEOLDVALUE
 	dvlen = 0;
 	dvs = writeset->GetDeletedValues(&dvlen);
+	
 	if(dvlen > 0) {
+		assert(dvlen <= writeset->elems);
 		txdb_->AddDeletedNodes(dvs, dvlen);
 	}
 #endif

@@ -10,7 +10,7 @@
 
 #define PROFILE 0
 #define ABORTPRO 0
-#define SLDBTX	0
+#define SLDBTX	1
 #define CHECKTPCC 0
 
 

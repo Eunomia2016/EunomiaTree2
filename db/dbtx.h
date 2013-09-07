@@ -283,6 +283,7 @@ public:
 		inline bool CheckWriteSet();
 		inline void Cleanup(DBTables* tables);
 		inline uint64_t** GetDeletedValues(int* len);
+
 		void Print();
 		void Reset();
 	};
