@@ -27,7 +27,7 @@ void DELSet::Reset()
 	delayNum = 0;
 }
 
-inline void DELSet::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool delay)
+void DELSet::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool delay)
 {
 	queue[elems].tableid = tableid;
 	queue[elems].key = key;
@@ -45,7 +45,7 @@ inline void DELSet::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool de
 	}
 }
 
-inline uint64_t** DELSet::getGCNodes()
+uint64_t** DELSet::getGCNodes()
 {
 	int len = elems - delayNum;
 	if (0 == len)
@@ -69,7 +69,7 @@ inline uint64_t** DELSet::getGCNodes()
 	return res;
 }
 	
-inline uint64_t** DELSet::getDelayNodes()
+uint64_t** DELSet::getDelayNodes()
 {
 	if (0 == delayNum)
 		return NULL;

@@ -392,14 +392,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 #if FREEMEMNODE
 			//put the node into the delete queue
 			if(n != NULL) {
-				dbtx_->gcnodes[dbtx_->gcnindex] = (uint64_t *)n;
-				dbtx_->gcnindex++;
-				
-				if(dbtx_->gcnindex > dbtx_->deleteNum) {
-					printf("%d %d\n", dbtx_->gcnindex, dbtx_->deleteNum);
-					printf("delete key %ld\n", kvs[i].key);
-				}
-				assert(dbtx_->gcnindex <= dbtx_->deleteNum);
+				dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, n, false);
 			}
 #endif
 
@@ -423,6 +416,12 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 
 	  //If global counter is updated, just update the counter and store a old copy into the dummy node
 	  //Clone the current value into dummy node
+	  
+	  //If is delete, put it into the delete set
+	  if(kvs[i].val == (uint64_t *)1) {
+		  dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
+	  }
+	  
 	  kvs[i].dummy->value = kvs[i].node->value;
 	  kvs[i].dummy->counter = kvs[i].node->counter;
 	  kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
@@ -604,10 +603,8 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 
 #if FREEMEMNODE
 		  //put the node into the delete queue
-		  if(node != NULL) {
-			  dbtx_->gcnodes[dbtx_->gcnindex] = (uint64_t *)node;
-			  dbtx_->gcnindex++;
-			  assert(dbtx_->gcnindex <= dbtx_->deleteNum);
+		  if(node != NULL) {	 
+			 dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, node, false);
 		  }
 #endif
 
@@ -641,10 +638,6 @@ DBTX::DBTX(DBTables* store)
   txdb_ = store;
   count = 0;  
 
-  deleteNum = 0;
-  gcnindex = 0;
-  gcnodes = NULL;
-  
   abort = false;
 #if PROFILEBUFFERNODE
   bufferGet = 0;
@@ -669,10 +662,6 @@ void DBTX::Begin()
 {
 //reset the local read set and write set
   //txdb_->ThreadLocalInit();
-
-  deleteNum = 0;
-  gcnindex = 0;
-  gcnodes = NULL;
 
   ThreadLocalInit();
   readset->Reset();
@@ -704,13 +693,11 @@ bool DBTX::End()
   uint64_t **dvs;
   int ovlen;
   uint64_t **ovs;
+
+  uint64_t **gcnodes;
+  uint64_t **rmnodes;
   
   if (abort) goto ABORT;
-  
-#if FREEMEMNODE
-	if(deleteNum > 0)
-		gcnodes = new uint64_t*[deleteNum];
-#endif
 
   //printf("TXEND\n");
   //Phase 1. Validation & Commit
@@ -778,23 +765,29 @@ bool DBTX::End()
 #endif
 
 #if FREEMEMNODE
-	if(gcnindex > 0)
-		txdb_->AddDeletedNodes(gcnodes, gcnindex);
+	gcnodes = deleteset->getGCNodes();
+	
+	if(gcnodes != NULL)
+		txdb_->AddDeletedNodes(gcnodes, deleteset->elems - deleteset->delayNum);
+#endif
+
+#if READONLYREMOVE
+	rmnodes = deleteset->getDelayNodes();
+	
+	if(rmnodes != NULL)
+		txdb_->AddRemoveNodes(rmnodes, deleteset->delayNum);
 #endif
 
 	txdb_->EpochTXEnd();
 	txdb_->GCDeletedNodes();
+	txdb_->RemoveNodes();
 
 
 
   return true;
 
 ABORT:
-
-#if FREEMEMNODE
-	  if(gcnodes != NULL)
-		  delete[] gcnodes;
-#endif
+	
 
 #if COPY_WHEN_ADD
 	for(int i = 0; i < writeset->elems; i++) {
@@ -1019,9 +1012,6 @@ retryA:
 void DBTX::Delete(int tableid, uint64_t key)
 {
 
-#if FREEMEMNODE
-	deleteNum++;
-#endif
 
 #if CLEANUPPHASE
 	Add(tableid, key, (uint64_t *)1);

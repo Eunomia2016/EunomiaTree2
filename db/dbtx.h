@@ -32,6 +32,7 @@
 
 //For deletion (read only TX)
 #define FREEOLDVERSION 1
+#define READONLYREMOVE 1
 
 //For interface
 #define COPY_WHEN_ADD 1
@@ -315,11 +316,6 @@ public:
 	uint64_t traverseCount;	
 	static port::Mutex storemutex;
 	static SpinLock slock;
-
-	//For gc collection
-	int deleteNum;
-	int gcnindex;
-	uint64_t** gcnodes;
 	
 	bool abort;
 	DBTables *txdb_;
