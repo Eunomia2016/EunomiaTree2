@@ -14,6 +14,7 @@ class DBTables;
 #define RMTEST 1
 class RMQueue {
 
+public:
 
 struct RMElement {
 	int tableid;

@@ -14,6 +14,8 @@
 
 namespace leveldb{
 
+class RMQueue;
+
 #define NONE 0
 #define BTREE 1
 #define HASH 2
@@ -27,6 +29,8 @@ class DBTables {
 
   public:
 	static __thread GCQueue* nodeGCQueue;
+	static __thread RMQueue* rmqueue;
+	
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
 	Memstore **tables;
@@ -48,8 +52,12 @@ class DBTables {
 	void InitEpoch(int thr_num);
 	void EpochTXBegin();
 	void EpochTXEnd();
+	
 	void AddDeletedNodes(uint64_t **nodes, int len);
 	void GCDeletedNodes();
+
+	void AddRemoveNodes(uint64_t **nodes, int len);
+	void RemoveNodes();
 	
 };
 

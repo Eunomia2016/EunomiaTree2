@@ -4,6 +4,7 @@ namespace leveldb {
 
 
 __thread GCQueue* DBTables::nodeGCQueue = NULL;
+__thread RMQueue* DBTables::rmqueue = NULL;
 
 //FOR TEST
 DBTables::DBTables() {
@@ -81,6 +82,21 @@ void DBTables::GCDeletedNodes()
 }
 
 
+void DBTables::AddRemoveNodes(uint64_t **nodes, int len)
+{
+	assert(nodes != NULL);
+	assert(rmqueue != NULL);
+	rmqueue->AddRMArray(epoch->getCurrentEpoch(), nodes, len);
+	
+}
+
+
+void DBTables::RemoveNodes()
+{
+	if (rmqueue != NULL)
+		rmqueue->Remove(epoch);
+}
+
 
 void DBTables::ThreadLocalInit(int tid)
 {
@@ -88,6 +104,7 @@ void DBTables::ThreadLocalInit(int tid)
 		epoch->setTID(tid);
 
 	nodeGCQueue = new GCQueue();
+	rmqueue = new RMQueue(this);
 	
 	for (int i=0; i<next; i++)
 		tables[i]->ThreadLocalInit();
