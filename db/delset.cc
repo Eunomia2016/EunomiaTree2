@@ -12,6 +12,8 @@ DELSet::DELSet()
 	//default size 64;
 	qsize = 64;
 	queue = new DELElement[qsize];
+	for(int i = 0; i < qsize; i++)
+		queue[i].node = NULL;
 	elems = 0;
 	delayNum = 0;
 }
@@ -59,8 +61,8 @@ uint64_t** DELSet::getGCNodes()
 
 		if(queue[i].delay)
 			continue;
-		
-		res[count] = (uint64_t *)queue[elems].node;
+		res[count] = (uint64_t *)queue[i].node;
+		queue[i].node = NULL;
 		count++;
 	}
 
@@ -81,8 +83,11 @@ uint64_t** DELSet::getDelayNodes()
 	for(int i = 0; i < elems; i++) {
 
 		if(queue[i].delay) {
-			res[count] = (uint64_t *)new leveldb::RMQueue::RMElement(
+
+			leveldb::RMQueue::RMElement* rme = new leveldb::RMQueue::RMElement(
 				queue[i].tableid, queue[i].key, queue[i].node);
+			res[count] = (uint64_t *)rme;
+			queue[i].node = NULL;
 			count++;
 		}
 	}

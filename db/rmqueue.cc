@@ -55,26 +55,31 @@ void RMQueue::AddRMArray(Epoch* e, uint64_t** arr, int len)
 void RMQueue::Remove(Epoch* current)
 {	
 	while(head != tail && queue[head]->epoch->Compare(current) < 0) {
+		
 		//remove the nodes from the data structure
-		RMElement* mn = (RMElement*)queue[head];
-		
-		{
-			RTMScope rtm(NULL);
+		for(int i = 0; i < queue[head]->len; i++) {
 			
-			//Check if this node has been modified
-			if(mn->node->value == (uint64_t *)1) {
-				
-				//Physically removed
-				mn->node->value = (uint64_t *)2;
-				Memstore::MemNode* n = store->tables[mn->tableid]->GetWithDelete(mn->key);
-				assert(n == mn->node);
+			RMElement* mn = (RMElement*)queue[head]->rmarray[i];
+			
+			{
+				RTMScope rtm(NULL);
+				//printf("RMQueue Remove %lx node %lx\n", mn->node);
+				//Check if this node has been modified
+				if(mn->node->value == (uint64_t *)1) {
+					
+					//Physically removed
+					mn->node->value = (uint64_t *)2;
+					Memstore::MemNode* n = store->tables[mn->tableid]->GetWithDelete(mn->key);
+					assert(n == mn->node);
+				}
+			
 			}
-		
-		}
 
+			
+		}
+		
 		head = (head + 1) % qsize;
 		elems--;
-		
 #if RMTEST
 		actual_del++;
 #endif

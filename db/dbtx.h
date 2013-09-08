@@ -26,12 +26,12 @@
 #define CLEANUPPHASE 0
 
 //For deletion
-#define FREEMEMNODE 1
+#define FREEMEMNODE 0
 
-#define FREEOLDVALUE 1
+#define FREEOLDVALUE 0
 
 //For deletion (read only TX)
-#define FREEOLDVERSION 1
+#define FREEOLDVERSION 0
 #define READONLYREMOVE 1
 
 //For interface

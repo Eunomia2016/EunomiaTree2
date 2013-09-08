@@ -28,7 +28,7 @@ struct GCElement {
 
 		for(int i; i < len; i++) {
 			if(gcarray[i] != NULL) {
-				//printf("Free %lx\n", gcarray[i]);
+		//		printf("Free %lx\n", gcarray[i]);
 				delete gcarray[i];
 			}
 
