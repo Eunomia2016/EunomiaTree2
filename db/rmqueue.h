@@ -5,36 +5,63 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
+#include "memstore/memstore.h"
+#include "db/dbtables.h"
 
 #define RMTEST 1
 class RMQueue {
 
 struct RMElement {
-	Epoch* epoch;
-	uint64_t** gcarray;
-	int len;
+	int tableid;
+	uint64_t key;
+	Memstore::MemNode* node;
 	
 
-	RMElement(Epoch* e, uint64_t** arr, int l) 
+	RMElement(int t, uint64_t k, Memstore::MemNode* mn) 
 	{
-		epoch = e;
-		gcarray = arr;
-		len = l;
+		tableid = t;
+		key = k;
+		node = mn;
 	}
 
 	~RMElement() 
 	{
+		if(node->value != (uint64_t *)NULL 
+			& node->value != (uint64_t *)1
+			& node->value != (uint64_t *)2 )
+			delete node->value;
+		
+		delete node;
+	}
+};
+
+
+struct RMArray {
+	Epoch* epoch;
+	uint64_t** rmarray;
+	int len;
+	
+
+	RMArray(Epoch* e, uint64_t** arr, int l) 
+	{
+		epoch = e;
+		rmarray = arr;
+		len = l;
+	}
+
+	~RMArray() 
+	{
 		delete epoch;
 
 		for(int i; i < len; i++) {
-			if(gcarray[i] != NULL) {
+			if(rmarray[i] != NULL) {
 				//printf("Free %lx\n", gcarray[i]);
-				delete gcarray[i];
+				delete rmarray[i];
 			}
 
 		}
 
-		delete[] gcarray;
+		delete[] rmarray;
 	}
 };
 
@@ -42,17 +69,18 @@ private:
 	int qsize;
 	int head;
 	int tail;
-	RMElement** queue;
+	RMArray** queue;
 	int elems;
+	leveldb::DBTables *store;
 	
 public:
-	RMQueue();
+	RMQueue(leveldb::DBTables *st);
 	
 	~RMQueue();
 	
-	void AddRMElement(Epoch* e, uint64_t** arr, int len);
+	void AddRMArray(Epoch* e, uint64_t** arr, int len);
 
-	void GC(Epoch* current);
+	void Remove(Epoch* current);
 
 	void Print();
 

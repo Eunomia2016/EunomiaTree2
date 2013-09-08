@@ -4,11 +4,8 @@
 
 #include "rtm.h"
 
-namespace leveldb {
-
 //define the static member here
 SpinLock RTMScope::fblock;
 
-}  // namespace leveldb
 
 

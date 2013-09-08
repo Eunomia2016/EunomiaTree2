@@ -9,9 +9,6 @@
 #include "util/spinlock.h"
 #include "txprofile.h"
 
-
-namespace leveldb {
-
 #define MAXZERO 3
 #define MAXCAPACITY 10
 #define MAXCONFLICT 100
@@ -110,7 +107,6 @@ inline  ~RTMScope() {
   void operator=(const RTMScope&);
 };
 
-}  // namespace leveldb
 
 
 #endif  // STORAGE_LEVELDB_UTIL_RTM_H_
