@@ -26,6 +26,8 @@ SpinLock DBTX::slock;
 
 __thread DBTX::WriteSet* DBTX::writeset = NULL;
 __thread DBTX::ReadSet* DBTX::readset = NULL;
+__thread DELSet* DBTX::deleteset = NULL;
+
 __thread bool DBTX::localinit = false;
 __thread DBTX::BufferNode* DBTX::buffer = NULL;
 
@@ -38,6 +40,7 @@ void DBTX::ThreadLocalInit()
    	//printf("%ld localinit AA\n",pthread_self());
 	  readset = new ReadSet();
 	  writeset = new WriteSet();
+	  deleteset = new DELSet();
 #if BUFFERNODE
 	  assert( txdb_->number > 0);
 	  buffer = new BufferNode[txdb_->number];
@@ -674,7 +677,7 @@ void DBTX::Begin()
   ThreadLocalInit();
   readset->Reset();
   writeset->Reset();
-
+  deleteset->Reset();
   
   txdb_->EpochTXBegin();
   
@@ -687,6 +690,8 @@ bool DBTX::Abort()
   //FIXME: clear all the garbage data
   readset->Reset();
   writeset->Reset();
+  deleteset->Reset();
+  
   abort = false;
   //Should not call End
   txdb_->EpochTXEnd();

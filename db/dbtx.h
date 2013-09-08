@@ -16,7 +16,7 @@
 #include "util/mutexlock.h"
 #include "db/memstore_skiplist.h"
 #include "db/dbtables.h"
-
+#include "db/delset.h"
 
 #define CACHESIM 0
 #define GLOBALOCK 0
@@ -289,6 +289,9 @@ public:
 
 	static __thread ReadSet* readset;
 	static __thread WriteSet *writeset;
+	static __thread DELSet *deleteset;
+
+	
 	char padding[64];
 	
 	static __thread bool localinit;

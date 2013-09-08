@@ -1,5 +1,5 @@
 #include "port/atomic.h"
-#include "delbuffer.h"
+#include "delset.h"
 #include "rmqueue.h"
 #include <assert.h>
 #include <stdio.h>
@@ -7,7 +7,7 @@
 #include "util/rtm.h"
 
 
-DELBuffer::DELBuffer()
+DELSet::DELSet()
 {
 	//default size 64;
 	qsize = 64;
@@ -16,18 +16,18 @@ DELBuffer::DELBuffer()
 	delayNum = 0;
 }
 	
-DELBuffer::~DELBuffer()
+DELSet::~DELSet()
 {
 	delete[] queue;
 }
 
-void DELBuffer::Reset()
+void DELSet::Reset()
 {
 	elems = 0;
 	delayNum = 0;
 }
 
-inline void DELBuffer::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool delay)
+inline void DELSet::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool delay)
 {
 	queue[elems].tableid = tableid;
 	queue[elems].key = key;
@@ -45,7 +45,7 @@ inline void DELBuffer::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool
 	}
 }
 
-inline uint64_t** DELBuffer::getGCNodes()
+inline uint64_t** DELSet::getGCNodes()
 {
 	int len = elems - delayNum;
 	if (0 == len)
@@ -69,7 +69,7 @@ inline uint64_t** DELBuffer::getGCNodes()
 	return res;
 }
 	
-inline uint64_t** DELBuffer::getDelayNodes()
+inline uint64_t** DELSet::getDelayNodes()
 {
 	if (0 == delayNum)
 		return NULL;

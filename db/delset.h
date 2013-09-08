@@ -1,12 +1,12 @@
-#ifndef DELBuffer_H
-#define DELBuffer_H
+#ifndef DELSet_H
+#define DELSet_H
 
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
 #include "memstore/memstore.h"
 
-class DELBuffer {
+class DELSet {
 
 
 struct DELElement {
@@ -26,9 +26,9 @@ public:
 	int elems;
 	int delayNum;
 	
-	DELBuffer();
+	DELSet();
 	
-	~DELBuffer();
+	~DELSet();
 
 	void Reset();
 	
