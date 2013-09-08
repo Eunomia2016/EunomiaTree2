@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include "util/rtm.h"
 
-RMQueue::RMQueue(leveldb::DBTables *st)
+namespace leveldb {
+
+RMQueue::RMQueue(DBTables *st)
 {
 	//the default size of the gc queue is 64
 	qsize = 1024;
@@ -89,4 +91,6 @@ void RMQueue::Print()
 		
 		index = (index + 1) % qsize;
 	}
+}
+
 }

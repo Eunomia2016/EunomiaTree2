@@ -9,6 +9,8 @@
 #include "memstore/memstore_uint64bplustree.h"
 #include "db/epoch.h"
 #include "db/gcqueue.h"
+#include "db/rmqueue.h"
+
 
 namespace leveldb{
 

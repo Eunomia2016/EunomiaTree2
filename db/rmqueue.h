@@ -8,8 +8,12 @@
 #include "memstore/memstore.h"
 #include "db/dbtables.h"
 
+namespace leveldb {
+class DBTables;
+
 #define RMTEST 1
 class RMQueue {
+
 
 struct RMElement {
 	int tableid;
@@ -71,10 +75,10 @@ private:
 	int tail;
 	RMArray** queue;
 	int elems;
-	leveldb::DBTables *store;
+	DBTables *store;
 	
 public:
-	RMQueue(leveldb::DBTables *st);
+	RMQueue(DBTables *st);
 	
 	~RMQueue();
 	
@@ -89,5 +93,5 @@ public:
 	
 };
 
-
+}
 #endif
