@@ -20,13 +20,14 @@ struct RMElement {
 	int tableid;
 	uint64_t key;
 	Memstore::MemNode* node;
-	
+	uint64_t seq;
 
-	RMElement(int t, uint64_t k, Memstore::MemNode* mn) 
+	RMElement(int t, uint64_t k, Memstore::MemNode* mn, uint64_t sequence) 
 	{
 		tableid = t;
 		key = k;
 		node = mn;
+		seq = sequence;
 	}
 
 	~RMElement() 

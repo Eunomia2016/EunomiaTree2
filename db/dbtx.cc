@@ -378,7 +378,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 
 			//use the write set buffer the old value
 			kvs[i].val = kvs[i].node->value;						
-			kvs[i].node->value = (uint64_t *)2;
+			kvs[i].node->value = (uint64_t *)1;
 
 			
 			//Invalidate secondary index when deletion 	  	  			
@@ -387,15 +387,14 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 
 
 			//Directly remove the node from the memstore	
-			Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
+			//Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
 			
-#if FREEMEMNODE
 			//put the node into the delete queue
-			if(n != NULL) {
-				dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, n, false);
-			}
-#endif
-			assert(n == NULL || kvs[i].node == n);
+			//if(n != NULL) {
+				dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
+			//}
+
+			//assert(n == NULL || kvs[i].node == n);
 			//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
 				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
 			

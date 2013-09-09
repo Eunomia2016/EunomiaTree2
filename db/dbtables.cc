@@ -72,6 +72,12 @@ void DBTables::AddDeletedNodes(uint64_t **nodes, int len)
 {
 	assert(nodes != NULL);
 	assert(nodeGCQueue != NULL);
+#if 0	
+	if (nodeGCQueue->elems > 1000) {
+		printf("Warning : \n");
+		epoch->Print();
+	}
+#endif	
 	nodeGCQueue->AddGCElement(epoch->getCurrentEpoch(), nodes, len);
 }
 

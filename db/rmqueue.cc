@@ -65,11 +65,13 @@ void RMQueue::Remove(Epoch* current)
 				RTMScope rtm(NULL);
 				//printf("RMQueue Remove %lx node %lx\n", mn->node);
 				//Check if this node has been modified
-				if(mn->node->value == (uint64_t *)1) {
+				//printf("%ld %ld\n",mn->node->seq,mn->seq);
+				if(mn->node->value == (uint64_t *)1 && mn->node->seq == mn->seq) {
 					
 					//Physically removed
 					mn->node->value = (uint64_t *)2;
 					Memstore::MemNode* n = store->tables[mn->tableid]->GetWithDelete(mn->key);
+					n->seq++;
 					assert(n == mn->node);
 				}
 			

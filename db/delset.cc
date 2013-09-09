@@ -35,7 +35,7 @@ void DELSet::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool delay)
 	queue[elems].key = key;
 	queue[elems].node = n;
 	queue[elems].delay = delay;
-
+	queue[elems].seq = n->seq + 1;
 	if(delay)
 		delayNum++;
 
@@ -85,7 +85,7 @@ uint64_t** DELSet::getDelayNodes()
 		if(queue[i].delay) {
 
 			leveldb::RMQueue::RMElement* rme = new leveldb::RMQueue::RMElement(
-				queue[i].tableid, queue[i].key, queue[i].node);
+				queue[i].tableid, queue[i].key, queue[i].node, queue[i].seq);
 			res[count] = (uint64_t *)rme;
 			queue[i].node = NULL;
 			count++;

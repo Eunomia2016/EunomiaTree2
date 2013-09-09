@@ -43,9 +43,11 @@ private:
 	int head;
 	int tail;
 	GCElement** queue;
-	int elems;
+	
 	
 public:
+
+	int elems;	
 	GCQueue();
 	
 	~GCQueue();

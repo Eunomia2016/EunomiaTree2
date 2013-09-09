@@ -14,6 +14,7 @@ struct DELElement {
 	uint64_t key;
 	Memstore::MemNode* node;
 	bool delay;
+	uint64_t seq;
 };
 
 

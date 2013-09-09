@@ -702,7 +702,7 @@ class Benchmark {
 					uint64_t v3; uint64_t v6; uint64_t v4;
 					bool fail = false;
 					for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
-						//printf("Iter %d\n",i);
+						if (i % 500000 == 0)printf("[Tid %d] Iter %d\n",tid, i-tid*FLAGS_txs);
 						leveldb::DBTX tx( store);
 						bool b = false;
 						while (b == false) {
@@ -716,7 +716,7 @@ class Benchmark {
 		//					printf("[%ld] TX1 Put 4\n", pthread_self());
 							tx.Add(0, 4, value, 8);
 							delete value;
-#if 0
+#if 1
 							uint64_t *value1 = new uint64_t();
 							*value1 = i;
 							tx.Add(0, 5, value1, 8);
@@ -760,7 +760,7 @@ class Benchmark {
 
 
 		
-#if 0		
+#if 1		
 							f2 = tx1.Get(0, 5, &value); 	
 							bool f4 = tx1.Get(0, 6, &value1); 
 							
@@ -799,7 +799,7 @@ class Benchmark {
 							fail = true;
 							break;
 						}
-#if 0
+#if 1
 						if (f1 != f2){
 							printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 							fail = true;
@@ -840,7 +840,7 @@ class Benchmark {
 		//					printf("[%ld] TX2 Delete 4\n", pthread_self());
 		
 							tx2.Delete(0, 4);			
-#if 0
+#if 1
 		
 							tx2.Delete(0, 5);
 		
@@ -868,11 +868,11 @@ class Benchmark {
 						tx3.Begin();				
 																
 						f1 = tx3.Get(0, 4, &value);
-			//			f2 = tx3.Get(0, 5, &value); 
+						f2 = tx3.Get(0, 5, &value); 
 						
 						tx3.End();
 			
-#if 0						
+#if 1						
 						
 						if (f1 != f2){
 							printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
