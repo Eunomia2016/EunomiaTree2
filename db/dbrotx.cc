@@ -38,10 +38,11 @@ void DBROTX::Begin()
 #if GLOBALOCK
   SpinLockScope slock(&DBTX::slock);
 #endif
+  txdb_->EpochTXBegin();
 
   oldsnapshot = atomic_fetch_and_add64(&txdb_->snapshot, 1);
 
-  txdb_->EpochTXBegin();
+  
   //printf("snapshot %ld\n", txdb_->snapshot);
 }
 
@@ -61,10 +62,13 @@ bool DBROTX::End()
 bool DBROTX::ScanMemNode(Memstore::MemNode* n, uint64_t** val)
 {
 	
-  if(n == NULL)
+  if(n == NULL){
+  	//printf("ScanMemNode: Scan NULL\n");
 	return false;
+  }
   if(n->counter <= oldsnapshot) {
     if(n->value == NULL || n->value == (uint64_t *)1 || n->value == (uint64_t *)2) {
+	  //printf("ScanMemNode: Del \n");
       return false;
     }else {
       *val = n->value;
@@ -79,12 +83,14 @@ bool DBROTX::ScanMemNode(Memstore::MemNode* n, uint64_t** val)
    
   if(n != NULL && n->counter <= oldsnapshot) {
     if(n->value == NULL || n->value == (uint64_t *)1 || n->value == (uint64_t *)2) {
+	 //  printf("ScanMemNode: snap del\n");
        return false;
      } else {
    	   *val = n->value;
    	   return true;
      }
   }	
+  //printf("ScanMemNode: No snap \n");
   return false;
 }
 

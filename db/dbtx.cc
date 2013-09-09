@@ -395,7 +395,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 				dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, n, false);
 			}
 #endif
-
 			assert(n == NULL || kvs[i].node == n);
 			//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
 				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);

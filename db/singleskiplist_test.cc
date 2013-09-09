@@ -42,8 +42,8 @@ struct SharedState {
   volatile double start_time;
   volatile double end_time;
 	  	
-  int num_initialized;
-  int num_done;
+  volatile int num_initialized;
+  volatile int num_done;
   bool start;
   bool fail;
   volatile int num_phase;	
@@ -444,7 +444,7 @@ class Benchmark {
 		
 		bool fail = false;
 		for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
-
+			
 			//printf("[EqualTest]snapshot %d\n", store->snapshot);
 			leveldb::DBTX tx( store);
 			bool b = false;
@@ -462,12 +462,13 @@ class Benchmark {
 				b = tx.End();
 
 			}
+			//printf("[%d]End %d\n",tid, i);
 
 			leveldb::DBTX tx1( store);
 			b = false;
 			while (b == false) {
 				tx1.Begin();
-				
+
 				for (int j = 1; j < 4; j++) {
 					
 
@@ -485,24 +486,24 @@ class Benchmark {
 				printf("Key 1 has value %d, Key 2 has value %d, not equal\n",str[0],str[1]);
 				fail = true;
 				
-				DBTX::slock.Lock();
+	//			DBTX::slock.Lock();
 				store->tables[0]->PrintStore();
 				
-				DBTX::slock.Unlock();
+	//			DBTX::slock.Unlock();
 				break;
 			}
 			if (!(str[1]==str[2])) {
 				printf("Key 2 has value %d, Key 3 has value %d, not equal\n",str[1],str[2]);
 				fail = true;
 				
-				DBTX::slock.Lock();
+	//			DBTX::slock.Lock();
 				store->tables[0]->PrintStore();
-				DBTX::slock.Unlock();
+	//			DBTX::slock.Unlock();
 
 				break;
 			}
 			//printf("Pass 1\n");
-#if 0			
+#if 1			
 			{
 				leveldb::DBROTX tx2( store);
 				bool found[3];
@@ -565,7 +566,7 @@ class Benchmark {
 
 			//printf("Pass 2\n");
 		}
-		
+		printf("Finish %d\n",tid);
 		{
 		  MutexLock l(&shared->mu);
 		  if (fail) shared->fail = fail;
@@ -698,7 +699,7 @@ class Benchmark {
 					assert( store->nodeGCQueue != NULL);
 					//printf("In tid %lx\n", arg);
 					//printf("start %d\n",tid);
-					uint64_t v3; uint64_t v6;
+					uint64_t v3; uint64_t v6; uint64_t v4;
 					bool fail = false;
 					for (int i = tid*FLAGS_txs; i < (tid+1)*FLAGS_txs; i++ ) {
 						//printf("Iter %d\n",i);
@@ -715,7 +716,7 @@ class Benchmark {
 		//					printf("[%ld] TX1 Put 4\n", pthread_self());
 							tx.Add(0, 4, value, 8);
 							delete value;
-#if 1
+#if 0
 							uint64_t *value1 = new uint64_t();
 							*value1 = i;
 							tx.Add(0, 5, value1, 8);
@@ -745,15 +746,24 @@ class Benchmark {
 			//				printf("[%ld]RTX Get 4\n", pthread_self());
 							uint64_t sum = 0;
 							f1 = tx1.Get(0, 4, &value);
-							f2 = tx1.Get(0, 5, &value); 
+							if (f1) {
+								v4 = *value;
+							}
+							
 		//					printf("[%ld]RTX Get 3\n", pthread_self());
 		
-							f3 = tx1.Get(0, 3, &value);					
-							bool f4 = tx1.Get(0, 6, &value1); 
+							f3 = tx1.Get(0, 3, &value);	
 							if (f3) {
 								v3 = *value;	
 								//printf("k3 %ld\n",v3);
 							}
+
+
+		
+#if 0		
+							f2 = tx1.Get(0, 5, &value); 	
+							bool f4 = tx1.Get(0, 6, &value1); 
+							
 							
 							if (f4 && f3) {
 								v6 = *value1;
@@ -761,7 +771,7 @@ class Benchmark {
 			
 							}
 								
-						
+					
 							
 							DBTX::Iterator iter(&tx1, 0);
 							iter.Seek(3);
@@ -770,6 +780,11 @@ class Benchmark {
 							iter.Next();
 							if (f3 && iter.Key()!=6) c2 = true;
 							if (!f3 && iter.Key()!=5) c2 = true;
+
+
+#endif	
+
+							
 							b = tx1.End();
 				//			if(b == true)
 			//					printf("[%ld]RTX End\n", pthread_self());
@@ -778,11 +793,13 @@ class Benchmark {
 						}
 						if (f1 == f3) {
 							printf("[%ld] Get Key 4 return %d, Get Key 3 return %d, should be diff\n", pthread_self(), f1,f3);
-		
+							if (f1) {
+								printf("Value3 %ld, Value4 %ld\n",v3,v4);
+							}
 							fail = true;
 							break;
 						}
-#if 1
+#if 0
 						if (f1 != f2){
 							printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
 							fail = true;
@@ -793,7 +810,7 @@ class Benchmark {
 							fail = true;
 							break;
 						}
-#endif				
+			
 						if (c1) {
 							printf("Get Key 3 return %d, Seek Wrong\n");
 							fail = true;
@@ -804,6 +821,9 @@ class Benchmark {
 							fail = true;
 							break;
 						}
+#endif	
+
+						
 						leveldb::DBTX tx2( store);
 						b = false;
 						while (b == false) {
@@ -820,7 +840,7 @@ class Benchmark {
 		//					printf("[%ld] TX2 Delete 4\n", pthread_self());
 		
 							tx2.Delete(0, 4);			
-#if 1
+#if 0
 		
 							tx2.Delete(0, 5);
 		
@@ -838,7 +858,7 @@ class Benchmark {
 			
 						}
 		
-#if 0				
+#if 1				
 						leveldb::DBROTX tx3( store);
 		
 						
@@ -848,11 +868,11 @@ class Benchmark {
 						tx3.Begin();				
 																
 						f1 = tx3.Get(0, 4, &value);
-						f2 = tx3.Get(0, 5, &value); 
+			//			f2 = tx3.Get(0, 5, &value); 
 						
 						tx3.End();
 			
-						
+#if 0						
 						
 						if (f1 != f2){
 							printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
@@ -861,7 +881,7 @@ class Benchmark {
 		
 						}
 #endif
-		
+#endif		
 			
 					}
 					{
