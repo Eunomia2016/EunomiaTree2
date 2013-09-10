@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "util/rtm.h"
+#include "db/dbtx.h"
 
 namespace leveldb {
 
@@ -62,7 +63,11 @@ void RMQueue::Remove(Epoch* current)
 			RMElement* mn = (RMElement*)queue[head]->rmarray[i];
 			
 			{
+#if GLOBALOCK
+  				SpinLockScope spinlock(&DBTX::slock);
+#else
 				RTMScope rtm(NULL);
+#endif
 				//printf("RMQueue Remove %lx node %lx\n", mn->node);
 				//Check if this node has been modified
 				//printf("%ld %ld\n",mn->node->seq,mn->seq);
