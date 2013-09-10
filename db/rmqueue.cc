@@ -67,6 +67,9 @@ void RMQueue::Remove(Epoch* current)
 				//Check if this node has been modified
 				//printf("%ld %ld\n",mn->node->seq,mn->seq);
 				if(mn->node->value == (uint64_t *)1 && mn->node->seq == mn->seq) {
+
+				//	printf("[%ld] remove node %lx seq %ld\n", 
+				//		pthread_self(), mn->node, mn->node->seq);
 					
 					//Physically removed
 					mn->node->value = (uint64_t *)2;

@@ -16,6 +16,7 @@
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
 
+#define DEBUG_PRINT 0
 
 
 namespace leveldb {
@@ -364,7 +365,12 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	//If counter of the node is equal to the global counter, then just change the value pointer
     if(kvs[i].node->counter == gcounter) {
 		
-	 	
+#if DEBUG_PRINT
+	if(kvs[i].key == 3 || kvs[i].key == 4)
+		printf("[%ld] write %ld, node %lx, seq %ld, old value %ld new value %ld\n", 
+				pthread_self(), kvs[i].key, kvs[i].node,  
+				kvs[i].node->seq, (uint64_t)kvs[i].node->value, kvs[i].val);
+#endif
 
 #if CLEANUPPHASE
 		//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
@@ -411,6 +417,13 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		  kvs[i].node->seq++;
 			
 	} else if(kvs[i].node->counter < gcounter){
+
+#if DEBUG_PRINT
+		  if(kvs[i].key == 3 || kvs[i].key == 4)
+			  printf("[%ld] write %ld, node %lx, seq %ld, old value %ld new value %ld\n", 
+					  pthread_self(), kvs[i].key, kvs[i].node,	
+					  kvs[i].node->seq, (uint64_t)kvs[i].node->value, kvs[i].val);
+#endif
 
 	  //If global counter is updated, just update the counter and store a old copy into the dummy node
 	  //Clone the current value into dummy node
@@ -667,8 +680,10 @@ void DBTX::Begin()
   deleteset->Reset();
   
   txdb_->EpochTXBegin();
-  
-//printf("Begin\n");
+
+#if DEBUG_PRINT
+  printf("[%ld] TX Begin\n", pthread_self());
+#endif
   
 }
 
@@ -780,9 +795,11 @@ bool DBTX::End()
 	txdb_->GCDeletedNodes();
 	txdb_->RemoveNodes();
 
+#if DEBUG_PRINT
+   printf("[%ld] TX Success\n", pthread_self());
+#endif
 
-
-  return true;
+   return true;
 
 ABORT:
 	
@@ -795,6 +812,12 @@ ABORT:
 #endif	
 	txdb_->EpochTXEnd();
 	txdb_->GCDeletedNodes();
+
+
+#if DEBUG_PRINT
+	printf("[%ld] TX Abort\n", pthread_self());
+#endif
+
  	return false;
   
 
@@ -1016,9 +1039,9 @@ void DBTX::Delete(int tableid, uint64_t key)
 
 #else
 	uint64_t *val;
-	bool res = Get(tableid, key, &val);
-	if(res == false)
-		return;
+	//bool res = Get(tableid, key, &val);
+	//if(res == false)
+		//return;
 	Add(tableid, key, (uint64_t *)1);
 #endif
 	//Logically delete, set the value pointer to be 0x1
@@ -1181,11 +1204,12 @@ retry:
     readset->Add(&node->seq);
 
 	//if this node has been removed from the memstore
-	
-//	if(key == 3 || key == 4)
-	//printf("Thread %ld get %ld, seq %ld, value %ld\n", 
-		//		pthread_self(), key, node->seq, (uint64_t)node->value);
 
+#if DEBUG_PRINT
+	if(key == 3 || key == 4)
+		printf("[%ld] get %ld, node %lx, seq %ld, value %ld\n", 
+				pthread_self(), key, node,  node->seq, (uint64_t)node->value);
+#endif
 	
 	if (node->value == NULL || node->value == (uint64_t *)1 || node->value == (uint64_t *)2) {
 
