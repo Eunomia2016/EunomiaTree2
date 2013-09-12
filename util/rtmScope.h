@@ -12,7 +12,7 @@
 
 #define LOCKELISION 1
 #define MAXRETRY 10
-#define RTMArenaPROFILE 0
+#define RTMArenaPROFILE 1
 
 
 class RTMArenaScope {

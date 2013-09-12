@@ -139,7 +139,9 @@ public:
 
 	
 	~MemstoreBPlusTree() {
-		prof.reportAbortStatus();
+		//prof.reportAbortStatus();
+		delprof.reportAbortStatus();
+		
 		//PrintList();
 		//PrintStore();
 		//printf("rwconflict %ld\n", rconflict);
@@ -426,7 +428,7 @@ public:
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMArenaScope begtx(&rtmlock, &delprof, arena_);
 #endif
 
 
@@ -802,8 +804,11 @@ public:
 		int depth;
 
 		char padding2[64];
-		RTMProfile prof;
+		RTMProfile delprof;
 		char padding3[64];
+	
+		RTMProfile prof;
+		char padding6[64];
   		port::SpinLock slock;
 #if BTREE_PROF
 public:

@@ -8,6 +8,8 @@
 
 namespace leveldb {
 
+RTMProfile *RMQueue::rtmProf = NULL;
+
 RMQueue::RMQueue(DBTables *st)
 {
 	//the default size of the gc queue is 64
@@ -18,10 +20,14 @@ RMQueue::RMQueue(DBTables *st)
 	actual_del = 0;
 	elems = 0;
 	store = st;
+	if(rtmProf == NULL)
+		rtmProf = new RTMProfile();
 }
 	
 RMQueue::~RMQueue()
 {
+
+	printf("RMQueue\n");
 	while(head != tail) {
 		delete queue[head];
 		head = (head + 1) % qsize;
@@ -66,7 +72,8 @@ void RMQueue::Remove(Epoch* current)
 #if GLOBALOCK
   				SpinLockScope spinlock(&DBTX::slock);
 #else
-				RTMScope rtm(NULL);
+		//		RTMScope rtm(rtmProf);
+				RTMScope::fblock.Lock();
 #endif
 				//printf("RMQueue Remove %lx node %lx\n", mn->node);
 				//Check if this node has been modified
@@ -82,6 +89,8 @@ void RMQueue::Remove(Epoch* current)
 					n->seq++;
 					assert(n == mn->node);
 				}
+
+				RTMScope::fblock.Unlock();
 			
 			}
 
