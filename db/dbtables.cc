@@ -32,6 +32,7 @@ DBTables::DBTables(int n) {
 	indextypes = new int[n];
 	snapshot = 1;
 	epoch = NULL;
+
 }
 
 DBTables::~DBTables() {
@@ -49,6 +50,7 @@ DBTables::~DBTables() {
 	}
 	delete secondIndexes;
 	delete indextypes;
+	RMQueue::rtmProf->reportAbortStatus();
 }
 
 

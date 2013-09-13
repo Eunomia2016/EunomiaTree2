@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#define GCTEST 1
+#define GCTEST 0
 class GCQueue {
 
 struct GCElement {

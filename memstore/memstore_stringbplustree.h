@@ -154,7 +154,7 @@ public:
 
 	
 	~MemstoreStringBPlusTree() {
-		prof.reportAbortStatus();
+		//prof.reportAbortStatus();
 		//PrintList();
 		//PrintStore();
 		//printf("rwconflict %ld\n", rconflict);

@@ -9,10 +9,11 @@
 #include "util/spinlock.h"
 #include "txprofile.h"
 
+#define MAXNEST 0
 #define MAXZERO 3
 #define MAXCAPACITY 10
 #define MAXCONFLICT 100
-#define RTMPROFILE 0
+#define RTMPROFILE 1
 
 
 class RTMScope {
@@ -23,19 +24,22 @@ class RTMScope {
  int retry;
  int conflict;
  int capacity;
+ int nested;
  int zero;
  uint64_t befcommit;
  uint64_t aftcommit;
+ public:
 
  static SpinLock fblock;
 
- public:
+
   inline RTMScope(RTMProfile* prof) {
   	globalprof = prof;
 	retry = 0;
 	conflict = 0;
 	capacity = 0;
-        zero = 0;
+    zero = 0;
+	nested = 0;
 	
 	while(true) {
 	    unsigned stat;
@@ -57,21 +61,33 @@ class RTMScope {
 		  	conflict++;
 		  else if((stat & _XABORT_CAPACITY) != 0)
 			capacity++;
-
+		  else if((stat & _XABORT_NESTED) != 0)
+			nested++;
+		  
 		  if((stat & _XABORT_EXPLICIT) && _XABORT_CODE(stat) == 0xff) {
 			 while(fblock.IsLocked())
 			 	_mm_pause();
 		  }
+
+		  if(zero > MAXZERO) {
+			break;
+		  }
+
+		  if(nested > MAXNEST) {
+			break;
+		  }
+		  
 		  if(capacity > MAXCAPACITY) {
 //		  	printf("hold lock MAXCAPACITY\n");
 		  	break;
 		  }
-		  else if (conflict > MAXCONFLICT) {  	
+
+		   if (conflict > MAXCONFLICT) {  	
 	//	  	printf("hold lock MAXCONFLICT\n");
 		  	break;
-		  } else if(zero > MAXZERO) {
-			break;
-		 }
+		  }
+
+		  
 		
 		}
 	}
@@ -93,6 +109,7 @@ inline  ~RTMScope() {
 	//access the global profile info outside the transaction scope
 #if RTMPROFILE
 	if(globalprof != NULL) {
+		globalprof->succCounts++;
 		globalprof->abortCounts += retry;
 		globalprof->capacityCounts += capacity;
 		globalprof->conflictCounts += conflict;

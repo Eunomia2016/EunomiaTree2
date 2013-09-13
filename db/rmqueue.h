@@ -11,10 +11,12 @@
 namespace leveldb {
 class DBTables;
 
-#define RMTEST 1
+#define RMTEST 0
 class RMQueue {
 
 public:
+
+static RTMProfile *rtmProf;
 
 struct RMElement {
 	int tableid;
