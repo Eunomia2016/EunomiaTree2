@@ -115,8 +115,8 @@ memtx_bench: db/memtx_bench.o $(LIBOBJECTS) $(TESTUTIL)
 rtm_test: db/rtm_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/rtm_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
-bplustree_test: bplustree/bplustree_test.o $(LIBOBJECTS) $(TESTUTIL)
-	$(CXX) $(LDFLAGS) bplustree/bplustree_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+bplustree_test: memstore/bplustree_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) memstore/bplustree_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
 memstore_cuckoohash_test: memstore/memstore_cuckoohash_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) memstore/memstore_cuckoohash_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)

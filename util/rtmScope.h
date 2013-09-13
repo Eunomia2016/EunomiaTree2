@@ -65,6 +65,18 @@ class RTMArenaScope {
 	    }
 		else if (stat == 0)
 			zero++;
+
+
+#if 0		
+			localprofile.localRecordAbortStatus(stat);
+				if(retry > 100000000){
+					localprofile.reportAbortStatus();				
+					printf("stat %d\n",stat);
+					exit(1);
+					retry = 0;
+				}
+#endif
+
 			
 		
 #if LOCKELISION
@@ -86,15 +98,6 @@ class RTMArenaScope {
 		
 #endif
 
-#if 0		
-			localprofile.localRecordAbortStatus(stat);
-				if(retry > 100000000){
-					localprofile.reportAbortStatus();				
-					printf("stat %d\n",stat);
-					exit(1);
-					retry = 0;
-				}
-#endif
 
 
 	}
