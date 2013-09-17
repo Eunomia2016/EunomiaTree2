@@ -101,7 +101,7 @@ private:
 	  int num_initialized;
 	  int num_done;
 	  bool start;
-
+	  volatile int num_half_done;
 	  std::vector<Arena*>* collector;
 	
 	  SharedState() : cv(&mu) { }
@@ -242,7 +242,7 @@ private:
 		int seed = 31949 + tid % 48;
 		thread->rnd.reset(seed);
 		int num = thread->count;
-		
+		SharedState *shared = thread->shared;
 		double pstart = leveldb::Env::Default()->NowMicros();
 		unsigned i;
 		for (i=0; i<num; i++) {
@@ -258,10 +258,25 @@ private:
 		double pend = leveldb::Env::Default()->NowMicros();
 		thread->time1 = pend - pstart;
 		printf("Exe time: %f\n", ((double)pend-(double)pstart)/1000/1000);
-#if 0
-		//printf("Thread[%d] Put Throughput %lf ops/s\n", tid, num/(thread->time1/1000/1000));
 
-		if (tid == 0) btree->prof.reportAbortStatus();
+		printf("Thread[%d] Put Throughput %lf ops/s\n", tid, num/(thread->time1/1000/1000));
+		
+
+#if 0
+		{
+		  MutexLock l(&shared->mu);
+		  btree->prof.reportAbortStatus();
+		  shared->num_half_done++;
+		  
+		}
+		while (shared->num_half_done < shared->total);
+		
+
+#endif
+		
+#if 1
+
+		//if (tid == 0) btree->prof.reportAbortStatus();
 		int32_t *a = (int32_t *) malloc(sizeof(int32_t) * num);
     	assert(a);
 		thread->rnd.reset(seed);
@@ -283,6 +298,10 @@ private:
 			}
 			uint64_t *v = mn->value;
 			convertToString(a[i]+1);
+/*
+			if (*v ==  1) 
+				printf("wrong\n");*/
+
 			if ((uint64_t)v != (a[i]+1)) {
 				printf("Wrong value\n");
 				continue;
@@ -291,7 +310,7 @@ private:
 		double gend = leveldb::Env::Default()->NowMicros();
 		thread->time2 = gend - gstart;
 		
-		//printf("Thread[%d] Get Throughput %lf ops/s\n", tid, num/(thread->time2/1000/1000));		
+		printf("Thread[%d] Get Throughput %lf ops/s\n", tid, num/(thread->time2/1000/1000));		
 #endif		
 	  }
 
@@ -315,7 +334,7 @@ private:
 		shared.end_time = 0;
 		shared.num_done = 0;
 		shared.start = false;
-
+		shared.num_half_done = 0;
 	
 //		double start = leveldb::Env::Default()->NowMicros();
 		

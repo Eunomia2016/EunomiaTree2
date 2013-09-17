@@ -13,7 +13,7 @@
 
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
-
+#define NOPREFETCH 1
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 	
@@ -139,7 +139,7 @@ public:
 
 	
 	~MemstoreBPlusTree() {
-		//prof.reportAbortStatus();
+		prof.reportAbortStatus();
 		delprof.reportAbortStatus();
 		
 		//PrintList();
@@ -157,7 +157,18 @@ public:
 		//printTree();
 		//top();
 	}
-	  	  
+
+	inline void prefetch(const void *ptr) {
+#ifdef NOPREFETCH
+		(void) ptr;
+#else
+		typedef struct { char x[64]; } cacheline_t;
+		asm volatile("prefetcht0 %0" : : "m" (*(const cacheline_t *)ptr));
+#endif
+	}
+
+
+		  
 	inline void ThreadLocalInit(){
 		if(false == localinit_) {
 			arena_ = new RTMArena();
@@ -223,6 +234,7 @@ public:
 		   ++k;
 		}
 		if( leaf->keys[k] == key ) {
+			//prefetch(leaf->values[k]->value);
 			return leaf->values[k];
 		} else {
 			return NULL;
@@ -497,7 +509,9 @@ public:
 	
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
 #if BTREE_LOCK
+
 		MutexSpinLock lock(&slock);
+
 #else
 		RTMArenaScope begtx(&rtmlock, &prof, arena_);
 #endif
@@ -542,7 +556,9 @@ public:
 	}
 
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val) {
-	
+		
+
+
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
@@ -552,6 +568,8 @@ public:
 		   ++k;
 		}
 		void *child = inner->children[k];
+
+		
 /*		if (child == NULL) {
 			printf("Key %lx\n");
 			printInner(inner, d);
@@ -619,6 +637,9 @@ public:
 		}
 		else {
 			//printf("inner insert\n");
+			//for (int i=64; i<sizeof(InnerNode); i+=64) 
+			//	prefetch(reinterpret_cast<InnerNode*>(child) + i);
+			
 			bool s = true;
 			InnerNode *new_inner = 
 				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val);
@@ -711,6 +732,10 @@ public:
 	}
 
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val) {
+		
+		//for (int i=64; i<sizeof(LeafNode); i+=64) 
+		//	prefetch(leaf + i);
+		
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k]<key)) {
