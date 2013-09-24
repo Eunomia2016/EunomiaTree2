@@ -4,6 +4,7 @@
 #include "memstore_skiplist.h"
 #include "memstore/memstore_bplustree.h"
 #include "memstore/memstore_cuckoohash.h"
+#include "memstore/memstore_hash.h"
 #include "memstore/secondindex.h"
 #include "memstore/memstore_stringbplustree.h"
 #include "memstore/memstore_uint64bplustree.h"
@@ -19,6 +20,7 @@ class RMQueue;
 #define NONE 0
 #define BTREE 1
 #define HASH 2
+#define CUCKOO 6
 #define SKIPLIST 3
 #define IBTREE 4
 #define SBTREE 5

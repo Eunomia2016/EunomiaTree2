@@ -132,9 +132,9 @@ class RTMProfile {
 	 	if(status[XABORT_CAPACITY_INDEX] != 0)
 	 		printf("XABORT_CAPACITY %d\n", status[XABORT_CAPACITY_INDEX]);
 		if(status[XABORT_DEBUG_INDEX] != 0)
-	 		printf("XABORT_DEBUG %d\n", status[XABORT_DEBUG_INDEX]);
+	 		printf("XABORT_ZERO %d\n", status[XABORT_DEBUG_INDEX]);
 	 	if(status[XABORT_NESTED_INDEX] != 0)
-	 		printf("XABORT_NESTED %d\n", status[XABORT_NESTED_INDEX]);
+	 		printf("XABORT_LOCK %d\n", status[XABORT_NESTED_INDEX]);
 
 		if(succCounts != 0 ){
 			printf("Abort Counts %d\n", abortCounts);

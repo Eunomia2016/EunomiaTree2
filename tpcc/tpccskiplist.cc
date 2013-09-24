@@ -10,7 +10,7 @@
 
 #define PROFILE 0
 #define ABORTPRO 0
-#define SLDBTX	1
+#define SLDBTX	0
 #define CHECKTPCC 0
 
 
@@ -305,7 +305,7 @@ namespace leveldb {
 	store = new DBTables(9);
 	//insert an end value
 #if SEPERATE
-	store->AddTable(WARE, BTREE, NONE);
+	store->AddTable(WARE, HASH, NONE);
 	store->AddTable(DIST, HASH, NONE);
 	store->AddTable(CUST, HASH, SBTREE);
 	store->AddTable(HIST, HASH, NONE);
@@ -315,6 +315,7 @@ namespace leveldb {
 	store->AddTable(ITEM, HASH, NONE);
 	store->AddTable(STOC, HASH, NONE);
 #else
+#if 1
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
 			int a = store->AddTable(i, BTREE, SBTREE);
@@ -322,6 +323,15 @@ namespace leveldb {
 		}
 		else if (i == ORDE) store->AddTable(i, BTREE, IBTREE);
 		else store->AddTable(i, BTREE, NONE);
+#else
+	for (int i=0; i<9; i++)
+		if (i == CUST) {
+			int a = store->AddTable(i, SKIPLIST, SBTREE);
+			if (a != CUST_INDEX) printf("Customer index Wrong!\n");
+		}
+		else if (i == ORDE) store->AddTable(i, SKIPLIST, IBTREE);
+		else store->AddTable(i, SKIPLIST, NONE);
+#endif
 #endif
 	Memstore::MemNode *mn;
 	for (int i=0; i<9; i++) {
@@ -330,6 +340,8 @@ namespace leveldb {
 		if (i == ORDE) mn = node;
 	}
 	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
+
+	
 	abort = 0;
     conflict = 0;
     capacity = 0;

@@ -12,7 +12,7 @@ DBTables::DBTables() {
 	tables = new Memstore*[1];
 //	tables[0] = new MemstoreStringBPlusTree(8);
 	tables[0] = new MemstoreBPlusTree();
-//	tables[0] = new MemstoreCuckooHashTable();
+//	tables[0] = new MemstoreHashTable();
 //	tables[0] = new MemStoreSkipList();
 	types = new int[1];
 	types[0] = BTREE;
@@ -38,9 +38,10 @@ DBTables::DBTables(int n) {
 DBTables::~DBTables() {
 
 	for (int i=0; i<next; i++) {
-		if (types[i] == HASH) delete (MemstoreCuckooHashTable *)tables[i];
+		if (types[i] == HASH) delete (MemstoreHashTable *)tables[i];
 		else if (types[i] == BTREE) delete (MemstoreBPlusTree *)tables[i];
 		else if (types[i] == SKIPLIST) delete (MemStoreSkipList *)tables[i];
+		else if (types[i] == CUCKOO) delete (MemstoreCuckooHashTable *)tables[i];
 	}
 	delete tables;
 	delete types;
@@ -123,8 +124,9 @@ int DBTables::AddTable(int tableid, int index_type,int secondary_index_type)
 	assert(tableid == next);
 	assert(next < number);
 	if (index_type == BTREE) tables[next] = new MemstoreBPlusTree();	
-	else if (index_type == HASH) tables[next] = new MemstoreCuckooHashTable();
+	else if (index_type == HASH) tables[next] = new MemstoreHashTable();
 	else if (index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
+	else if (index_type == CUCKOO) tables[next] = new MemstoreCuckooHashTable();
 	types[next] = index_type;
 	next++;
 	

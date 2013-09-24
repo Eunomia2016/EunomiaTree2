@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <inttypes.h>
 #include <string>
+#include <sched.h>
 
 #include "leveldb/env.h"
 #include "port/port_posix.h"
@@ -21,7 +22,7 @@ static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
-
+#define SHAREWAREHOUSE 0
 namespace leveldb {
 
 
@@ -164,6 +165,15 @@ class Benchmark {
     ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
     SharedState* shared = arg->shared;
     ThreadState* thread = arg->thread;
+	/*
+	int x = thread->tid;
+	if (x == 0) x = 1;
+	else if (x == 1) x = 6;
+	cpu_set_t  mask;
+    CPU_ZERO(&mask);
+    CPU_SET(x, &mask);
+    sched_setaffinity(0, sizeof(mask), &mask);
+	*/
     {
       MutexLock l(&shared->mu);
       shared->num_initialized++;
@@ -256,8 +266,11 @@ class Benchmark {
     // Client owns all the parameters
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
+#if SHAREWAREHOUSE
+	client.bindWarehouseDistrict(thread->tid/2 + 1, 0);
+#else
 	client.bindWarehouseDistrict(thread->tid + 1, 0);
-	
+#endif	
     //for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
     while (total_count > 0) {
 	  int64_t oldv = XADD64(&total_count, -1000);
@@ -290,7 +303,11 @@ class Benchmark {
     // Client owns all the parameters
     TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
             District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
+#if SHAREWAREHOUSE
+	client.bindWarehouseDistrict(thread->tid/2 + 1, 0);
+#else
 	client.bindWarehouseDistrict(thread->tid + 1, 0);
+#endif	
 	
     //for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
     while (total_count > 0) {
@@ -319,7 +336,11 @@ class Benchmark {
 	  // Client owns all the parameters
 	  TPCCClient client(clock, random, tables, Item::NUM_ITEMS, static_cast<int>(NUM_WAREHOUSE),
 			  District::NUM_PER_WAREHOUSE, Customer::NUM_PER_DISTRICT);
+#if SHAREWAREHOUSE
+	  client.bindWarehouseDistrict(thread->tid/2 + 1, 0);
+#else
 	  client.bindWarehouseDistrict(thread->tid + 1, 0);
+#endif	
 	  
 	  //for (int i = 0; i < NUM_TRANSACTIONS; ++i) {
 	  while (total_count > 0) {
@@ -335,8 +356,11 @@ class Benchmark {
 };
 }
 int main(int argc, const char* argv[]) {
-	
-	
+/*	cpu_set_t  mask;
+    CPU_ZERO(&mask);
+    CPU_SET(0, &mask);
+    sched_setaffinity(0, sizeof(mask), &mask);
+	*/
 	long num_warehouses = 1;
 	const char* benchmark = "mix";
 	for (int i = 1; i < argc; i++) {

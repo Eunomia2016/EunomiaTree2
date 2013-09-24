@@ -19,7 +19,8 @@
 
 #include <vector>
 #include "memstore/memstore_bplustree.h"
-
+#include "db/dbtx.h"
+#include "db/dbtables.h"
 static const char* FLAGS_benchmarks ="putget";
 
 static int FLAGS_num = 10000000;
@@ -86,6 +87,8 @@ private:
    port::SpinLock slock;
 
    Random ramdon;
+
+   DBTables *store;
    
 private:
 	
@@ -189,6 +192,71 @@ private:
 		Benchmark::Str(bbuf_, buf_ + sizeof(buf_) - 1);
 	  }
 
+	  void TxMix(ThreadState* thread) {
+	  	int tid = thread->tid;		
+		store->ThreadLocalInit(tid);
+		int num = thread->count;
+		
+		int seed = 31949 + tid % 48;
+		printf("%d\n",tid);
+		double getfrac = 0.5;
+		thread->rnd.reset(seed);
+		const unsigned c = 2654435761U;
+    	const unsigned offset = thread->rnd.next();
+		
+		double start = leveldb::Env::Default()->NowMicros();
+		uint64_t puts = 0, gets = 0;
+    	int getfrac65536 = (int) (getfrac * 65536 + 0.5);
+		
+ 
+    	while ((puts + gets) <= num) {
+			if (puts == 0 || (thread->rnd.next() % 65536) >= getfrac65536) {
+	  	  		// insert
+	  	 		unsigned x = (offset + puts) * c;
+	  			x %= 100000000;
+				uint64_t key = static_cast<int64_t>(tid) << 32 | static_cast<int64_t>(x);
+	  			//unsigned x = tid*num + puts;
+				uint64_t *v = new uint64_t(x + 5);
+				DBTX tx(store);
+				bool b = false;
+				while (!b) {
+					tx.Begin();
+					tx.Add(0, key, v, 8);
+					b = tx.End();
+				}
+				
+	   			++puts;
+			} else {
+	   			// get
+			   	unsigned x = (offset + (thread->rnd.next() % puts)) * c;
+	   			x %= 100000000;
+	   			//unsigned x = tid*num + puts - 1;
+				uint64_t key = static_cast<int64_t>(tid) << 32 | static_cast<int64_t>(x);
+				uint64_t *v;
+				DBTX tx(store);
+				bool b = false;
+				bool f = false;
+				while (!b) {
+					tx.Begin();
+					f = tx.Get(0, key, &v);
+					b = tx.End();
+				}
+				if (!f) {
+					printf("Not found\n");
+					continue;
+				}
+				if (*v != (x + 5)) {
+					printf("Wrong value\n");
+					continue;
+				}
+	   			++gets;
+			}
+    	}
+	    double end = leveldb::Env::Default()->NowMicros();
+		printf("Exe time: %f\n", (end-start)/1000/1000);
+		printf("Thread[%d] Op Throughput %lf ops/s\n", tid, num/((end - start)/1000/1000));
+	  }
+
 
 	  void Mix(ThreadState* thread) {
 	  	int tid = thread->tid;
@@ -207,34 +275,39 @@ private:
 	  	  		// insert
 	  	 		unsigned x = (offset + puts) * c;
 	  			x %= 100000000;
-				convertToString(x);
-	   			Memstore::MemNode* mn = btree->GetWithInsert(x);
-				uint64_t v = x + 1;
-				convertToString(v);
+	  			//unsigned x = tid*num + puts;
+//				convertToString(x);
+				uint64_t key = static_cast<int64_t>(tid) << 32 | static_cast<int64_t>(x);
+				//printf("%lx %lx\n", x, key);
+	   			Memstore::MemNode* mn = btree->GetWithInsert(key);
+				uint64_t *v = new uint64_t(x + 5);
+				//convertToString(v);
 				mn->value = (uint64_t *)v;
 	   			++puts;
 			} else {
 	   			// get
 			   	unsigned x = (offset + (thread->rnd.next() % puts)) * c;
 	   			x %= 100000000;
-				convertToString(x);
-			   	Memstore::MemNode* mn = btree->Get(x);
+	   			//unsigned x = tid*num + puts - 1;
+	//			convertToString(x);
+				uint64_t key = static_cast<int64_t>(tid) << 32 | static_cast<int64_t>(x);
+			   	Memstore::MemNode* mn = btree->Get(key);
 				if (mn == NULL) {
 					printf("Not found\n");
 					continue;
 				}
 				uint64_t *v = mn->value;
-				convertToString(x + 1);
-				if ((uint64_t)v != (x + 1)) {
-					printf("Wrong value\n");
+				//convertToString(x + 1);
+				if (*v != (x + 5)) {
+					printf("Wrong value %ld %ld\n", *v , x+5);
 					continue;
 				}
 	   			++gets;
 			}
     	}
 	    double end = leveldb::Env::Default()->NowMicros();
-
-//		printf("Thread[%d] Op Throughput %lf ops/s\n", tid, num/((end - start)/1000/1000));
+		printf("Exe time: %f\n", (end-start)/1000/1000);
+		printf("Thread[%d] Op Throughput %lf ops/s\n", tid, num/((end - start)/1000/1000));
 	  }
 	  
 	  void PutGet(ThreadState* thread) {
@@ -265,7 +338,7 @@ private:
 #if 0
 		{
 		  MutexLock l(&shared->mu);
-		  btree->prof.reportAbortStatus();
+	//	  btree->prof.reportAbortStatus();
 		  shared->num_half_done++;
 		  
 		}
@@ -274,9 +347,9 @@ private:
 
 #endif
 		
-#if 1
+#if 0
 
-		//if (tid == 0) btree->prof.reportAbortStatus();
+		
 		int32_t *a = (int32_t *) malloc(sizeof(int32_t) * num);
     	assert(a);
 		thread->rnd.reset(seed);
@@ -309,8 +382,8 @@ private:
 		}
 		double gend = leveldb::Env::Default()->NowMicros();
 		thread->time2 = gend - gstart;
-		
-		printf("Thread[%d] Get Throughput %lf ops/s\n", tid, num/(thread->time2/1000/1000));		
+//		printf("Exe time: %f\n", ((double)gend-(double)gstart)/1000/1000);
+//		printf("Thread[%d] Get Throughput %lf ops/s\n", tid, num/(thread->time2/1000/1000));		
 #endif		
 	  }
 
@@ -382,12 +455,11 @@ private:
 	void Run(){
 
 	  btree = new leveldb::MemstoreBPlusTree();
-    
+      store = new DBTables();
  
       int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num;
-    
-
+   	  store->InitEpoch(num_); 
 	  Slice name = FLAGS_benchmarks;
 	  
 	  void (Benchmark::*method)(ThreadState*) = NULL;
@@ -395,6 +467,8 @@ private:
 	  	method = &Benchmark::PutGet;
 	  else if (name == "mix")
 	  	method = &Benchmark::Mix;
+	  else if (name == "txmix")
+	  	method = &Benchmark::TxMix;
       RunBenchmark(num_threads, num_, method);
 	  delete btree;
     }

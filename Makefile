@@ -207,8 +207,8 @@ table_test: table/table_test.o $(LIBOBJECTS) $(TESTHARNESS)
 skiplist_test: db/skiplist_test.o $(LIBOBJECTS) $(TESTHARNESS)
 	$(CXX) $(LDFLAGS) db/skiplist_test.o $(LIBOBJECTS) $(TESTHARNESS) -o $@ $(LIBS)
 
-hashtable_test: db/hashtable_test.o $(LIBOBJECTS) $(TESTHARNESS)
-	$(CXX) $(LDFLAGS) db/hashtable_test.o $(LIBOBJECTS) $(TESTHARNESS) -o $@ $(LIBS)
+hashtable_test: memstore/hashtable_test.o $(LIBOBJECTS) $(TESTHARNESS)
+	$(CXX) $(LDFLAGS) memstore/hashtable_test.o $(LIBOBJECTS) $(TESTHARNESS) -o $@ $(LIBS)
 
 
 version_edit_test: db/version_edit_test.o $(LIBOBJECTS) $(TESTHARNESS)

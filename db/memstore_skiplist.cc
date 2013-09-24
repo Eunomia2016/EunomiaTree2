@@ -14,8 +14,8 @@
 
 
 #define SKIPLISTGLOBALLOCK 0
-#define SKIPLISTRTM 0
-#define SKIPLISTLOCKFREE 1
+#define SKIPLISTRTM 1
+#define SKIPLISTLOCKFREE 0
 #define NODEPROFILE 0
 
 namespace leveldb {
