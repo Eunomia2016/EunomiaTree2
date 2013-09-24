@@ -4,13 +4,14 @@
 #include <stdlib.h>
 #include <iostream>
 #include "util/rtmScope.h" 
+#include "util/rtm.h" 
 #include "util/rtm_arena.h"
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
 #include "secondindex.h"
-#define IM  3
-#define IN  3
+#define IM  15
+#define IN  15
 
 #define IBTREE_PROF 0
 #define IBTREE_LOCK 0
@@ -196,7 +197,8 @@ public:
 
 	inline SecondNode* RoGet(uint64_t key)
 	{
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+//		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 
 		InnerNode* inner;
 		register void* node= root;
@@ -276,7 +278,8 @@ public:
 #if IBTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 #endif		
 		MemNodeWrapper *wrapper = secn->head;
 		while (wrapper != NULL) {
@@ -298,7 +301,8 @@ public:
 #if IBTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 #endif
 
 #if IBTREE_PROF

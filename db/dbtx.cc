@@ -718,7 +718,7 @@ bool DBTX::End()
 #if GLOBALOCK
     SpinLockScope spinlock(&slock);
 #else
-    RTMScope rtm(&rtmProf);
+    RTMScope rtm(&rtmProf, readset->elems, writeset->elems);
 #endif
 
     if(!readset->Validate()) {

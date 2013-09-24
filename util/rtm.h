@@ -13,8 +13,10 @@
 #define MAXZERO 3
 #define MAXCAPACITY 10
 #define MAXCONFLICT 100
-#define RTMPROFILE 1
+#define RTMPROFILE 0
 
+#define MAXWRITE 64
+#define MAXREAD 128
 
 class RTMScope {
 
@@ -28,18 +30,33 @@ class RTMScope {
  int zero;
  uint64_t befcommit;
  uint64_t aftcommit;
+ SpinLock* slock;
+ 
  public:
 
  static SpinLock fblock;
 
 
-  inline RTMScope(RTMProfile* prof) {
+ inline RTMScope(RTMProfile* prof, int read = 1, int write = 1, SpinLock* sl = NULL) {
+
   	globalprof = prof;
 	retry = 0;
 	conflict = 0;
 	capacity = 0;
     zero = 0;
 	nested = 0;
+
+	if(sl == NULL) {
+		//If the user doesn't provide a lock, we give him a default locking
+		slock = &fblock;
+	} else {
+		slock = sl;
+	}
+	
+	if(read > MAXREAD || write > MAXWRITE) {
+		slock->Lock();
+		return;
+	}
 	
 	while(true) {
 	    unsigned stat;
@@ -47,7 +64,7 @@ class RTMScope {
 		if(stat == _XBEGIN_STARTED) {
 
 		  //Put the global lock into read set
-		  if(fblock.IsLocked())
+		  if(slock->IsLocked())
 		    _xabort(0xff);
 		  
 		  return;
@@ -65,34 +82,36 @@ class RTMScope {
 			nested++;
 		  
 		  if((stat & _XABORT_EXPLICIT) && _XABORT_CODE(stat) == 0xff) {
-			 while(fblock.IsLocked())
+			 while(slock->IsLocked())
 			 	_mm_pause();
 		  }
 
-		  if(zero > MAXZERO) {
-			break;
-		  }
 
+		  int step = (read + write) / 64;
+
+		  if(step == 0)
+		  	step = 1;
+		  
 		  if(nested > MAXNEST) {
 			break;
 		  }
 		  
-		  if(capacity > MAXCAPACITY) {
-//		  	printf("hold lock MAXCAPACITY\n");
-		  	break;
+		  if(zero > MAXZERO) {
+			break;
 		  }
-
-		   if (conflict > MAXCONFLICT) {  	
-	//	  	printf("hold lock MAXCONFLICT\n");
-		  	break;
-		  }
-
 		  
+		  if(capacity > MAXCAPACITY / step) {
+		  	break;
+		  }
+		  
+		  if (conflict > MAXCONFLICT/step) {  	
+		  	break;
+		  }
 		
 		}
 	}
 	//printf("hold lock\n");
-	fblock.Lock();
+	slock->Lock();
 	
   }
 
@@ -102,8 +121,8 @@ class RTMScope {
 	
   }
 inline  ~RTMScope() {  
-  	if(fblock.IsLocked())
-	  fblock.Unlock();
+  	if(slock->IsLocked())
+	  slock->Unlock();
 	else
 	  _xend ();
 	//access the global profile info outside the transaction scope

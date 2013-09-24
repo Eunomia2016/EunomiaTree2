@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include "util/rtmScope.h" 
+#include "util/rtm.h" 
 #include "util/rtm_arena.h"
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
@@ -211,8 +212,9 @@ public:
 
 	inline MemNode* Get(uint64_t key)
 	{
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
-
+		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+		
 		InnerNode* inner;
 		register void* node= root;
 		register unsigned d= depth;
@@ -440,7 +442,8 @@ public:
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
-		RTMArenaScope begtx(&rtmlock, &delprof, arena_);
+		//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 #endif
 
 
@@ -513,7 +516,8 @@ public:
 		MutexSpinLock lock(&slock);
 
 #else
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 #endif
 
 #if BTREE_PROF
