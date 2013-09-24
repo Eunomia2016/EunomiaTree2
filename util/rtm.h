@@ -11,8 +11,8 @@
 
 #define MAXNEST 0
 #define MAXZERO 3
-#define MAXCAPACITY 10
-#define MAXCONFLICT 100
+#define MAXCAPACITY 16
+#define MAXCONFLICT 128
 #define RTMPROFILE 0
 
 #define MAXWRITE 64
