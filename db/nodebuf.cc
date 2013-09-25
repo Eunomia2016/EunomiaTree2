@@ -7,6 +7,9 @@ NodeBuf::NodeBuf()
 	head = tail = 0;
 	buffer = new GCElement*[qsize];
 	elems = 0;
+
+	hit = 0;
+	miss = 0;
 }
 
 NodeBuf::~NodeBuf()
@@ -42,9 +45,12 @@ Memstore::MemNode* NodeBuf::GetMemNode()
 
 	//if the buffer is empy, just allocate a new memory node
 	if(head == tail) {
+
 		return Memstore::GetMemNode();
 	}
 
+
+	
 	int last = (tail - 1) % qsize;
 	GCElement* gce = buffer[last];
 	
@@ -69,6 +75,6 @@ Memstore::MemNode* NodeBuf::GetMemNode()
 
 void NodeBuf::Print()
 {
-
+	printf("Node Buffer Hit %d Miss %d\n", hit, miss);
 }
 

@@ -11,7 +11,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
-#define CHECKTPCC 0
+#define CHECKTPCC 1
 
 
 #define WARE 0

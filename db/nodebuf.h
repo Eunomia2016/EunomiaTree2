@@ -15,6 +15,10 @@ private:
 	int tail;
 	GCElement** buffer;
 	int elems;
+	//For profiling
+
+	int hit;
+	int miss;
 	
 public:
 

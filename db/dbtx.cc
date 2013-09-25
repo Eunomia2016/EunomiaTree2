@@ -225,6 +225,22 @@ void DBTX::WriteSet::Resize() {
   //FIXME: didn't resize the secondary index array
 }
 
+void DBTX::WriteSet::Clear()
+{
+
+	for(int i = 0; i < elems; i++) {
+#if COPY_WHEN_ADD
+		if (kvs[i].val != NULL && kvs[i].val != (uint64_t *)1)
+			delete writeset->kvs[i].val;
+#endif
+		if(kvs[i].dummy != NULL)
+			delete kvs[i].dummy;
+	}
+
+	elems = 0;
+
+}
+
 void DBTX::WriteSet::Reset() 
 {
 	elems = 0;
@@ -290,11 +306,6 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
   kvs[cur].val = val;
   kvs[cur].node = node;
   kvs[cur].dummy = NULL;
-  
-  //Allocate the dummy node
-  //FIXME: Just allocate the dummy node as 1 height
-//  åkvs[cur].dummy = Memstore::GetMemNode();
-  
 }
 
 inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw, Memstore::MemNode* node)
@@ -806,14 +817,9 @@ bool DBTX::End()
 
 ABORT:
 	
-
-#if COPY_WHEN_ADD
-	for(int i = 0; i < writeset->elems; i++) {
-		if (writeset->kvs[i].val != NULL && writeset->kvs[i].val != (uint64_t *)1)
-			delete writeset->kvs[i].val;
-	}
-#endif	
-
+	//Should clear the writeset here
+	writeset->Clear();
+	
 	txdb_->EpochTXEnd();
 	txdb_->GCDeletedNodes();
 	txdb_->GCDeletedValues();
