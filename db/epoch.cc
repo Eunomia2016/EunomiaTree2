@@ -36,6 +36,8 @@ void Epoch::setTID(int i) {
 
 Epoch* Epoch::getCurrentEpoch() {
 
+	//printf("thrs_num %d\n", thrs_num);
+	assert(thrs_num < 100);
 	uint64_t * cs = new uint64_t[thrs_num];
 
 	for(int i = 0; i < thrs_num; i++)

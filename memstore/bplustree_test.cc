@@ -198,7 +198,7 @@ private:
 		int num = thread->count;
 		
 		int seed = 31949 + tid % 48;
-		printf("%d\n",tid);
+		printf("%d\n", ((MemstoreBPlusTree *)(store->tables[0]))->depth);
 		double getfrac = 0.5;
 		thread->rnd.reset(seed);
 		const unsigned c = 2654435761U;
@@ -219,7 +219,10 @@ private:
 				uint64_t *v = new uint64_t(x + 5);
 				DBTX tx(store);
 				bool b = false;
+			//	int count = 0;
 				while (!b) {
+			//		count++;
+			//		if (count > 10) printf("%d\n",count);
 					tx.Begin();
 					tx.Add(0, key, v, 8);
 					b = tx.End();
@@ -259,6 +262,7 @@ private:
 
 
 	  void Mix(ThreadState* thread) {
+	  	printf("%d\n", btree->depth);
 	  	int tid = thread->tid;
 		int num = thread->count;
 		int seed = 31949 + tid % 48;
@@ -459,9 +463,22 @@ private:
  
       int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num;
-   	  store->InitEpoch(num_); 
+   	  store->InitEpoch(num_threads); 
 	  Slice name = FLAGS_benchmarks;
-	  
+
+/*
+	  if (true) {
+		for (uint64_t i = 0; i < 100000000; i++) { 
+			uint64_t *val = new uint64_t(i);
+			if (name == "txmix") 
+				store->tables[0]->Put(i, val);
+			else btree->Put(i, val);
+		}
+	  }
+
+*/
+
+
 	  void (Benchmark::*method)(ThreadState*) = NULL;
 	  if (name == "putget")
 	  	method = &Benchmark::PutGet;
