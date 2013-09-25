@@ -72,8 +72,7 @@ void RMQueue::Remove(Epoch* current)
 #if GLOBALOCK
   				SpinLockScope spinlock(&DBTX::slock);
 #else
-		//		RTMScope rtm(rtmProf);
-				RTMScope::fblock.Lock();
+				RTMScope rtm(rtmProf);
 #endif
 				//printf("RMQueue Remove %lx node %lx\n", mn->node);
 				//Check if this node has been modified
@@ -89,8 +88,6 @@ void RMQueue::Remove(Epoch* current)
 					n->seq++;
 					assert(n == mn->node);
 				}
-
-				RTMScope::fblock.Unlock();
 			
 			}
 

@@ -762,7 +762,7 @@ bool DBTX::End()
 	
 	if(dvlen > 0) {
 		assert(dvlen <= writeset->elems);
-		txdb_->AddDeletedNodes(dvs, dvlen);
+		txdb_->AddDeletedValues(dvs, dvlen);
 	}
 #endif
 
@@ -793,6 +793,7 @@ bool DBTX::End()
 
 	txdb_->EpochTXEnd();
 	txdb_->GCDeletedNodes();
+	txdb_->GCDeletedValues();
 	txdb_->RemoveNodes();
 
 #if DEBUG_PRINT

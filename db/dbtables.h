@@ -31,6 +31,7 @@ class DBTables {
 
   public:
 	static __thread GCQueue* nodeGCQueue;
+	static __thread GCQueue* valueGCQueue;
 	static __thread RMQueue* rmqueue;
 	
 	uint64_t snapshot; // the counter for current snapshot
@@ -57,6 +58,9 @@ class DBTables {
 	
 	void AddDeletedNodes(uint64_t **nodes, int len);
 	void GCDeletedNodes();
+
+	void AddDeletedValues(uint64_t **nodes, int len);
+	void GCDeletedValues();
 
 	void AddRemoveNodes(uint64_t **nodes, int len);
 	void RemoveNodes();

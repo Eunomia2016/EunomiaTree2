@@ -87,8 +87,9 @@ class RTMScope {
 		  }
 
 
-		  int step = (read + write) / 64;
 
+		  int step = (read + write) / 64;
+		  
 		  if(step == 0)
 		  	step = 1;
 		  
