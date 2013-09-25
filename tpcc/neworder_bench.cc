@@ -22,7 +22,8 @@ static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
-#define SHAREWAREHOUSE 0
+#define SHAREWAREHOUSE 1
+#define SETAFFINITY	0
 namespace leveldb {
 
 
@@ -165,15 +166,16 @@ class Benchmark {
     ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
     SharedState* shared = arg->shared;
     ThreadState* thread = arg->thread;
-	/*
+#if SETAFFINITY	
 	int x = thread->tid;
-	if (x == 0) x = 1;
-	else if (x == 1) x = 6;
+//	if (x == 0) x = 1;
+//	else if (x == 1) x = 6;
 	cpu_set_t  mask;
     CPU_ZERO(&mask);
     CPU_SET(x, &mask);
     sched_setaffinity(0, sizeof(mask), &mask);
-	*/
+#endif	
+	
     {
       MutexLock l(&shared->mu);
       shared->num_initialized++;
