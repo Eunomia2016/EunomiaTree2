@@ -219,10 +219,10 @@ private:
 				uint64_t *v = new uint64_t(x + 5);
 				DBTX tx(store);
 				bool b = false;
-				int count = 0;
+			//	int count = 0;
 				while (!b) {
-					count++;
-					if (count > 10) printf("%d\n",count);
+			//		count++;
+			//		if (count > 10) printf("%d\n",count);
 					tx.Begin();
 					tx.Add(0, key, v, 8);
 					b = tx.End();
@@ -245,11 +245,11 @@ private:
 					b = tx.End();
 				}
 				if (!f) {
-				//	printf("Not found\n");
+					printf("Not found\n");
 					continue;
 				}
 				if (*v != (x + 5)) {
-				//	printf("Wrong value\n");
+					printf("Wrong value\n");
 					continue;
 				}
 	   			++gets;
@@ -467,8 +467,8 @@ private:
 	  Slice name = FLAGS_benchmarks;
 
 
-	  if (false) {
-		for (uint64_t i = 0; i < 134217728/1024; i++) { 
+	  if (true) {
+		for (uint64_t i = 0; i < 100000000; i++) { 
 			uint64_t *val = new uint64_t(i);
 			if (name == "txmix") 
 				store->tables[0]->Put(i, val);

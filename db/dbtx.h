@@ -19,20 +19,20 @@
 #include "db/delset.h"
 
 #define CACHESIM 0
-#define GLOBALOCK 1
+#define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
-#define BUFFERNODE 0
+#define BUFFERNODE 1
 #define PROFILEBUFFERNODE 0
 #define CLEANUPPHASE 0
 
 //For deletion
-#define FREEMEMNODE 1
+#define FREEMEMNODE 0
 
 #define FREEOLDVALUE 1
 
 //For deletion (read only TX)
-#define FREEOLDVERSION 1
-#define READONLYREMOVE 1
+#define FREEOLDVERSION 0
+#define READONLYREMOVE 0
 
 //For interface
 #define COPY_WHEN_ADD 1

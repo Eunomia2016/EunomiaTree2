@@ -701,7 +701,7 @@ bool DBTX::Abort()
 }
 
 bool DBTX::End()
-{  return true;
+{  
   int dvlen;
   uint64_t **dvs;
   int ovlen;
