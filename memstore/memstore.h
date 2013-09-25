@@ -25,6 +25,13 @@ class Memstore {
 		oldVersions = NULL;
 		secIndexValidateAddr = NULL;
 	}
+
+	//For debuging
+	void Print()
+	{
+		printf("Mem Addr %lx, Counter %ld, Seq %ld, Value Addr %lx, Old Addr %lx\n",
+			this, counter, seq, value, oldVersions, secIndexValidateAddr);
+	}
   };
 
 

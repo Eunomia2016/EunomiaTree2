@@ -20,13 +20,13 @@ static const char* FLAGS_benchmarks =
 	"nocycle,"
 	"delete,"	
 	"readonly,"
-    "range,"
     "equalrange,"
 	"nocycle_readonly,"
 	"rwiter,"
 	"freedelete,"
 	"secdelete,"
-	"bigdelete";
+	"bigdelete,"
+	"range";
 	
 
 namespace leveldb {

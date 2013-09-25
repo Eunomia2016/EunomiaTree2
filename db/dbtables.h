@@ -11,6 +11,7 @@
 #include "db/epoch.h"
 #include "db/gcqueue.h"
 #include "db/rmqueue.h"
+#include "db/nodebuf.h"
 
 
 namespace leveldb{
@@ -33,6 +34,7 @@ class DBTables {
 	static __thread GCQueue* nodeGCQueue;
 	static __thread GCQueue* valueGCQueue;
 	static __thread RMQueue* rmqueue;
+	static __thread NodeBuf* nodebuffer;
 	
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
@@ -61,7 +63,8 @@ class DBTables {
 
 	void AddDeletedValues(uint64_t **nodes, int len);
 	void GCDeletedValues();
-
+	Memstore::MemNode* GetMemNode();
+	
 	void AddRemoveNodes(uint64_t **nodes, int len);
 	void RemoveNodes();
 	

@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "nodebuf.h"
 
 GCQueue::GCQueue()
 {
@@ -35,10 +36,10 @@ void GCQueue::AddGCElement(Epoch* e, uint64_t** arr, int len)
 	
 	if((tail + 1) % qsize == head) {
 		printf("ERROR: GCQUEUE Over Flow %d\n", elems);
-		printf("Cur \n");
-		e->Print();
-		printf("Queue \n");
-		Print();
+		//printf("Cur \n");
+		//e->Print();
+		//printf("Queue \n");
+		//Print();
 		exit(1);
 	}
 	tail = (tail + 1) % qsize;
@@ -61,6 +62,21 @@ void GCQueue::GC(Epoch* current)
 	}
 	
 }
+
+
+void GCQueue::GC(Epoch* current, NodeBuf* buf)
+{	
+	while(head != tail && queue[head]->epoch->Compare(current) < 0) {
+		buf->AddGCElement(queue[head]);
+		head = (head + 1) % qsize;
+		elems--;
+#if GCTEST
+		actual_del++;
+#endif
+	}
+	
+}
+
 
 void GCQueue::Print()
 {

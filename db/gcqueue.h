@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <assert.h>
 
+
 #define GCTEST 0
-class GCQueue {
 
 struct GCElement {
 	Epoch* epoch;
@@ -38,6 +38,10 @@ struct GCElement {
 	}
 };
 
+class NodeBuf;
+
+class GCQueue {
+
 private:
 	int qsize;
 	int head;
@@ -55,6 +59,8 @@ public:
 	void AddGCElement(Epoch* e, uint64_t** arr, int len);
 
 	void GC(Epoch* current);
+
+	void GC(Epoch* current, NodeBuf* buf);
 
 	void Print();
 
