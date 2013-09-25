@@ -463,10 +463,10 @@ private:
  
       int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num;
-   	  store->InitEpoch(num_); 
+   	  store->InitEpoch(num_threads); 
 	  Slice name = FLAGS_benchmarks;
 
-
+/*
 	  if (true) {
 		for (uint64_t i = 0; i < 100000000; i++) { 
 			uint64_t *val = new uint64_t(i);
@@ -476,7 +476,7 @@ private:
 		}
 	  }
 
-
+*/
 
 
 	  void (Benchmark::*method)(ThreadState*) = NULL;
