@@ -215,10 +215,41 @@ private:
 		
 		int finish = 0 ;
 		fast_random r = thread->rnd;
-
+		std::string v;
 		
 		double start = leveldb::Env::Default()->NowMicros();
-	
+		DBTX tx(store);
+		while (finish < num) {
+			double d = r.next_uniform();
+			if (d < 0.8) {
+				uint64_t key = r.next() % nkeys;
+				bool b = false;
+				while (!b) {
+					tx.Begin();
+					uint64_t *s;
+					tx.Get(0, key, &s);
+					std::string *p = &v;
+					p->assign((char *)s, YCSBRecordSize);
+					b = tx.End();					
+				}
+				finish++;
+			}
+			if (d < 0.2) {
+				uint64_t key = r.next() % nkeys;
+				bool b = false;
+				while (!b) {
+					tx.Begin();
+					uint64_t *s;
+					tx.Get(0, key, &s);
+					std::string *p = &v;
+					p->assign((char *)s, YCSBRecordSize);
+					std::string c(YCSBRecordSize, 'c');
+					tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
+					b = tx.End();
+				}
+				finish++;
+			}
+		}
 		
  
 	    double end = leveldb::Env::Default()->NowMicros();
