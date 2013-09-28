@@ -186,7 +186,7 @@ void DBTables::AddRemoveNode(int tableid, uint64_t key,
 
 void DBTables::GC()
 {
-	if(gcnum < GCThreshold && rmPool->elems < RMThreshold)
+	if(gcnum < GCThreshold && rmPool->GCElems() < RMThreshold)
 		return;
 
 	
