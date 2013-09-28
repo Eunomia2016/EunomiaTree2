@@ -4,7 +4,9 @@ namespace leveldb {
 
 
 __thread GCQueue* DBTables::nodeGCQueue = NULL;
+__thread GCQueue* DBTables::valueGCQueue = NULL;
 __thread RMQueue* DBTables::rmqueue = NULL;
+__thread NodeBuf* DBTables::nodebuffer = NULL;
 
 //FOR TEST
 DBTables::DBTables() {
@@ -70,6 +72,20 @@ void DBTables::EpochTXEnd()
 	epoch->endTX();
 }
 
+void DBTables::AddDeletedValues(uint64_t **values, int len)
+{
+	assert(values != NULL);
+	assert(valueGCQueue != NULL);
+	
+	valueGCQueue->AddGCElement(epoch->getCurrentEpoch(), values, len);
+}
+
+void DBTables::GCDeletedValues()
+{
+	if(valueGCQueue != NULL)
+		valueGCQueue->GC(epoch);
+}
+
 
 void DBTables::AddDeletedNodes(uint64_t **nodes, int len)
 {
@@ -84,10 +100,17 @@ void DBTables::AddDeletedNodes(uint64_t **nodes, int len)
 	nodeGCQueue->AddGCElement(epoch->getCurrentEpoch(), nodes, len);
 }
 
+
 void DBTables::GCDeletedNodes()
 {
 	if(nodeGCQueue != NULL)
-		nodeGCQueue->GC(epoch);
+		nodeGCQueue->GC(epoch, nodebuffer);
+}
+
+
+Memstore::MemNode* DBTables::GetMemNode()
+{
+	return nodebuffer->GetMemNode();
 }
 
 
@@ -113,7 +136,12 @@ void DBTables::ThreadLocalInit(int tid)
 		epoch->setTID(tid);
 
 	nodeGCQueue = new GCQueue();
+
+	valueGCQueue = new GCQueue();
+	
 	rmqueue = new RMQueue(this);
+
+	nodebuffer = new NodeBuf();
 	
 	for (int i=0; i<next; i++)
 		tables[i]->ThreadLocalInit();

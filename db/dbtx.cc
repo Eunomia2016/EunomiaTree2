@@ -225,6 +225,22 @@ void DBTX::WriteSet::Resize() {
   //FIXME: didn't resize the secondary index array
 }
 
+void DBTX::WriteSet::Clear()
+{
+
+	for(int i = 0; i < elems; i++) {
+#if COPY_WHEN_ADD
+		if (kvs[i].val != NULL && kvs[i].val != (uint64_t *)1)
+			delete writeset->kvs[i].val;
+#endif
+		if(kvs[i].dummy != NULL)
+			delete kvs[i].dummy;
+	}
+
+	elems = 0;
+
+}
+
 void DBTX::WriteSet::Reset() 
 {
 	elems = 0;
@@ -289,11 +305,7 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
   kvs[cur].key = key;
   kvs[cur].val = val;
   kvs[cur].node = node;
-
-  //Allocate the dummy node
-  //FIXME: Just allocate the dummy node as 1 height
-  kvs[cur].dummy = Memstore::GetMemNode();
-  
+  kvs[cur].dummy = NULL;
 }
 
 inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw, Memstore::MemNode* node)
@@ -352,7 +364,7 @@ inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
 
 //gcounter should be added into the rtm readset
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
-{
+{ 
   for(int i = 0; i < elems; i++) {
 	
 #if GLOBALOCK
@@ -432,11 +444,18 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	  if(kvs[i].val == (uint64_t *)1) {
 		  dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
 	  }
-	  
+
+	  kvs[i].dummy = dbtx_->txdb_->GetMemNode();
 	  kvs[i].dummy->value = kvs[i].node->value;
 	  kvs[i].dummy->counter = kvs[i].node->counter;
 	  kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
 	  kvs[i].dummy->oldVersions = kvs[i].node->oldVersions;
+	  
+#if DEBUG_PRINT
+	  printf("Thread [%lx] ", pthread_self());
+	  kvs[i].dummy->Print();
+#endif
+
 
 	  //update the current node
 	  kvs[i].node->oldVersions = kvs[i].dummy;
@@ -482,15 +501,9 @@ inline uint64_t** DBTX::WriteSet::GetOldVersions(int* len)
 
 	//First get the number of values needed to be deleted
 	for(int i = 0; i < elems; i++) {
-		
-		if(kvs[i].dummy->counter != 0) {
-			assert(kvs[i].dummy->counter > 0);
+
+		if(kvs[i].dummy != NULL)
 			ovn++;
-		} else {
-			delete kvs[i].dummy;
-			kvs[i].dummy = NULL;
-		}
-		
 		
 	}
 
@@ -762,7 +775,7 @@ bool DBTX::End()
 	
 	if(dvlen > 0) {
 		assert(dvlen <= writeset->elems);
-		txdb_->AddDeletedNodes(dvs, dvlen);
+		txdb_->AddDeletedValues(dvs, dvlen);
 	}
 #endif
 
@@ -793,6 +806,7 @@ bool DBTX::End()
 
 	txdb_->EpochTXEnd();
 	txdb_->GCDeletedNodes();
+	txdb_->GCDeletedValues();
 	txdb_->RemoveNodes();
 
 #if DEBUG_PRINT
@@ -803,15 +817,13 @@ bool DBTX::End()
 
 ABORT:
 	
-
-#if COPY_WHEN_ADD
-	for(int i = 0; i < writeset->elems; i++) {
-		if (writeset->kvs[i].val != NULL && writeset->kvs[i].val != (uint64_t *)1)
-			delete writeset->kvs[i].val;
-	}
-#endif	
+	//Should clear the writeset here
+	writeset->Clear();
+	
 	txdb_->EpochTXEnd();
 	txdb_->GCDeletedNodes();
+	txdb_->GCDeletedValues();
+	txdb_->RemoveNodes();
 
 
 #if DEBUG_PRINT

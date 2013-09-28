@@ -9,9 +9,11 @@
 #define SEPERATE 0
 
 #define PROFILE 0
+
 #define ABORTPRO 0
-#define SLDBTX	1
+#define SLDBTX	0
 #define CHECKTPCC 0
+
 
 
 #define WARE 0

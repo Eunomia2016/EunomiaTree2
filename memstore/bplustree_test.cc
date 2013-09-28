@@ -203,6 +203,8 @@ private:
 		thread->rnd.reset(seed);
 		const unsigned c = 2654435761U;
     	const unsigned offset = thread->rnd.next();
+
+		DBTX tx(store);
 		
 		double start = leveldb::Env::Default()->NowMicros();
 		uint64_t puts = 0, gets = 0;
@@ -217,7 +219,7 @@ private:
 				uint64_t key = static_cast<int64_t>(tid) << 32 | static_cast<int64_t>(x);
 	  			//unsigned x = tid*num + puts;
 				uint64_t *v = new uint64_t(x + 5);
-				DBTX tx(store);
+				
 				bool b = false;
 			//	int count = 0;
 				while (!b) {
@@ -236,7 +238,7 @@ private:
 	   			//unsigned x = tid*num + puts - 1;
 				uint64_t key = static_cast<int64_t>(tid) << 32 | static_cast<int64_t>(x);
 				uint64_t *v;
-				DBTX tx(store);
+
 				bool b = false;
 				bool f = false;
 				while (!b) {
@@ -295,7 +297,7 @@ private:
 	   			//unsigned x = tid*num + puts - 1;
 	//			convertToString(x);
 				uint64_t key = static_cast<int64_t>(tid) << 32 | static_cast<int64_t>(x);
-			   	Memstore::MemNode* mn = btree->Get(key);
+			   	Memstore::MemNode* mn = btree->GetWithInsert(key);
 				if (mn == NULL) {
 					printf("Not found\n");
 					continue;

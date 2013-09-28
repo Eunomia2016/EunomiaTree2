@@ -283,7 +283,8 @@ public:
 		inline void Cleanup(DBTables* tables);
 		inline uint64_t** GetDeletedValues(int* len);
 		inline uint64_t** GetOldVersions(int* len);
-		
+
+		void Clear();
 		void Print();
 		void Reset();
 	};
