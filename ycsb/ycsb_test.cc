@@ -23,7 +23,7 @@ static int FLAGS_threads = 1;
 static uint64_t nkeys = 160000000;
 #define CHECK 0
 #define YCSBRecordSize 100
-
+#define GETCOPY 1
 namespace leveldb {
 	
 typedef uint64_t Key;
@@ -228,8 +228,10 @@ private:
 					tx.Begin();
 					uint64_t *s;
 					tx.Get(0, key, &s);
+#if GETCOPY
 					std::string *p = &v;
 					p->assign((char *)s, YCSBRecordSize);
+#endif					
 					b = tx.End();					
 				}
 				finish++;
@@ -241,8 +243,10 @@ private:
 					tx.Begin();
 					uint64_t *s;
 					tx.Get(0, key, &s);
-					std::string *p = &v;
+#if GETCOPY						
+					std::string *p = &v;			
 					p->assign((char *)s, YCSBRecordSize);
+#endif					
 					std::string c(YCSBRecordSize, 'c');
 					tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
 					b = tx.End();
@@ -274,8 +278,13 @@ private:
 				uint64_t key = r.next() % nkeys;
 				Memstore::MemNode * mn = btree->Get(key);
 				char *s = (char *)(mn->value);
+#if GETCOPY
 				std::string *p = &v;
 				p->assign(s, YCSBRecordSize);
+#else
+				if (s == NULL)
+					printf("N");
+#endif				
 				finish++;
 			}
 			//RMW
@@ -283,8 +292,13 @@ private:
 				uint64_t key = r.next() % nkeys;
 				Memstore::MemNode * mn = btree->GetWithInsert(key);
 				char *s = (char *)(mn->value);
+#if GETCOPY				
 				std::string *p = &v;
 				p->assign(s,  YCSBRecordSize);
+#else
+				if (s == NULL)
+					printf("N");
+#endif				
 				std::string c(YCSBRecordSize, 'c');
 				memcpy(nv, c.data(), YCSBRecordSize);
 				mn = btree->GetWithInsert(key);
