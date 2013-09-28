@@ -13,6 +13,7 @@
 #include "db/rmqueue.h"
 #include "db/nodebuf.h"
 #include "db/objpool.h"
+#include "db/rcu.h"
 
 namespace leveldb{
 
@@ -25,6 +26,12 @@ class RMQueue;
 #define SKIPLIST 3
 #define IBTREE 4
 #define SBTREE 5
+
+//GC when the number of gc objects reach GCThreshold
+#define GCThreshold 100
+
+//GC when the number of rm objects reach RMThreshold
+#define RMThreshold 20
 
 class DBTables {
 
@@ -39,6 +46,8 @@ class DBTables {
 
 	static __thread OBJPool* valuesPool;
 	static __thread OBJPool* memnodesPool;
+	static __thread uint64_t gcnum;
+	
 	
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
@@ -49,6 +58,7 @@ class DBTables {
 	int next;
 	int nextindex;
 	Epoch* epoch;
+	RCU* rcu;
 	
 	DBTables();
 	DBTables(int n);
@@ -57,26 +67,33 @@ class DBTables {
 	void ThreadLocalInit(int tid);
 	int AddTable(int tableid, int index_type, int secondary_index_type);
 
-	//For GC
-	void InitEpoch(int thr_num);
+	//For Epoch
+	void InitEpoch(int thr_num);	
 	void EpochTXBegin();
 	void EpochTXEnd();
 	
 	void AddDeletedNodes(uint64_t **nodes, int len);
 	void GCDeletedNodes();
-
 	void AddDeletedValues(uint64_t **nodes, int len);
 	void GCDeletedValues();
 	Memstore::MemNode* GetMemNode();
-	
 	void AddRemoveNodes(uint64_t **nodes, int len);
 	void RemoveNodes();
 
+
+	//For RCU
+	void RCUInit(int thr_num);
+	void RCUTXBegin();
+	void RCUTXEnd();
+	
+	
 	void AddDeletedValue(int tableid, uint64_t* value);
 	uint64_t*GetEmptyValue(int tableid);
 	
-	void AddRemoveNode(uint64_t *node);
+	void AddDeletedNode(uint64_t *node);
 	uint64_t* GetEmptyNode();
+
+	void GC();
 	
 };
 

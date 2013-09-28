@@ -30,6 +30,9 @@ public:
 
 	uint64_t* GetFreeObj();
 
+
+	void GC();
+
 	void Print();
 	
 };

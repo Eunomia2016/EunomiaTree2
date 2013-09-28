@@ -11,6 +11,8 @@ __thread NodeBuf* DBTables::nodebuffer = NULL;
 
 __thread OBJPool* DBTables::valuesPool = NULL;
 __thread OBJPool* DBTables::memnodesPool = NULL;
+__thread uint64_t DBTables::gcnum = 0;
+
 
 
 //FOR TEST
@@ -135,8 +137,26 @@ void DBTables::RemoveNodes()
 }
 
 
+void DBTables::RCUInit(int thr_num)
+{
+	rcu = new RCU(thr_num);
+}
+
+void DBTables::RCUTXBegin()
+{
+	rcu->BeginTX();
+}
+
+void DBTables::RCUTXEnd()
+{
+	rcu->EndTX();
+}
+
+
+
 void DBTables::AddDeletedValue(int tableid, uint64_t* value)
 {
+	gcnum++;
 	valuesPool[tableid].AddGCObj(value);
 }
 
@@ -145,8 +165,9 @@ uint64_t* DBTables::GetEmptyValue(int tableid)
 	return valuesPool[tableid].GetFreeObj();
 }
 
-void DBTables::AddRemoveNode(uint64_t *node)
+void DBTables::AddDeletedNode(uint64_t *node)
 {
+	gcnum++;
 	memnodesPool->AddGCObj(node); 
 }
 
@@ -156,6 +177,22 @@ uint64_t* DBTables::GetEmptyNode()
 }
 
 
+void DBTables::GC()
+{
+	if(gcnum < GCThreshold)
+		return;
+
+	
+	rcu->WaitForGracePeriod();
+	
+	//Delete all values 
+	for(int i = 0; i < number; i++) {
+		valuesPool[i].GC();
+	}
+
+	memnodesPool->GC();
+	gcnum = 0;
+}
 
 void DBTables::ThreadLocalInit(int tid)
 {
@@ -164,9 +201,13 @@ void DBTables::ThreadLocalInit(int tid)
 	
 	valuesPool = new OBJPool[number];
 	memnodesPool = new OBJPool();
+	gcnum = 0;
 	
     if(epoch != NULL)
 		epoch->setTID(tid);
+
+	if(rcu != NULL)
+		rcu->RegisterThread(tid);
 
 	nodeGCQueue = new GCQueue();
 

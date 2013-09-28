@@ -28,8 +28,6 @@
 //For deletion
 #define FREEMEMNODE 1
 
-#define FREEOLDVALUE 1
-
 //For deletion (read only TX)
 #define FREEOLDVERSION 1
 #define READONLYREMOVE 1
@@ -281,9 +279,13 @@ public:
 		inline void Write(uint64_t gcounter);
 		inline bool CheckWriteSet();
 		inline void Cleanup(DBTables* tables);
+		
 		inline uint64_t** GetDeletedValues(int* len);
 		inline uint64_t** GetOldVersions(int* len);
 
+		inline bool ValidValue(uint64_t *value);
+		inline void CollectOldVersions(DBTables* tables);
+		
 		void Clear();
 		void Print();
 		void Reset();

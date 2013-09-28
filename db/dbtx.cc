@@ -388,7 +388,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 			
 			assert(dbtx_ != NULL);
 
-			
 			//Invalidate secondary index when deletion 	  	  			
 			if (kvs[i].node->secIndexValidateAddr != NULL)
 				*(kvs[i].node->secIndexValidateAddr) = -1;	
@@ -411,19 +410,19 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 					  kvs[i].node->seq, (uint64_t)kvs[i].node->value, kvs[i].val);
 #endif
 
-	  //If global counter is updated, just update the counter and store a old copy into the dummy node
-	  //Clone the current value into dummy node
+	    //If global counter is updated, just update the counter and store a old copy into the dummy node
+	    //Clone the current value into dummy node
 	  
-	  //If is delete, put it into the delete set
-	  if(kvs[i].val == (uint64_t *)1) {
+	    //If is delete, put it into the delete set
+	    if(kvs[i].val == (uint64_t *)1) {
 		  dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
-	  }
+	    }
 
-	  kvs[i].dummy = dbtx_->txdb_->GetMemNode();
-	  kvs[i].dummy->value = kvs[i].node->value;
-	  kvs[i].dummy->counter = kvs[i].node->counter;
-	  kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
-	  kvs[i].dummy->oldVersions = kvs[i].node->oldVersions;
+	    kvs[i].dummy = dbtx_->txdb_->GetMemNode();
+	    kvs[i].dummy->value = kvs[i].node->value;
+	    kvs[i].dummy->counter = kvs[i].node->counter;
+	    kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
+	    kvs[i].dummy->oldVersions = kvs[i].node->oldVersions;
 	  
 #if DEBUG_PRINT
 	  printf("Thread [%lx] ", pthread_self());
@@ -431,17 +430,15 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 #endif
 
 
-	  //update the current node
-	  kvs[i].node->oldVersions = kvs[i].dummy;
-	  kvs[i].node->counter = gcounter;
+	    //update the current node
+	    kvs[i].node->oldVersions = kvs[i].dummy;
+	    kvs[i].node->counter = gcounter;
 	  	  
-	  kvs[i].node->value = kvs[i].val;
-	  kvs[i].node->seq++;
+	    kvs[i].node->value = kvs[i].val;
+	    kvs[i].node->seq++;
 
-	  //Fix me: here we set the val in write set to be NULL
-	  kvs[i].val = NULL;
-	  
-//	  printf("[WS] write key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
+	    //Fix me: here we set the val in write set to be NULL
+	    kvs[i].val = NULL;
 	   
 	} else {
 	  //Error Check: Shouldn't arrive here
@@ -462,6 +459,36 @@ inline bool DBTX::WriteSet::CheckWriteSet()
 		return false;
   }
   return true;
+}
+
+
+inline bool DBTX::WriteSet::ValidValue(uint64_t *val) {
+	return (val != (uint64_t *)NULL && val != (uint64_t *)1 
+		&& val != (uint64_t *)2 && val != (uint64_t *)3 );
+}
+
+//Collect old version records
+inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables)
+{
+	
+	for(int i = 0; i < elems; i++) {
+		//First check if there is value replaced by the put operation
+		if(ValidValue(kvs[i].val)) {
+			tables->AddDeletedValue(kvs[i].tableid, kvs[i].val);
+		
+
+		//Then check if there is some old version records
+		if(kvs[i].dummy != NULL) {
+			
+			tables->AddDeletedNode((uint64_t *) kvs[i].dummy);
+				
+			if(ValidValue(kvs[i].dummy->value))
+				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value);	
+		}
+		
+	}
+
+	}
 }
 
 inline uint64_t** DBTX::WriteSet::GetOldVersions(int* len)
@@ -666,6 +693,7 @@ void DBTX::Begin()
   writeset->Reset();
   deleteset->Reset();
   
+  txdb_->RCUTXBegin();
   txdb_->EpochTXBegin();
 
 #if DEBUG_PRINT
@@ -684,6 +712,7 @@ bool DBTX::Abort()
   abort = false;
   //Should not call End
   txdb_->EpochTXEnd();
+  txdb_->RCUTXEnd();
   return abort;
 }
 
@@ -733,26 +762,16 @@ bool DBTX::End()
   }
   
 
-#if FREEOLDVALUE
-	dvlen = 0;
-	dvs = writeset->GetDeletedValues(&dvlen);
-	
-	if(dvlen > 0) {
-		assert(dvlen <= writeset->elems);
-		txdb_->AddDeletedValues(dvs, dvlen);
-	}
-#endif
-
 #if FREEOLDVERSION
-   	ovlen = 0;
-	ovs = writeset->GetOldVersions(&ovlen);
-	
-	if(ovlen > 0) {
-		assert(ovlen <= writeset->elems);
-		txdb_->AddDeletedNodes(ovs, ovlen);
-	}
-
+	//Put the objects into the object pool
+	writeset->CollectOldVersions(txdb_);
 #endif
+
+	txdb_->RCUTXEnd();	
+	txdb_->GC();
+
+
+
 
 #if FREEMEMNODE
 	gcnodes = deleteset->getGCNodes();
@@ -769,6 +788,7 @@ bool DBTX::End()
 #endif
 
 	txdb_->EpochTXEnd();
+	
 	txdb_->GCDeletedNodes();
 	txdb_->GCDeletedValues();
 	txdb_->RemoveNodes();
@@ -785,6 +805,7 @@ ABORT:
 	writeset->Clear();
 	
 	txdb_->EpochTXEnd();
+	txdb_->RCUTXEnd();
 	txdb_->GCDeletedNodes();
 	txdb_->GCDeletedValues();
 	txdb_->RemoveNodes();

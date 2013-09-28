@@ -566,7 +566,7 @@ class Benchmark {
 
 			//printf("Pass 2\n");
 		}
-		printf("Finish %d\n",tid);
+//		printf("Finish %d\n",tid);
 		{
 		  MutexLock l(&shared->mu);
 		  if (fail) shared->fail = fail;
@@ -903,7 +903,7 @@ class Benchmark {
 		DBTables *store = arg->store;
 		store->ThreadLocalInit(tid);
 
-		printf("Thread[%d] start\n",tid);	
+		//printf("Thread[%d] start\n",tid);	
 		for (int i = 0; i < FLAGS_txs; i++) {
 			//printf("Thread[%d] Tx[%d]\n",tid,i);
 			bool b = false;
@@ -1852,6 +1852,7 @@ int main(int argc, char**argv)
 	 //leveldb::DBTables *store = new leveldb::DBTables();
 	 leveldb::DBTables *store = new leveldb::DBTables(1);
 	 store->InitEpoch(FLAGS_threads+1);
+	 store->RCUInit(FLAGS_threads+1);
 	 store->AddTable(0, BTREE, IBTREE);
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);

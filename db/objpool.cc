@@ -21,8 +21,8 @@ OBJPool::~OBJPool()
 void OBJPool::AddGCObj(uint64_t* gobj)
 {
 	Obj* o = reinterpret_cast<Obj *>(gobj);
-	o->next = freelist_;
-	freelist_ = o;
+	o->next = gclist_;
+	gclist_ = o;
 
 	gcnum_++;
 }
@@ -41,6 +41,17 @@ uint64_t* OBJPool::GetFreeObj()
 	
 	return r;
 }
+
+void OBJPool::GC()
+{
+	//TODO: Put the objects into 
+	while (NULL != gclist_) {
+		uint64_t * o = reinterpret_cast<uint64_t *>(gclist_);
+		gclist_ = gclist_->next;
+		delete o;
+	}
+}
+
 
 void OBJPool::Print()
 {
