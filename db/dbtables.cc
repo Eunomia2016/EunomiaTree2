@@ -13,6 +13,7 @@ __thread OBJPool* DBTables::valuesPool = NULL;
 __thread OBJPool* DBTables::memnodesPool = NULL;
 __thread uint64_t DBTables::gcnum = 0;
 
+__thread RMPool*  DBTables::rmPool = NULL;
 
 
 //FOR TEST
@@ -177,9 +178,15 @@ uint64_t* DBTables::GetEmptyNode()
 }
 
 
+void DBTables::AddRemoveNode(int tableid, uint64_t key, 
+										uint64_t seq, Memstore::MemNode* node)
+{
+	rmPool->AddRMObj(tableid, key, seq, node);
+}
+
 void DBTables::GC()
 {
-	if(gcnum < GCThreshold)
+	if(gcnum < GCThreshold && rmPool->elems < RMThreshold)
 		return;
 
 	
@@ -192,6 +199,8 @@ void DBTables::GC()
 
 	memnodesPool->GC();
 	gcnum = 0;
+
+	rmPool->RemoveAll();
 }
 
 void DBTables::ThreadLocalInit(int tid)
@@ -201,6 +210,8 @@ void DBTables::ThreadLocalInit(int tid)
 	
 	valuesPool = new OBJPool[number];
 	memnodesPool = new OBJPool();
+	rmPool = new RMPool(this);
+	
 	gcnum = 0;
 	
     if(epoch != NULL)

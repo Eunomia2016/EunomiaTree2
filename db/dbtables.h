@@ -14,10 +14,13 @@
 #include "db/nodebuf.h"
 #include "db/objpool.h"
 #include "db/rcu.h"
+#include "db/rmpool.h"
 
 namespace leveldb{
 
 class RMQueue;
+class RMPool;
+
 
 #define NONE 0
 #define BTREE 1
@@ -47,7 +50,8 @@ class DBTables {
 	static __thread OBJPool* valuesPool;
 	static __thread OBJPool* memnodesPool;
 	static __thread uint64_t gcnum;
-	
+
+	static __thread RMPool* rmPool;
 	
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
@@ -93,6 +97,8 @@ class DBTables {
 	void AddDeletedNode(uint64_t *node);
 	uint64_t* GetEmptyNode();
 
+	void AddRemoveNode(int tableid, uint64_t key, uint64_t seq, Memstore::MemNode* value);
+	
 	void GC();
 	
 };

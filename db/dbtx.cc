@@ -767,20 +767,22 @@ bool DBTX::End()
 	writeset->CollectOldVersions(txdb_);
 #endif
 
+	deleteset->GCRMNodes(txdb_);
+
 	txdb_->RCUTXEnd();	
 	txdb_->GC();
 
 
 
 
-#if FREEMEMNODE
+#if 0
 	gcnodes = deleteset->getGCNodes();
 	
 	if(gcnodes != NULL)
 		txdb_->AddDeletedNodes(gcnodes, deleteset->elems - deleteset->delayNum);
 #endif
 
-#if READONLYREMOVE
+#if 0
 	rmnodes = deleteset->getDelayNodes();
 	
 	if(rmnodes != NULL)
