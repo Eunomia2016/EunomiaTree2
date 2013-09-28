@@ -23,7 +23,7 @@ static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
 #define SHAREWAREHOUSE 1
-#define SETAFFINITY	0
+#define SETAFFINITY	1
 namespace leveldb {
 
 
@@ -350,7 +350,8 @@ class Benchmark {
 		if(oldv <= 0) break;
 		
 		for (int i =0; i < 1000; i++) {   
-		  client.doReadOnly();
+		  //client.doReadOnly();
+		  client.doStockLevel();
 		  thread->stats.FinishedSingleOp();
 		}
 	  }

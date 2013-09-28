@@ -3,14 +3,14 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #include "tpcc/tpccskiplist.h"
 #include "db/memstore_skiplist.h"
-
+#include "tpcc/randomgenerator.h"
 #include <algorithm>
-
+#include <string.h>
 #define SEPERATE 0
 
 #define PROFILE 0
-#define ABORTPRO 1
-#define SLDBTX	0
+#define ABORTPRO 0
+#define SLDBTX	1
 #define CHECKTPCC 0
 
 
@@ -1975,6 +1975,7 @@ namespace leveldb {
   }
 
   int32_t TPCCSkiplist::stockLevel(int32_t warehouse_id, int32_t district_id, int32_t threshold){
+ // 	printf("%d\n",((MemstoreBPlusTree *)(store->tables[STOC]))->depth);
 #if PROFILE
    	  uint32_t icount = 0;
 	  uint32_t rcount = 0;
@@ -1997,7 +1998,7 @@ retry:
 	    //-------------------------------------------------------------------------
 	    //The row in the DISTRICT table with matching D_W_ID and D_ID is selected and D_NEXT_O_ID is retrieved.
 	    //-------------------------------------------------------------------------
-	  
+#if 0	  
 	    int64_t d_key = makeDistrictKey(warehouse_id, district_id);
 	  
   	    uint64_t *d_value;
@@ -2047,6 +2048,7 @@ retry:
 		  //printf("ol %lx\n",ol);
 		  //printf("ol_key %ld end %ld\n",ol_key, end);
 
+
 		  int32_t s_i_id = ol->ol_i_id;
 
 #if 0
@@ -2068,6 +2070,7 @@ retry:
 #if PROFILE
 		  rcount++;
 #endif
+
 		  Stock *s = reinterpret_cast<Stock *>(s_value);
 		  if (s->s_quantity < threshold) 
 		  	s_i_ids.push_back(s_i_id);
@@ -2079,6 +2082,8 @@ retry:
 		    goto retry;
 		}
 #endif
+#endif
+#if 0
 
 	    }
 
@@ -2091,15 +2096,44 @@ retry:
             num_distinct += 1;
           }
         }    
+#endif
 
+		tpcc::RealRandomGenerator ran;		
+#if 0
+
+		for (int i =0; i< 200; i++) {
+			int32_t s_i_id = i;
+		//	printf("%d\n",s_i_id);
+			int64_t s_key = makeStockKey(warehouse_id, s_i_id);		  
+			uint64_t *s_value;
+		  	bool found = tx.Get(STOC, s_key, &s_value);
+			Stock *s = reinterpret_cast<Stock *>(s_value);
+		 	if (s->s_quantity < 0 ) 
+		  		printf("--\n");
+		}
+#endif
+		std::string s;
+
+		for (int i = 1; i<200; i++) {
+			int32_t s_i_id = ran.number(0,100000);
+			int64_t s_key = makeStockKey(warehouse_id, s_i_id);		
+			Stock s;
+			uint64_t *value = (uint64_t *)&s;
+			tx.Add(STOC, s_key, value,sizeof(STOC));
+			//tx.Get(ITEM, i, &value);
+			//char *c = (char *)value;
+			//std::string *str = &s;
+			//str->assign(c, 128);
+		}
 	    bool b = tx.End();  
 		if (b) break;
-		
+	  	}	
+  	
 #if ABORTPRO
 		atomic_add64(&stocklevelabort, 1);
 #endif
 		
-	  }
+	 
 #if PROFILE
 	  atomic_add64(&stocklevelreadcount, rcount);
 	  atomic_add64(&stocklevelitercount, icount);
@@ -2108,8 +2142,8 @@ retry:
 	  while (rcount < stocklevelreadmin) stocklevelreadmin = rcount;
 	  while (icount < stocklevelitermin) stocklevelitermin = icount;
 #endif
-  	 
-	  return num_distinct;
+  	 return 0;
+	//  return num_distinct;
 	
   }
 

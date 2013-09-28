@@ -258,6 +258,7 @@ void TPCCClient::doReadOnly() {
     int x = generator_->number(1, 100);
     if (x <= 50) { // 50%
         doStockLevel();
+        //doOrderStatus();
     } 
     else {  // 50%
         doNewOrder();
