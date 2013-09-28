@@ -383,50 +383,24 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 				pthread_self(), kvs[i].key, kvs[i].node,  
 				kvs[i].node->seq, (uint64_t)kvs[i].node->value, kvs[i].val);
 #endif
-
-#if CLEANUPPHASE
-		//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
-		//FIXME: the old value should be deleted eventually
-		kvs[i].node->value = kvs[i].val;
-#else
 		
 		if(kvs[i].val == (uint64_t *)1) {
 			
 			assert(dbtx_ != NULL);
-
-			//use the write set buffer the old value
-			kvs[i].val = kvs[i].node->value;						
-			kvs[i].node->value = (uint64_t *)1;
 
 			
 			//Invalidate secondary index when deletion 	  	  			
 			if (kvs[i].node->secIndexValidateAddr != NULL)
 				*(kvs[i].node->secIndexValidateAddr) = -1;	
 
-
-			//Directly remove the node from the memstore	
-			//Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
+			dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
 			
-			//put the node into the delete queue
-			//if(n != NULL) {
-				dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
-			//}
-
-			//assert(n == NULL || kvs[i].node == n);
-			//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
-				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
-			
-		} else {
-			uint64_t* oldval = kvs[i].node->value;
-			kvs[i].node->value = kvs[i].val;
-			kvs[i].val = oldval;
 		}
-
-
-#endif
-
-		  //Should first update the value, then the seq, to guarantee the seq is always older than the value
-		  kvs[i].node->seq++;
+		
+		uint64_t* oldval = kvs[i].node->value;
+		kvs[i].node->value = kvs[i].val;
+		kvs[i].val = oldval;
+		kvs[i].node->seq++;
 			
 	} else if(kvs[i].node->counter < gcounter){
 
@@ -745,11 +719,8 @@ bool DBTX::End()
 
 		goto ABORT;
 	}
-#if !CLEANUPPHASE
 
 	writeset->SetDBTX(this);
-
-#endif
  
     //step 2.  update the the seq set 
     //can't use the iterator because the cur node may be deleted 
@@ -761,13 +732,6 @@ bool DBTX::End()
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
   }
   
-#if CLEANUPPHASE
-  //Phase 2. Cleanup
-  {
-    writeset->Cleanup(txdb_);
-  }
-#endif
-
 
 #if FREEOLDVALUE
 	dvlen = 0;
@@ -932,12 +896,6 @@ retry:
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
 {
-#if 0
-	if(val > (uint64_t *)0x7f0000000000) {
-		printf("DBTX::Add Wrong Add Value %lx\n",val);
-		while(1);
-	}
-#endif
 
 retryA:
 	uint64_t *seq;
@@ -1045,18 +1003,10 @@ retryA:
 void DBTX::Delete(int tableid, uint64_t key)
 {
 
-
-#if CLEANUPPHASE
-	Add(tableid, key, (uint64_t *)1);
-
-#else
 	uint64_t *val;
-	//bool res = Get(tableid, key, &val);
-	//if(res == false)
-		//return;
-	Add(tableid, key, (uint64_t *)1);
-#endif
+	
 	//Logically delete, set the value pointer to be 0x1
+	Add(tableid, key, (uint64_t *)1);
 	
 }
 

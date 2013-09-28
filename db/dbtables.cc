@@ -8,6 +8,11 @@ __thread GCQueue* DBTables::valueGCQueue = NULL;
 __thread RMQueue* DBTables::rmqueue = NULL;
 __thread NodeBuf* DBTables::nodebuffer = NULL;
 
+
+__thread OBJPool* DBTables::valuesPool = NULL;
+__thread OBJPool* DBTables::memnodesPool = NULL;
+
+
 //FOR TEST
 DBTables::DBTables() {
 	number = 1;
@@ -130,9 +135,37 @@ void DBTables::RemoveNodes()
 }
 
 
+void DBTables::AddDeletedValue(int tableid, uint64_t* value)
+{
+	valuesPool[tableid].AddGCObj(value);
+}
+
+uint64_t* DBTables::GetEmptyValue(int tableid)
+{
+	return valuesPool[tableid].GetFreeObj();
+}
+
+void DBTables::AddRemoveNode(uint64_t *node)
+{
+	memnodesPool->AddGCObj(node); 
+}
+
+uint64_t* DBTables::GetEmptyNode()
+{
+	return memnodesPool->GetFreeObj();
+}
+
+
+
 void DBTables::ThreadLocalInit(int tid)
 {
-	if(epoch != NULL)
+
+	assert(number != 0);
+	
+	valuesPool = new OBJPool[number];
+	memnodesPool = new OBJPool();
+	
+    if(epoch != NULL)
 		epoch->setTID(tid);
 
 	nodeGCQueue = new GCQueue();

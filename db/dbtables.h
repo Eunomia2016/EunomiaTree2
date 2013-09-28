@@ -12,7 +12,7 @@
 #include "db/gcqueue.h"
 #include "db/rmqueue.h"
 #include "db/nodebuf.h"
-
+#include "db/objpool.h"
 
 namespace leveldb{
 
@@ -35,6 +35,10 @@ class DBTables {
 	static __thread GCQueue* valueGCQueue;
 	static __thread RMQueue* rmqueue;
 	static __thread NodeBuf* nodebuffer;
+
+
+	static __thread OBJPool* valuesPool;
+	static __thread OBJPool* memnodesPool;
 	
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
@@ -67,6 +71,12 @@ class DBTables {
 	
 	void AddRemoveNodes(uint64_t **nodes, int len);
 	void RemoveNodes();
+
+	void AddDeletedValue(int tableid, uint64_t* value);
+	uint64_t*GetEmptyValue(int tableid);
+	
+	void AddRemoveNode(uint64_t *node);
+	uint64_t* GetEmptyNode();
 	
 };
 
