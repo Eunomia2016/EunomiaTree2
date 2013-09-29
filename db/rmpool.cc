@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include "util/rtm.h"
 #include "db/dbtx.h"
-
+#include "port/atomic.h"
 
 namespace leveldb {
 
@@ -28,6 +28,9 @@ void RMPool::AddRMObj(int tableid, uint64_t key, uint64_t seq, Memstore::MemNode
 
 //	printf("[%lx] AddRMObj Add %lx\n",pthread_self(), node);
 	RMObj* o = new RMObj(tableid, key, node, seq);
+
+	//Use the value for reference counting purpose
+	atomic_inc32((uint32_t*)&node->gcRef);
 	o->next = rmlist_;
 	rmlist_ = o;
 	elems++;
@@ -42,10 +45,14 @@ void RMPool::RemoveAll()
 		RMObj* o = rmlist_;
 		rmlist_ = rmlist_->next;
 		
+		//decrease the reference counting
+		uint32_t ref = atomic_fetch_and_add32((uint32_t*)&o->node->gcRef, -1);
+		
 		bool r = Remove(o);	
 
-		if(r) {
-		 	//store->AddDeletedNode((uint64_t *)o->node);
+		if(o->node->value == HAVEREMOVED && ref == 1) {
+//			printf("[%lx] Add node %lx\n", pthread_self(), o->node);
+		 	store->AddDeletedNode((uint64_t *)o->node);
 		}
 
 		delete o;
@@ -73,6 +80,8 @@ bool RMPool::Remove(RMObj* o)
 
 	if(o->node->seq == o->seq) {
 
+	assert(o->node->value == LOGICALDELETE);
+	
 #if DEBUG_PRINT
 	printf("[%ld] RMPool Remove key  %d node %lx seq %ld\n", 
 				pthread_self(), o->key, o->node, o->node->seq);
@@ -82,12 +91,6 @@ bool RMPool::Remove(RMObj* o)
 		o->node->value = HAVEREMOVED;
 		Memstore::MemNode* n = store->tables[o->tableid]->GetWithDelete(o->key);
 		n->seq++;
-
-		if(n != o->node ) {
-			printf("Error [%ld] Node %lx key %ld seq %ld Remove Node %lx seq %ld \n", 
-						pthread_self(),  o->node, o->key, o->seq, n, n->seq);
-			exit(1);
-		}
 		
 		assert(n == o->node);
 
