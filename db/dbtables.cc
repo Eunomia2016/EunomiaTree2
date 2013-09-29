@@ -189,7 +189,6 @@ void DBTables::GC()
 	if(gcnum < GCThreshold && rmPool->GCElems() < RMThreshold)
 		return;
 
-	
 	rcu->WaitForGracePeriod();
 	
 	//Delete all values 

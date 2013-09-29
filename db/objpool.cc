@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 
 OBJPool::OBJPool()
@@ -48,6 +49,7 @@ void OBJPool::GC()
 	while (NULL != gclist_) {
 		uint64_t * o = reinterpret_cast<uint64_t *>(gclist_);
 		gclist_ = gclist_->next;
+		//printf("[%lx] Delete %lx\n", pthread_self(), o);
 		delete o;
 	}
 }

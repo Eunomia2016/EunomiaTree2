@@ -1040,7 +1040,7 @@ class Benchmark {
 //					printf("[%ld] TX1 Begin\n", pthread_self());
 //					printf("[%ld]TX1 Delete 3\n", pthread_self());
 					tx.Delete(0, 3);	
-					
+
 					uint64_t *value = new uint64_t();
 					*value = i;
 //					printf("[%ld] TX1 Put 4\n", pthread_self());
@@ -1145,7 +1145,7 @@ class Benchmark {
 
 
 				if (f1 != f2){
-					printf("Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
+					printf("[%ld] Get Key 4 return %d, Get Key 5 return %d, not equal\n", pthread_self(), f1,f2);
 					fail = true;
 					break;
 				}
@@ -1153,7 +1153,7 @@ class Benchmark {
 
 				
 				if (check3) {
-					printf("key 3 exists , secondary key 1 get %d , key 2 get %d\n", num, num1);
+					printf("[%ld] key 3 exists , secondary key 1 get %d , key 2 get %d\n", pthread_self(), num, num1);
 					printf("sec 1\n");
 					for (int l=0; l<num ; l++)
 						printf("%d\n", kvs->keys[l]);
@@ -1169,7 +1169,7 @@ class Benchmark {
 				}
 				
 				if (check4) {
-					printf("key 3 does not exist , secondary key 1 get %d , key 2 get %d\n", num, num1);
+					printf("[%ld] key 3 does not exist , secondary key 1 get %d , key 2 get %d\n", pthread_self(), num, num1);
 					fail = true;
 					break;
 				}
@@ -1233,7 +1233,7 @@ class Benchmark {
 				
 				
 				if (f1 != f2){
-					printf("In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",f1,f2);
+					printf("[%ld] In read-only tx, Get Key 4 return %d, Get Key 5 return %d, not equal\n",pthread_self(), f1,f2);
 					fail = true;
 					break;
 

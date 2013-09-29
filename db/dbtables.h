@@ -34,7 +34,7 @@ class RMPool;
 #define GCThreshold 100
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 20
+#define RMThreshold 10
 
 class DBTables {
 

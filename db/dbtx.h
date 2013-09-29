@@ -35,6 +35,10 @@
 //For interface
 #define COPY_WHEN_ADD 1
 
+#define LOGICALDELETE (uint64_t *)NULL
+#define HAVEREMOVED (uint64_t *)-1
+
+#define DEBUG_PRINT 0
 
 namespace leveldb {
 
@@ -278,12 +282,10 @@ public:
 		inline void SetDBTX(DBTX* dbtx);
 		inline void Write(uint64_t gcounter);
 		inline bool CheckWriteSet();
-		inline void Cleanup(DBTables* tables);
 		
 		inline uint64_t** GetDeletedValues(int* len);
 		inline uint64_t** GetOldVersions(int* len);
 
-		inline bool ValidValue(uint64_t *value);
 		inline void CollectOldVersions(DBTables* tables);
 		
 		void Clear();
@@ -307,12 +309,18 @@ public:
 	int bufferMiss;
 
 
-       inline unsigned long rdtsc(void)
-      {
+    inline unsigned long rdtsc(void)
+    {
         unsigned a, d;
         __asm __volatile("rdtsc":"=a"(a), "=d"(d));
         return ((unsigned long)a) | (((unsigned long) d) << 32);
-      }
+    }
+
+	static inline bool ValidateValue(uint64_t* value)
+	{		
+		return  (value != LOGICALDELETE) && (value != HAVEREMOVED) 
+						&& (value != (uint64_t *)3);
+	}
 
 	uint64_t searchTime;
 	uint64_t traverseTime;
