@@ -22,7 +22,7 @@ static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
-#define SHAREWAREHOUSE 1
+#define SHAREWAREHOUSE 0
 #define SETAFFINITY	1
 namespace leveldb {
 
@@ -251,6 +251,7 @@ class Benchmark {
   }
 
   void doOne(ThreadState* thread) {
+  	((leveldb::TPCCSkiplist*)tables)->ThreadLocalInit();
 	((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
 	printf("thread %d\n",thread->tid);
   	// Change the constants for run
@@ -293,6 +294,7 @@ class Benchmark {
   }
 
   void doNewOrder(ThreadState* thread) {
+  	((leveldb::TPCCSkiplist*)tables)->ThreadLocalInit();
   	((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
   	// Change the constants for run
 #if LOCALRANDOM
@@ -326,6 +328,7 @@ class Benchmark {
 
   
   void doReadOnly(ThreadState* thread) {
+  	  ((leveldb::TPCCSkiplist*)tables)->ThreadLocalInit();
   	  ((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
 	  // Change the constants for run
 #if LOCALRANDOM
@@ -350,8 +353,7 @@ class Benchmark {
 		if(oldv <= 0) break;
 		
 		for (int i =0; i < 1000; i++) {   
-		  //client.doReadOnly();
-		  client.doStockLevel();
+		  client.doReadOnly();
 		  thread->stats.FinishedSingleOp();
 		}
 	  }
