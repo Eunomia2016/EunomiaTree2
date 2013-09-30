@@ -386,7 +386,7 @@ private:
  
       int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num;
-   	  store->InitEpoch(num_threads); 
+   	  store->RCUInit(num_threads); 
 	  Slice name = FLAGS_benchmarks;
 
 	  
@@ -394,10 +394,10 @@ private:
 
 	  if (true) {
 		for (uint64_t i = 0; i < nkeys; i++) { 
-			std::string s(YCSBRecordSize, 'a');
+			std::string *s = new std::string(YCSBRecordSize, 'a');
 			if (name == "txmix") 
-				store->tables[0]->Put(i, (uint64_t *)s.data());
-			else btree->Put(i, (uint64_t *)s.data());
+				store->tables[0]->Put(i, (uint64_t *)s->data());
+			else btree->Put(i, (uint64_t *)s->data());
 		}
 	  }
 
