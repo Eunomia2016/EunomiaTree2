@@ -32,7 +32,7 @@ __thread bool DBTX::localinit = false;
 __thread DBTX::BufferNode* DBTX::buffer = NULL;
 
 
-#define MAXSIZE 4*1024*1024 // the initial read/write set size
+#define MAXSIZE 1024 // the initial read/write set size
 
 void DBTX::ThreadLocalInit()
 {

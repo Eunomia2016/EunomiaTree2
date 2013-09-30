@@ -22,7 +22,7 @@
 #define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
 #define BUFFERNODE 1
-#define PROFILEBUFFERNODE 1
+#define PROFILEBUFFERNODE 0
 
 
 //For deletion
