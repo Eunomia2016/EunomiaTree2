@@ -247,8 +247,6 @@ public:
 	inline MemNode* Put(uint64_t k, uint64_t* val) 
 	{
 		ThreadLocalInit();
-		if(k == 1152921504606846976)
-			printf("Memstore Put key %ld val %ld\n", k , val);
 		MemNode *node = GetWithInsert(k);
 		node->value = val;
 		

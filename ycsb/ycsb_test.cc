@@ -20,7 +20,7 @@ static const char* FLAGS_benchmarks = "mix";
 
 static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
-static uint64_t nkeys = 160000000;
+static uint64_t nkeys = 80000000;
 #define CHECK 0
 #define YCSBRecordSize 100
 #define GETCOPY 1
