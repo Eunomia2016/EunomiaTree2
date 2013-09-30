@@ -1279,9 +1279,9 @@ void DBTX::Iterator::Seek(uint64_t key)
 	  
 	  	  val_ = cur_->value;
 	  
-	  	if(DBTX::ValidateValue(val_)) {	
-	    	  return;
-	  	}
+		  if(DBTX::ValidateValue(val_)) {	
+		    	  return;
+		  }
 
 	    }
 	  

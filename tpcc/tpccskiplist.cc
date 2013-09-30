@@ -11,7 +11,7 @@
 #define PROFILE 0
 #define ABORTPRO 1
 #define SLDBTX	0
-#define CHECKTPCC 0
+#define CHECKTPCC 1
 
 
 #define WARE 0
@@ -336,7 +336,7 @@ namespace leveldb {
 	Memstore::MemNode *mn;
 	for (int i=0; i<9; i++) {
 		//Fixme: invalid value pointer
-		Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)3);		
+		Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)new Memstore::MemNode());		
 		if (i == ORDE) mn = node;
 	}
 	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
@@ -655,6 +655,7 @@ namespace leveldb {
 	uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	iter.Seek(start);
+
     iter.Prev();
 	if (iter.Valid() && iter.Key() >= end) {
 		o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
@@ -2190,6 +2191,8 @@ retry:
           // No orders for this district
           // TODO: 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it (???)
           printf("NoOrder for district %d!!\n",  d_id);
+		  iter.SeekToFirst();
+		  printf("Key %ld\n", iter.Key());
           continue;
         }
 	

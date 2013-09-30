@@ -318,8 +318,7 @@ public:
 
 	static inline bool ValidateValue(uint64_t* value)
 	{		
-		return  (value != LOGICALDELETE) && (value != HAVEREMOVED) 
-						&& (value != (uint64_t *)3);
+		return  ((value != LOGICALDELETE) && (value != HAVEREMOVED));
 	}
 
 	uint64_t searchTime;
