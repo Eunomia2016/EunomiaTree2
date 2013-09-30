@@ -21,9 +21,10 @@
 #define CACHESIM 0
 #define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
-#define BUFFERNODE 0
+
+#define BUFFERNODE 1
 #define PROFILEBUFFERNODE 0
-#define CLEANUPPHASE 0
+
 
 //For deletion
 #define FREEMEMNODE 1
