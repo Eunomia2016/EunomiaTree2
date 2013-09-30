@@ -47,6 +47,14 @@ void DELSet::Add(int tableid, uint64_t key, Memstore::MemNode* n, bool delay)
 	}
 }
 
+void  DELSet::GCRMNodes(leveldb::DBTables* tables)
+{
+	for(int i = 0; i < elems; i++) {
+		tables->AddRemoveNode(queue[i].tableid, queue[i].key, queue[i].seq, queue[i].node);
+	}
+}
+
+
 uint64_t** DELSet::getGCNodes()
 {
 	int len = elems - delayNum;

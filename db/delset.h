@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <assert.h>
 #include "memstore/memstore.h"
+#include "dbtables.h"
+
+using namespace leveldb;
 
 class DELSet {
 
@@ -39,7 +42,7 @@ public:
 	
 	uint64_t** getDelayNodes();
 
-	
+	void GCRMNodes(DBTables* table);	
 };
 
 #endif

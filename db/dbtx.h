@@ -23,12 +23,10 @@
 #define AGGRESSIVEDETECT 0
 #define BUFFERNODE 1
 #define PROFILEBUFFERNODE 0
-#define CLEANUPPHASE 0
+
 
 //For deletion
 #define FREEMEMNODE 1
-
-#define FREEOLDVALUE 1
 
 //For deletion (read only TX)
 #define FREEOLDVERSION 1
@@ -37,7 +35,13 @@
 //For interface
 #define COPY_WHEN_ADD 1
 
+
 #define USESECONDINDEX 0
+
+#define LOGICALDELETE (uint64_t *)NULL
+#define HAVEREMOVED (uint64_t *)-1
+
+#define DEBUG_PRINT 0
 
 namespace leveldb {
 
@@ -283,10 +287,12 @@ public:
 		inline void SetDBTX(DBTX* dbtx);
 		inline void Write(uint64_t gcounter);
 		inline bool CheckWriteSet();
-		inline void Cleanup(DBTables* tables);
+		
 		inline uint64_t** GetDeletedValues(int* len);
 		inline uint64_t** GetOldVersions(int* len);
 
+		inline void CollectOldVersions(DBTables* tables);
+		
 		void Clear();
 		void Print();
 		void Reset();
@@ -308,12 +314,17 @@ public:
 	int bufferMiss;
 
 
-       inline unsigned long rdtsc(void)
-      {
+    inline unsigned long rdtsc(void)
+    {
         unsigned a, d;
         __asm __volatile("rdtsc":"=a"(a), "=d"(d));
         return ((unsigned long)a) | (((unsigned long) d) << 32);
-      }
+    }
+
+	static inline bool ValidateValue(uint64_t* value)
+	{		
+		return  ((value != LOGICALDELETE) && (value != HAVEREMOVED));
+	}
 
 	uint64_t searchTime;
 	uint64_t traverseTime;

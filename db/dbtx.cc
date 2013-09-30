@@ -16,7 +16,6 @@
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
 
-#define DEBUG_PRINT 0
 
 
 namespace leveldb {
@@ -33,7 +32,7 @@ __thread bool DBTX::localinit = false;
 __thread DBTX::BufferNode* DBTX::buffer = NULL;
 
 
-#define MAXSIZE 4*1024*1024 // the initial read/write set size
+#define MAXSIZE 1024 // the initial read/write set size
 
 void DBTX::ThreadLocalInit()
 {
@@ -234,7 +233,7 @@ void DBTX::WriteSet::Clear()
 
 	for(int i = 0; i < elems; i++) {
 #if COPY_WHEN_ADD
-		if (kvs[i].val != NULL && kvs[i].val != (uint64_t *)1)
+		if (kvs[i].val != LOGICALDELETE)
 			delete writeset->kvs[i].val;
 #endif
 		if(kvs[i].dummy != NULL)
@@ -391,80 +390,72 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
     if(kvs[i].node->counter == gcounter) {
 		
 #if DEBUG_PRINT
-	if(kvs[i].key == 3 || kvs[i].key == 4)
-		printf("[%ld] write %ld, node %lx, seq %ld, old value %ld new value %ld\n", 
+	printf("[%ld] write %ld, node %lx, seq %ld, old value %ld new value %ld\n", 
 				pthread_self(), kvs[i].key, kvs[i].node,  
 				kvs[i].node->seq, (uint64_t)kvs[i].node->value, kvs[i].val);
 #endif
-
-#if CLEANUPPHASE
-		//if (kvs[i].node->value == (uint64_t*)2) printf("***\n");
-		//FIXME: the old value should be deleted eventually
-		kvs[i].node->value = kvs[i].val;
-#else
 		
-		if(kvs[i].val == (uint64_t *)1) {
-			
-			assert(dbtx_ != NULL);
+		if(kvs[i].val == LOGICALDELETE  && kvs[i].node->value != LOGICALDELETE) {
 
-			//use the write set buffer the old value
-			kvs[i].val = kvs[i].node->value;						
-			kvs[i].node->value = (uint64_t *)1;
-
-			
-			//Invalidate secondary index when deletion 	  	  	
-#if USESECONDINDEX
-			if (kvs[i].node->secIndexValidateAddr != NULL)
-				*(kvs[i].node->secIndexValidateAddr) = -1;	
-#endif			
+#if DEBUG_PRINT
+			printf("[%ld] Put %ld, node %lx, seq %ld, old value %ld into Delete Set\n", 
+						pthread_self(), kvs[i].key, kvs[i].node,	
+						  kvs[i].node->seq, (uint64_t)kvs[i].node->value);
+#endif
 
 
 			//Directly remove the node from the memstore	
 			//Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-			
-			//put the node into the delete queue
-			//if(n != NULL) {
-				dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
-			//}
 
-			//assert(n == NULL || kvs[i].node == n);
-			//printf("Thread %ld remove [%lx] %ld seq %ld \n", 
-				//pthread_self(), n, kvs[i].key, kvs[i].node->seq);
+			assert(dbtx_ != NULL);
+
+#if USESECONDINDEX
+			//Invalidate secondary index when deletion 	  	  			
+			if (kvs[i].node->secIndexValidateAddr != NULL)
+				*(kvs[i].node->secIndexValidateAddr) = -1;
+#endif			
 			
-		} else {
-			uint64_t* oldval = kvs[i].node->value;
-			kvs[i].node->value = kvs[i].val;
-			kvs[i].val = oldval;
+			
+			dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
+			
 		}
-
-
-#endif
-
-		  //Should first update the value, then the seq, to guarantee the seq is always older than the value
-		  kvs[i].node->seq++;
+		
+		uint64_t* oldval = kvs[i].node->value;
+		kvs[i].node->value = kvs[i].val;
+		kvs[i].val = oldval;
+		kvs[i].node->seq++;
 			
 	} else if(kvs[i].node->counter < gcounter){
 
 #if DEBUG_PRINT
-		  if(kvs[i].key == 3 || kvs[i].key == 4)
-			  printf("[%ld] write %ld, node %lx, seq %ld, old value %ld new value %ld\n", 
-					  pthread_self(), kvs[i].key, kvs[i].node,	
+		printf("[%ld] write %ld, node %lx, seq %ld, old value %ld new value %ld\n", 
+					pthread_self(), kvs[i].key, kvs[i].node,	
 					  kvs[i].node->seq, (uint64_t)kvs[i].node->value, kvs[i].val);
 #endif
 
-	  //If global counter is updated, just update the counter and store a old copy into the dummy node
-	  //Clone the current value into dummy node
+	    //If global counter is updated, just update the counter and store a old copy into the dummy node
+	    //Clone the current value into dummy node
 	  
-	  //If is delete, put it into the delete set
-	  if(kvs[i].val == (uint64_t *)1) {
+	    //If is delete, put it into the delete set
+	    if(kvs[i].val == LOGICALDELETE 	&& kvs[i].node->value != LOGICALDELETE) {
+#if DEBUG_PRINT
+		printf("[%ld] Put %ld, node %lx, seq %ld, old value %ld into Delete Set\n", 
+					pthread_self(), kvs[i].key, kvs[i].node,	
+					  kvs[i].node->seq, (uint64_t)kvs[i].node->value);
+#endif
+		  //Invalidate secondary index when deletion 	 
+#if USESECONDINDEX		  
+		  if (kvs[i].node->secIndexValidateAddr != NULL)
+				*(kvs[i].node->secIndexValidateAddr) = -1;
+#endif			
 		  dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
-	  }
+	    }
 
-	  kvs[i].dummy = dbtx_->txdb_->GetMemNode();
-	  kvs[i].dummy->value = kvs[i].node->value;
-	  kvs[i].dummy->counter = kvs[i].node->counter;
-	  kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
-	  kvs[i].dummy->oldVersions = kvs[i].node->oldVersions;
+	    kvs[i].dummy = dbtx_->txdb_->GetMemNode();
+	    kvs[i].dummy->value = kvs[i].node->value;
+	    kvs[i].dummy->counter = kvs[i].node->counter;
+	    kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
+	    kvs[i].dummy->oldVersions = kvs[i].node->oldVersions;
 	  
 #if DEBUG_PRINT
 	  printf("Thread [%lx] ", pthread_self());
@@ -472,17 +463,15 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 #endif
 
 
-	  //update the current node
-	  kvs[i].node->oldVersions = kvs[i].dummy;
-	  kvs[i].node->counter = gcounter;
+	    //update the current node
+	    kvs[i].node->oldVersions = kvs[i].dummy;
+	    kvs[i].node->counter = gcounter;
 	  	  
-	  kvs[i].node->value = kvs[i].val;
-	  kvs[i].node->seq++;
+	    kvs[i].node->value = kvs[i].val;
+	    kvs[i].node->seq++;
 
-	  //Fix me: here we set the val in write set to be NULL
-	  kvs[i].val = NULL;
-	  
-//	  printf("[WS] write key %ld counter %d on snapshot %d\n", cur->key, cur->counter, gcounter);
+	    //Fix me: here we set the val in write set to be NULL
+	    kvs[i].val = NULL;
 	   
 	} else {
 	  //Error Check: Shouldn't arrive here
@@ -499,10 +488,35 @@ inline bool DBTX::WriteSet::CheckWriteSet()
 
   for(int i = 0; i < elems; i++) {
 	//the node has been removed from the memstore
-	if(kvs[i].node->value == (uint64_t *)2) 
+	if(kvs[i].node->value == HAVEREMOVED) 
 		return false;
   }
   return true;
+}
+
+
+//Collect old version records
+inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables)
+{
+	
+	for(int i = 0; i < elems; i++) {
+		//First check if there is value replaced by the put operation
+		if(DBTX::ValidateValue(kvs[i].val)) {
+			tables->AddDeletedValue(kvs[i].tableid, kvs[i].val);
+		
+
+		//Then check if there is some old version records
+		if(kvs[i].dummy != NULL) {
+			
+			tables->AddDeletedNode((uint64_t *) kvs[i].dummy);
+				
+			if(DBTX::ValidateValue(kvs[i].dummy->value))
+				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value);	
+		}
+		
+	}
+
+	}
 }
 
 inline uint64_t** DBTX::WriteSet::GetOldVersions(int* len)
@@ -561,10 +575,7 @@ inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 	//First get the number of values needed to be deleted
 	for(int i = 0; i < elems; i++) {
 		
-		if(kvs[i].val == (uint64_t *)NULL 
-			||kvs[i].val == (uint64_t *)1 
-			|| kvs[i].val == (uint64_t *)2 
-			||kvs[i].val == (uint64_t *)3 ) { 
+		if(kvs[i].val == (uint64_t *)NULL || !DBTX::ValidateValue(kvs[i].val)) { 
 			
 			kvs[i].val = NULL;
 			
@@ -599,61 +610,6 @@ inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len)
 	assert(count == dvn);
 	
 	return arr;
-}
-
-//Remove the deleted node from the memstore 
-inline void DBTX::WriteSet::Cleanup(DBTables* tables)
-{
-
-  
-  for(int i = 0; i < elems; i++) {
-	//the node need to be removed from the memstore
-	//FIXME: just support deletion on the first snapshot
-
-	if(kvs[i].val == (uint64_t *)1) {
-		
-		bool remove = false;
-
-	  {
-#if GLOBALOCK
-		SpinLockScope spinlock(&slock);
-#else
-		RTMScope rtm(NULL);
-#endif
-		if(kvs[i].node->value == (uint64_t *)1) {
-			kvs[i].node->value = (uint64_t *)2;
-			kvs[i].node->seq++;
-
-			//Invalidate secondary index when deletion 	  
-#if USESECONDINDEX
-			if (kvs[i].node->secIndexValidateAddr != NULL)
-				*(kvs[i].node->secIndexValidateAddr) = -1;
-#endif			
-			
-			remove = true;
-//			printf("Thread %ld remove %ld seq %ld\n", pthread_self(), kvs[i].key, kvs[i].node->seq);
-		}
-
-	  }
-
-	  if(remove == true) {
-	  	
-		  Memstore::MemNode* node = tables->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-  		  assert(node == NULL || (node->counter == 1 && node->value == (uint64_t *)2));
-
-#if FREEMEMNODE
-		  //put the node into the delete queue
-		  if(node != NULL) {	 
-			 dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, node, false);
-		  }
-#endif
-
-	  }
-	  
-	}
-
-	}
-
 }
 
 
@@ -708,7 +664,7 @@ void DBTX::Begin()
   writeset->Reset();
   deleteset->Reset();
   
-  txdb_->EpochTXBegin();
+  txdb_->RCUTXBegin(); 
 
 #if DEBUG_PRINT
   printf("[%ld] TX Begin\n", pthread_self());
@@ -725,7 +681,7 @@ bool DBTX::Abort()
   
   abort = false;
   //Should not call End
-  txdb_->EpochTXEnd();
+  txdb_->RCUTXEnd();
   return abort;
 }
 
@@ -761,11 +717,8 @@ bool DBTX::End()
 
 		goto ABORT;
 	}
-#if !CLEANUPPHASE
 
 	writeset->SetDBTX(this);
-
-#endif
  
     //step 2.  update the the seq set 
     //can't use the iterator because the cur node may be deleted 
@@ -778,53 +731,17 @@ bool DBTX::End()
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
   }
   
-#if CLEANUPPHASE
-  //Phase 2. Cleanup
-  {
-    writeset->Cleanup(txdb_);
-  }
+
+#if 1 //FREEOLDVERSION
+	//Put the objects into the object pool
+	writeset->CollectOldVersions(txdb_);
 #endif
 
-
-#if FREEOLDVALUE
-	dvlen = 0;
-	dvs = writeset->GetDeletedValues(&dvlen);
+	deleteset->GCRMNodes(txdb_);
 	
-	if(dvlen > 0) {
-		assert(dvlen <= writeset->elems);
-		txdb_->AddDeletedValues(dvs, dvlen);
-	}
-#endif
+	txdb_->RCUTXEnd();	
+	txdb_->GC();
 
-#if FREEOLDVERSION
-   	ovlen = 0;
-	ovs = writeset->GetOldVersions(&ovlen);
-	
-	if(ovlen > 0) {
-		assert(ovlen <= writeset->elems);
-		txdb_->AddDeletedNodes(ovs, ovlen);
-	}
-
-#endif
-
-#if FREEMEMNODE
-	gcnodes = deleteset->getGCNodes();
-	
-	if(gcnodes != NULL)
-		txdb_->AddDeletedNodes(gcnodes, deleteset->elems - deleteset->delayNum);
-#endif
-
-#if READONLYREMOVE
-	rmnodes = deleteset->getDelayNodes();
-	
-	if(rmnodes != NULL)
-		txdb_->AddRemoveNodes(rmnodes, deleteset->delayNum);
-#endif
-
-	txdb_->EpochTXEnd();
-	txdb_->GCDeletedNodes();
-	txdb_->GCDeletedValues();
-	txdb_->RemoveNodes();
 
 #if DEBUG_PRINT
    printf("[%ld] TX Success\n", pthread_self());
@@ -833,15 +750,9 @@ bool DBTX::End()
    return true;
 
 ABORT:
-	
-	//Should clear the writeset here
-	writeset->Clear();
-	
-	txdb_->EpochTXEnd();
-	txdb_->GCDeletedNodes();
-	txdb_->GCDeletedValues();
-	txdb_->RemoveNodes();
 
+	txdb_->RCUTXEnd();	
+	txdb_->GC();
 
 #if DEBUG_PRINT
 	printf("[%ld] TX Abort\n", pthread_self());
@@ -869,7 +780,8 @@ retry:
 
   //Get the seq addr from the hashtable
 #if BUFFERNODE
-  if(buffer[tableid].key == key) {
+  if(buffer[tableid].key == key 
+  	&& buffer[tableid].node->value != HAVEREMOVED) {
 
 #if PROFILEBUFFERNODE
   bufferHit++;
@@ -891,8 +803,8 @@ retry:
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 #endif
-
-  if(node->value == (uint64_t *)2)
+  
+  if(node->value == HAVEREMOVED)
   	goto retry;
   
   writeset->Add(tableid, key, val, node);
@@ -915,7 +827,8 @@ retry:
 
   //Get the seq addr from the hashtable
 #if BUFFERNODE
-  if(buffer[tableid].key == key) {
+  if(buffer[tableid].key == key
+  	&& buffer[tableid].node->value != HAVEREMOVED) {
 
 #if PROFILEBUFFERNODE
   bufferHit++;
@@ -930,18 +843,23 @@ retry:
 #endif
 
   	node = txdb_->tables[tableid]->GetWithInsert(key);
-	buffer[tableid].node = node;
-	buffer[tableid].key = key;
 	assert(node != NULL);
   }
+  
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 #endif
 
-  if(node->value == (uint64_t *)2)
+  if(node->value == HAVEREMOVED)
   	goto retry;
-  char* value = new char[len];
+  
+  char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
+
+  if(value == NULL)
+  	value = new char[len];
+  
   memcpy(value, val, len);
+  
   writeset->Add(tableid, key, (uint64_t *)value, node);
 
 }
@@ -949,12 +867,6 @@ retry:
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val)
 {
-#if 0
-	if(val > (uint64_t *)0x7f0000000000) {
-		printf("DBTX::Add Wrong Add Value %lx\n",val);
-		while(1);
-	}
-#endif
 
 retryA:
 	uint64_t *seq;
@@ -967,7 +879,9 @@ retryA:
 	Memstore::MemNode* node;
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
-	if(buffer[tableid].key == key) {
+	if(buffer[tableid].key == key
+		&& buffer[tableid].node->value != HAVEREMOVED) {
+		
 #if PROFILEBUFFERNODE
   bufferHit++;
 #endif
@@ -985,7 +899,7 @@ retryA:
 	}
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
-	if(node->value == (uint64_t *)2)
+	if(node->value == HAVEREMOVED)
   		goto retryA;
 
 #endif
@@ -1020,25 +934,26 @@ retryA:
 	Memstore::MemNode* node;
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
-	if(buffer[tableid].key == key) {
+	if(buffer[tableid].key == key
+		&& buffer[tableid].node->value != HAVEREMOVED) {
+		
 #if PROFILEBUFFERNODE
   bufferHit++;
 #endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
+	
 #if PROFILEBUFFERNODE
   bufferMiss++;
 #endif
 
 		node = txdb_->tables[tableid]->GetWithInsert(key);
-		buffer[tableid].node = node;
-		buffer[tableid].key = key;
 		assert(node != NULL);
 	}
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
-	if(node->value == (uint64_t *)2)
+	if(node->value == HAVEREMOVED)
   		goto retryA;
 
 #endif
@@ -1050,7 +965,11 @@ retryA:
 	//mw->memnode = node;
 	
 	//2. add the record seq number into write set
-	char* value = new char[len];
+	char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
+
+  	if(value == NULL)
+  		value = new char[len];
+  
 	memcpy(value, val, len);
     writeset->Add(tableid, key, (uint64_t *)value, node);
 	
@@ -1062,18 +981,10 @@ retryA:
 void DBTX::Delete(int tableid, uint64_t key)
 {
 
-
-#if CLEANUPPHASE
-	Add(tableid, key, (uint64_t *)1);
-
-#else
 	uint64_t *val;
-	//bool res = Get(tableid, key, &val);
-	//if(res == false)
-		//return;
-	Add(tableid, key, (uint64_t *)1);
-#endif
-	//Logically delete, set the value pointer to be 0x1
+	
+	//Logically delete, set the value pointer to be NULL
+	Add(tableid, key, (uint64_t *)LOGICALDELETE);
 	
 }
 
@@ -1096,8 +1007,7 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs)
 	int i = 0;
 	SecondIndex::MemNodeWrapper* mnw = sn->head;
 	while(mnw != NULL) {
-		if (mnw->valid == 1 && mnw->memnode->value!=NULL && mnw->memnode->value!=(uint64_t *)1 
-			&& mnw->memnode->value!=(uint64_t *)2) {
+		if (mnw->valid == 1 && ValidateValue(mnw->memnode->value)) {
 			kvs->keys[i] = mnw->key;
 			kvs->values[i] = mnw->memnode->value;
 			//put the record seq into the read set
@@ -1171,53 +1081,29 @@ retryGBI:
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 {
-
-//  if(key == 3 || key == 4)
-  //	printf("Thread %ld get %ld\n", pthread_self(), key);
   	
   //step 1. First check if the <k,v> is in the write set
   if(writeset->Lookup(tableid, key, val)) {
 
-		if( (*val) == (uint64_t *)1)
+		if( (*val) == LOGICALDELETE)
 			return false;
 		
       	return true;
   }
-
-#if PROFILEBUFFERNODE
-  bufferGet++;
-#endif
-
-
 	
   //step 2.  Read the <k,v> from the in memory store
 
 retry:
 
   Memstore::MemNode* node = NULL;
-#if BUFFERNODE
-  if(buffer[tableid].key == key) {
- 
-#if PROFILEBUFFERNODE
-  bufferHit++;
-#endif
- 	node = buffer[tableid].node;
-	assert(node != NULL);
-  } else {
 
-#if PROFILEBUFFERNODE
-  bufferMiss++;
-#endif
-
-
-  	node = txdb_->tables[tableid]->GetWithInsert(key);
+  node = txdb_->tables[tableid]->GetWithInsert(key);
+  
+#if BUFFERNODE	
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;
 	assert(node != NULL);
-  }
-#else
-	node = txdb_->tables[tableid]->GetWithInsert(key);
-#endif}
+#endif
 
 	//Guarantee	
 #if GLOBALOCK
@@ -1226,7 +1112,7 @@ retry:
 	RTMScope rtm(&rtmProf);
 #endif
 
-	if(node->value == (uint64_t *)2)
+	if(node->value == HAVEREMOVED)
 		goto retry;
 	
 //	if(*val != NULL && **val == 1)
@@ -1235,22 +1121,20 @@ retry:
 	//if this node has been removed from the memstore
 
 #if DEBUG_PRINT
-	if(key == 3 || key == 4)
-		printf("[%ld] get %ld, node %lx, seq %ld, value %ld\n", 
-				pthread_self(), key, node,  node->seq, (uint64_t)node->value);
+	printf("[%ld] get %ld, node %lx, seq %ld, value %ld\n", 
+		pthread_self(), key, node,  node->seq, (uint64_t)node->value);
 #endif
 	
-	if (node->value == NULL || node->value == (uint64_t *)1 || node->value == (uint64_t *)2) {
-
-		*val = NULL;
-//		txdb_->tables[tableid]->PrintStore();
-	   
-		return false;
+	if (ValidateValue(node->value)) {
+		
+		*val = node->value;
+		return true;		
 
 	} else {
+	
+		*val = NULL;
+		return false;
 
-		*val = node->value;
-		return true;
 	}
 
 
@@ -1317,7 +1201,7 @@ void DBTX::Iterator::Next()
 		}
 		tx_->readset->Add(&cur_->seq);
 		
-	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
+	  	if(DBTX::ValidateValue(val_)) {	
 			return;
 		
 		}
@@ -1360,7 +1244,7 @@ void DBTX::Iterator::Prev()
 		
 		tx_->readset->Add(&cur_->seq);
 		
-	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
+	  	if(DBTX::ValidateValue(val_)) {	
 			return;
 		
 		}
@@ -1411,9 +1295,9 @@ void DBTX::Iterator::Seek(uint64_t key)
 	  
 	  	  val_ = cur_->value;
 	  
-	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
-	    	  return;
-	  	}
+		  if(DBTX::ValidateValue(val_)) {	
+		    	  return;
+		  }
 
 	    }
 	  
@@ -1468,7 +1352,7 @@ void DBTX::Iterator::SeekProfiled(uint64_t key)
 	  
 	  	  val_ = cur_->value;
 	  
-   	  	  if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
+   	  	  if(DBTX::ValidateValue(val_)) {	
 
 			tx_->traverseTime += (tx_->rdtsc() - start);
 		    	return;
@@ -1530,7 +1414,7 @@ void DBTX::Iterator::SeekToFirst()
 		tx_->readset->Add(&cur_->seq);
 	
 			
-	  	if(val_ != NULL && val_ != (uint64_t *)1 && val_ != (uint64_t *)2) {	
+	  	if(DBTX::ValidateValue(val_)) {	
 			return;
 		
 		}

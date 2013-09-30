@@ -358,7 +358,7 @@ namespace leveldb {
 	Memstore::MemNode *mn;
 	for (int i=0; i<9; i++) {
 		//Fixme: invalid value pointer
-		Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)3);		
+		Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)new Memstore::MemNode());		
 		if (i == ORDE) mn = node;
 	}
 #if USESECONDINDEX
@@ -732,6 +732,7 @@ namespace leveldb {
 	uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
 	uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
 	iter.Seek(start);
+
     iter.Prev();
 	if (iter.Valid() && iter.Key() >= end) {
 		o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
@@ -1123,11 +1124,19 @@ namespace leveldb {
 
   	}
 
-    atomic_add64(&abort, tx.rtmProf.abortCounts);
-	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
-	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
+#if PROFILEBUFFERNODE                                                                                                                                         
+	  bufferMiss += tx.bufferMiss;
+	  bufferHit += tx.bufferHit;
+	  bufferGet += tx.bufferGet;
+#endif
+
 
 #if PROFILE
+	atomic_add64(&abort, tx.rtmProf.abortCounts);
+	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
+	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
+		
+
 	atomic_add64(&neworderreadcount, rcount);
 	atomic_add64(&neworderwritecount, wcount);
 
@@ -1381,11 +1390,19 @@ namespace leveldb {
 			atomic_add64(&paymentabort, 1);
 #endif
 		  }
-	  
+
+#if PROFILEBUFFERNODE                                                                                                                                         
+  		  bufferMiss += tx.bufferMiss;
+		  bufferHit += tx.bufferHit;
+		  bufferGet += tx.bufferGet;
+#endif
+
+		  
+#if PROFILE
 		  atomic_add64(&abort, tx.rtmProf.abortCounts);
 		  atomic_add64(&capacity, tx.rtmProf.capacityCounts);
 		  atomic_add64(&conflict, tx.rtmProf.conflictCounts);
-#if PROFILE
+		  
 		  atomic_add64(&paymentreadcount, rcount);
 		  atomic_add64(&paymentwritecount, wcount);
 		  while (rcount > paymentreadmax) paymentreadmax = rcount;
@@ -1632,10 +1649,17 @@ namespace leveldb {
 #endif
     }
 
-    atomic_add64(&abort, tx.rtmProf.abortCounts);
+#if PROFILEBUFFERNODE                                                                                                                                         
+  bufferMiss += tx.bufferMiss;
+  bufferHit += tx.bufferHit;
+  bufferGet += tx.bufferGet;
+#endif
+
+#if PROFILE
+	atomic_add64(&abort, tx.rtmProf.abortCounts);
 	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
 	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
-#if PROFILE
+
 	atomic_add64(&paymentreadcount, rcount);
 	atomic_add64(&paymentwritecount, wcount);
 	while (rcount > paymentreadmax) paymentreadmax = rcount;
@@ -2217,6 +2241,8 @@ retry:
           // No orders for this district
           // TODO: 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it (???)
           printf("NoOrder for district %d!!\n",  d_id);
+		  iter.SeekToFirst();
+		  printf("Key %ld\n", iter.Key());
           continue;
         }
 	

@@ -8,6 +8,14 @@ __thread GCQueue* DBTables::valueGCQueue = NULL;
 __thread RMQueue* DBTables::rmqueue = NULL;
 __thread NodeBuf* DBTables::nodebuffer = NULL;
 
+
+__thread OBJPool* DBTables::valuesPool = NULL;
+__thread OBJPool* DBTables::memnodesPool = NULL;
+__thread uint64_t DBTables::gcnum = 0;
+
+__thread RMPool*  DBTables::rmPool = NULL;
+
+
 //FOR TEST
 DBTables::DBTables() {
 	number = 1;
@@ -113,12 +121,6 @@ void DBTables::GCDeletedNodes()
 }
 
 
-Memstore::MemNode* DBTables::GetMemNode()
-{
-	return nodebuffer->GetMemNode();
-}
-
-
 void DBTables::AddRemoveNodes(uint64_t **nodes, int len)
 {
 	assert(nodes != NULL);
@@ -135,10 +137,92 @@ void DBTables::RemoveNodes()
 }
 
 
+void DBTables::RCUInit(int thr_num)
+{
+	rcu = new RCU(thr_num);
+}
+
+void DBTables::RCUTXBegin()
+{
+	rcu->BeginTX();
+}
+
+void DBTables::RCUTXEnd()
+{
+	rcu->EndTX();
+}
+
+void DBTables::AddDeletedValue(int tableid, uint64_t* value)
+{
+	gcnum++;
+	valuesPool[tableid].AddGCObj(value);
+}
+
+Memstore::MemNode* DBTables::GetMemNode()
+{
+	uint64_t* mn = memnodesPool->GetFreeObj();
+
+	if(mn == NULL)
+		return new Memstore::MemNode();
+	
+	return new (mn) Memstore::MemNode();
+}
+
+
+uint64_t* DBTables::GetEmptyValue(int tableid)
+{
+	return valuesPool[tableid].GetFreeObj();
+}
+
+void DBTables::AddDeletedNode(uint64_t *node)
+{
+	gcnum++;
+	memnodesPool->AddGCObj(node); 
+}
+
+void DBTables::AddRemoveNode(int tableid, uint64_t key, 
+										uint64_t seq, Memstore::MemNode* node)
+{
+	rmPool->AddRMObj(tableid, key, seq, node);
+}
+
+void DBTables::GC()
+{
+	if(gcnum < GCThreshold && rmPool->GCElems() < RMThreshold)
+		return;
+
+	rcu->WaitForGracePeriod();
+	
+	//Delete all values 
+	for(int i = 0; i < number; i++) {
+		valuesPool[i].GC();
+	}
+
+	memnodesPool->GC();
+	gcnum = 0;
+
+	rmPool->RemoveAll();
+}
+
 void DBTables::ThreadLocalInit(int tid)
 {
-	if(epoch != NULL)
+
+	assert(number != 0);
+	
+	valuesPool = new OBJPool[number];
+	memnodesPool = new OBJPool();
+
+	memnodesPool->debug = true;
+	
+	rmPool = new RMPool(this);
+	
+	gcnum = 0;
+	
+    if(epoch != NULL)
 		epoch->setTID(tid);
+
+	if(rcu != NULL)
+		rcu->RegisterThread(tid);
 
 	nodeGCQueue = new GCQueue();
 

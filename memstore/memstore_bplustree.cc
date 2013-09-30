@@ -8,7 +8,7 @@ namespace leveldb {
 	void MemstoreBPlusTree::printLeaf(LeafNode *n) {
 		for(int i = 0; i < depth; i++)
 			printf(" ");
-		printf("Leaf Key num %d  :", n->num_keys);
+		printf("Leaf Addr %lx Key num %d  :", n, n->num_keys);
 		for (int i=0; i<n->num_keys;i++)
 			printf("key  %ld value %ld \t ",n->keys[i], n->values[i]->value);
 			printf("\n");
@@ -259,6 +259,8 @@ namespace leveldb {
 		seq_ = node_->seq;
 		key_ = node_->keys[leaf_index];
 		value_ = node_->values[leaf_index];
+
+		//tree_->printLeaf(node_);
 	}
 	
 	void MemstoreBPlusTree::Iterator::SeekPrev(uint64_t key)

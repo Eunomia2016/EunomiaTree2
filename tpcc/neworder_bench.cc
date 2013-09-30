@@ -24,6 +24,7 @@ static int NUM_WAREHOUSE = 1;
 #define LOCALRANDOM 0
 #define SHAREWAREHOUSE 0
 #define SETAFFINITY	1
+
 namespace leveldb {
 
 
@@ -406,7 +407,7 @@ int main(int argc, const char* argv[]) {
     //leveldb::TPCCLevelDB* tables = new leveldb::TPCCLevelDB();
     //TPCCDB* tables = new leveldb::TPCCSkiplist();
     leveldb::TPCCSkiplist* tables = new leveldb::TPCCSkiplist();
-	tables->store->InitEpoch(NUM_WAREHOUSE);
+	tables->store->RCUInit(NUM_WAREHOUSE);
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.

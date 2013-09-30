@@ -25,6 +25,16 @@ static __inline__ void glue(atomic_inc, DATA_BITS)(DATA_TYPE *p) {
         : "cc");
 }
 
+
+static __inline__ void glue(atomic_dec, DATA_BITS)(DATA_TYPE *p) {
+    asm volatile(
+        LOCK_PREFIX "dec"str(SUFFIX)" %0"
+        : "+m"(*p)
+        :
+        : "cc");
+}
+
+
 static __inline__ void glue(atomic_add, DATA_BITS)(DATA_TYPE* addr,
         DATA_TYPE val) {
     asm volatile(
