@@ -23,7 +23,7 @@ static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
 #define SHAREWAREHOUSE 0
-#define SETAFFINITY	0
+#define SETAFFINITY	1
 
 namespace leveldb {
 

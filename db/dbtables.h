@@ -31,10 +31,10 @@ class RMPool;
 #define SBTREE 5
 
 //GC when the number of gc objects reach GCThreshold
-#define GCThreshold 100000
+#define GCThreshold 10 //100000
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 100
+#define RMThreshold 5 //100
 
 class DBTables {
 

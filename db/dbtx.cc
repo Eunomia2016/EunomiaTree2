@@ -828,8 +828,14 @@ retry:
 
   if(node->value == HAVEREMOVED)
   	goto retry;
-  char* value = new char[len];
+  
+  char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
+
+  if(value == NULL)
+  	value = new char[len];
+  
   memcpy(value, val, len);
+  
   writeset->Add(tableid, key, (uint64_t *)value, node);
 
 }
@@ -932,7 +938,11 @@ retryA:
 	//mw->memnode = node;
 	
 	//2. add the record seq number into write set
-	char* value = new char[len];
+	char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
+
+  	if(value == NULL)
+  		value = new char[len];
+  
 	memcpy(value, val, len);
     writeset->Add(tableid, key, (uint64_t *)value, node);
 	
