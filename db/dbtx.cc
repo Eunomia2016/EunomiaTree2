@@ -757,7 +757,8 @@ retry:
 
   //Get the seq addr from the hashtable
 #if BUFFERNODE
-  if(buffer[tableid].key == key) {
+  if(buffer[tableid].key == key 
+  	&& buffer[tableid].node->value != HAVEREMOVED) {
 
 #if PROFILEBUFFERNODE
   bufferHit++;
@@ -803,7 +804,8 @@ retry:
 
   //Get the seq addr from the hashtable
 #if BUFFERNODE
-  if(buffer[tableid].key == key) {
+  if(buffer[tableid].key == key
+  	&& buffer[tableid].node->value != HAVEREMOVED) {
 
 #if PROFILEBUFFERNODE
   bufferHit++;
@@ -855,7 +857,9 @@ retryA:
 	Memstore::MemNode* node;
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
-	if(buffer[tableid].key == key) {
+	if(buffer[tableid].key == key
+		&& buffer[tableid].node->value != HAVEREMOVED) {
+		
 #if PROFILEBUFFERNODE
   bufferHit++;
 #endif
@@ -908,7 +912,9 @@ retryA:
 	Memstore::MemNode* node;
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
-	if(buffer[tableid].key == key) {
+	if(buffer[tableid].key == key
+		&& buffer[tableid].node->value != HAVEREMOVED) {
+		
 #if PROFILEBUFFERNODE
   bufferHit++;
 #endif
@@ -1076,7 +1082,8 @@ retry:
 
   Memstore::MemNode* node = NULL;
 #if BUFFERNODE
-  if(buffer[tableid].key == key) {
+  if(buffer[tableid].key == key
+  	&& buffer[tableid].node->value != HAVEREMOVED) {
  
 #if PROFILEBUFFERNODE
   bufferHit++;
