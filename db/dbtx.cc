@@ -642,8 +642,7 @@ void DBTX::Begin()
   writeset->Reset();
   deleteset->Reset();
   
-  txdb_->RCUTXBegin();
-  txdb_->EpochTXBegin();
+  txdb_->RCUTXBegin(); 
 
 #if DEBUG_PRINT
   printf("[%ld] TX Begin\n", pthread_self());
@@ -660,7 +659,6 @@ bool DBTX::Abort()
   
   abort = false;
   //Should not call End
-  txdb_->EpochTXEnd();
   txdb_->RCUTXEnd();
   return abort;
 }
@@ -722,29 +720,6 @@ bool DBTX::End()
 	txdb_->GC();
 
 
-
-
-#if 0
-	gcnodes = deleteset->getGCNodes();
-	
-	if(gcnodes != NULL)
-		txdb_->AddDeletedNodes(gcnodes, deleteset->elems - deleteset->delayNum);
-#endif
-
-#if 0
-	rmnodes = deleteset->getDelayNodes();
-	
-	if(rmnodes != NULL)
-		txdb_->AddRemoveNodes(rmnodes, deleteset->delayNum);
-
-
-	txdb_->EpochTXEnd();
-	
-	txdb_->GCDeletedNodes();
-	txdb_->GCDeletedValues();
-	txdb_->RemoveNodes();
-#endif
-
 #if DEBUG_PRINT
    printf("[%ld] TX Success\n", pthread_self());
 #endif
@@ -755,16 +730,6 @@ ABORT:
 
 	txdb_->RCUTXEnd();	
 	txdb_->GC();
-#if 0	
-	//Should clear the writeset here
-	writeset->Clear();
-	
-	txdb_->EpochTXEnd();
-	txdb_->RCUTXEnd();
-	txdb_->GCDeletedNodes();
-	txdb_->GCDeletedValues();
-	txdb_->RemoveNodes();
-#endif
 
 #if DEBUG_PRINT
 	printf("[%ld] TX Abort\n", pthread_self());

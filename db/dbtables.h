@@ -80,7 +80,6 @@ class DBTables {
 	void GCDeletedNodes();
 	void AddDeletedValues(uint64_t **nodes, int len);
 	void GCDeletedValues();
-	Memstore::MemNode* GetMemNode();
 	void AddRemoveNodes(uint64_t **nodes, int len);
 	void RemoveNodes();
 
@@ -95,10 +94,10 @@ class DBTables {
 	uint64_t*GetEmptyValue(int tableid);
 	
 	void AddDeletedNode(uint64_t *node);
-	uint64_t* GetEmptyNode();
 
 	void AddRemoveNode(int tableid, uint64_t key, uint64_t seq, Memstore::MemNode* value);
-	
+
+	Memstore::MemNode* GetMemNode();	
 	void GC();
 	
 };

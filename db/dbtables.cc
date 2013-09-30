@@ -116,12 +116,6 @@ void DBTables::GCDeletedNodes()
 }
 
 
-Memstore::MemNode* DBTables::GetMemNode()
-{
-	return nodebuffer->GetMemNode();
-}
-
-
 void DBTables::AddRemoveNodes(uint64_t **nodes, int len)
 {
 	assert(nodes != NULL);
@@ -153,13 +147,22 @@ void DBTables::RCUTXEnd()
 	rcu->EndTX();
 }
 
-
-
 void DBTables::AddDeletedValue(int tableid, uint64_t* value)
 {
 	gcnum++;
 	valuesPool[tableid].AddGCObj(value);
 }
+
+Memstore::MemNode* DBTables::GetMemNode()
+{
+	uint64_t* mn = memnodesPool->GetFreeObj();
+
+	if(mn == NULL)
+		return new Memstore::MemNode();
+	
+	return new (mn) Memstore::MemNode();
+}
+
 
 uint64_t* DBTables::GetEmptyValue(int tableid)
 {
@@ -171,12 +174,6 @@ void DBTables::AddDeletedNode(uint64_t *node)
 	gcnum++;
 	memnodesPool->AddGCObj(node); 
 }
-
-uint64_t* DBTables::GetEmptyNode()
-{
-	return memnodesPool->GetFreeObj();
-}
-
 
 void DBTables::AddRemoveNode(int tableid, uint64_t key, 
 										uint64_t seq, Memstore::MemNode* node)
@@ -209,6 +206,9 @@ void DBTables::ThreadLocalInit(int tid)
 	
 	valuesPool = new OBJPool[number];
 	memnodesPool = new OBJPool();
+
+	memnodesPool->debug = true;
+	
 	rmPool = new RMPool(this);
 	
 	gcnum = 0;

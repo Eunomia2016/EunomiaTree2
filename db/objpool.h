@@ -18,9 +18,13 @@ private:
 	int gcnum_;
 	int freenum_;
 	Obj* gclist_;
+	Obj* gctail_;
 	Obj* freelist_;
+
 	
 public:
+
+	bool debug;
 
 	OBJPool();
 	
@@ -30,7 +34,7 @@ public:
 
 	uint64_t* GetFreeObj();
 
-
+	void FreeList();
 	void GC();
 
 	void Print();

@@ -38,7 +38,7 @@ void DBROTX::Begin()
 #if GLOBALOCK
   SpinLockScope slock(&DBTX::slock);
 #endif
-  txdb_->EpochTXBegin();
+ 
   txdb_->RCUTXBegin();
 
   oldsnapshot = atomic_fetch_and_add64(&txdb_->snapshot, 1);
@@ -49,14 +49,12 @@ void DBROTX::Begin()
 
 bool DBROTX::Abort()
 {
-  txdb_->EpochTXEnd();
   txdb_->RCUTXEnd();
   return false;
 }
 
 bool DBROTX::End()
-{
-  txdb_->EpochTXEnd();
+{ 
   txdb_->GCDeletedNodes();
   
   txdb_->RCUTXEnd();
