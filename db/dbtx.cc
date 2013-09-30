@@ -176,11 +176,15 @@ DBTX::WriteSet::WriteSet()
 {
   max_length = MAXSIZE; //first allocate 1024 numbers
   elems = 0;
+#if USESECONDINDEX
   cursindex = 0;
+#endif
   dbtx_ = NULL;
   
   kvs = new WSKV[max_length];
+#if USESECONDINDEX
   sindexes = new WSSEC[max_length];
+#endif
 
   for(int i = 0; i < max_length; i++) {
 		kvs[i].key = 0;
@@ -244,7 +248,9 @@ void DBTX::WriteSet::Clear()
 void DBTX::WriteSet::Reset() 
 {
 	elems = 0;
+#if USESECONDINDEX
 	cursindex = 0;
+#endif
 #if CACHESIM
 	for(int i = 0; i < 64; i++) {
 	    cacheset[i] = 0;
@@ -310,6 +316,8 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
 
 inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw, Memstore::MemNode* node)
 {
+#if USESECONDINDEX
+
 	if(cursindex >= max_length) {
 	  //FIXME: No resize support!
 	  printf("Error: sindex overflow\n");
@@ -318,7 +326,10 @@ inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw,
 	sindexes[cursindex].seq = seq;
 	sindexes[cursindex].sindex = mnw;
 	sindexes[cursindex].memnode = node;
+	
 	cursindex++;
+#endif
+
 }
 
 
@@ -339,6 +350,7 @@ inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
 
 inline void DBTX::WriteSet::UpdateSecondaryIndex()
 {
+#if USESECONDINDEX
 	for(int i = 0; i < cursindex; i++) {
 		
 		//1. set memnode in wrapper
@@ -355,6 +367,7 @@ inline void DBTX::WriteSet::UpdateSecondaryIndex()
 					= &sindexes[i].sindex->valid;
 		*sindexes[i].seq += 1;
 	}
+#endif	
 }
 
 inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
@@ -399,9 +412,11 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 			kvs[i].node->value = (uint64_t *)1;
 
 			
-			//Invalidate secondary index when deletion 	  	  			
+			//Invalidate secondary index when deletion 	  	  	
+#if USESECONDINDEX
 			if (kvs[i].node->secIndexValidateAddr != NULL)
 				*(kvs[i].node->secIndexValidateAddr) = -1;	
+#endif			
 
 
 			//Directly remove the node from the memstore	
@@ -609,10 +624,11 @@ inline void DBTX::WriteSet::Cleanup(DBTables* tables)
 			kvs[i].node->value = (uint64_t *)2;
 			kvs[i].node->seq++;
 
-			//Invalidate secondary index when deletion 	  	  			
+			//Invalidate secondary index when deletion 	  
+#if USESECONDINDEX
 			if (kvs[i].node->secIndexValidateAddr != NULL)
 				*(kvs[i].node->secIndexValidateAddr) = -1;
-			
+#endif			
 			
 			remove = true;
 //			printf("Thread %ld remove %ld seq %ld\n", pthread_self(), kvs[i].key, kvs[i].node->seq);
@@ -756,8 +772,9 @@ bool DBTX::End()
     writeset->Write(txdb_->snapshot);
 
     //step 3. update the sencondary index
+#if USESECONDINDEX
     writeset->UpdateSecondaryIndex();
-
+#endif
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
   }
   

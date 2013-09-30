@@ -23,9 +23,14 @@
 #define ORLI 6
 #define ITEM 7
 #define STOC 8
-
+#if USESECONDINDEX
 #define CUST_INDEX 0
 #define ORDER_INDEX 1
+#else 
+#define CUST_INDEX 9
+#define ORDER_INDEX 10
+#endif
+
 namespace leveldb {
 
   __thread Warehouse* TPCCSkiplist::warehouse_dummy = NULL;
@@ -311,8 +316,11 @@ namespace leveldb {
   }
   
   TPCCSkiplist::TPCCSkiplist() {
-  	
+#if USESECONDINDEX
 	store = new DBTables(9);
+#else
+	store = new DBTables(11);
+#endif
 	//insert an end value
 #if SEPERATE
 	store->AddTable(WARE, HASH, NONE);
@@ -324,15 +332,13 @@ namespace leveldb {
 	store->AddTable(ORLI, BTREE, NONE);
 	store->AddTable(ITEM, HASH, NONE);
 	store->AddTable(STOC, HASH, NONE);
-#else
+#else	
 #if 1
 	for (int i=0; i<9; i++)
-		if (i == CUST) {
-			int a = store->AddTable(i, BTREE, SBTREE);
-			if (a != CUST_INDEX) printf("Customer index Wrong!\n");
-		}
+		if (i == CUST) store->AddTable(i, BTREE, SBTREE);
 		else if (i == ORDE) store->AddTable(i, BTREE, IBTREE);
 		else store->AddTable(i, BTREE, NONE);
+
 #else
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
@@ -343,14 +349,23 @@ namespace leveldb {
 		else store->AddTable(i, SKIPLIST, NONE);
 #endif
 #endif
+
+#if !USESECONDINDEX
+	store->AddTable(CUST_INDEX, SBTREE, NONE);
+	store->AddTable(ORDER_INDEX, BTREE, NONE);
+#endif
+
 	Memstore::MemNode *mn;
 	for (int i=0; i<9; i++) {
 		//Fixme: invalid value pointer
 		Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)3);		
 		if (i == ORDE) mn = node;
 	}
+#if USESECONDINDEX
 	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
-
+#else
+	store->tables[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t *)3);
+#endif
 	fstart = new char[17];
 	memset(fstart, 0, 17);
 	fend = new char[17];
@@ -517,7 +532,26 @@ namespace leveldb {
   	Memstore::MemNode *node = store->tables[CUST]->Put(key, value);
 	uint64_t sec = makeCustomerIndex(customer.c_w_id, customer.c_d_id, 
 					const_cast<char *>(customer.c_last), const_cast<char *>(customer.c_first));
+#if USESECONDINDEX
   	store->secondIndexes[CUST_INDEX]->Put(sec, key, node);
+#else	
+	Memstore::MemNode* mn = store->tables[CUST_INDEX]->Get(sec);
+	if (mn == NULL) {
+		uint64_t *prikeys = new uint64_t[1];
+		prikeys[0] = key;
+		store->tables[CUST_INDEX]->Put(sec, prikeys);
+	}
+	else {
+		uint64_t *array = mn->value;
+		int len = sizeof(array)/ sizeof(uint64_t);
+		//if (len > 10) printf(">>>101010\n");
+		uint64_t *prikeys = new uint64_t[len + 1];
+		memcpy(prikeys, array, sizeof(array));
+		prikeys[len] = key;
+		store->tables[CUST_INDEX]->Put(sec, prikeys);
+		delete[] array;
+	}
+#endif
 #if 0
 	printf("Insert %d %d %s\n",customer.c_w_id, customer.c_d_id, 
 					const_cast<char *>(customer.c_last) );
@@ -566,8 +600,25 @@ namespace leveldb {
   	
   	Memstore::MemNode *node = store->tables[ORDE]->Put(key, value);
 	uint64_t sec = makeOrderIndex(order.o_w_id, order.o_d_id, order.o_c_id, order.o_id);
+#if USESECONDINDEX
 	store->secondIndexes[ORDER_INDEX]->Put(sec, key, node);
-  	
+#else 
+	Memstore::MemNode *mn = store->tables[ORDER_INDEX]->Get(sec);
+	if (mn == NULL) {
+		uint64_t *prikeys = new uint64_t[1];
+		prikeys[0] = key;
+		store->tables[ORDER_INDEX]->Put(sec, prikeys);
+	}
+	else {
+		uint64_t *array = mn->value;
+		int len = sizeof(array)/ sizeof(uint64_t);
+		uint64_t *prikeys = new uint64_t[len + 1];
+		memcpy(prikeys, array, sizeof(array));
+		prikeys[len] = key;
+		store->tables[ORDER_INDEX]->Put(sec, prikeys);
+		delete[] array;
+	}
+#endif
 	return o;
   }
 
@@ -888,17 +939,27 @@ namespace leveldb {
 	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order_dummy);
 	  int64_t o_sec = makeOrderIndex(warehouse_id, district_id, customer_id, output->o_id);
 #if SEC_INDEX
-#if COPY_WHEN_ADD
+#if USESECONDINDEX
 	  tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, o_value, sizeof(Order));
-#else	
-	  tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, o_value);
-#endif
-#else
-#if COPY_WHEN_ADD
+#else 
 	  tx.Add(ORDE, o_key, o_value, sizeof(Order));
-#else
-	  tx.Add(ORDE, o_key, o_value);
+	  uint64_t *value;
+	  bool f = tx.Get(ORDER_INDEX, o_sec, &value);
+	  if (f) {
+	  	int len = sizeof(value) / sizeof(uint64_t);
+	  	uint64_t prikeys[len + 1];
+		memcpy(prikeys, value, sizeof(value));
+		prikeys[len] = o_key;
+		tx.Add(ORDER_INDEX, o_sec, prikeys, sizeof(prikeys));
+	  }
+	  else {
+	  	uint64_t prikeys[1];
+		prikeys[0] = o_key;
+		tx.Add(ORDER_INDEX, o_sec, prikeys, sizeof(prikeys));
+	  }
 #endif
+#else
+	  tx.Add(ORDE, o_key, o_value, sizeof(Order));
 #endif
 #if PROFILE
 	  wcount++;
@@ -994,11 +1055,9 @@ namespace leveldb {
 		
 		output->items[i].s_quantity = s->s_quantity;
 		uint64_t *s_v = reinterpret_cast<uint64_t *>(stock_dummy);
-#if COPY_WHEN_ADD
+
 		tx.Add(STOC, s_key, s_v, sizeof(Stock));
-#else
-		tx.Add(STOC, s_key, s_v);
-#endif
+
 #if PROFILE
 		wcount++;
 #endif
@@ -1036,11 +1095,9 @@ namespace leveldb {
 		uint64_t *l_value = reinterpret_cast<uint64_t *>(orderline_dummy);
 	//	printf("%d %d %d %d\n", line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
 	//	printf("OrderLine %lx\n", l_key);
-#if COPY_WHEN_ADD
+
 		tx.Add(ORLI, l_key, l_value, sizeof(OrderLine));
-#else
-		tx.Add(ORLI, l_key, l_value);
-#endif
+
 #if PROFILE
 		wcount++;
 #endif
@@ -1123,11 +1180,9 @@ namespace leveldb {
 			updateWarehouseYtd(warehouse_dummy, w, h_amount);
 			uint64_t *w_v = reinterpret_cast<uint64_t *>(warehouse_dummy);
 			//w->w_ytd = w->w_ytd + h_amount;
-#if COPY_WHEN_ADD
+
 			tx.Add(WARE, w_key, w_v, sizeof(Warehouse));
-#else
-		    tx.Add(WARE, w_key, w_v);
-#endif
+
 #if PROFILE
 			wcount++;
 #endif
@@ -1153,11 +1208,9 @@ namespace leveldb {
 			updateDistrictYtd(district_dummy, d, h_amount);
 			uint64_t *d_v = reinterpret_cast<uint64_t *>(district_dummy);
 			//d->d_ytd = d->d_ytd + h_amount;
-#if COPY_WHEN_ADD
+
 			tx.Add(DIST, d_key, d_v, sizeof(District));
-#else
-			tx.Add(DIST, d_key, d_v);
-#endif
+
 #if PROFILE
 			wcount++;
 #endif
@@ -1184,9 +1237,15 @@ namespace leveldb {
 			
 			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
 #endif	
+#if USESECONDINDEX
 			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
+#else 
+			DBTX::Iterator iter(&tx, CUST_INDEX);
+#endif
 			iter.Seek(c_start);
+#if USESECONDINDEX
 			uint64_t *c_values[100];
+#endif
 			uint64_t c_keys[100];
 			int j = 0;
 			while (iter.Valid()) {
@@ -1200,6 +1259,7 @@ namespace leveldb {
 						printf("%d ",((char *)iter.Key())[i]);
 					printf("\n");
 #endif
+#if USESECONDINDEX
 					DBTX::KeyValues *kvs = iter.Value();
 					int num = kvs->num;
 					for (int i=0; i<num; i++)  {
@@ -1209,6 +1269,14 @@ namespace leveldb {
 						j++;
 					}	
 					delete kvs;
+#else
+					uint64_t *prikeys = iter.Value();
+					int num = sizeof(prikeys) / sizeof(uint64_t);
+					for (int i=0; i<num; i++) {
+						c_keys[j] = prikeys[i];
+						j++;
+					}
+#endif
 					if (j >= 100) {
 						printf("P Array Full\n");
 						exit(0);
@@ -1219,10 +1287,15 @@ namespace leveldb {
 					
 			}
 			j = (j+1)/2 - 1;
-			
-			uint64_t *c_value = c_values[j];
-//			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
+#if USESECONDINDEX
+			uint64_t *c_value = c_values[j];
+#else
+			uint64_t *c_value;
+			tx.Get(CUST, c_key, &c_value);
+#endif
+//			printf("cv %lx\n",c_value);
+			
 			//if (c_value == NULL) exit(0);
 			assert(found);
 			Customer *c = reinterpret_cast<Customer *>(c_value);
@@ -1609,13 +1682,20 @@ namespace leveldb {
 					
 			printf("end %d %d %s\n",warehouse_id, district_id, clast);
 #endif
-
+#if USESECONDINDEX
 #if SLDBTX
 
 			DBTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
 #else	
 			DBROTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
 #endif
+#else
+#if SLDBTX
+			DBTX::Iterator citer(&tx, CUST_INDEX);
+#else
+			DBROTX::Iterator citer(&tx, CUST_INDEX);
+#endif
+#endif			
 			citer.Seek(c_start);
 			uint64_t *c_values[100];
 			uint64_t c_keys[100];
@@ -1632,40 +1712,48 @@ namespace leveldb {
 								printf("\n");
 #endif
 
-#if SLDBTX
 					
+#if USESECONDINDEX
+#if SLDBTX
+										
 					DBTX::KeyValues *kvs = citer.Value();
 #else
 					DBROTX::KeyValues *kvs = citer.Value();
 #endif
-#if 1
 					int num = kvs->num;
-			
 					for (int i=0; i<num; i++)  {
 						c_values[j] = kvs->values[i];
 						c_keys[j] = kvs->keys[i];
-			//				printf("j %d\n",j);
+//						printf("j %d\n",j);
+						j++;
+					}	
+					delete kvs;
+#else
+					uint64_t *prikeys = citer.Value();
+					int num = sizeof(prikeys) / sizeof(uint64_t);
+					for (int i=0; i<num; i++) {
+						c_keys[j] = prikeys[i];
 						j++;
 					}
-					if(j >= 100){
-						printf("OS Array Full\n");
+#endif
+					if (j >= 100) {
+						printf("P Array Full\n");
 						exit(0);
 					}
-					delete kvs;
-#endif
 				}
 				else break;
 				citer.Next();
-				
+					
 			}
-
-
-#if 1				
 			j = (j+1)/2 - 1;
-				
-			uint64_t *c_value = c_values[j];
-			//			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
+#if USESECONDINDEX
+			uint64_t *c_value = c_values[j];
+#else
+			uint64_t *c_value;
+			tx.Get(CUST, c_key, &c_value);
+#endif
+
 			//if (c_value == NULL) exit(0);
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 	  		
@@ -1686,12 +1774,19 @@ namespace leveldb {
 			//-------------------------------------------------------------------------
 	  
 			Order *o = NULL; int32_t o_id;
-#if SEC_INDEX
-
+#if USESECONDINDEX
 #if SLDBTX
 				  DBTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
 #else
 				  DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
+#endif
+#else
+#if SLDBTX
+				  DBTX::Iterator iter(&tx, ORDER_INDEX);
+#else
+				  DBROTX::Iterator iter(&tx, ORDER_INDEX);
+#endif
+
 #endif
 				  uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
 				  uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
@@ -1699,6 +1794,7 @@ namespace leveldb {
 				  if(iter.Valid())
     				iter.Prev();
 				  if (iter.Valid() && iter.Key() >= end) {
+#if USESECONDINDEX
 #if SLDBTX
 					DBTX::KeyValues *kvs = iter.Value();
 #else					
@@ -1706,41 +1802,21 @@ namespace leveldb {
 #endif
 					o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
 					uint64_t *o_value = kvs->values[0];
+#else
+					uint64_t *prikeys = iter.Value();
+					o_id = static_cast<int32_t>(prikeys[0] << 32 >> 32);
+					uint64_t *o_value;
+					tx.Get(ORDE, prikeys[0], &o_value);
+				//	printf("%lx\n", prikeys[0]);
+#endif
+
+
 #if PROFILE
 							icount++;
 #endif
 					o = reinterpret_cast<Order *>(o_value);
 				  }
 			
-#else
-
-#if SLDBTX
-				  DBTX::Iterator iter(&tx, ORDE);
-#else				  
-				  DBROTX::Iterator iter(&tx, ORDE);
-#endif
-				  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
-				  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
-				  //printf("OrderStatus %d\n", customer_id);
-				  if(iter.Valid())
-    				iter.Prev();
-				  while (iter.Valid() && iter.Key() >= end) { 
-					
-					o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
-					
-					uint64_t *o_value = iter.Value();
-#if PROFILE
-					icount++;
-#endif
-					o = reinterpret_cast<Order *>(o_value);
-					
-					if (o->o_c_id == customer_id) break;
-					//printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
-					
-					iter.Prev();
-					o = NULL;
-				  }
-#endif
 			
 			//-------------------------------------------------------------------------
 			//All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID),
@@ -1770,7 +1846,6 @@ namespace leveldb {
 				strcpy(output->lines[line_number-1].ol_delivery_d, line->ol_delivery_d);
 			  }
 			}
-#endif			
 			bool b = tx.End();
 			if(b)
 			  break;
@@ -1836,66 +1911,50 @@ namespace leveldb {
 
 
 	  Order *o = NULL; int32_t o_id;
-#if SEC_INDEX
-	
+#if USESECONDINDEX
 #if SLDBTX
 		DBTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
 #else
-
 		DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
 #endif
-	  uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
-	  uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
-	  iter.Seek(start);
-	  if(iter.Valid())
-    	iter.Prev();
-	  else printf("Seek out\n");
-	  if (iter.Valid() && iter.Key() >= end) {
+#else
+#if SLDBTX
+		DBTX::Iterator iter(&tx, ORDER_INDEX);
+#else
+		DBROTX::Iterator iter(&tx, ORDER_INDEX);
+#endif
 	  
+#endif
+		uint64_t start = makeOrderIndex(warehouse_id, district_id, customer_id, Order::MAX_ORDER_ID + 1);
+		uint64_t end = makeOrderIndex(warehouse_id, district_id, customer_id, 1);
+		iter.Seek(start);
+		if(iter.Valid())
+			  iter.Prev();
+		if (iter.Valid() && iter.Key() >= end) {
+#if USESECONDINDEX
 #if SLDBTX
-		DBTX::KeyValues *kvs = iter.Value();
-#else						
-		DBROTX::KeyValues *kvs = iter.Value();
+			  DBTX::KeyValues *kvs = iter.Value();
+#else					
+			  DBROTX::KeyValues *kvs = iter.Value();
 #endif
+			  o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
+			  uint64_t *o_value = kvs->values[0];
+#else
+			  uint64_t *prikeys = iter.Value();
+			  o_id = static_cast<int32_t>(prikeys[0] << 32 >> 32);
+			  uint64_t *o_value;
+			  tx.Get(ORDE, prikeys[0], &o_value);
+						  
+#endif
+	
 
-		o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
-		uint64_t *o_value = kvs->values[0];
 #if PROFILE
-				icount++;
+			icount++;
 #endif
-		o = reinterpret_cast<Order *>(o_value);
+			o = reinterpret_cast<Order *>(o_value);
 	  }
 
-#else
 
-#if SLDBTX
-	DBTX::Iterator iter(&tx, ORDE);
-#else
-	  DBROTX::Iterator iter(&tx, ORDE);
-#endif
-	  uint64_t start = makeOrderKey(warehouse_id, district_id, Order::MAX_ORDER_ID + 1);
-	  uint64_t end = makeOrderKey(warehouse_id, district_id, 1);
-	  //printf("OrderStatus %d\n", customer_id);
-	  iter.Seek(start);
-	  if(iter.Valid())
-    	iter.Prev();
-	  while (iter.Valid() && iter.Key() >= end) { 
-	  	
-	  	o_id = static_cast<int32_t>(iter.Key() << 32 >> 32);
-		
-		uint64_t *o_value = iter.Value();
-#if PROFILE
-		icount++;
-#endif
-		o = reinterpret_cast<Order *>(o_value);
-		
-		if (o->o_c_id == customer_id) break;
-		//printf("w %d d %d o %d c %d\n",warehouse_id, district_id, o_id, o->o_c_id);
-	  	
-		iter.Prev();
-		o = NULL;
-	  }
-#endif
 	  
 	  //-------------------------------------------------------------------------
 	  //All rows in the ORDER-LINE table with matching OL_W_ID (equals O_W_ID), OL_D_ID (equals O_D_ID),
@@ -2195,11 +2254,7 @@ retry:
 
 	uint64_t *o_v = reinterpret_cast<uint64_t *>(order_dummy);
 	//o->o_carrier_id = carrier_id;
-#if COPY_WHEN_ADD
 	tx.Add(ORDE, o_key, o_v, sizeof(Order));
-#else
-	tx.Add(ORDE, o_key, o_v);
-#endif
 #if PROFILEDELIVERY
 	dstep2 += rdtsc() - sstart;
 	sstart = rdtsc();
@@ -2235,11 +2290,7 @@ retry:
 	  //memcpy(ol->ol_delivery_d, now, 15);
 	  
 	  assert (orderline_dummy->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
-#if COPY_WHEN_ADD
 	  tx.Add(ORLI, ol_key, ol_v, sizeof(OrderLine));
-#else
-	  tx.Add(ORLI, ol_key, ol_v);
-#endif
 #if PROFILE
 	  wcount++;
 #endif
@@ -2272,11 +2323,7 @@ retry:
 	uint64_t *c_v = reinterpret_cast<uint64_t *>(customer_dummy);
 	//c->c_balance = c->c_balance + sum_ol_amount;
 	//c->c_delivery_cnt = c->c_delivery_cnt + 1;
-#if COPY_WHEN_ADD
 	tx.Add(CUST, c_key, c_v, sizeof(Customer));
-#else
-	tx.Add(CUST, c_key, c_v);
-#endif
 #if PROFILE
 	wcount++;
 #endif
@@ -2333,11 +2380,6 @@ bool TPCCSkiplist::newOrderRemote(int32_t home_warehouse, int32_t remote_warehou
             TPCCUndo** undo){
   return false;
 }
-
-
-
-
-
 
 void TPCCSkiplist::paymentRemote(int32_t warehouse_id, int32_t district_id, int32_t c_warehouse_id,
 		  int32_t c_district_id, int32_t c_id, float h_amount, PaymentOutput* output,

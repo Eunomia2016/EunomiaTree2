@@ -44,15 +44,20 @@ DBTables::~DBTables() {
 		else if (types[i] == BTREE) delete (MemstoreBPlusTree *)tables[i];
 		else if (types[i] == SKIPLIST) delete (MemStoreSkipList *)tables[i];
 		else if (types[i] == CUCKOO) delete (MemstoreCuckooHashTable *)tables[i];
+#if !USESECONDINDEX
+		else if (indextypes[i] == SBTREE) delete (MemstoreStringBPlusTree *)secondIndexes[i];
+#endif			
 	}
 	delete tables;
 	delete types;
+#if USESECONDINDEX
 	for (int i=0; i<nextindex; i++) {
-		if (indextypes[i] == SBTREE) delete (MemstoreStringBPlusTree *)secondIndexes[i];
-		else if (indextypes[i] == IBTREE) delete (MemstoreUint64BPlusTree *)secondIndexes[i];
+		if (indextypes[i] == SBTREE) delete (SecondIndexStringBPlusTree *)secondIndexes[i];
+		else if (indextypes[i] == IBTREE) delete (SecondIndexUint64BPlusTree *)secondIndexes[i];
 	}
 	delete secondIndexes;
 	delete indextypes;
+#endif	
 	RMQueue::rtmProf->reportAbortStatus();
 }
 
@@ -155,15 +160,20 @@ int DBTables::AddTable(int tableid, int index_type,int secondary_index_type)
 	else if (index_type == HASH) tables[next] = new MemstoreHashTable();
 	else if (index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
 	else if (index_type == CUCKOO) tables[next] = new MemstoreCuckooHashTable();
+#if !USESECONDINDEX
+	else if (index_type == SBTREE) tables[next] = new MemstoreStringBPlusTree();
+#endif
 	types[next] = index_type;
 	next++;
+#if USESECONDINDEX
+	if (secondary_index_type == IBTREE) secondIndexes[nextindex] = new SecondIndexUint64BPlusTree();	
+	else if (secondary_index_type == SBTREE) secondIndexes[nextindex] = new SecondIndexStringBPlusTree();	
 	
-	if (secondary_index_type == IBTREE) secondIndexes[nextindex] = new MemstoreUint64BPlusTree();	
-	else if (secondary_index_type == SBTREE) secondIndexes[nextindex] = new MemstoreStringBPlusTree();	
 	if (secondary_index_type != NONE) {
 		indextypes[nextindex] = secondary_index_type;
 		nextindex++;
 	}
+#endif	
 	return nextindex - 1;
 }
 

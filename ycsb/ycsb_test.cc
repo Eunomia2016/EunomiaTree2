@@ -23,7 +23,7 @@ static int FLAGS_threads = 1;
 static uint64_t nkeys = 160000000;
 #define CHECK 0
 #define YCSBRecordSize 100
-#define GETCOPY 1
+#define GETCOPY 0
 namespace leveldb {
 	
 typedef uint64_t Key;
@@ -217,8 +217,12 @@ private:
 		fast_random r = thread->rnd;
 		std::string v;
 		
-		double start = leveldb::Env::Default()->NowMicros();
+		char nv[YCSBRecordSize];
 		DBTX tx(store);
+		tx.ThreadLocalInit();
+		
+		double start = leveldb::Env::Default()->NowMicros();
+		
 		while (finish < num) {
 			double d = r.next_uniform();
 			if (d < 0.8) {
@@ -228,6 +232,7 @@ private:
 					tx.Begin();
 					uint64_t *s;
 					tx.Get(0, key, &s);
+				
 #if GETCOPY
 					std::string *p = &v;
 					p->assign((char *)s, YCSBRecordSize);
@@ -242,6 +247,7 @@ private:
 				while (!b) {
 					tx.Begin();
 					uint64_t *s;
+					
 					tx.Get(0, key, &s);
 #if GETCOPY						
 					std::string *p = &v;			
@@ -249,6 +255,7 @@ private:
 #endif					
 					std::string c(YCSBRecordSize, 'c');
 					tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
+				
 					b = tx.End();
 				}
 				finish++;
@@ -276,7 +283,7 @@ private:
 			//Read
 			if (d < 0.8) {
 				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = btree->Get(key);
+				Memstore::MemNode * mn = btree->GetWithInsert(key);
 				char *s = (char *)(mn->value);
 #if GETCOPY
 				std::string *p = &v;
@@ -394,9 +401,9 @@ private:
 
 	  if (true) {
 		for (uint64_t i = 0; i < nkeys; i++) { 
-			std::string s(YCSBRecordSize, 'a');
+			std::string *s = new std::string(YCSBRecordSize, 'a');
 			if (name == "txmix") 
-				store->tables[0]->Put(i, (uint64_t *)s.data());
+				store->tables[0]->Put(i, (uint64_t *)s->data());
 			else btree->Put(i, (uint64_t *)s.data());
 		}
 	  }

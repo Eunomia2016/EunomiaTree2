@@ -160,12 +160,10 @@ public:
 	}
 
 	inline void prefetch(const void *ptr) {
-#ifdef NOPREFETCH
-		(void) ptr;
-#else
-		typedef struct { char x[64]; } cacheline_t;
-		asm volatile("prefetcht0 %0" : : "m" (*(const cacheline_t *)ptr));
-#endif
+
+		typedef struct { char x[32]; } cacheline_t;
+		asm volatile("prefetcht1 %0" : : "m" (*(const cacheline_t *)ptr));
+
 	}
 
 
@@ -230,11 +228,12 @@ public:
 		}
 		LeafNode* leaf= reinterpret_cast<LeafNode*>(node);
 //		reads++;
-		
+		if (leaf->num_keys == 0) return NULL;
 	    unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k]<key)) {
 		   ++k;
 		}
+		if (k == leaf->num_keys) return NULL;
 		if( leaf->keys[k] == key ) {
 			//prefetch(leaf->values[k]->value);
 			return leaf->values[k];
@@ -494,9 +493,9 @@ public:
 	*/	
 		MemNode* value = Insert_rtm(key);
 		
-		if(dummyval_ == NULL)
+		if(dummyval_ == NULL) {
 			dummyval_ = new MemNode();
-
+		}
 		return value;
 		
 //		Insert_rtm(key, &dummy);
@@ -748,6 +747,7 @@ public:
 
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*val = leaf->values[k];
+			prefetch(*val);
 #if BTREE_PROF
 			reads++;
 #endif

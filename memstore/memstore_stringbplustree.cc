@@ -4,15 +4,13 @@ namespace leveldb {
 	
 	__thread RTMArena* MemstoreStringBPlusTree::arena_ = NULL;
 	__thread bool MemstoreStringBPlusTree::localinit_ = false;
-	__thread SecondIndex::SecondNode* MemstoreStringBPlusTree::dummyval_ = NULL;
-	__thread SecondIndex::MemNodeWrapper* MemstoreStringBPlusTree::dummywrapper_ = NULL;
+	__thread Memstore::MemNode* MemstoreStringBPlusTree::dummyval_ = NULL;
 
 	void MemstoreStringBPlusTree::printLeaf(LeafNode *n) {
 			printf("Leaf Key num %d\n", n->num_keys);
 			for (int i=0; i<n->num_keys;i++)
 				printf("key  %s value %lx \t ",n->keys[i], n->values[i]);
 				printf("\n");
-			total_key += n->num_keys;
 		}
 	
 
@@ -28,13 +26,16 @@ namespace leveldb {
 
 	void MemstoreStringBPlusTree::PrintStore() {
 		 printf("===============B+ Tree=========================\n");
-		 total_key = 0;
+		 
+		 if(root == NULL) {
+			 printf("Empty Tree\n");
+			 return;
+		 }
 		 if (depth == 0) printLeaf(reinterpret_cast<LeafNode*>(root));
 		 else {
 			  printInner(reinterpret_cast<InnerNode*>(root), depth);
 		 }
 		 printf("========================================\n");
-		 printf("Total key num %d\n", total_key);
 	} 
 
 	void MemstoreStringBPlusTree::PrintList() {
@@ -119,7 +120,7 @@ namespace leveldb {
 	// Returns true iff the iterator is positioned at a valid node.
 	bool MemstoreStringBPlusTree::Iterator::Valid()
 	{
-		bool b = node_ != NULL && node_->num_keys > 0;
+		bool b = (node_ != NULL) && (node_->num_keys > 0);
 	//	printf("b %d\n",b);
 		return b;
 	}
@@ -228,7 +229,7 @@ namespace leveldb {
 		return (uint64_t)key_;
 	}
 	
-	SecondIndex::SecondNode* MemstoreStringBPlusTree::Iterator::CurNode()
+	Memstore::MemNode* MemstoreStringBPlusTree::Iterator::CurNode()
 	{
 		if (!Valid()) return NULL;
 		return value_;
@@ -254,8 +255,6 @@ namespace leveldb {
 		if (k == num) {
 			node_ = leaf->right;
 			leaf_index = 0;
-			if(node_ == NULL)
-				return;
 		}
 		else {
 			leaf_index = k;
