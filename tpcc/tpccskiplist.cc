@@ -1067,11 +1067,19 @@ namespace leveldb {
 
   	}
 
-    atomic_add64(&abort, tx.rtmProf.abortCounts);
-	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
-	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
+#if PROFILEBUFFERNODE                                                                                                                                         
+	  bufferMiss += tx.bufferMiss;
+	  bufferHit += tx.bufferHit;
+	  bufferGet += tx.bufferGet;
+#endif
+
 
 #if PROFILE
+	atomic_add64(&abort, tx.rtmProf.abortCounts);
+	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
+	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
+		
+
 	atomic_add64(&neworderreadcount, rcount);
 	atomic_add64(&neworderwritecount, wcount);
 
@@ -1309,11 +1317,19 @@ namespace leveldb {
 			atomic_add64(&paymentabort, 1);
 #endif
 		  }
-	  
+
+#if PROFILEBUFFERNODE                                                                                                                                         
+  		  bufferMiss += tx.bufferMiss;
+		  bufferHit += tx.bufferHit;
+		  bufferGet += tx.bufferGet;
+#endif
+
+		  
+#if PROFILE
 		  atomic_add64(&abort, tx.rtmProf.abortCounts);
 		  atomic_add64(&capacity, tx.rtmProf.capacityCounts);
 		  atomic_add64(&conflict, tx.rtmProf.conflictCounts);
-#if PROFILE
+		  
 		  atomic_add64(&paymentreadcount, rcount);
 		  atomic_add64(&paymentwritecount, wcount);
 		  while (rcount > paymentreadmax) paymentreadmax = rcount;
@@ -1560,10 +1576,17 @@ namespace leveldb {
 #endif
     }
 
-    atomic_add64(&abort, tx.rtmProf.abortCounts);
+#if PROFILEBUFFERNODE                                                                                                                                         
+  bufferMiss += tx.bufferMiss;
+  bufferHit += tx.bufferHit;
+  bufferGet += tx.bufferGet;
+#endif
+
+#if PROFILE
+	atomic_add64(&abort, tx.rtmProf.abortCounts);
 	atomic_add64(&capacity, tx.rtmProf.capacityCounts);
 	atomic_add64(&conflict, tx.rtmProf.conflictCounts);
-#if PROFILE
+
 	atomic_add64(&paymentreadcount, rcount);
 	atomic_add64(&paymentwritecount, wcount);
 	while (rcount > paymentreadmax) paymentreadmax = rcount;

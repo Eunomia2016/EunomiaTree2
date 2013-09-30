@@ -820,10 +820,9 @@ retry:
 #endif
 
   	node = txdb_->tables[tableid]->GetWithInsert(key);
-	buffer[tableid].node = node;
-	buffer[tableid].key = key;
 	assert(node != NULL);
   }
+  
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 #endif
@@ -921,13 +920,12 @@ retryA:
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
+	
 #if PROFILEBUFFERNODE
   bufferMiss++;
 #endif
 
 		node = txdb_->tables[tableid]->GetWithInsert(key);
-		buffer[tableid].node = node;
-		buffer[tableid].key = key;
 		assert(node != NULL);
 	}
 #else
@@ -1069,42 +1067,20 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val)
 		
       	return true;
   }
-
-#if PROFILEBUFFERNODE
-  bufferGet++;
-#endif
-
-
 	
   //step 2.  Read the <k,v> from the in memory store
 
 retry:
 
   Memstore::MemNode* node = NULL;
-#if BUFFERNODE
-  if(buffer[tableid].key == key
-  	&& buffer[tableid].node->value != HAVEREMOVED) {
- 
-#if PROFILEBUFFERNODE
-  bufferHit++;
-#endif
- 	node = buffer[tableid].node;
-	assert(node != NULL);
-  } else {
 
-#if PROFILEBUFFERNODE
-  bufferMiss++;
-#endif
-
-
-  	node = txdb_->tables[tableid]->GetWithInsert(key);
+  node = txdb_->tables[tableid]->GetWithInsert(key);
+  
+#if BUFFERNODE	
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;
 	assert(node != NULL);
-  }
-#else
-	node = txdb_->tables[tableid]->GetWithInsert(key);
-#endif}
+#endif
 
 	//Guarantee	
 #if GLOBALOCK
