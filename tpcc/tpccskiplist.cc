@@ -9,7 +9,7 @@
 #define SEPERATE 0
 
 #define PROFILE 0
-#define ABORTPRO 1
+#define ABORTPRO 0
 #define SLDBTX	0
 #define CHECKTPCC 0
 
@@ -27,6 +27,16 @@
 #define CUST_INDEX 0
 #define ORDER_INDEX 1
 namespace leveldb {
+
+  __thread Warehouse* TPCCSkiplist::warehouse_dummy = NULL;
+  __thread District* TPCCSkiplist::district_dummy = NULL;
+  __thread Customer* TPCCSkiplist::customer_dummy = NULL;
+  __thread Order* TPCCSkiplist::order_dummy = NULL;
+  __thread OrderLine* TPCCSkiplist::orderline_dummy = NULL;
+  __thread Stock* TPCCSkiplist::stock_dummy = NULL;
+  __thread History* TPCCSkiplist::history_dummy = NULL;
+  __thread NewOrder* TPCCSkiplist::neworder_dummy = NULL;
+  
 
   static int64_t makeWarehouseKey(int32_t w_id) {
   	int64_t id = static_cast<int64_t>(w_id);
@@ -341,6 +351,10 @@ namespace leveldb {
 	}
 	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
 
+	fstart = new char[17];
+	memset(fstart, 0, 17);
+	fend = new char[17];
+	fend[0] = 255;
 	
 	abort = 0;
     conflict = 0;
@@ -461,6 +475,18 @@ namespace leveldb {
 	
 #endif
   }
+
+  void TPCCSkiplist::ThreadLocalInit() {
+  	warehouse_dummy = new Warehouse();
+	district_dummy = new District();
+	customer_dummy = new Customer();
+	orderline_dummy = new OrderLine();
+	order_dummy = new Order();
+	neworder_dummy = new NewOrder();
+	history_dummy = new History();
+	stock_dummy = new Stock();
+  }
+
   
   void TPCCSkiplist::insertWarehouse(const Warehouse & warehouse) {
   	int64_t key = makeWarehouseKey(warehouse.w_id);
@@ -791,10 +817,10 @@ namespace leveldb {
 	  
 	  output->o_id = d->d_next_o_id;
       //printf("%d %d %d\n", warehouse_id, district_id, output->o_id);
-  	  District *newd = new District();
-	  updateDistrict(newd, d);
+  	  //District *newd = new District();
+	  updateDistrict(district_dummy, d);
 	  //d->d_next_o_id = d->d_next_o_id + 1;
-	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
+	  uint64_t *d_v = reinterpret_cast<uint64_t *>(district_dummy);
 #if COPY_WHEN_ADD
 	  tx.Add(DIST, d_key, d_v, sizeof(District));
 #else 
@@ -847,20 +873,20 @@ namespace leveldb {
   	  }
 
   	  //printf("Step 5\n");
-	  Order *order = new Order();
-	  order->o_w_id = warehouse_id;
-	  order->o_d_id = district_id;
-	  order->o_id = output->o_id;
-	  order->o_c_id = customer_id;
+	  //Order *order = new Order();
+	  order_dummy->o_w_id = warehouse_id;
+	  order_dummy->o_d_id = district_id;
+	  order_dummy->o_id = output->o_id;
+	  order_dummy->o_c_id = customer_id;
 	  //printf("w %d d %d o %d\n",warehouse_id, district_id, order->o_id);
 	  //printf("New order %d\n", customer_id);
-	  order->o_carrier_id = Order::NULL_CARRIER_ID;
-	  order->o_ol_cnt = static_cast<int32_t>(items.size());
-	  order->o_all_local = all_local ? 1 : 0;
-	  strcpy(order->o_entry_d, now);
-  	  assert(strlen(order->o_entry_d) == DATETIME_SIZE);
-	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order->o_id);
-	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order);
+	  order_dummy->o_carrier_id = Order::NULL_CARRIER_ID;
+	  order_dummy->o_ol_cnt = static_cast<int32_t>(items.size());
+	  order_dummy->o_all_local = all_local ? 1 : 0;
+	  strcpy(order_dummy->o_entry_d, now);
+  	  assert(strlen(order_dummy->o_entry_d) == DATETIME_SIZE);
+	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order_dummy->o_id);
+	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order_dummy);
 	  int64_t o_sec = makeOrderIndex(warehouse_id, district_id, customer_id, output->o_id);
 #if SEC_INDEX
 #if COPY_WHEN_ADD
@@ -879,12 +905,12 @@ namespace leveldb {
 	  wcount++;
 #endif
 	  //printf("Step 6\n");
-	  NewOrder *no = new NewOrder();
-  	  no->no_w_id = warehouse_id;
-	  no->no_d_id = district_id;
-	  no->no_o_id = output->o_id;
-	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, no->no_o_id);
-	  uint64_t *no_value = reinterpret_cast<uint64_t *>(no);
+	  //NewOrder *no = new NewOrder();
+  	  neworder_dummy->no_w_id = warehouse_id;
+	  neworder_dummy->no_d_id = district_id;
+	  neworder_dummy->no_o_id = output->o_id;
+	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, neworder_dummy->no_o_id);
+	  uint64_t *no_value = reinterpret_cast<uint64_t *>(neworder_dummy);
 #if COPY_WHEN_ADD
 	  tx.Add(NEWO, no_key, no_value, sizeof(NewOrder));
 #else
@@ -902,11 +928,11 @@ namespace leveldb {
 	  output->total = 0;
 
 	  for (int i = 0; i < items.size(); ++i) {
-	  	OrderLine *line = new OrderLine();
-	    line->ol_o_id = output->o_id;
-	    line->ol_d_id = district_id;
-	    line->ol_w_id = warehouse_id;
-	    memset(line->ol_delivery_d, 0, DATETIME_SIZE+1);
+	  	//OrderLine *line = new OrderLine();
+	    orderline_dummy->ol_o_id = output->o_id;
+	    orderline_dummy->ol_d_id = district_id;
+	    orderline_dummy->ol_w_id = warehouse_id;
+	    memset(orderline_dummy->ol_delivery_d, 0, DATETIME_SIZE+1);
   		//-------------------------------------------------------------------------
 		//The row in the ITEM table with matching I_ID (equals OL_I_ID) is selected 
 		//and I_PRICE, the price of the item, I_NAME, the name of the item, and I_DATA are retrieved. 
@@ -956,8 +982,8 @@ namespace leveldb {
 #endif
 		assert(found);
 		Stock *s = reinterpret_cast<Stock *>(s_value);  
-		Stock *news = new Stock();
-		updateStock(news, s, &items[i], warehouse_id);
+		//Stock *news = new Stock();
+		updateStock(stock_dummy, s, &items[i], warehouse_id);
 /*		if (s->s_quantity > (item->ol_quantity + 10))
 	  		s->s_quantity = s->s_quantity - item->ol_quantity;
 		else s->s_quantity = s->s_quantity - item->ol_quantity + 91;		
@@ -968,7 +994,7 @@ namespace leveldb {
 
 		
 		output->items[i].s_quantity = s->s_quantity;
-		uint64_t *s_v = reinterpret_cast<uint64_t *>(news);
+		uint64_t *s_v = reinterpret_cast<uint64_t *>(stock_dummy);
 #if COPY_WHEN_ADD
 		tx.Add(STOC, s_key, s_v, sizeof(Stock));
 #else
@@ -984,7 +1010,7 @@ namespace leveldb {
 		//-------------------------------------------------------------------------  
 		//printf("Step 10\n");
     	output->items[i].ol_amount = static_cast<float>(items[i].ol_quantity) * item->i_price;
-	    line->ol_amount = output->items[i].ol_amount;
+	    orderline_dummy->ol_amount = output->items[i].ol_amount;
         
 		bool stock_is_original = (strstr(s->s_data, "ORIGINAL") != NULL);
     	if (stock_is_original && strstr(item->i_data, "ORIGINAL") != NULL) {
@@ -1000,15 +1026,15 @@ namespace leveldb {
 		//and OL_DIST_INFO is set to the content of S_DIST_xx, where xx represents the district number (OL_D_ID)
 		//-------------------------------------------------------------------------
 		//printf("Step 11\n");
-		line->ol_number = i + 1;
-	    line->ol_i_id = items[i].i_id;
-		assert (line->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
-    	line->ol_supply_w_id = items[i].ol_supply_w_id;
-	    line->ol_quantity = items[i].ol_quantity;
-    	assert(sizeof(line->ol_dist_info) == sizeof(s->s_dist[district_id]));
-    	memcpy(line->ol_dist_info, s->s_dist[district_id], sizeof(line->ol_dist_info));
-		uint64_t l_key = makeOrderLineKey(line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
-		uint64_t *l_value = reinterpret_cast<uint64_t *>(line);
+		orderline_dummy->ol_number = i + 1;
+	    orderline_dummy->ol_i_id = items[i].i_id;
+		assert (orderline_dummy->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
+    	orderline_dummy->ol_supply_w_id = items[i].ol_supply_w_id;
+	    orderline_dummy->ol_quantity = items[i].ol_quantity;
+    	assert(sizeof(orderline_dummy->ol_dist_info) == sizeof(s->s_dist[district_id]));
+    	memcpy(orderline_dummy->ol_dist_info, s->s_dist[district_id], sizeof(orderline_dummy->ol_dist_info));
+		uint64_t l_key = makeOrderLineKey(orderline_dummy->ol_w_id, orderline_dummy->ol_d_id, orderline_dummy->ol_o_id, orderline_dummy->ol_number);
+		uint64_t *l_value = reinterpret_cast<uint64_t *>(orderline_dummy);
 	//	printf("%d %d %d %d\n", line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
 	//	printf("OrderLine %lx\n", l_key);
 #if COPY_WHEN_ADD
@@ -1025,29 +1051,13 @@ namespace leveldb {
 		//sum(OL_AMOUNT) * (1 - C_DISCOUNT) * (1 + W_TAX + D_TAX)
 		//-------------------------------------------------------------------------
 		//printf("Step 12\n");
-		output->total += line->ol_amount;
-#if COPY_WHEN_ADD
-		delete line;
-		delete news;
-#endif		
+		output->total += orderline_dummy->ol_amount;
 	  }
 	
 	  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
  	//  printf("Step 13\n");
  	
  	  bool b = tx.End();  
-#if COPY_WHEN_ADD
-	  delete newd;
-	  delete order;
-	  delete no;	  
-#else
-	  if (!b) {
-	  	delete newd;
-		delete order;
-		delete no;
-		//FIXME : Did not delete line, news
-	  }
-#endif
 
   	  if (b) break;
 
@@ -1110,9 +1120,9 @@ namespace leveldb {
 #endif
 			assert(found);
 			Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
-			Warehouse *neww = new Warehouse();
-			updateWarehouseYtd(neww, w, h_amount);
-			uint64_t *w_v = reinterpret_cast<uint64_t *>(neww);
+			//Warehouse *neww = new Warehouse();
+			updateWarehouseYtd(warehouse_dummy, w, h_amount);
+			uint64_t *w_v = reinterpret_cast<uint64_t *>(warehouse_dummy);
 			//w->w_ytd = w->w_ytd + h_amount;
 #if COPY_WHEN_ADD
 			tx.Add(WARE, w_key, w_v, sizeof(Warehouse));
@@ -1140,9 +1150,9 @@ namespace leveldb {
 			//printf("2.1\n");
 			assert(*d_value != 0);
 			District *d = reinterpret_cast<District *>(d_value);	  
-			District *newd = new District();
-			updateDistrictYtd(newd, d, h_amount);
-			uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
+			//District *newd = new District();
+			updateDistrictYtd(district_dummy, d, h_amount);
+			uint64_t *d_v = reinterpret_cast<uint64_t *>(district_dummy);
 			//d->d_ytd = d->d_ytd + h_amount;
 #if COPY_WHEN_ADD
 			tx.Add(DIST, d_key, d_v, sizeof(District));
@@ -1163,12 +1173,8 @@ namespace leveldb {
 			//If the value of C_CREDIT is equal to "BC", then C_DATA is also retrieved 
 			//and C_ID, C_D_ID, C_W_ID, D_ID, W_ID, and H_AMOUNT, are inserted at the left of the C_DATA field
 			//-------------------------------------------------------------------------
-			char *clast = const_cast<char *>(c_last);
-	  		char *fstart = new char[17];
-			memset(fstart, 0, 17);
+			char *clast = const_cast<char *>(c_last);	  		
 			uint64_t c_start = makeCustomerIndex(c_warehouse_id, c_district_id, clast, fstart);
-			char *fend = new char[17];
-			fend[0] = 255;
 			uint64_t c_end = makeCustomerIndex(c_warehouse_id, c_district_id, clast, fend);
 #if 0
 
@@ -1181,8 +1187,8 @@ namespace leveldb {
 #endif	
 			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
 			iter.Seek(c_start);
-			uint64_t **c_values = new uint64_t *[100];
-			uint64_t *c_keys = new uint64_t[100];
+			uint64_t *c_values[100];
+			uint64_t c_keys[100];
 			int j = 0;
 			while (iter.Valid()) {
 				
@@ -1219,16 +1225,12 @@ namespace leveldb {
 //			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
 			//if (c_value == NULL) exit(0);
-			delete[] fstart;
-			delete[] fend;
-			delete[] c_values;
-			delete[] c_keys;
 			assert(found);
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 			// printf("customer %d %lx\n",j,c_value);
-			Customer *newc = new Customer();
-			updateCustomer(newc, c, h_amount, warehouse_id, district_id);
-			uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
+			//Customer *newc = new Customer();
+			updateCustomer(customer_dummy, c, h_amount, warehouse_id, district_id);
+			uint64_t *c_v = reinterpret_cast<uint64_t *>(customer_dummy);
 /*
 			c->c_balance = c->c_balance - h_amount;
 			c->c_ytd_payment = c->c_ytd_payment + h_amount;
@@ -1283,13 +1285,13 @@ namespace leveldb {
 	  		int64_t customer_id = c_key - (c_warehouse_id * District::NUM_PER_WAREHOUSE + c_district_id)
             						* Customer::NUM_PER_DISTRICT;
 			uint64_t h_key = makeHistoryKey(customer_id, c_district_id, c_warehouse_id, district_id, warehouse_id);
-			History *h = new History();
-			h->h_amount = h_amount;
-			strcpy(h->h_date, now);
-			strcpy(h->h_data, w->w_name);
-			strcat(h->h_data, "    ");
-			strcat(h->h_data, d->d_name);
-			uint64_t *h_v = reinterpret_cast<uint64_t *>(h);
+			//History *h = new History();
+			history_dummy->h_amount = h_amount;
+			strcpy(history_dummy->h_date, now);
+			strcpy(history_dummy->h_data, w->w_name);
+			strcat(history_dummy->h_data, "    ");
+			strcat(history_dummy->h_data, d->d_name);
+			uint64_t *h_v = reinterpret_cast<uint64_t *>(history_dummy);
 #if COPY_WHEN_ADD
 			tx.Add(HIST, h_key, h_v, sizeof(History));
 #else
@@ -1300,19 +1302,6 @@ namespace leveldb {
 #endif
 			//printf("3\n");
 			bool b = tx.End();	
-#if COPY_WHEN_ADD
-		  	delete neww;
-		    delete newd;
-			delete newc;
-			delete h;	  
-#else
-			if (!b) {
-				delete neww;
-				delete newd;
-				delete newc;
-				delete h;	  
-			}
-#endif
 
 			if (b) break;
 	  
@@ -1424,9 +1413,9 @@ namespace leveldb {
 #endif
 	  assert(found);
 	  Warehouse *w = reinterpret_cast<Warehouse *>(w_value);
-	  Warehouse *neww = new Warehouse();
-	  updateWarehouseYtd(neww, w, h_amount);
-	  uint64_t *w_v = reinterpret_cast<uint64_t *>(neww);
+	  //Warehouse *neww = new Warehouse();
+	  updateWarehouseYtd(warehouse_dummy, w, h_amount);
+	  uint64_t *w_v = reinterpret_cast<uint64_t *>(warehouse_dummy);
 	  //w->w_ytd = w->w_ytd + h_amount;
 #if COPY_WHEN_ADD
 	  tx.Add(WARE, w_key, w_v, sizeof(Warehouse));
@@ -1456,9 +1445,9 @@ namespace leveldb {
 	  	printf("d_value %lx\n", d_value);
 	  assert(*d_value != 0);
 	  District *d = reinterpret_cast<District *>(d_value);		
-	  District *newd = new District();
-	  updateDistrictYtd(newd, d, h_amount);
-	  uint64_t *d_v = reinterpret_cast<uint64_t *>(newd);
+	  //District *newd = new District();
+	  updateDistrictYtd(district_dummy, d, h_amount);
+	  uint64_t *d_v = reinterpret_cast<uint64_t *>(district_dummy);
 	  //d->d_ytd = d->d_ytd + h_amount;
 #if COPY_WHEN_ADD
 	  tx.Add(DIST, d_key, d_v, sizeof(District));
@@ -1489,9 +1478,9 @@ namespace leveldb {
 #endif
  	  assert(found);
 	  Customer *c = reinterpret_cast<Customer *>(c_value);
-	  Customer *newc = new Customer();
-	  updateCustomer(newc, c, h_amount, warehouse_id, district_id);
-	  uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
+	  //Customer *newc = new Customer();
+	  updateCustomer(customer_dummy, c, h_amount, warehouse_id, district_id);
+	  uint64_t *c_v = reinterpret_cast<uint64_t *>(customer_dummy);
 	  /*
 
 	  c->c_balance = c->c_balance - h_amount;
@@ -1546,13 +1535,13 @@ namespace leveldb {
 	  //-------------------------------------------------------------------------
 
 	  uint64_t h_key = makeHistoryKey(customer_id, c_district_id, c_warehouse_id, district_id, warehouse_id);
-	  History *h = new History();
-      h->h_amount = h_amount;
-      strcpy(h->h_date, now);
-      strcpy(h->h_data, w->w_name);
-      strcat(h->h_data, "    ");
-      strcat(h->h_data, d->d_name);
-      uint64_t *h_v = reinterpret_cast<uint64_t *>(h);
+	  //History *h = new History();
+      history_dummy->h_amount = h_amount;
+      strcpy(history_dummy->h_date, now);
+      strcpy(history_dummy->h_data, w->w_name);
+      strcat(history_dummy->h_data, "    ");
+      strcat(history_dummy->h_data, d->d_name);
+      uint64_t *h_v = reinterpret_cast<uint64_t *>(history_dummy);
 #if COPY_WHEN_ADD
 	  tx.Add(HIST, h_key, h_v, sizeof(History));
 #else
@@ -1563,19 +1552,6 @@ namespace leveldb {
 #endif
 	  //printf("3\n");
 	  bool b = tx.End();  
-#if COPY_WHEN_ADD
-	  delete neww;
-	  delete newd;
-	  delete newc;
-	  delete h; 	
-#else
-	  if (!b) {
-		  delete neww;
-		  delete newd;
-		  delete newc;
-		  delete h; 	
-	  }
-#endif
 
   	  if (b) break;
 
@@ -1623,11 +1599,7 @@ namespace leveldb {
 			//and C_BALANCE, C_FIRST, C_MIDDLE, and C_LAST are retrieved.
 			//-------------------------------------------------------------------------
 			char *clast = const_cast<char *>(c_last);
-			char *fstart = new char[17];
-			memset(fstart, 0, 17);
 			uint64_t c_start = makeCustomerIndex(warehouse_id, district_id, clast, fstart);
-			char *fend = new char[17];
-			fend[0] = 255;
 			uint64_t c_end = makeCustomerIndex(warehouse_id, district_id, clast, fend);
 #if 0
 			
@@ -1646,8 +1618,8 @@ namespace leveldb {
 			DBROTX::SecondaryIndexIterator citer(&tx, CUST_INDEX);
 #endif
 			citer.Seek(c_start);
-			uint64_t **c_values = new uint64_t *[100];
-			uint64_t *c_keys = new uint64_t[100];
+			uint64_t *c_values[100];
+			uint64_t c_keys[100];
 			int j = 0;
 			while (citer.Valid()) {
 					
@@ -1696,10 +1668,6 @@ namespace leveldb {
 			//			printf("cv %lx\n",c_value);
 			uint64_t c_key = c_keys[j];
 			//if (c_value == NULL) exit(0);
-			delete[] fstart;
-			delete[] fend;
-			delete[] c_values;
-			delete[] c_keys;
 			Customer *c = reinterpret_cast<Customer *>(c_value);
 	  		
 	  		int64_t customer_id = c_key - (warehouse_id * District::NUM_PER_WAREHOUSE + district_id)
@@ -2224,11 +2192,11 @@ retry:
 
 	assert(o->o_carrier_id == Order::NULL_CARRIER_ID);
 
-	Order *newo = new Order();		
+	//Order *newo = new Order();		
 
-	updateOrder(newo, o, carrier_id);
+	updateOrder(order_dummy, o, carrier_id);
 
-	uint64_t *o_v = reinterpret_cast<uint64_t *>(newo);
+	uint64_t *o_v = reinterpret_cast<uint64_t *>(order_dummy);
 	//o->o_carrier_id = carrier_id;
 #if COPY_WHEN_ADD
 	tx.Add(ORDE, o_key, o_v, sizeof(Order));
@@ -2264,12 +2232,12 @@ retry:
 	  icount++;
 #endif
 	  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);
-	  OrderLine *newol = new OrderLine();
-	  updateOrderLine(newol, ol, now);
-	  uint64_t *ol_v = reinterpret_cast<uint64_t *>(newol);
+	  //OrderLine *newol = new OrderLine();
+	  updateOrderLine(orderline_dummy, ol, now);
+	  uint64_t *ol_v = reinterpret_cast<uint64_t *>(orderline_dummy);
 	  //memcpy(ol->ol_delivery_d, now, 15);
 	  
-	  assert (newol->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
+	  assert (orderline_dummy->ol_i_id <= Stock::NUM_STOCK_PER_WAREHOUSE);
 #if COPY_WHEN_ADD
 	  tx.Add(ORLI, ol_key, ol_v, sizeof(OrderLine));
 #else
@@ -2281,9 +2249,6 @@ retry:
 	  sum_ol_amount += ol->ol_amount;
 	  iter1.Next();
 
-#if COPY_WHEN_ADD
-	  delete newol;
-#endif	  
 	}
 
 #if PROFILEDELIVERY
@@ -2305,9 +2270,9 @@ retry:
 	rcount++;
 #endif
 	Customer *c = reinterpret_cast<Customer *>(c_value);
-	Customer *newc = new Customer();
-	updateCustomerDelivery(newc, c, sum_ol_amount);
-	uint64_t *c_v = reinterpret_cast<uint64_t *>(newc);
+	//Customer *newc = new Customer();
+	updateCustomerDelivery(customer_dummy, c, sum_ol_amount);
+	uint64_t *c_v = reinterpret_cast<uint64_t *>(customer_dummy);
 	//c->c_balance = c->c_balance + sum_ol_amount;
 	//c->c_delivery_cnt = c->c_delivery_cnt + 1;
 #if COPY_WHEN_ADD
@@ -2324,15 +2289,10 @@ retry:
 	dstep4 += rdtsc() - sstart;	
 #endif
 
-#if COPY_WHEN_ADD
-	delete newo;
-	delete newc;
-#endif	
 
    }
 	
   bool b = tx.End();  
-  //FIXME : If !COPY_WHEN_ADD, did not delete newo, newc, newol when tx aborts
   if (b) break;
 
 #if ABORTPRO

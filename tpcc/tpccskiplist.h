@@ -92,6 +92,17 @@ class TPCCSkiplist : public TPCCDB {
   uint64_t traverseCount;
   uint64_t seekCount;
 #endif
+  char *fstart;
+  char *fend;
+  static __thread Warehouse *warehouse_dummy;
+  static __thread District *district_dummy;
+  static __thread Customer *customer_dummy;
+  static __thread Order *order_dummy;
+  static __thread OrderLine *orderline_dummy;
+  static __thread Stock *stock_dummy;
+  static __thread History *history_dummy;
+  static __thread NewOrder *neworder_dummy;
+
 
   inline unsigned long rdtsc(void)                                                                                                                      
   {
@@ -102,6 +113,7 @@ class TPCCSkiplist : public TPCCDB {
 
   TPCCSkiplist();
   ~TPCCSkiplist();
+  void ThreadLocalInit();
   
   void insertWarehouse(const Warehouse & warehouse);
   void insertItem(const Item& item);

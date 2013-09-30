@@ -252,6 +252,7 @@ class Benchmark {
   }
 
   void doOne(ThreadState* thread) {
+  	((leveldb::TPCCSkiplist*)tables)->ThreadLocalInit();
 	((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
 	printf("thread %d\n",thread->tid);
   	// Change the constants for run
@@ -294,6 +295,7 @@ class Benchmark {
   }
 
   void doNewOrder(ThreadState* thread) {
+  	((leveldb::TPCCSkiplist*)tables)->ThreadLocalInit();
   	((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
   	// Change the constants for run
 #if LOCALRANDOM
@@ -327,6 +329,7 @@ class Benchmark {
 
   
   void doReadOnly(ThreadState* thread) {
+  	  ((leveldb::TPCCSkiplist*)tables)->ThreadLocalInit();
   	  ((leveldb::TPCCSkiplist*)tables)->store->ThreadLocalInit(thread->tid);
 	  // Change the constants for run
 #if LOCALRANDOM

@@ -149,7 +149,6 @@ bool DBROTX::GetValueOnSnapshotByIndex(SecondIndex::SecondNode* sn, KeyValues* k
 bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val)
 {  
   Memstore::MemNode* n = txdb_->tables[tableid]->Get(key);
-
   return GetValueOnSnapshot(n, val);
 
 }
