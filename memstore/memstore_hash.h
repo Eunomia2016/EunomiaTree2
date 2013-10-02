@@ -3,13 +3,15 @@
 
 #include <stdlib.h>
 #include <iostream>
+
+#include "util/rtmScope.h" 
 #include "util/rtm.h" 
 #include "util/rtm_arena.h"
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
 
-#define HASH_LOCK 1
+#define HASH_LOCK 0
 #define HASHLENGTH 40*1024*1024
 
 namespace leveldb {
@@ -147,7 +149,8 @@ public:
 #if HASH_LOCK		
 		MutexSpinLock lock(&slock);		
 #else
-		RTMScope begtx(&prof, 1, 1, &rtmlock);
+		RTMScope begtx(&prof, 10, 10, &rtmlock);
+//		RTMArenaScope begtx(&rtmlock, &prof, NULL);
 #endif
 
 		HashNode* prev = (HashNode *)&lists[hash];

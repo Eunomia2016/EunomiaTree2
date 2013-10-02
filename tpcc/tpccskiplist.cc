@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-#define SEPERATE 0
+#define SEPERATE 1
 
 #define PROFILE 0
 #define ABORTPRO 0

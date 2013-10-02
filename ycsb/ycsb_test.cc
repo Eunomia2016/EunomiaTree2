@@ -385,8 +385,8 @@ private:
 	void Run(){
 
 	  //table = new leveldb::MemstoreBPlusTree();
-	  //table = new leveldb::LockfreeHashTable();
-	  table = new leveldb::MemstoreHashTable();
+	   table = new leveldb::LockfreeHashTable();
+	  //table = new leveldb::MemstoreHashTable();
       store = new DBTables();
  
       int num_threads = FLAGS_threads;  
