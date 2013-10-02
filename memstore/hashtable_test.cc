@@ -83,7 +83,7 @@ private:
 
    int64_t total_count;  
 
-   leveldb::MemstoreHashTable *table;
+   Memstore *table;
 
    port::SpinLock slock;
 
@@ -383,8 +383,8 @@ private:
 
 	void Run(){
 
-	  table = new leveldb::MemstoreHashTable();
-    
+	  //table = new leveldb::MemstoreHashTable();
+      table = new leveldb::LockfreeHashTable();
  
       int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num;
@@ -399,6 +399,7 @@ private:
 	  	method = &Benchmark::Mix;
       RunBenchmark(num_threads, num_, method);
 	  delete table;
+	  
     }
   
 };

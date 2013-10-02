@@ -10,6 +10,7 @@
 #include "memstore.h"
 
 #define HASH_LOCK 0
+#define HASHLENGTH 40*1024*1024
 
 namespace leveldb {
 
@@ -45,7 +46,7 @@ public:
 	static __thread MemNode *dummyval_;
 	
 	MemstoreHashTable(){
-		length = 40000000;
+		length = HASHLENGTH;
 		lists = new Head[length];
 		for (int i=0; i<length; i++)
 			lists[i].h = NULL;
@@ -107,9 +108,9 @@ public:
 		  return h;
 	  }
 	
-	inline uint64_t GetHash(uint64_t key) {
+	static inline uint64_t GetHash(uint64_t key) {
 		//return MurmurHash64A(key, 0xdeadbeef) & (length - 1);
-		return key % length ;
+		return key % HASHLENGTH ;
 	}
 
 

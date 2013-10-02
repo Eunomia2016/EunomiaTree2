@@ -7,7 +7,7 @@
 #include <iostream>
 #include "port/atomic.h"
 #include "memstore/memstore.h"
-
+#include "memstore/memstore_hash.h"
 
 namespace leveldb {
 
@@ -32,7 +32,7 @@ public:
 	Head *lists;
 	
 	LockfreeHashTable(){
-		length = 10;
+		length = HASHLENGTH;
 		lists = new Head[length];
 		for (int i=0; i<length; i++)
 			lists[i].h = NULL;
@@ -42,48 +42,6 @@ public:
 	~LockfreeHashTable(){
 	}
 	
-	inline uint64_t MurmurHash64A (uint64_t key, unsigned int seed )  {
-	
-		  const uint64_t m = 0xc6a4a7935bd1e995;
-		  const int r = 47;
-		  uint64_t h = seed ^ (8 * m);
-		  const uint64_t * data = &key;
-		  const uint64_t * end = data + 1;
-	
-		  while(data != end)  {
-			  uint64_t k = *data++;
-			  k *= m; 
-			  k ^= k >> r; 
-			  k *= m;	  
-			  h ^= k;
-			  h *= m; 
-		  }
-	
-		  const unsigned char * data2 = (const unsigned char*)data;
-	
-		  switch(8 & 7)   {
-			case 7: h ^= uint64_t(data2[6]) << 48;
-			case 6: h ^= uint64_t(data2[5]) << 40;
-			case 5: h ^= uint64_t(data2[4]) << 32;
-			case 4: h ^= uint64_t(data2[3]) << 24;
-			case 3: h ^= uint64_t(data2[2]) << 16;
-			case 2: h ^= uint64_t(data2[1]) << 8;
-			case 1: h ^= uint64_t(data2[0]);
-					h *= m;
-		  };
-	
-		  h ^= h >> r;
-		  h *= m;
-		  h ^= h >> r;	  
-	
-		  return h;
-	  }
-	
-	inline uint64_t GetHash(uint64_t key) {
-		return MurmurHash64A(key, 0xdeadbeef) & (length - 1);
-		//return key % length ;
-	}
-
 	inline void ThreadLocalInit() {
 		if(dummynode_ == NULL) {
 			dummynode_ = new HashNode();
@@ -94,7 +52,7 @@ public:
 
 		ThreadLocalInit();
 		
-		uint64_t hash = GetHash(key);
+		uint64_t hash = MemstoreHashTable::GetHash(key);
 		
 		HashNode* prev = (HashNode *)&lists[hash];
 
@@ -138,7 +96,7 @@ retry:
 
 	inline Memstore::MemNode* Get(uint64_t key) {
 		
-		uint64_t hash = GetHash(key);
+		uint64_t hash = MemstoreHashTable::GetHash(key);
 		
 		HashNode* cur = lists[hash].h;
 
@@ -153,20 +111,23 @@ retry:
 	}
 
 	void PrintStore() {
+		int count = 0;
 		for (int i=0; i<length; i++) {
-			int count = 0;
+			
 			if (lists[i].h != NULL)  {
-				//printf("Hash %ld :\t", i);
+				printf("Hash %ld :\t", i);
 				HashNode *n = lists[i].h;
 				while (n!= NULL) {
 					count++;
-					//printf("%ld \t", n->key);
+					printf("%ld \t", n->key);
 					n = n->next;
 				}
-				if (count > 10) printf(" %ld\n" , count);
-				//printf("\n");
 			}
+			printf("\n");
 		}
+		
+		printf("Total %ld\n" , count);
+		
 	}
 
 	
