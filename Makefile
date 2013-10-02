@@ -153,6 +153,9 @@ delete_test: db/delete_test.o $(LIBOBJECTS) $(TESTUTIL)
 secondindex_test: db/secondindex_test.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) db/secondindex_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
+secondindex_length_test: db/secondindex_length_test.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) db/secondindex_length_test.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
 db_bench_sqlite3: doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) doc/bench/db_bench_sqlite3.o $(LIBOBJECTS) $(TESTUTIL) -o $@ -lsqlite3 $(LIBS)
 

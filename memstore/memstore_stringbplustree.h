@@ -275,10 +275,12 @@ public:
 		while(k < leaf->num_keys) {
 		//	printf("leafkey %d %lx\n",k, leaf->keys[k] );
 		   int tmp = Compare(leaf->keys[k], (char *)key);
-		   if (tmp >= 0) break;
+		   if (tmp == 0) return leaf->values[k];
+		   if (tmp > 0) return NULL;
 		   ++k;
 		}
-		
+		return NULL;		
+/*		
 		if (k == leaf->num_keys) return NULL;
 		//printf("leafkey1 %d %lx\n", k , leaf->keys[k] );
 		int tmp = Compare(leaf->keys[k], (char *)key);
@@ -287,7 +289,7 @@ public:
 			return leaf->values[k];
 		} else {
 			return NULL;
-		}
+		}*/
 	}
 
 	MemNode* Put(uint64_t key, uint64_t* val){

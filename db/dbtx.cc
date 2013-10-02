@@ -859,7 +859,6 @@ retry:
   	value = new char[len];
   
   memcpy(value, val, len);
-  
   writeset->Add(tableid, key, (uint64_t *)value, node);
 
 }

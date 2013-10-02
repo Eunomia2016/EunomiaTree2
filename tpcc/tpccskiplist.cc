@@ -5,7 +5,7 @@
 #include "db/memstore_skiplist.h"
 
 #include <algorithm>
-
+#include <vector>
 #define SEPERATE 0
 
 #define PROFILE 0
@@ -41,7 +41,8 @@ namespace leveldb {
   __thread Stock* TPCCSkiplist::stock_dummy = NULL;
   __thread History* TPCCSkiplist::history_dummy = NULL;
   __thread NewOrder* TPCCSkiplist::neworder_dummy = NULL;
-  
+  __thread std::vector<uint64_t>* TPCCSkiplist::vector_dummy = NULL;
+  __thread uint64_t* TPCCSkiplist::array_dummy = NULL; 
 
   static int64_t makeWarehouseKey(int32_t w_id) {
   	int64_t id = static_cast<int64_t>(w_id);
@@ -362,9 +363,12 @@ namespace leveldb {
 		if (i == ORDE) mn = node;
 	}
 #if USESECONDINDEX
-	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
+	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t *)1<<60, mn);
 #else
-	store->tables[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t *)3);
+
+	uint64_t *temp = new uint64_t[2];
+	temp[0] = 1; temp[1] = 0xFFFF;
+	store->tables[ORDER_INDEX]->Put((uint64_t)1<<60, temp);
 #endif
 	fstart = new char[17];
 	memset(fstart, 0, 17);
@@ -500,6 +504,8 @@ namespace leveldb {
 	neworder_dummy = new NewOrder();
 	history_dummy = new History();
 	stock_dummy = new Stock();
+	vector_dummy = new std::vector<uint64_t>();
+	array_dummy = new uint64_t[2];
   }
 
   
@@ -534,23 +540,23 @@ namespace leveldb {
 					const_cast<char *>(customer.c_last), const_cast<char *>(customer.c_first));
 #if USESECONDINDEX
   	store->secondIndexes[CUST_INDEX]->Put(sec, key, node);
-#else	
+#else
+#if 1
 	Memstore::MemNode* mn = store->tables[CUST_INDEX]->Get(sec);
 	if (mn == NULL) {
-		uint64_t *prikeys = new uint64_t[1];
-		prikeys[0] = key;
-		store->tables[CUST_INDEX]->Put(sec, prikeys);
+//		std::vector<uint64_t> *prikeys = new std::vector<uint64_t>();
+//		prikeys->push_back(key);
+		uint64_t *prikeys = new uint64_t[2];
+		prikeys[0] = 1; prikeys[1] = key;
+//printf("key %ld\n",key);
+		store->tables[CUST_INDEX]->Put(sec, (uint64_t *)prikeys);
 	}
 	else {
-		uint64_t *array = mn->value;
-		int len = sizeof(array)/ sizeof(uint64_t);
-		//if (len > 10) printf(">>>101010\n");
-		uint64_t *prikeys = new uint64_t[len + 1];
-		memcpy(prikeys, array, sizeof(array));
-		prikeys[len] = key;
-		store->tables[CUST_INDEX]->Put(sec, prikeys);
-		delete[] array;
+		printf("ccccc\n");
+		std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(mn->value);
+		prikeys->push_back(key);
 	}
+#endif
 #endif
 #if 0
 	printf("Insert %d %d %s\n",customer.c_w_id, customer.c_d_id, 
@@ -603,20 +609,18 @@ namespace leveldb {
 #if USESECONDINDEX
 	store->secondIndexes[ORDER_INDEX]->Put(sec, key, node);
 #else 
-	Memstore::MemNode *mn = store->tables[ORDER_INDEX]->Get(sec);
+	Memstore::MemNode* mn = store->tables[ORDER_INDEX]->Get(sec);
 	if (mn == NULL) {
-		uint64_t *prikeys = new uint64_t[1];
-		prikeys[0] = key;
-		store->tables[ORDER_INDEX]->Put(sec, prikeys);
+//		std::vector<uint64_t> *prikeys = new std::vector<uint64_t>();
+//		prikeys->push_back(key);
+		uint64_t *prikeys = new uint64_t[2];
+		prikeys[0] = 1; prikeys[1] = key;
+		store->tables[ORDER_INDEX]->Put(sec, (uint64_t *)prikeys);
 	}
 	else {
-		uint64_t *array = mn->value;
-		int len = sizeof(array)/ sizeof(uint64_t);
-		uint64_t *prikeys = new uint64_t[len + 1];
-		memcpy(prikeys, array, sizeof(array));
-		prikeys[len] = key;
-		store->tables[ORDER_INDEX]->Put(sec, prikeys);
-		delete[] array;
+		printf("oooo\n");
+		std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(mn->value);
+		prikeys->push_back(key);
 	}
 #endif
 	return o;
@@ -947,16 +951,25 @@ namespace leveldb {
 	  uint64_t *value;
 	  bool f = tx.Get(ORDER_INDEX, o_sec, &value);
 	  if (f) {
-	  	int len = sizeof(value) / sizeof(uint64_t);
-	  	uint64_t prikeys[len + 1];
-		memcpy(prikeys, value, sizeof(value));
-		prikeys[len] = o_key;
-		tx.Add(ORDER_INDEX, o_sec, prikeys, sizeof(prikeys));
+		printf("!!!\n");
+	  	std::vector<uint64_t> *v = (std::vector<uint64_t> *)value;	
+		memcpy(vector_dummy, v, sizeof(v));
+		vector_dummy->push_back(o_key);
+		tx.Add(ORDER_INDEX, o_sec, (uint64_t *)(vector_dummy), sizeof(vector_dummy));
 	  }
 	  else {
-	  	uint64_t prikeys[1];
-		prikeys[0] = o_key;
-		tx.Add(ORDER_INDEX, o_sec, prikeys, sizeof(prikeys));
+	  //	vector_dummy->clear();
+	//	vector_dummy->push_back(o_key);
+	//	uint64_t *array = new uint64_t[2];
+		array_dummy[0] = 1;
+		array_dummy[1] = o_key; 
+	//	tx.Add(ORDER_INDEX, o_sec, (uint64_t *)vector_dummy, sizeof(vector_dummy));
+		tx.Add(ORDER_INDEX, o_sec, array_dummy, 16);
+#if 0
+		uint64_t *temp;
+		tx.Get(ORDER_INDEX, o_sec, &temp);
+		printf("%lx %lx\n",temp[0], temp[1]);
+#endif
 	  }
 #endif
 #else
@@ -1279,10 +1292,14 @@ namespace leveldb {
 					}	
 					delete kvs;
 #else
+				//	std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(iter.Value());
+				//	int num = prikeys->size();
 					uint64_t *prikeys = iter.Value();
-					int num = sizeof(prikeys) / sizeof(uint64_t);
-					for (int i=0; i<num; i++) {
+					int num = prikeys[0];
+//printf("num %d\n", prikeys[0]);
+					for (int i=1; i<=num; i++) {
 						c_keys[j] = prikeys[i];
+//printf("ckey  %ld\n",prikeys[i]);
 						j++;
 					}
 #endif
@@ -1753,9 +1770,11 @@ namespace leveldb {
 					}	
 					delete kvs;
 #else
+				//	std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(citer.Value());
+				//	int num = prikeys->size();
 					uint64_t *prikeys = citer.Value();
-					int num = sizeof(prikeys) / sizeof(uint64_t);
-					for (int i=0; i<num; i++) {
+					int num = prikeys[0];
+					for (int i=1; i<=num; i++) {
 						c_keys[j] = prikeys[i];
 						j++;
 					}
@@ -1827,10 +1846,11 @@ namespace leveldb {
 					o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
 					uint64_t *o_value = kvs->values[0];
 #else
+			//		std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(iter.Value());
 					uint64_t *prikeys = iter.Value();
-					o_id = static_cast<int32_t>(prikeys[0] << 32 >> 32);
+					o_id = static_cast<int32_t>(prikeys[1] << 32 >> 32);
 					uint64_t *o_value;
-					tx.Get(ORDE, prikeys[0], &o_value);
+					tx.Get(ORDE, prikeys[1], &o_value);
 				//	printf("%lx\n", prikeys[0]);
 #endif
 
@@ -1942,6 +1962,7 @@ namespace leveldb {
 		DBROTX::SecondaryIndexIterator iter(&tx, ORDER_INDEX);
 #endif
 #else
+//printf("here!!!!!!!!!!!!!!!\n");
 #if SLDBTX
 		DBTX::Iterator iter(&tx, ORDER_INDEX);
 #else
@@ -1954,6 +1975,7 @@ namespace leveldb {
 		iter.Seek(start);
 		if(iter.Valid())
 			  iter.Prev();
+		else printf("!!SeekOut\n");
 		if (iter.Valid() && iter.Key() >= end) {
 #if USESECONDINDEX
 #if SLDBTX
@@ -1964,11 +1986,13 @@ namespace leveldb {
 			  o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
 			  uint64_t *o_value = kvs->values[0];
 #else
-			  uint64_t *prikeys = iter.Value();
-			  o_id = static_cast<int32_t>(prikeys[0] << 32 >> 32);
+		//		std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(iter.Value());
+				uint64_t *prikeys = iter.Value();
+//printf("OIDOIDOID      %d    %lx\n", prikeys[0],prikeys[1]);
+				o_id = static_cast<int32_t>(prikeys[1] << 32 >> 32);
 			  uint64_t *o_value;
-			  tx.Get(ORDE, prikeys[0], &o_value);
-						  
+			  tx.Get(ORDE, prikeys[1], &o_value);
+//			 printf("%lx size %d\n", (*prikeys)[0], sizeof(*prikeys)); 
 #endif
 	
 

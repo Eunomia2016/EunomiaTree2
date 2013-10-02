@@ -17,6 +17,7 @@
 #include "db/rcu.h"
 #include "db/rmpool.h"
 
+#define USESECONDINDEX 0
 namespace leveldb{
 
 class RMQueue;
