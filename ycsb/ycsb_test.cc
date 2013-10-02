@@ -115,7 +115,7 @@ private:
 
    int64_t total_count;  
 
-   leveldb::MemstoreBPlusTree *btree;
+   Memstore *table;
 
    port::SpinLock slock;
 
@@ -263,7 +263,6 @@ private:
 
 
 	  void Mix(ThreadState* thread) {
-	  	printf("%d\n", btree->depth);
 	  	int tid = thread->tid;
 		int num = thread->count;
 		int finish = 0 ;
@@ -276,7 +275,7 @@ private:
 			//Read
 			if (d < 0.8) {
 				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = btree->Get(key);
+				Memstore::MemNode * mn = table->Get(key);
 				char *s = (char *)(mn->value);
 #if GETCOPY
 				std::string *p = &v;
@@ -290,7 +289,7 @@ private:
 			//RMW
 			if (d < 0.2) {
 				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = btree->GetWithInsert(key);
+				Memstore::MemNode * mn = table->GetWithInsert(key);
 				char *s = (char *)(mn->value);
 #if GETCOPY				
 				std::string *p = &v;
@@ -301,7 +300,7 @@ private:
 #endif				
 				std::string c(YCSBRecordSize, 'c');
 				memcpy(nv, c.data(), YCSBRecordSize);
-				mn = btree->GetWithInsert(key);
+				mn = table->GetWithInsert(key);
 				mn->value = (uint64_t *)(nv);
 				finish++;
 			}
@@ -381,7 +380,7 @@ private:
 
 	void Run(){
 
-	  btree = new leveldb::MemstoreBPlusTree();
+	  table = new leveldb::MemstoreBPlusTree();
       store = new DBTables();
  
       int num_threads = FLAGS_threads;  
@@ -397,7 +396,7 @@ private:
 			std::string *s = new std::string(YCSBRecordSize, 'a');
 			if (name == "txmix") 
 				store->tables[0]->Put(i, (uint64_t *)s->data());
-			else btree->Put(i, (uint64_t *)s->data());
+			else table->Put(i, (uint64_t *)s->data());
 		}
 	  }
 
@@ -410,7 +409,7 @@ private:
 	  else if (name == "txmix")
 	  	method = &Benchmark::TxMix;
       RunBenchmark(num_threads, num_, method);
-	  delete btree;
+	  delete table;
     }
   
 };
