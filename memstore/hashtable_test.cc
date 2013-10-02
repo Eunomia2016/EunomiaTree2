@@ -19,6 +19,8 @@
 
 #include <vector>
 #include "memstore/memstore_hash.h"
+#include "lockfreememstore/lockfree_hash.h"
+
 
 static const char* FLAGS_benchmarks ="putget";
 
@@ -81,7 +83,7 @@ private:
 
    int64_t total_count;  
 
-   leveldb::MemstoreHashTable *table;
+   Memstore *table;
 
    port::SpinLock slock;
 
@@ -364,8 +366,9 @@ private:
 		}
 		shared.mu.Unlock();
 
-
+		
 		printf("Total Run Time : %lf ms\n", (shared.end_time - shared.start_time)/1000);
+
 	/*	
 		for (int i = 0; i < n; i++) {
 		  printf("Thread[%d] Put Throughput %lf ops/s\n", i, num/(arg[i].thread->time1/1000/1000));
@@ -382,7 +385,7 @@ private:
 	void Run(){
 
 	  table = new leveldb::MemstoreHashTable();
-    
+      //table = new leveldb::LockfreeHashTable();
  
       int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num;
@@ -396,7 +399,9 @@ private:
 	  else if (name == "mix")
 	  	method = &Benchmark::Mix;
       RunBenchmark(num_threads, num_, method);
+	  table->PrintStore();
 	  delete table;
+	  
     }
   
 };

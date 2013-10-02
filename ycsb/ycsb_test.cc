@@ -14,13 +14,17 @@
 
 #include <vector>
 #include "memstore/memstore_bplustree.h"
+#include "lockfreememstore/lockfree_hash.h"
+#include "memstore/memstore_hash.h"
+
+
 #include "db/dbtx.h"
 #include "db/dbtables.h"
 static const char* FLAGS_benchmarks = "mix";
 
 static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
-static uint64_t nkeys = 160000000;
+static uint64_t nkeys = 80000000;
 #define CHECK 0
 #define YCSBRecordSize 100
 #define GETCOPY 0
@@ -115,7 +119,7 @@ private:
 
    int64_t total_count;  
 
-   leveldb::MemstoreBPlusTree *btree;
+   Memstore *table;
 
    port::SpinLock slock;
 
@@ -270,7 +274,6 @@ private:
 
 
 	  void Mix(ThreadState* thread) {
-	  	printf("%d\n", btree->depth);
 	  	int tid = thread->tid;
 		int num = thread->count;
 		int finish = 0 ;
@@ -297,7 +300,7 @@ private:
 			//RMW
 			if (d < 0.2) {
 				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = btree->GetWithInsert(key);
+				Memstore::MemNode * mn = table->GetWithInsert(key);
 				char *s = (char *)(mn->value);
 #if GETCOPY				
 				std::string *p = &v;
@@ -308,7 +311,7 @@ private:
 #endif				
 				std::string c(YCSBRecordSize, 'c');
 				memcpy(nv, c.data(), YCSBRecordSize);
-				mn = btree->GetWithInsert(key);
+				mn = table->GetWithInsert(key);
 				mn->value = (uint64_t *)(nv);
 				finish++;
 			}
@@ -388,7 +391,9 @@ private:
 
 	void Run(){
 
-	  btree = new leveldb::MemstoreBPlusTree();
+	  //table = new leveldb::MemstoreBPlusTree();
+	  //table = new leveldb::LockfreeHashTable();
+	  table = new leveldb::MemstoreHashTable();
       store = new DBTables();
  
       int num_threads = FLAGS_threads;  
@@ -404,7 +409,7 @@ private:
 			std::string *s = new std::string(YCSBRecordSize, 'a');
 			if (name == "txmix") 
 				store->tables[0]->Put(i, (uint64_t *)s->data());
-			else btree->Put(i, (uint64_t *)s->data());
+			else table->Put(i, (uint64_t *)s->data());
 		}
 	  }
 
@@ -417,7 +422,7 @@ private:
 	  else if (name == "txmix")
 	  	method = &Benchmark::TxMix;
       RunBenchmark(num_threads, num_, method);
-	  delete btree;
+	  delete table;
     }
   
 };
