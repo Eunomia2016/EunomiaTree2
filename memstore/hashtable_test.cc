@@ -19,6 +19,8 @@
 
 #include <vector>
 #include "memstore/memstore_hash.h"
+#include "lockfreememstore/lockfree_hash.h"
+
 
 static const char* FLAGS_benchmarks ="putget";
 
