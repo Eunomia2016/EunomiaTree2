@@ -366,8 +366,9 @@ private:
 		}
 		shared.mu.Unlock();
 
-
+		
 		printf("Total Run Time : %lf ms\n", (shared.end_time - shared.start_time)/1000);
+
 	/*	
 		for (int i = 0; i < n; i++) {
 		  printf("Thread[%d] Put Throughput %lf ops/s\n", i, num/(arg[i].thread->time1/1000/1000));
@@ -383,8 +384,8 @@ private:
 
 	void Run(){
 
-	  //table = new leveldb::MemstoreHashTable();
-      table = new leveldb::LockfreeHashTable();
+	  table = new leveldb::MemstoreHashTable();
+      //table = new leveldb::LockfreeHashTable();
  
       int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num;
@@ -398,6 +399,7 @@ private:
 	  else if (name == "mix")
 	  	method = &Benchmark::Mix;
       RunBenchmark(num_threads, num_, method);
+	  table->PrintStore();
 	  delete table;
 	  
     }

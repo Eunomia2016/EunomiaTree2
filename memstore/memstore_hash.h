@@ -3,13 +3,13 @@
 
 #include <stdlib.h>
 #include <iostream>
-#include "util/rtmScope.h" 
+#include "util/rtm.h" 
 #include "util/rtm_arena.h"
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
 
-#define HASH_LOCK 0
+#define HASH_LOCK 1
 #define HASHLENGTH 40*1024*1024
 
 namespace leveldb {
@@ -18,11 +18,10 @@ class MemstoreHashTable: public Memstore {
 
 public:	
 	struct HashNode {
-		uint64_t hash;
+		//The first field should be next 
+		HashNode* next;
 		uint64_t key;
-		Memstore::MemNode* memnode;
-		HashNode* next;		
-		
+		Memstore::MemNode memnode;
 	};
 
 	struct Head{
@@ -40,10 +39,7 @@ public:
 	char padding3[64];
 	port::SpinLock slock;
 	char padding4[64];
-	static __thread RTMArena* arena_;	  // Arena used for allocations of nodes
-	static __thread bool localinit_;
 	static __thread HashNode *dummynode_;
-	static __thread MemNode *dummyval_;
 	
 	MemstoreHashTable(){
 		length = HASHLENGTH;
@@ -60,18 +56,13 @@ public:
 	}
 	
 	inline void ThreadLocalInit() {
-		if(false == localinit_) {
-			arena_ = new RTMArena();
-
-			dummyval_ = new MemNode();
-			dummyval_->value = NULL;
-			
-			localinit_ = true;
+		if(dummynode_ == NULL) {
+			dummynode_ = new HashNode();
 		}
 	}
 
 	
-	inline uint64_t MurmurHash64A (uint64_t key, unsigned int seed )  {
+	static inline uint64_t MurmurHash64A (uint64_t key, unsigned int seed )  {
 	
 		  const uint64_t m = 0xc6a4a7935bd1e995;
 		  const int r = 47;
@@ -109,105 +100,81 @@ public:
 	  }
 	
 	static inline uint64_t GetHash(uint64_t key) {
-		//return MurmurHash64A(key, 0xdeadbeef) & (length - 1);
-		return key % HASHLENGTH ;
+		return MurmurHash64A(key, 0xdeadbeef) & (HASHLENGTH - 1);
+		//return key % HASHLENGTH ;
 	}
 
 
 	inline MemNode* Put(uint64_t key, uint64_t* val) {
 		ThreadLocalInit();
 		
-		if (dummynode_ == NULL) 
-			dummynode_ = new HashNode();
-		if(dummyval_ == NULL)
-			dummyval_ = new MemNode();
-		
-		uint64_t hash = GetHash(key);
-		//	printf("hash %ld\n",hash);
-	
-		HashNode* ptr = lists[hash].h;
-				
-		while (ptr != NULL) {
-			if (ptr->key == key) 
-				return ptr->memnode;
-			ptr = ptr->next;
-		}
-	
-		dummynode_->hash = hash;
-		dummynode_->key = key;
-		dummynode_->memnode = dummyval_;
-		dummynode_->next = lists[hash].h;
-		
-		lists[hash].h = dummynode_;
-		
-		dummynode_ = NULL;
-		Memstore::MemNode *res = dummyval_;
-		dummyval_ = NULL;
-		
+		Memstore::MemNode* res = GetWithInsert(key);
+
 		res->value = val;
+		
 		return res;
 	}
 	
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
+		
 		ThreadLocalInit();
 		
-		if (dummynode_ == NULL) 
-			dummynode_ = new HashNode();
-		if(dummyval_ == NULL)
-			dummyval_ = new MemNode();
 		MemNode* mn = Insert_rtm(key);
+		
 		return mn;
 		
 	}	
 
 	inline Memstore::MemNode* Get(uint64_t key) {
-		uint64_t hash = GetHash(key);
-		Head slot = lists[hash];
-
-		HashNode* ptr = slot.h;
 		
-		while (ptr != NULL) {
-			if (ptr->key == key) 
-				return ptr->memnode;
-			ptr = ptr->next;
+		uint64_t hash = GetHash(key);
+		
+		HashNode* cur = lists[hash].h;
+
+		while(cur != NULL && cur->key < key) {
+			cur = cur->next;
 		}
+
+		if(cur != NULL && cur->key == key)
+			return &cur->memnode;
 
 		return NULL;
 	}
 
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
 		uint64_t hash = GetHash(key);
-	//	printf("hash %ld\n",hash);
+	
 #if HASH_LOCK		
 		MutexSpinLock lock(&slock);		
 #else
-		RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMScope begtx(&prof, 1, 1, &rtmlock);
 #endif
 
-		HashNode* ptr = lists[hash].h;
+		HashNode* prev = (HashNode *)&lists[hash];
+		HashNode* cur = prev->next;
 		
-		while (ptr != NULL) {
-			if (ptr->key == key) 
-				return ptr->memnode;
-			ptr = ptr->next;
+		while(cur != NULL && cur->key < key) {
+			prev = cur;
+			cur = cur->next;
 		}
 
-		dummynode_->hash = hash;
+		if(cur != NULL && cur->key == key)
+			return &cur->memnode;
+
+		
+		prev->next = dummynode_;
+		dummynode_->next = cur;
+		
 		dummynode_->key = key;
-		dummynode_->memnode = dummyval_;
-		dummynode_->next = lists[hash].h;
-
-		lists[hash].h = dummynode_;
-
+					
+		Memstore::MemNode* res = &dummynode_->memnode;
 		dummynode_ = NULL;
-		Memstore::MemNode *res = dummyval_;
-		dummyval_ = NULL;
-
-	//	printf("%lx \n", lists[hash].h);
+		
 		return res;
 	}
 
 	void PrintStore() {
+		int total = 0;
 		for (int i=0; i<length; i++) {
 			int count = 0;
 			if (lists[i].h != NULL)  {
@@ -217,11 +184,14 @@ public:
 					count++;
 					//printf("%ld \t", n->key);
 					n = n->next;
+					total++;
 				}
 				if (count > 10) printf(" %ld\n" , count);
 				//printf("\n");
 			}
 		}
+
+		printf("Total Count %d\n", total);
 	}
 	
 	Memstore::Iterator* GetIterator() { return NULL; }

@@ -325,7 +325,7 @@ namespace leveldb {
 	store->AddTable(ITEM, HASH, NONE);
 	store->AddTable(STOC, HASH, NONE);
 #else
-#if 1
+#if 0
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
 			int a = store->AddTable(i, BTREE, SBTREE);
@@ -336,11 +336,11 @@ namespace leveldb {
 #else
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
-			int a = store->AddTable(i, SKIPLIST, SBTREE);
+			int a = store->AddTable(i, HASH, SBTREE);
 			if (a != CUST_INDEX) printf("Customer index Wrong!\n");
 		}
-		else if (i == ORDE) store->AddTable(i, SKIPLIST, IBTREE);
-		else store->AddTable(i, SKIPLIST, NONE);
+		else if (i == ORDE) store->AddTable(i, HASH, IBTREE);
+		else store->AddTable(i, HASH, NONE);
 #endif
 #endif
 	Memstore::MemNode *mn;

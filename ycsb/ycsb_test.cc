@@ -14,6 +14,10 @@
 
 #include <vector>
 #include "memstore/memstore_bplustree.h"
+#include "lockfreememstore/lockfree_hash.h"
+#include "memstore/memstore_hash.h"
+
+
 #include "db/dbtx.h"
 #include "db/dbtables.h"
 static const char* FLAGS_benchmarks = "mix";
@@ -275,7 +279,7 @@ private:
 			//Read
 			if (d < 0.8) {
 				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = table->Get(key);
+				Memstore::MemNode * mn = table->GetWithInsert(key);
 				char *s = (char *)(mn->value);
 #if GETCOPY
 				std::string *p = &v;
@@ -380,7 +384,9 @@ private:
 
 	void Run(){
 
-	  table = new leveldb::MemstoreBPlusTree();
+	  //table = new leveldb::MemstoreBPlusTree();
+	  //table = new leveldb::LockfreeHashTable();
+	  table = new leveldb::MemstoreHashTable();
       store = new DBTables();
  
       int num_threads = FLAGS_threads;  
