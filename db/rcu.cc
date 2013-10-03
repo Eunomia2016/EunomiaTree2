@@ -1,6 +1,7 @@
 #include "rcu.h"
 #include <assert.h>
 #include <stdio.h>
+#include <pthread.h>
 #include "port/atomic.h"
 
 __thread int RCU::tid = 0;
@@ -32,8 +33,11 @@ void RCU::WaitForGracePeriod()
 		if(i == tid)
 			continue;
 		
-		while (!states[i].Safe(cur[i]))
+		while (!states[i].Safe(cur[i])) {
 			cpu_relax();
+			if(thrs_num > 8)
+				pthread_yield();
+		}
 		
 	}
 }
