@@ -6,8 +6,9 @@
 
 #include "db/dbtx.h"
 #include "db/dbrotx.h"
-#include "db/memstore_skiplist.h"
 #include "db/dbtables.h"
+#include "memstore/memstore_skiplist.h"
+
 
 #include "tpccdb.h"
 

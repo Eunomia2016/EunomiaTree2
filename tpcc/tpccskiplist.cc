@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #include "tpcc/tpccskiplist.h"
-#include "db/memstore_skiplist.h"
+#include "memstore/memstore_skiplist.h"
 
 #include <algorithm>
 
@@ -325,7 +325,7 @@ namespace leveldb {
 	store->AddTable(ITEM, HASH, NONE);
 	store->AddTable(STOC, HASH, NONE);
 #else
-#if 0
+#if 1
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
 			int a = store->AddTable(i, BTREE, SBTREE);

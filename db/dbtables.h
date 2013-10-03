@@ -1,7 +1,7 @@
 #ifndef DBTABLES_H
 #define DBTABLES_H
 
-#include "memstore_skiplist.h"
+#include "memstore/memstore_skiplist.h"
 #include "memstore/memstore_bplustree.h"
 #include "memstore/memstore_cuckoohash.h"
 #include "memstore/memstore_hash.h"

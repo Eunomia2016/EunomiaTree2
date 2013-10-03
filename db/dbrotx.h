@@ -14,7 +14,6 @@
 #include "util/txprofile.h"
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
-#include "db/memstore_skiplist.h"
 #include "db/dbtables.h"
 
 

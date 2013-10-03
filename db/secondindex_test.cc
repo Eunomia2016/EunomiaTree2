@@ -4,7 +4,7 @@
 
 #include "db/dbtx.h"
 #include "db/dbrotx.h"
-#include "db/memstore_skiplist.h"
+#include "memstore/memstore_skiplist.h"
 #include "memstore/memstore_bplustree.h"
 #include "memstore/memstore_uint64bplustree.h"
 #include "leveldb/env.h"
