@@ -709,16 +709,17 @@ bool DBTX::End()
   }
   
 
-#if 1 //FREEOLDVERSION
+
 	//Put the objects into the object pool
 	writeset->CollectOldVersions(txdb_);
-#endif
 
 	deleteset->GCRMNodes(txdb_);
 	
 	txdb_->RCUTXEnd();	
-	txdb_->GC();
 
+#if RCUGC
+	txdb_->GC();
+#endif
 
 #if DEBUG_PRINT
    printf("[%ld] TX Success\n", pthread_self());

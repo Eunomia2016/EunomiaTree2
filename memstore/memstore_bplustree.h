@@ -202,7 +202,12 @@ public:
 	inline MemNode* Get(uint64_t key)
 	{
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+#if BTREE_LOCK
+		MutexSpinLock lock(&slock);
+#else
+				//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+#endif
 		
 		InnerNode* inner;
 		register void* node= root;

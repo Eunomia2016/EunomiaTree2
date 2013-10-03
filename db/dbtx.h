@@ -23,13 +23,8 @@
 #define BUFFERNODE 1
 #define PROFILEBUFFERNODE 0
 
-
-//For deletion
-#define FREEMEMNODE 1
-
 //For deletion (read only TX)
-#define FREEOLDVERSION 1
-#define READONLYREMOVE 1
+#define RCUGC 1
 
 //For interface
 #define COPY_WHEN_ADD 1

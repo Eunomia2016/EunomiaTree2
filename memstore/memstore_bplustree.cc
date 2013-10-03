@@ -137,7 +137,13 @@ namespace leveldb {
 
 		//if (node_->seq != seq_) printf("%d %d\n",node_->seq,seq_);
 		bool b = true;
-		RTMArenaScope begtx(&tree_->rtmlock, &tree_->prof, tree_->arena_);
+
+#if BTREE_LOCK
+		MutexSpinLock lock(&tree_->slock);
+#else
+		RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
+#endif
+
 		if (node_->seq != seq_) {
 			b = false;
 			while (node_ != NULL) {
@@ -185,7 +191,13 @@ namespace leveldb {
 	  //FIXME: This function doesn't support link information
 	//  printf("PREV\n");
 	  bool b = true;
-	  RTMArenaScope begtx(&tree_->rtmlock, &tree_->prof, tree_->arena_);
+	  
+#if BTREE_LOCK
+	  MutexSpinLock lock(&tree_->slock);
+#else
+	  RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
+#endif
+
 	  if (node_->seq != seq_) {
 	  	  b = false;
 		  while (node_ != NULL) {
@@ -238,7 +250,12 @@ namespace leveldb {
 	// Advance to the first entry with a key >= target
 	void MemstoreBPlusTree::Iterator::Seek(uint64_t key)
 	{
-		RTMArenaScope begtx(&tree_->rtmlock, &tree_->prof, tree_->arena_);
+#if BTREE_LOCK
+	 MutexSpinLock lock(&tree_->slock);
+#else
+	 RTMScope begtx(&tree_->prof, tree_->depth, 1, &tree_->rtmlock);
+#endif
+
 		LeafNode *leaf = tree_->FindLeaf(key);		
 		link_ = (uint64_t *)(&leaf->seq);
 		target_ = leaf->seq;		
@@ -265,6 +282,12 @@ namespace leveldb {
 	
 	void MemstoreBPlusTree::Iterator::SeekPrev(uint64_t key)
 	{
+#if BTREE_LOCK
+		MutexSpinLock lock(&tree_->slock);
+#else
+		RTMScope begtx(&tree_->prof, tree_->depth, 1, &tree_->rtmlock);
+#endif
+
 		LeafNode *leaf = tree_->FindLeaf(key);
 		link_ = (uint64_t *)(&leaf->seq);
 		target_ = leaf->seq;		
@@ -301,7 +324,11 @@ namespace leveldb {
 		link_ = (uint64_t *)(&node_->seq);
 		target_ = node_->seq;		
 		leaf_index = 0;
-		RTMArenaScope begtx(&tree_->rtmlock, &tree_->prof, tree_->arena_);
+#if BTREE_LOCK
+		MutexSpinLock lock(&tree_->slock);
+#else
+		RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
+#endif
 		key_ = node_->keys[0];
 		value_ = node_->values[0];
 		seq_ = node_->seq;
