@@ -14,7 +14,7 @@
 
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
-#define NOPREFETCH 1
+#define BTPREFETCH 1
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 	
@@ -158,17 +158,6 @@ public:
 		//printTree();
 		//top();
 	}
-
-	inline void prefetch(const void *ptr) {
-#ifdef NOPREFETCH
-		(void) ptr;
-#else
-		typedef struct { char x[64]; } cacheline_t;
-		asm volatile("prefetcht0 %0" : : "m" (*(const cacheline_t *)ptr));
-#endif
-	}
-
-
 		  
 	inline void ThreadLocalInit(){
 		if(false == localinit_) {
@@ -482,30 +471,14 @@ public:
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
 
 		ThreadLocalInit();
-//		NewNodes *dummy= new NewNodes(depth);
-//		NewNodes dummy(depth);
 
-/*		MutexSpinLock lock(&slock);
-		current_tid = tid;
-		windex[tid] = 0;
-		rindex[tid] = 0;
-	*/	
 		MemNode* value = Insert_rtm(key);
 		
 		if(dummyval_ == NULL)
 			dummyval_ = new MemNode();
 
 		return value;
-		
-//		Insert_rtm(key, &dummy);
-
-/*		if (dummy->leaf->num_keys <=0) delete dummy->leaf;
-		for (int i=dummy->used; i<dummy->d;i++) {
-			delete dummy->inner[i];
-			//if (dummy.inner[i]->num_keys > 0) printf("!!!\n");
-		}*/
-//		delete dummy;
-		
+				
 	}
 	
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
@@ -529,6 +502,7 @@ public:
 			reinterpret_cast<LeafNode*>(root)->seq = 0;
 			depth = 0;
 		}
+
 		MemNode* val = NULL;
 		if (depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
@@ -547,9 +521,14 @@ public:
 #endif
 //				inner->writes++;
 			}
-//			else checkConflict(&root, 0);
 		}
 		else {
+
+#if BTPREFETCH
+			for(int i = 0; i <= 64; i+= 64)
+				prefetch(reinterpret_cast<char*>(root) + i);
+#endif
+
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val);
 			
 		}
@@ -564,42 +543,45 @@ public:
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
-		//printf("key %lx\n",key);
-		//printf("d %d\n",d);
+
 		while((k < inner->num_keys) && (key >= inner->keys[k])) {
 		   ++k;
 		}
+
+
 		void *child = inner->children[k];
 
-		
-/*		if (child == NULL) {
-			printf("Key %lx\n");
-			printInner(inner, d);
-		}*/
-		//printf("child %d\n",k);
+#if BTPREFETCH
+		for(int i = 0; i <= 64; i+= 64)
+			prefetch(reinterpret_cast<char*>(child) + i);
+#endif
+
+
 		if (d == 1) {
-			//printf("leafinsert\n");
-			//printTree();
-			
+
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val);
-			//printTree();
+
 			if (new_leaf != NULL) {
+				
 				InnerNode *toInsert = inner;
-				if (inner->num_keys == N) {										
+				
+				if (inner->num_keys == N) {
+					
 					unsigned treshold= (N+1)/2;
 					new_sibling = new_inner_node();
 					
 					new_sibling->num_keys= inner->num_keys -treshold;
-					//printf("sibling num %d\n",new_sibling->num_keys);
-                    			for(unsigned i=0; i < new_sibling->num_keys; ++i) {
-                    				new_sibling->keys[i]= inner->keys[treshold+i];
-                        			new_sibling->children[i]= inner->children[treshold+i];
-                    			}	
-                    			new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
-                    			inner->num_keys= treshold-1;
-					//printf("remain num %d\n",inner->num_keys);
+
+        			for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+        				new_sibling->keys[i]= inner->keys[treshold+i];
+            			new_sibling->children[i]= inner->children[treshold+i];
+        			}
+					
+        			new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
+        			inner->num_keys= treshold-1;
+
 					upKey = inner->keys[treshold-1];
-					//printf("UP %lx\n",upKey);
+
 					if (new_leaf->keys[0] >= upKey) {
 						toInsert = new_sibling;
 						if (k >= treshold) k = k - treshold; 
@@ -638,10 +620,8 @@ public:
 //			if (new_sibling!=NULL && new_sibling->num_keys == 0) printf("sibling\n");
 		}
 		else {
-			//printf("inner insert\n");
-			//for (int i=64; i<sizeof(InnerNode); i+=64) 
-			//	prefetch(reinterpret_cast<InnerNode*>(child) + i);
 			
+
 			bool s = true;
 			InnerNode *new_inner = 
 				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val);
@@ -745,6 +725,10 @@ public:
 		}
 
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
+			
+#if BTPREFETCH
+			prefetch(reinterpret_cast<char*>(leaf->values[k]));
+#endif
 			*val = leaf->values[k];
 #if BTREE_PROF
 			reads++;
@@ -787,6 +771,10 @@ public:
 		//printf("IN LEAF1 %d\n",toInsert->num_keys);
 		//printTree();
 
+#if BTPREFETCH
+		prefetch(reinterpret_cast<char*>(dummyval_));
+#endif
+
         for (int j=toInsert->num_keys; j>k; j--) {
 			toInsert->keys[j] = toInsert->keys[j-1];
 			toInsert->values[j] = toInsert->values[j-1];
@@ -795,6 +783,8 @@ public:
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
 		toInsert->values[k] = dummyval_;
+
+		
 		*val = dummyval_;
 		assert(*val != NULL);
 		dummyval_ = NULL;

@@ -325,7 +325,7 @@ namespace leveldb {
 	store->AddTable(ITEM, HASH, NONE);
 	store->AddTable(STOC, HASH, NONE);
 #else
-#if 0
+#if 1
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
 			int a = store->AddTable(i, BTREE, SBTREE);
