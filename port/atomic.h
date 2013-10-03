@@ -24,6 +24,13 @@
 /* Pause instruction to prevent excess processor bus usage */
 #define cpu_relax() asm volatile("pause\n": : :"memory")
 
+#define CACHE_LINE_SIZE 64
+inline void prefetch(const void *ptr) {
+    typedef struct { char x[CACHE_LINE_SIZE]; } cacheline_t;
+    asm volatile("prefetcht0 %0" : : "m" (*(const cacheline_t *)ptr));
+}
+
+
 #define LOCK_PREFIX "lock; "
 
 // Is this the correct way to detect 64 system?

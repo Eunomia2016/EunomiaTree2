@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-#define SEPERATE 1
+#define SEPERATE 0
 
 #define PROFILE 0
 #define ABORTPRO 0
@@ -325,7 +325,7 @@ namespace leveldb {
 	store->AddTable(ITEM, HASH, NONE);
 	store->AddTable(STOC, HASH, NONE);
 #else
-#if 1
+#if 0
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
 			int a = store->AddTable(i, BTREE, SBTREE);
@@ -336,11 +336,11 @@ namespace leveldb {
 #else
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
-			int a = store->AddTable(i, HASH, SBTREE);
+			int a = store->AddTable(i, CUCKOO, SBTREE);
 			if (a != CUST_INDEX) printf("Customer index Wrong!\n");
 		}
-		else if (i == ORDE) store->AddTable(i, HASH, IBTREE);
-		else store->AddTable(i, HASH, NONE);
+		else if (i == ORDE) store->AddTable(i, CUCKOO, IBTREE);
+		else store->AddTable(i, CUCKOO, NONE);
 #endif
 #endif
 	Memstore::MemNode *mn;

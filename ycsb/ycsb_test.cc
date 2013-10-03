@@ -16,6 +16,10 @@
 #include "memstore/memstore_bplustree.h"
 #include "lockfreememstore/lockfree_hash.h"
 #include "memstore/memstore_hash.h"
+#include "memstore/memstore_skiplist.h"
+#include "memstore/memstore_cuckoohash.h"
+
+
 
 
 #include "db/dbtx.h"
@@ -385,8 +389,10 @@ private:
 	void Run(){
 
 	  //table = new leveldb::MemstoreBPlusTree();
-	   table = new leveldb::LockfreeHashTable();
+	  //table = new leveldb::LockfreeHashTable();
 	  //table = new leveldb::MemstoreHashTable();
+	  //table = new leveldb::MemStoreSkipList();
+	  table = new MemstoreCuckooHashTable();
       store = new DBTables();
  
       int num_threads = FLAGS_threads;  

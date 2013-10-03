@@ -14,7 +14,7 @@
 
 
 #define SKIPLISTGLOBALLOCK 0
-#define SKIPLISTRTM 1
+#define SKIPLISTRTM 0
 #define SKIPLISTLOCKFREE 0
 #define NODEPROFILE 0
 
@@ -309,7 +309,7 @@ Memstore::MemNode* MemStoreSkipList::Get(uint64_t key)
 
 Memstore::MemNode*  MemStoreSkipList::GetWithInsert(uint64_t key) 
 {
-
+	ThreadLocalInit();
 #if SKIPLISTLOCKFREE
 	Memstore::MemNode* x = GetWithInsertLockFree(key);
 #else
@@ -338,7 +338,7 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsertRTM(uint64_t key)
 		//MutexLock lock(&DBTX::storemutex);
 		DBTX::slock.Lock();
 	#elif SKIPLISTRTM
-		RTMScope rtm(NULL);
+		RTMScope rtm(NULL, 15, 15, NULL);
 	#endif
 
     //find the prevs and succs
