@@ -10,7 +10,6 @@
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
-#include "secondindex.h"
 #define SM  15
 #define SN  15
 
@@ -20,13 +19,12 @@
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 	
-static int total_key = 0;
 /*static int total_nodes = 0;
 static uint64_t rconflict = 0;
 static uint64_t wconflict = 0;
 */
 namespace leveldb {
-class MemstoreStringBPlusTree: public SecondIndex{
+class MemstoreStringBPlusTree: public Memstore{
 	
 private:	
 	struct LeafNode {
@@ -34,7 +32,7 @@ private:
 //		uint64_t padding[4];
 		unsigned num_keys;
 		char *keys[SM];
-		SecondNode *values[SM];
+		MemNode *values[SM];
 		LeafNode *left;
 		LeafNode *right;
 		uint64_t seq;
@@ -55,7 +53,16 @@ private:
 //		uint64_t padding1[8];
 	};
 
-	class Iterator: public SecondIndex::Iterator {
+
+	
+	struct DeleteResult {
+		DeleteResult(): value(0), freeNode(false), upKey((char *)(-1)){}
+		Memstore::MemNode* value;  //The value of the record deleted
+		bool freeNode;	//if the children node need to be free
+		char * upKey; //the key need to be updated -1: default value
+	};	
+	
+	class Iterator: public Memstore::Iterator {
 	 public:
 	  // Initialize an iterator over the specified list.
 	  // The returned iterator is not valid.
@@ -67,7 +74,7 @@ private:
 
 	  // Returns the key at the current position.
 	  // REQUIRES: Valid()
-	  SecondNode* CurNode();
+	  MemNode* CurNode();
 
 	  
 	  uint64_t Key();
@@ -105,7 +112,7 @@ private:
 	  uint64_t *link_;
 	  uint64_t target_;
 	  char* key_;
-	  SecondNode* value_;
+	  MemNode* value_;
 	  uint64_t snapshot_;
 	  // Intentionally copyable
 	};
@@ -156,7 +163,8 @@ public:
 
 	
 	~MemstoreStringBPlusTree() {
-		//prof.reportAbortStatus();
+		prof.reportAbortStatus();
+		delprof.reportAbortStatus();
 		//PrintList();
 		//PrintStore();
 		//printf("rwconflict %ld\n", rconflict);
@@ -177,8 +185,8 @@ public:
 		if(false == localinit_) {
 			arena_ = new RTMArena();
 
-			dummywrapper_ = new MemNodeWrapper();
-			dummyval_ = new SecondNode();
+			dummyval_ = new MemNode();
+			dummyval_->value = NULL;
 			
 			localinit_ = true;
 		}
@@ -233,58 +241,287 @@ public:
 	}
 	
 
-	inline SecondNode* RoGet(uint64_t key)
-	{
+	inline MemNode* Get(uint64_t key) {
+#if SBTREE_LOCK
+		MutexSpinLock lock(&slock);
+#else
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+#endif
+		
+#if SBTREE_PROF
+		calls++;
+#endif
 
 		InnerNode* inner;
 		register void* node= root;
 		register unsigned d= depth;
 		unsigned index = 0;
 		while( d-- != 0 ) {
-				index = 0;
-				inner= reinterpret_cast<InnerNode*>(node);
-//				reads++;
-				while(index < inner->num_keys) {
-				   int tmp =  Compare((char *)key, inner->keys[index]);
-				   if (tmp < 0) break;
-				   ++index;
-				}				
-				node= inner->children[index];
+			index = 0;
+			inner= reinterpret_cast<InnerNode*>(node);
+//			reads++;
+			while(index < inner->num_keys) {
+			   int tmp = Compare((char *)key, inner->keys[index]);
+			   if (tmp < 0) break;
+			   ++index;
+			}				
+			node= inner->children[index];
 		}
 		LeafNode* leaf= reinterpret_cast<LeafNode*>(node);
 //		reads++;
-		
-	    unsigned k = 0;
+		if (leaf->num_keys == 0) return NULL;
+		unsigned k = 0;
 		while(k < leaf->num_keys) {
+		//	printf("leafkey %d %lx\n",k, leaf->keys[k] );
 		   int tmp = Compare(leaf->keys[k], (char *)key);
-		   if (tmp >= 0) break;
+		   if (tmp == 0) return leaf->values[k];
+		   if (tmp > 0) return NULL;
 		   ++k;
 		}
+		return NULL;		
+/*		
+		if (k == leaf->num_keys) return NULL;
+		//printf("leafkey1 %d %lx\n", k , leaf->keys[k] );
 		int tmp = Compare(leaf->keys[k], (char *)key);
-		if(tmp == 0) {
+		if(tmp == 0 ) {
+			//prefetch(leaf->values[k]->value);
 			return leaf->values[k];
 		} else {
 			return NULL;
-		}
+		}*/
 	}
 
-
-	inline SecondNode* Get(uint64_t key) {
+	MemNode* Put(uint64_t key, uint64_t* val){
 		ThreadLocalInit();
-		SecondNode *secn = Get_sec((char *)key);
-		return secn;
+		
+		MemNode *node = GetWithInsert(key);
+		node->value = val;
+
+		return node;
 	}
 
-	void Put(uint64_t seckey, uint64_t prikey, Memstore::MemNode* memnode){
-		uint64_t *secseq;
-		MemNodeWrapper *w = GetWithInsert(seckey, prikey, &secseq);
-		w->memnode = memnode;
-		w->valid = 1;
+	inline int slotAtLeaf(char * key, LeafNode* cur) {
+		
+		int slot = 0;
+		
+		while(slot < cur->num_keys) {
+			int tmp = Compare(cur->keys[slot] ,key);
+			if (tmp >= 0) break;
+			slot++;
+		}
+		
+		return slot;
 	}
 
-	inline MemNodeWrapper* GetWithInsert(uint64_t seckey, uint64_t prikey, uint64_t **secseq) {
+	inline Memstore::MemNode* removeLeafEntry(LeafNode* cur, int slot) {
+		
+		assert(slot < cur->num_keys);
+		cur->seq = cur->seq + 1;
+		
+		Memstore::MemNode* value = cur->values[slot];
+
+		cur->num_keys--;
+
+		//The key deleted is the last one
+		if (slot == cur->num_keys)
+			return value;
+
+		//Re-arrange the entries in the leaf
+		for(int i = slot + 1; i <= cur->num_keys; i++) {
+			cur->keys[i - 1] = cur->keys[i];
+			cur->values[i - 1] = cur->values[i];
+		}
+		
+		return value;
+			
+	}
+
+	inline DeleteResult* LeafDelete(char* key, LeafNode* cur) {
+			
+		//step 1. find the slot of the key
+		int slot = slotAtLeaf(key, cur);
+	
+		//the record of the key doesn't exist, just return
+		if(slot == cur->num_keys) {
+			return NULL;
+		}
+	
+			
+	//	 assert(cur->values[slot]->value == (uint64_t *)2);
+	
+	//	printf("delete node\n");
+		DeleteResult *res = new DeleteResult();
+			
+		//step 2. remove the entry of the key, and get the deleted value
+		res->value = removeLeafEntry(cur, slot);
+	
+		//step 3. if node is empty, remove the node from the list
+		if(cur->num_keys == 0) {
+			if(cur->left != NULL)
+				cur->left->right = cur->right;
+			if(cur->right != NULL)
+				cur->right->left = cur->left;
+	
+				//Parent is responsible for the node deletion
+			res->freeNode = true;
+	
+			return res;
+		}
+			
+			//The smallest key in the leaf node has been changed, update the parent key
+		if(slot == 0) {
+			res->upKey = cur->keys[0];
+		}
+			
+		return res; 
+	}
+
+	inline int slotAtInner(char *key, InnerNode* cur) {
+		
+		int slot = 0;
+
+		while(slot < cur->num_keys) {
+			int tmp = Compare(cur->keys[slot], key);
+			if (tmp > 0) break;
+			slot++;
+		}
+		
+		return slot;
+	}
+
+	inline void removeInnerEntry(InnerNode* cur, int slot, DeleteResult* res) {
+		
+		assert(slot <= cur->num_keys);
+	
+		//If there is only one available entry 	
+		if(cur->num_keys == 0) {
+			assert(slot == 0);
+			res->freeNode = true;
+			return;	
+		}
+
+
+		//The key deleted is the last one
+		if (slot == cur->num_keys) {
+			cur->num_keys--;
+			return;
+		}
+
+		//replace the children slot
+		for(int i = slot + 1; i <= cur->num_keys; i++)
+			cur->children[i - 1] = cur->children[i];
+		
+		//delete the first entry, upkey is needed
+		if (slot == 0) {
+
+			//record the first key as the upkey
+			res->upKey = cur->keys[slot];
+
+			//delete the first key
+			for(int i = slot; i < cur->num_keys - 1; i++) {
+				cur->keys[i] = cur->keys[i + 1];
+			}
+
+		} else {
+			//delete the previous key
+			for(int i = slot; i < cur->num_keys; i++) {
+				cur->keys[i - 1] = cur->keys[i];
+			}	
+		} 
+		
+		cur->num_keys--;
+
+	}
+
+	inline DeleteResult* InnerDelete(char * key, InnerNode* cur ,int depth) 
+	{
+		
+		DeleteResult* res = NULL;
+
+		//step 1. find the slot of the key
+		int slot = slotAtInner(key, cur);
+		
+		//step 2. remove the record recursively
+		//This is the last level of the inner nodes
+		if(depth == 1) {
+			res = LeafDelete(key, (LeafNode *)cur->children[slot]);	
+		} else {
+			//printf("Delete Inner Node  %d\n", depth);
+			//printInner((InnerNode *)cur->children[slot], depth - 1);
+			res = InnerDelete(key, (InnerNode *)cur->children[slot], (depth - 1));
+		}
+	
+		//The record is not found	
+		if(res == NULL) {
+			return res;
+		}
+
+		//step 3. Remove the entry if the total children node has been removed
+		if(res->freeNode) {
+			//FIXME: Should free the children node here
+		  	
+			//remove the node from the parent node	
+			res->freeNode = false;
+			removeInnerEntry(cur, slot, res);
+			return res;	
+		}
+
+		//step 4. update the key if needed
+		if(res->upKey != (char *)(-1)) {
+			if (slot != 0) {
+				 cur->keys[slot - 1] = res->upKey;
+				 res->upKey = (char *)(-1);
+			}
+		}
+
+		return res;
+	
+	}
+
+	inline Memstore::MemNode* Delete_rtm(char* key) {
+#if BTREE_LOCK
+		MutexSpinLock lock(&slock);
+#else
+		//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+#endif
+	
+		DeleteResult* res = NULL;
+		if (depth == 0) {
+			//Just delete the record from the root
+			res = LeafDelete(key, (LeafNode*)root);
+		}
+		else {
+			res = InnerDelete(key, (InnerNode*)root, depth);
+		}
+	
+		if (res == NULL)
+			return NULL;
+		
+		if(res->freeNode) 
+			root = NULL;
+	
+		return res->value;
+	}
+	
+	
+	
+	inline Memstore::MemNode* GetWithDelete(uint64_t key) {
+		
+		ThreadLocalInit();
+	
+		MemNode* value = Delete_rtm((char *)key);
+			
+		if(dummyval_ == NULL)
+			dummyval_ = new MemNode();
+	
+		return value;
+			
+	}
+
+
+	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
 
 		ThreadLocalInit();
 //		NewNodes *dummy= new NewNodes(depth);
@@ -295,16 +532,12 @@ public:
 		windex[tid] = 0;
 		rindex[tid] = 0;
 	*/	
-		SecondNode *secn = Get_sec((char *)seckey);
-		MemNodeWrapper *mnw = Insert_Sec(secn, prikey);
-		if(dummyval_ == NULL)
-			dummyval_ = new SecondNode();
-		if (dummywrapper_ == NULL)
-			dummywrapper_ = new MemNodeWrapper();
-					
-		*secseq = &(secn->seq);
-		return mnw;
+		MemNode* value = Insert_rtm((char *)key);
 		
+		if(dummyval_ == NULL) {
+			dummyval_ = new MemNode();
+		}
+		return value;
 //		Insert_rtm(key, &dummy);
 
 /*		if (dummy->leaf->num_keys <=0) delete dummy->leaf;
@@ -316,41 +549,21 @@ public:
 		
 	}
 
-	inline MemNodeWrapper* Insert_Sec(SecondNode *secn, uint64_t prikey) {
+	inline Memstore::MemNode* Insert_rtm(char * key) {
 #if SBTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 #endif		
-		MemNodeWrapper *wrapper = secn->head;
-		while (wrapper != NULL) {
-			if (wrapper->key == prikey) 
-				//if (wrapper->valid) return NULL;else
-				 return wrapper;
-			wrapper = wrapper->next;
+		if (root == NULL) {
+			root = new_leaf_node();
+			reinterpret_cast<LeafNode*>(root)->left = NULL;
+			reinterpret_cast<LeafNode*>(root)->right = NULL;
+			reinterpret_cast<LeafNode*>(root)->seq = 0;
+			depth = 0;
 		}
-		dummywrapper_->key = prikey;
-		dummywrapper_->next = secn->head;
-		secn->head = dummywrapper_;
-		secn->seq++;
-		dummywrapper_ = NULL;
-		return secn->head;
-	}
-	
-	inline SecondNode* Get_sec(char* key) {
-#if SBTREE_LOCK
-		MutexSpinLock lock(&slock);
-#else
-		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
-		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
-#endif
-
-#if SBTREE_PROF
-		calls++;
-#endif
-
-		SecondNode* val = NULL;
+		MemNode* val = NULL;
 		if (depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
 			if (new_leaf != NULL) {
@@ -361,24 +574,25 @@ public:
 				inner->children[1] = new_leaf;
 				depth++;
 				root = inner;
-//				checkConflict(inner, 1);
-//				checkConflict(&root, 1);
-#if SBTREE_PROF
+		//				checkConflict(inner, 1);
+		//				checkConflict(&root, 1);
+#if BTREE_PROF
 				writes++;
 #endif
-//				inner->writes++;
+		//				inner->writes++;
 			}
-//			else checkConflict(&root, 0);
+		//			else checkConflict(&root, 0);
 		}
 		else {
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val);
-			
+					
 		}
-
+		
 		return val;
 	}
+	
 
-	inline InnerNode* InnerInsert(char *key, InnerNode *inner, int d, SecondNode** val) {
+	inline InnerNode* InnerInsert(char *key, InnerNode *inner, int d, MemNode** val) {
 	
 		unsigned k = 0;
 		char* upKey;
@@ -552,7 +766,7 @@ public:
 		return new_sibling;
 	}
 
-	inline LeafNode* LeafInsert(char* key, LeafNode *leaf, SecondNode** val) {
+	inline LeafNode* LeafInsert(char* key, LeafNode *leaf, MemNode** val) {
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
 		while(k < leaf->num_keys)  {
@@ -633,7 +847,7 @@ public:
 
 
 	
-	SecondIndex::Iterator* GetIterator() {
+	Memstore::Iterator* GetIterator() {
 		return new MemstoreStringBPlusTree::Iterator(this);
 	}
 
@@ -646,16 +860,18 @@ private:
 		
 		static __thread RTMArena* arena_;	  // Arena used for allocations of nodes
 		static __thread bool localinit_;
-		static __thread SecondNode *dummyval_;
-		static __thread MemNodeWrapper *dummywrapper_;
+		static __thread MemNode *dummyval_;
 		
 		char padding1[64];
 		void *root;
 		int depth;
 
 		char padding2[64];
-		RTMProfile prof;
+		RTMProfile delprof;
 		char padding3[64];
+	
+		RTMProfile prof;
+		char padding6[64];
   		port::SpinLock slock;
 public:		
 		int string_length;

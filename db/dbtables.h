@@ -7,7 +7,8 @@
 #include "memstore/memstore_hash.h"
 #include "memstore/secondindex.h"
 #include "memstore/memstore_stringbplustree.h"
-#include "memstore/memstore_uint64bplustree.h"
+#include "memstore/secondindex_uint64bplustree.h"
+#include "memstore/secondindex_stringbplustree.h"
 #include "db/epoch.h"
 #include "db/gcqueue.h"
 #include "db/rmqueue.h"
@@ -16,6 +17,7 @@
 #include "db/rcu.h"
 #include "db/rmpool.h"
 
+#define USESECONDINDEX 0
 namespace leveldb{
 
 class RMQueue;

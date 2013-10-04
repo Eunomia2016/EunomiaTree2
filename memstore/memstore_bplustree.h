@@ -224,13 +224,13 @@ public:
 		}
 		LeafNode* leaf= reinterpret_cast<LeafNode*>(node);
 //		reads++;
-		
+		if (leaf->num_keys == 0) return NULL;
 	    unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k]<key)) {
 		   ++k;
 		}
+		if (k == leaf->num_keys) return NULL;
 		if( leaf->keys[k] == key ) {
-			//prefetch(leaf->values[k]->value);
 			return leaf->values[k];
 		} else {
 			return NULL;
@@ -479,9 +479,9 @@ public:
 
 		MemNode* value = Insert_rtm(key);
 		
-		if(dummyval_ == NULL)
+		if(dummyval_ == NULL) {
 			dummyval_ = new MemNode();
-
+		}
 		return value;
 				
 	}
@@ -719,10 +719,7 @@ public:
 	}
 
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val) {
-		
-		//for (int i=64; i<sizeof(LeafNode); i+=64) 
-		//	prefetch(leaf + i);
-		
+				
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k]<key)) {
@@ -735,6 +732,7 @@ public:
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
 #endif
 			*val = leaf->values[k];
+
 #if BTREE_PROF
 			reads++;
 #endif

@@ -11,8 +11,9 @@ class Memstore {
   
   struct MemNode
   {
-	uint64_t counter;
+	
 	uint64_t seq;
+	uint64_t counter;	
 	uint64_t* value; //pointer of the real value. 1: logically delete 2: Node is removed from memstore
 	MemNode* oldVersions;
 	int gcRef;
@@ -31,8 +32,10 @@ class Memstore {
 	//For debuging
 	void Print()
 	{
+#if 0	
 		printf("Mem Addr %lx, Counter %ld, Seq %ld, Value Addr %lx, Old Addr %lx\n",
 			this, counter, seq, value, oldVersions, secIndexValidateAddr);
+#endif
 	}
   };
 

@@ -20,7 +20,7 @@
 #define CACHESIM 0
 #define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
-#define BUFFERNODE 1
+#define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
 
 //For deletion (read only TX)
@@ -28,6 +28,9 @@
 
 //For interface
 #define COPY_WHEN_ADD 1
+
+
+#define USESECONDINDEX 0
 
 #define LOGICALDELETE (uint64_t *)NULL
 #define HAVEREMOVED (uint64_t *)-1
@@ -255,11 +258,13 @@ public:
 		uint64_t cachetypes[64][8];
 		int max_length;
 		int elems;
+#if USESECONDINDEX
 		int cursindex;
-		
+#endif
 		WSKV *kvs;
+#if USESECONDINDEX
 		WSSEC *sindexes;
-
+#endif
 		DBTX* dbtx_;
 		
 		void Resize();
