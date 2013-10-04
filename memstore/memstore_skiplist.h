@@ -117,12 +117,14 @@ class MemStoreSkipList: public Memstore {
   void ThreadLocalInit();
   
   private:
+  	
+  	char padding1[64];
   	enum { kMaxHeight = 12 };
-
 	uint32_t max_height_;
-	
+	char padding2[64];
 	Node* head_;
-
+	char padding3[64];
+	
 	uint64_t tcount;
 	uint64_t ocount;
 	uint64_t nnum;
