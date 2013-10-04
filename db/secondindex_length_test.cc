@@ -22,10 +22,21 @@ int main(int argc, char**argv){
 	tx.End();
 #endif
 	tx.Begin();
-	uint64_t *v;
-	tx.Get(0, 1, &v);
+	uint64_t *value;
+	tx.Get(0, 1, &value);
+	
+	int num = value[0];
+	uint64_t *prikeys = new uint64_t[num+2];
+	prikeys[0] = num + 1;
+	for (int i=1; i<=num; i++) 
+		prikeys[i] = value[i];
+	prikeys[num+1] = 6;
+	tx.Add(0, 1, prikeys, (num+2)*8);
 	tx.End();
-	printf("%ld \n",v[1]);
+	tx.Begin();
+	tx.Get(0, 1, &value);
+	tx.End();
+	printf("%ld %ld %ld \n",value[0],value[1],value[2]);
 	 
 
 return 0;

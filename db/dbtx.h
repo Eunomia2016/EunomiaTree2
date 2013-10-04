@@ -20,7 +20,7 @@
 #define CACHESIM 0
 #define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
-#define BUFFERNODE 0
+#define BUFFERNODE 1
 #define PROFILEBUFFERNODE 0
 
 //For deletion (read only TX)

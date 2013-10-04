@@ -74,6 +74,7 @@ namespace leveldb {
   	int32_t did = d_id + (w_id * District::NUM_PER_WAREHOUSE);
 	memcpy(seckey, &did, 4);
 	memcpy(seckey+4, c_last, 17);
+	//if (c_last[17] != '/0') printf("--\n"); 
 	memcpy(seckey+21, c_first, 17);
 	return (uint64_t)seckey;
   }
@@ -549,12 +550,21 @@ namespace leveldb {
 		uint64_t *prikeys = new uint64_t[2];
 		prikeys[0] = 1; prikeys[1] = key;
 //printf("key %ld\n",key);
-		store->tables[CUST_INDEX]->Put(sec, (uint64_t *)prikeys);
+		store->tables[CUST_INDEX]->Put(sec, prikeys);
 	}
 	else {
 		printf("ccccc\n");
-		std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(mn->value);
-		prikeys->push_back(key);
+		uint64_t *value = mn->value;
+		int num = value[0];
+		uint64_t *prikeys = new uint64_t[num+2];
+		prikeys[0] = num + 1;
+		for (int i=1; i<=num; i++) 
+			prikeys[i] = value[i];
+		prikeys[num+1] = key;
+		store->tables[CUST_INDEX]->Put(sec, prikeys);
+		//delete[] value;
+		//std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(mn->value);
+		//prikeys->push_back(key);
 	}
 #endif
 #endif
@@ -615,12 +625,19 @@ namespace leveldb {
 //		prikeys->push_back(key);
 		uint64_t *prikeys = new uint64_t[2];
 		prikeys[0] = 1; prikeys[1] = key;
-		store->tables[ORDER_INDEX]->Put(sec, (uint64_t *)prikeys);
+		store->tables[ORDER_INDEX]->Put(sec, prikeys);
 	}
 	else {
 		printf("oooo\n");
-		std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(mn->value);
-		prikeys->push_back(key);
+		uint64_t *value = mn->value;
+		int num = value[0];
+		uint64_t *prikeys = new uint64_t[num+2];
+		prikeys[0] = num + 1;
+		for (int i=1; i<=num; i++) 
+			prikeys[i] = value[i];
+		prikeys[num+1] = key;
+		store->tables[ORDER_INDEX]->Put(sec, prikeys);
+		delete[] value;
 	}
 #endif
 	return o;
@@ -952,10 +969,17 @@ namespace leveldb {
 	  bool f = tx.Get(ORDER_INDEX, o_sec, &value);
 	  if (f) {
 		printf("!!!\n");
-	  	std::vector<uint64_t> *v = (std::vector<uint64_t> *)value;	
-		memcpy(vector_dummy, v, sizeof(v));
-		vector_dummy->push_back(o_key);
-		tx.Add(ORDER_INDEX, o_sec, (uint64_t *)(vector_dummy), sizeof(vector_dummy));
+	  	//std::vector<uint64_t> *v = (std::vector<uint64_t> *)value;	
+		//memcpy(vector_dummy, v, sizeof(v));
+		//vector_dummy->push_back(o_key);
+		//tx.Add(ORDER_INDEX, o_sec, (uint64_t *)(vector_dummy), sizeof(vector_dummy));		
+		int num = value[0];
+		uint64_t *prikeys = new uint64_t[num+2];
+		prikeys[0] = num + 1;
+		for (int i=1; i<=num; i++) 
+			prikeys[i] = value[i];
+		prikeys[num+1] = o_key;
+		tx.Add(ORDER_INDEX, o_sec, prikeys, (num+2)*8);
 	  }
 	  else {
 	  //	vector_dummy->clear();
