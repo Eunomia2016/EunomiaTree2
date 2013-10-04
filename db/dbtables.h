@@ -7,6 +7,7 @@
 #include "memstore/memstore_hash.h"
 #include "memstore/secondindex.h"
 #include "memstore/memstore_stringbplustree.h"
+#include "memstore/memstore_uint64bplustree.h"
 #include "memstore/secondindex_uint64bplustree.h"
 #include "memstore/secondindex_stringbplustree.h"
 #include "db/epoch.h"

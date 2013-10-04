@@ -4,6 +4,7 @@
 #include <vector>
 int main(int argc, char**argv){
 
+
          leveldb::DBTables *store = new leveldb::DBTables(1);
          store->AddTable(0, BTREE, 0);
 	store->RCUInit(1);

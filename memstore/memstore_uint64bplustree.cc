@@ -4,23 +4,13 @@ namespace leveldb {
 	
 	__thread RTMArena* MemstoreUint64BPlusTree::arena_ = NULL;
 	__thread bool MemstoreUint64BPlusTree::localinit_ = false;
-	__thread SecondIndex::SecondNode* MemstoreUint64BPlusTree::dummyval_ = NULL;
-	__thread SecondIndex::MemNodeWrapper* MemstoreUint64BPlusTree::dummywrapper_ = NULL;
-
+	__thread Memstore::MemNode* MemstoreUint64BPlusTree::dummyval_ = NULL;
+#if 0
 	void MemstoreUint64BPlusTree::printLeaf(LeafNode *n) {
 			printf("Leaf Key num %d\n", n->num_keys);
-			for (int i=0; i<n->num_keys;i++){
-				printf("key  %ld value %lx \n",n->keys[i], n->values[i]);
-				SecondIndex::SecondNode *sn = n->values[i];
-				MemNodeWrapper *w = sn->head;
-				while (w!=NULL) {
-					printf("%ld %d %lx\t ",w->key, w->valid, w->memnode->value);
-					w = w->next;
-				}
+			for (int i=0; i<n->num_keys;i++)
+				printf("key  %s value %lx \t ",n->keys[i], n->values[i]);
 				printf("\n");
-			}
-				
-//			total_key += n->num_keys;
 		}
 	
 
@@ -33,20 +23,24 @@ namespace leveldb {
 			if (depth>1) printInner(reinterpret_cast<InnerNode*>(n->children[i]), depth-1);
 			else printLeaf(reinterpret_cast<LeafNode*>(n->children[i]));
 	}
-
+#endif
 	void MemstoreUint64BPlusTree::PrintStore() {
-		
 		 printf("===============B+ Tree=========================\n");
-//		 total_key = 0;
+#if 0		 
+		 if(root == NULL) {
+			 printf("Empty Tree\n");
+			 return;
+		 }
 		 if (depth == 0) printLeaf(reinterpret_cast<LeafNode*>(root));
 		 else {
 			  printInner(reinterpret_cast<InnerNode*>(root), depth);
 		 }
+#endif		 
 		 printf("========================================\n");
-//		 printf("Total key num %d\n", total_key);
 	} 
 
 	void MemstoreUint64BPlusTree::PrintList() {
+#if 0		
 		void* min = root;
 		int d = depth;
 		while (d > 0) {
@@ -60,7 +54,7 @@ namespace leveldb {
 				assert(leaf->right->left == leaf);
 			leaf = leaf->right;
 		}
-			
+#endif			
 	}
 	/*
 
@@ -128,7 +122,7 @@ namespace leveldb {
 	// Returns true iff the iterator is positioned at a valid node.
 	bool MemstoreUint64BPlusTree::Iterator::Valid()
 	{
-		bool b = node_ != NULL && node_->num_keys > 0;
+		bool b = (node_ != NULL) && (node_->num_keys > 0);
 	//	printf("b %d\n",b);
 		return b;
 	}
@@ -147,7 +141,9 @@ namespace leveldb {
 			while (node_ != NULL) {
 				int k = 0; 
 				int num = node_->num_keys;
-				while (k < num && key_ >= node_->keys[k])  {
+				while (k < num)  {
+					int tmp = tree_->Compare(key_, node_->keys[k]);
+					if (tmp < 0) break;
 			   		++k;
 				}
 				if (k == num) {
@@ -171,7 +167,7 @@ namespace leveldb {
 			}
 		}
 		if (node_ != NULL) {
-			key_ = node_->keys[leaf_index];
+			tree_->ArrayAssign(key_ , node_->keys[leaf_index]);
 			value_ = node_->values[leaf_index];
 			seq_ = node_->seq;
 		}
@@ -195,7 +191,9 @@ namespace leveldb {
 		  while (node_ != NULL) {
 			  int k = 0; 
 			  int num = node_->num_keys;
-			  while (k < num && key_ > node_->keys[k])  {
+			  while (k < num)  {
+			  	  int tmp = tree_->Compare(key_ , node_->keys[k]);
+				  if (tmp <= 0) break;
 				  ++k;
 			  }
 			  if (k == num) {
@@ -221,7 +219,7 @@ namespace leveldb {
 	  }
 	  
 	  if (node_ != NULL) {
-		  key_ = node_->keys[leaf_index];
+		  tree_->ArrayAssign(key_ , node_->keys[leaf_index]);
 		  value_ = node_->values[leaf_index];
 		  seq_ = node_->seq;
 	  }
@@ -233,7 +231,7 @@ namespace leveldb {
 		return (uint64_t)key_;
 	}
 	
-	SecondIndex::SecondNode* MemstoreUint64BPlusTree::Iterator::CurNode()
+	Memstore::MemNode* MemstoreUint64BPlusTree::Iterator::CurNode()
 	{
 		if (!Valid()) return NULL;
 		return value_;
@@ -243,38 +241,43 @@ namespace leveldb {
 	void MemstoreUint64BPlusTree::Iterator::Seek(uint64_t key)
 	{
 		RTMArenaScope begtx(&tree_->rtmlock, &tree_->prof, tree_->arena_);
-		LeafNode *leaf = tree_->FindLeaf(key);		
+		LeafNode *leaf = tree_->FindLeaf((uint64_t *)key);		
 		link_ = (uint64_t *)(&leaf->seq);
 		target_ = leaf->seq;		
 		int num = leaf->num_keys;
 		int k = 0; 
-		while (k < num && key > leaf->keys[k])  {
+		while (k < num)  {
+	//	   printf("a %s\n",key +4);
+	//	   printf("b %s\n",leaf->keys[k] +4);
+		   int tmp = tree_->Compare((uint64_t *)key, leaf->keys[k]);
+		   
+		   if (tmp <= 0) break;
 		   ++k;
 		}
 		if (k == num) {
 			node_ = leaf->right;
-			leaf_index = 0;
-			if(node_ == NULL)
-				return;
+			leaf_index = 0;
 		}
 		else {
 			leaf_index = k;
 			node_ = leaf;
 		}		
 		seq_ = node_->seq;
-		key_ = node_->keys[leaf_index];
+		tree_->ArrayAssign(key_ , node_->keys[leaf_index]);
 		value_ = node_->values[leaf_index];
 	}
 	
 	void MemstoreUint64BPlusTree::Iterator::SeekPrev(uint64_t key)
 	{
-		LeafNode *leaf = tree_->FindLeaf(key);
+		LeafNode *leaf = tree_->FindLeaf((uint64_t *)key);
 		link_ = (uint64_t *)(&leaf->seq);
 		target_ = leaf->seq;		
 		
 		int k = 0; 
 		int num = leaf->num_keys;
-		while (k < num && key > leaf->keys[k])  {
+		while (k < num)  {
+		   int tmp = tree_->Compare((uint64_t *)key, leaf->keys[k]);
+		   if (tmp <= 0) break;
 		   ++k;
 		}
 		if (k == 0) {
@@ -305,7 +308,7 @@ namespace leveldb {
 		target_ = node_->seq;		
 		leaf_index = 0;
 		RTMArenaScope begtx(&tree_->rtmlock, &tree_->prof, tree_->arena_);
-		key_ = node_->keys[0];
+		tree_->ArrayAssign(key_ , node_->keys[0]);
 		value_ = node_->values[0];
 		seq_ = node_->seq;
 	}

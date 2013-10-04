@@ -69,29 +69,47 @@ namespace leveldb {
     return id;
   }
 
+  static void convertString(char *newstring, char *oldstring) {
+  	for (int i=0; i<8; i++)
+		newstring[7 -i] = oldstring[i];
+	
+  	for (int i=8; i<16; i++)
+		newstring[23 -i] = oldstring[i];
+#if 0	
+	for (int i=0; i<16; i++)
+		printf("%lx ", oldstring[i]);
+	printf("\n");
+	for (int i=0; i<16; i++)
+		printf("%lx ", newstring[i]);
+	printf("\n");		
+#endif
+  }
+
   static uint64_t makeCustomerIndex(int32_t w_id, int32_t d_id, char* c_last, char* c_first) {
-  	char *seckey = new char[38];
+	int ptr_end = strcspn(c_last, "\0");
+	memset(c_last+ptr_end, 0, 17 - ptr_end);
+	ptr_end = strcspn(c_first, "\0");
+	memset(c_first+ptr_end, 0, 17 - ptr_end);
+	uint64_t *seckey = new uint64_t[5];
   	int32_t did = d_id + (w_id * District::NUM_PER_WAREHOUSE);
-	memcpy(seckey, &did, 4);
-	memcpy(seckey+4, c_last, 17);
-	//if (c_last[17] != '/0') printf("--\n"); 
-	memcpy(seckey+21, c_first, 17);
+	seckey[0] = did;
+	convertString((char *)(&seckey[1]), c_last);
+	convertString((char *)(&seckey[3]), c_first);
+#if 0	
+	printf("%d %d %s %s \n", w_id, d_id, c_last, c_first);
+	for (int i= 0;i<5; i++)
+		printf("%lx ",seckey[i]);
+	printf("\n");
+#endif	
 	return (uint64_t)seckey;
   }
 
   static bool compareCustomerIndex(uint64_t key, uint64_t bound){
-  	char *a = (char *)key;
-//	printf("last %s\n",a+4);
-	char *b = (char *)bound;
-	
-	for (int i=0; i<38; i++){	
-	//	printf("i%d %ud %ud\n",i,a[i] ,b[i]);
-		if ((uint8_t)a[i] > (uint8_t)b[i]) return false;
-		if ((uint8_t)a[i] < (uint8_t)b[i]) return true;
-		if (i > 4 && i < 21 && a[i] == 0)
-			i = 20;
-		else if (i > 20 &&	a[i] == 0)
-			return true;
+	uint64_t *k = (uint64_t *)key;
+	uint64_t *b = (uint64_t *)bound;
+	for (int i=0; i<5; i++) {
+		if (k[i] > b[i]) return false;
+		if (k[i] < b[i]) return true;
 	}
 	return true;
 	

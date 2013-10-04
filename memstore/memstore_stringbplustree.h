@@ -206,17 +206,61 @@ public:
 	}
 
 	inline int Compare(char *a, char *b) {
-		for (int i=0; i<string_length; i++){
+		
+		uint32_t *a_did = (uint32_t *)a;
+		uint32_t *b_did = (uint32_t *)b;
+		if (*a_did > *b_did) return 1;
+		if (*b_did > *a_did) return -1;
+/*
+		for (int i=4; i<12; i++)
+			printf("%lx ", a[i]);
+		printf("\n");
+		for (int i=4; i<12; i++)
+			printf("%lx ", b[i]);
+		printf("\n");		
+*/		
+		uint64_t *a_last = (uint64_t *)(a + 4);
+		uint64_t *b_last = (uint64_t *)(b + 4);
+
+//		printf("%lx \n", *a_last);
+//		printf("%lx \n", *b_last);
+
+		
+		if (*a_last > *b_last) return 1;
+		if (*a_last < *b_last) return -1;
+		
+			
+		
+		a_last = (uint64_t *)(a + 12);
+		b_last = (uint64_t *)(b + 12);
+		if (*a_last > *b_last) return 1;
+		if (*a_last < *b_last) return -1;
+		uint64_t *a_first = (uint64_t *)(a + 21);
+		uint64_t *b_first = (uint64_t *)(b + 21);
+		if (*a_first > *b_first) return 1;
+		if (*a_first < *b_first) return -1;
+		a_first = (uint64_t *)(a + 29);
+		b_first = (uint64_t *)(b + 29);
+		if (*a_first > *b_first) return 1;
+		if (*a_first < *b_first) return -1;
+		
+	/*	
+		for (int i=12; i<string_length; i++){
 			
 				
 			if ((uint8_t)a[i] > (uint8_t)b[i]) return 1;
 			if ((uint8_t)a[i] < (uint8_t)b[i]) return -1;
-			if (i > 4 && i < 21 && a[i] == 0)
+			if (i > 4 && i < 21 && a[i] == 0) {
+				//if (a[i+1] !=0) printf("Oh NO\n");
 				i = 20;
+			}
 			else if (i > 20 &&  a[i] == 0)
 				return 0;
 		}
+*/
+		
 		return 0;
+		
 	}
 
 
