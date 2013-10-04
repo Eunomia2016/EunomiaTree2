@@ -29,9 +29,6 @@
 //For interface
 #define COPY_WHEN_ADD 1
 
-
-#define USESECONDINDEX 0
-
 #define LOGICALDELETE (uint64_t *)NULL
 #define HAVEREMOVED (uint64_t *)-1
 
