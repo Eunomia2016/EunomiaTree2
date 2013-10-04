@@ -363,7 +363,7 @@ namespace leveldb {
 		if (i == ORDE) mn = node;
 	}
 #if USESECONDINDEX
-	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t *)1<<60, mn);
+	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
 #else
 
 	uint64_t *temp = new uint64_t[2];
