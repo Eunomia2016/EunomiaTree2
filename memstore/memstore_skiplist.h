@@ -24,6 +24,7 @@ class MemStoreSkipList: public Memstore {
   struct Node
   {
 	uint64_t key;
+	int height;
 	MemNode memVal;
 	Node* next_[1];
   };
@@ -127,6 +128,7 @@ class MemStoreSkipList: public Memstore {
 	uint64_t nnum;
 	
 	static __thread Random* rnd_;
+	static __thread Node* dummy_;
 	static __thread bool localinit_;
   
 };
