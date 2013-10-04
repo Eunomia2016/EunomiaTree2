@@ -119,7 +119,7 @@ class MemStoreSkipList: public Memstore {
   private:
   	
   	char padding1[64];
-  	enum { kMaxHeight = 12 };
+  	enum { kMaxHeight = 16 };
 	uint32_t max_height_;
 	char padding2[64];
 	Node* head_;

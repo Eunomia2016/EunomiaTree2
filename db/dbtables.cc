@@ -53,7 +53,7 @@ DBTables::~DBTables() {
 		else if (types[i] == SKIPLIST) delete (MemStoreSkipList *)tables[i];
 		else if (types[i] == CUCKOO) delete (MemstoreCuckooHashTable *)tables[i];
 #if !USESECONDINDEX
-		else if (indextypes[i] == SBTREE) delete (MemstoreStringBPlusTree *)secondIndexes[i];
+		else if (types[i] == SBTREE) delete (MemstoreStringBPlusTree *)tables[i];
 #endif			
 	}
 	delete tables;
