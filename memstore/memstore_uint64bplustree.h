@@ -10,6 +10,8 @@
 #include "util/mutexlock.h"
 #include "port/port_posix.h"
 #include "memstore.h"
+#include "port/atomic.h"
+
 #define IM  15
 #define IN  15
 
@@ -237,6 +239,7 @@ public:
 				}				
 				node= inner->children[index];
 		}
+
 		return reinterpret_cast<LeafNode*>(node);
 	}
 	

@@ -1294,12 +1294,12 @@ namespace leveldb {
 			uint64_t c_end = makeCustomerIndex(c_warehouse_id, c_district_id, clast, fend);
 #if 0
 
-			printf("start\n");
-			for (int i=0; i<38; i++)
-				printf("%d ",((char *)c_start)[i]);
+			printf("start   ");
+			for (int i=0; i<17; i++)
+				printf("%d ",c_last[i]);
 			printf("\n");
 			
-			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
+	//		printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
 #endif	
 #if USESECONDINDEX
 			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
@@ -1319,7 +1319,7 @@ namespace leveldb {
 #endif			
 				if (compareCustomerIndex(iter.Key(), c_end)){
 #if 0					
-					for (int i=0; i<38; i++)
+					for (int i=0; i<40; i++)
 						printf("%d ",((char *)iter.Key())[i]);
 					printf("\n");
 #endif
