@@ -290,7 +290,7 @@ private:
 			//Read
 			if (d < 0.8) {
 				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = btree->GetWithInsert(key);
+				Memstore::MemNode * mn = table->GetWithInsert(key);
 				char *s = (char *)(mn->value);
 #if GETCOPY
 				std::string *p = &v;
@@ -395,10 +395,10 @@ private:
 
 	void Run(){
 
-	  table = new leveldb::MemstoreBPlusTree();
+	  //table = new leveldb::MemstoreBPlusTree();
 	  //table = new leveldb::LockfreeHashTable();
 	  //table = new leveldb::MemstoreHashTable();
-	  //table = new leveldb::MemStoreSkipList();
+	  table = new leveldb::MemStoreSkipList();
 	  //table = new MemstoreCuckooHashTable();
       store = new DBTables();
  

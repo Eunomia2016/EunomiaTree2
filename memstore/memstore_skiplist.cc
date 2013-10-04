@@ -23,6 +23,7 @@ namespace leveldb {
 
 __thread Random* MemStoreSkipList::rnd_;
 __thread bool MemStoreSkipList::localinit_ = false;
+__thread MemStoreSkipList::Node* MemStoreSkipList::dummy_ = NULL;
 
 
 MemStoreSkipList::MemStoreSkipList()
@@ -61,6 +62,9 @@ void MemStoreSkipList::ThreadLocalInit()
 	if(localinit_ == false) {
 		rnd_ = new Random(0xdeadbeef);
 		localinit_ = true;
+		int height = RandomHeight();
+
+ 	 	dummy_ = NewNode(0, height);
 	}
 
 }
@@ -73,6 +77,7 @@ MemStoreSkipList::Node* MemStoreSkipList::NewNode(uint64_t key, int height)
 	  			sizeof(Node) + sizeof(void *) * (height - 1)));
 
   n->key = key;
+  n->height = height;
   n->memVal.counter = 0;
   n->memVal.value = NULL;
   n->memVal.oldVersions = NULL;
@@ -288,7 +293,6 @@ Memstore::MemNode* MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 	
 	Memstore::MemNode* n = GetWithInsert(k);
 	n->value = val;
-	n->counter = snapshot;
 	n->seq = 1;
 	return n;
 }
@@ -316,6 +320,11 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsert(uint64_t key)
 	Memstore::MemNode* x = GetWithInsertRTM(key);
 #endif
 
+	if(dummy_ == NULL) {
+		 int height = RandomHeight();
+  		 dummy_ = NewNode(key, height);
+	}
+
 	return x;
 }
 
@@ -325,11 +334,7 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsertRTM(uint64_t key)
 
   
   Node* preds[kMaxHeight];
-  int height = RandomHeight();
-
-  Node* newn = NewNode(key, height);
-  newn->memVal.counter = snapshot;
-  
+ 
   Node* x;
 
   {
@@ -353,7 +358,9 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsertRTM(uint64_t key)
 
   	  goto found;
     }
-  
+
+  	 int height = dummy_->height;
+	 
      if (height > max_height_){
       for (int i = max_height_; i < height; i++) {
         preds[i] = head_;
@@ -363,21 +370,23 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsertRTM(uint64_t key)
     	
     
     for (int i = 0; i < height; i++) {
-  		newn->next_[i] = preds[i]->next_[i];
-  		preds[i]->next_[i] = newn;	
+  		dummy_->next_[i] = preds[i]->next_[i];
+  		preds[i]->next_[i] = dummy_;	
     }
+
+	x = dummy_;
+	dummy_ = NULL;
 	
 #if SKIPLISTGLOBALLOCK
 				  //MutexLock lock(&DBTX::storemutex);
 	DBTX::slock.Unlock();
 #endif
 
-    return (Memstore::MemNode*)&newn->memVal;
+    return (Memstore::MemNode*)&x->memVal;
 	
   }
 
 found:
-  FreeNode(newn);
   
   return (Memstore::MemNode*)&x->memVal;
 }
@@ -434,9 +443,6 @@ Memstore::MemNode* MemStoreSkipList::GetWithInsertLockFree(uint64_t key)
 
 //	printf("put key %ld height %ld \n", key.k, height);
   x = NewNode(key, height);
-
-  //We initialize any node with current snapshot counter
-  x->memVal.counter = snapshot;
   
   for (int i = 0; i < height; i++) {
 	Node *succ = NULL;

@@ -24,6 +24,7 @@ class MemStoreSkipList: public Memstore {
   struct Node
   {
 	uint64_t key;
+	int height;
 	MemNode memVal;
 	Node* next_[1];
   };
@@ -116,17 +117,20 @@ class MemStoreSkipList: public Memstore {
   void ThreadLocalInit();
   
   private:
-  	enum { kMaxHeight = 12 };
-
+  	
+  	char padding1[64];
+  	enum { kMaxHeight = 16 };
 	uint32_t max_height_;
-	
+	char padding2[64];
 	Node* head_;
-
+	char padding3[64];
+	
 	uint64_t tcount;
 	uint64_t ocount;
 	uint64_t nnum;
 	
 	static __thread Random* rnd_;
+	static __thread Node* dummy_;
 	static __thread bool localinit_;
   
 };
