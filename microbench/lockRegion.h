@@ -16,6 +16,16 @@ inline void atomic_inc64(uint64_t *p) {
         : "cc");
 }
 
+inline void atomic_add64(uint64_t* addr, uint64_t val) {
+    asm volatile(
+        "lock;addq %1, %0"
+        : "+m"(*addr)
+        : "a"(val)
+        : "cc");
+}
+
+
+
 inline uint8_t xchg8(uint8_t *addr, uint8_t val)
 {
     asm volatile(

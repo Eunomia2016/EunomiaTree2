@@ -14,13 +14,18 @@
 
 #define CYCLES
 
+#define READ 1
+
 #define ARRAYSIZE 4*1024*1024/8 //4M
 #define CASHELINESIZE 64 //64 bytes
 
 //critical data
 char padding[CASHELINESIZE];
 int workingset = 16 ; //Default ws: 16
+
 __thread uint64_t *array;
+__thread uint64_t result;
+
 char padding1[CASHELINESIZE];
 __thread uint8_t lock = 0;
 char padding2[CASHELINESIZE];
@@ -43,7 +48,11 @@ inline void RTMCompute() {
 	
 	for(int i = 0; i < workingset; i++) {		
 		RTMRegion rtm(NULL);
+#if READ
+		result += array[i];
+#else
 		array[i]++;
+#endif
 	}
 	
 }
@@ -53,19 +62,32 @@ inline void LockCompute() {
 	for(int i = 0; i < workingset; i++) {
 		
 		LockRegion l(&lock);
+#if READ
+		result += array[i];
+#else
 		array[i]++;
+#endif
 	}
 }
 
 inline void AtomicCompute() {
 	for(int i = 0; i < workingset; i++) {
-		atomic_inc64(&array[i]);
+#if READ
+	  atomic_add64(&result, array[i]);
+#else
+	  atomic_inc64(&array[i]);
+#endif
 	}
 }
 
 inline void RawCompute() {
 	for(int i = 0; i < workingset; i++) {
+#if READ
+		result += array[i];
+#else
 		array[i]++;
+#endif
+
 	}
 }
 

@@ -123,7 +123,7 @@ void* thread_body(void *x) {
 				
 		}
 
-		if(lepoch < epoch && tid == 1) {
+		if(lepoch < epoch) {
 
 
 
@@ -184,9 +184,12 @@ int main(int argc, char** argv) {
 
 	//Begin at the first epoch
 	epoch = 1;
+
+	sleep(5); //for warmup
+	epoch++;
 	
 	while(true) {
-		sleep(5);
+		sleep(60);
 		epoch++;
 	}
 
