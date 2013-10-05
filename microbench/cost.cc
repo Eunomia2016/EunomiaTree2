@@ -81,6 +81,15 @@ void thread_init(){
 
 }
 
+void cache_warmup(){
+	
+	for(int i = 0; i < workingset; i++) {
+		array[i] = 0;
+	}
+
+}
+
+
 void* thread_body(void *x) {
 
 	RTMRegionProfile prof;
@@ -108,7 +117,7 @@ void* thread_body(void *x) {
 	
 	while(true) {
 
-		
+		for(int i = 0; i < 1000; i++)
 		{
 			if(lbench == 1)
 				RTMCompute();
@@ -118,14 +127,16 @@ void* thread_body(void *x) {
 				AtomicCompute();
 			else if(lbench == 4)
 				RawCompute();
-			count++;	
+				
 		}
 
+		count+= 1000;
+		
 		if(lepoch < epoch) {
 			clock_gettime(CLOCK_REALTIME, &end);
 			int t = diff_timespec(end, start);
-			printf("Thread [%d] Time %.2f s Throughput %.3f\n", 
-						tid, t/1000.0, count*1.0/t);
+			printf("Thread [%d] Time %.2f s Count %ld Throughput %.3f\n", 
+						tid, t/1000.0, count, count*1000.0/t);
 
 			count = 0;
 			clock_gettime(CLOCK_REALTIME, &start);
@@ -137,6 +148,7 @@ void* thread_body(void *x) {
 	
 }
 
+int counter = 0;
 
 int main(int argc, char** argv) {
 
@@ -165,7 +177,20 @@ int main(int argc, char** argv) {
 	}
 
 	printf("Touch Work Set %d\n", workingset);
-	
+
+#if 0
+	struct timespec start, end;
+	clock_gettime(CLOCK_REALTIME, &start);
+	for(int i = 0; i < 100000000; i++)
+		counter++;
+	clock_gettime(CLOCK_REALTIME, &end);
+	int t = diff_timespec(end, start);
+			printf("Thread [%d] Time %.2f s Throughput %.3f\n", 
+						0, t/1.0, 100000000*1.0/t);
+			
+	return 0;
+#endif
+
 	pthread_t th[8];
 	for(int i = 0; i < thrnum; i++)
 		pthread_create(&th[i], NULL, thread_body, (void *)i);
@@ -177,7 +202,7 @@ int main(int argc, char** argv) {
 	epoch = 1;
 	
 	while(true) {
-		sleep(5);
+		sleep(1);
 		epoch++;
 	}
 
