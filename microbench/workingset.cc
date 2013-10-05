@@ -28,8 +28,8 @@ char padding1[64];
 volatile int ready = 0;
 volatile int epoch = 0;
 int thrnum = 1;
+int bench = 1; // 1: read 2: write 3: mix
 
-int tmpcount;
 inline int Read(char * data) {
 	int res = 0;
 	for(int i = 0; i < workingset; i++) {
@@ -81,6 +81,7 @@ void* thread_body(void *x) {
 
 	RTMRegionProfile prof;
 	int count = 0;
+	int lbench = bench;
 	int lepoch = 0;
 	
 	struct timespec start, end;
@@ -109,8 +110,13 @@ void* thread_body(void *x) {
 		
 		{
 			RTMRegion rtm(&prof);
-			count += Read((char *)array);
-			//Write((char *)array);
+			if(lbench == 1)
+				count += Read((char *)array);
+			else if(lbench == 2)
+				Write((char *)array);
+			else if(lbench == 3)
+				ReadWrite((char *)array);
+				
 		}
 
 		if(lepoch < epoch) {
@@ -145,8 +151,14 @@ int main(int argc, char** argv) {
 		else if(sscanf(argv[i], "--ws=%d%c", &n, &junk) == 1) {
 			workingset = n * 1024;
 		}
-		else if(strcmp(argv[i], "--ht") == 0) {
+		else if(strcmp(argv[i], "-ht") == 0) {
 			thrnum = 2;
+		}else if(strcmp(argv[i], "-r") == 0) {
+			bench = 1;
+		}else if(strcmp(argv[i], "-w") == 0) {
+			bench = 2;
+		}else if(strcmp(argv[i], "-m") == 0) {
+			bench = 3;
 		}
 	}
 
