@@ -395,10 +395,10 @@ private:
 
 	void Run(){
 
-	  //table = new leveldb::MemstoreBPlusTree();
+	  table = new leveldb::MemstoreBPlusTree();
 	  //table = new leveldb::LockfreeHashTable();
 	  //table = new leveldb::MemstoreHashTable();
-	  table = new leveldb::MemStoreSkipList();
+	  //table = new leveldb::MemStoreSkipList();
 	  //table = new MemstoreCuckooHashTable();
       store = new DBTables();
  
@@ -419,8 +419,9 @@ private:
 		}
 	  }
 
-
-
+	//  printf("depth %d\n",((leveldb::MemstoreBPlusTree *)table)->depth);
+	//  table->PrintStore();
+	//  exit(0);
 
 	  void (Benchmark::*method)(ThreadState*) = NULL;
 	   if (name == "mix")

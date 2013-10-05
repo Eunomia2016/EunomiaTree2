@@ -621,29 +621,43 @@ public:
 			//printTree();
 			if (new_leaf != NULL) {
 				InnerNode *toInsert = inner;
+
+				
 				if (inner->num_keys == IN) {										
-					unsigned treshold= (IN+1)/2;
-					new_sibling = new_inner_node();
 					
-					new_sibling->num_keys= inner->num_keys -treshold;
-					//printf("sibling num %d\n",new_sibling->num_keys);
-                    for(unsigned i=0; i < new_sibling->num_keys; ++i) {
-                    	ArrayAssign(new_sibling->keys[i], inner->keys[treshold+i]);
-                        new_sibling->children[i]= inner->children[treshold+i];
-                    }
-                    new_sibling->children[new_sibling->num_keys]=
-                                inner->children[inner->num_keys];
-                    inner->num_keys= treshold-1;
-					//printf("remain num %d\n",inner->num_keys);
-					ArrayAssign(upKey, inner->keys[treshold-1]);
-					//printf("UP %lx\n",upKey);
-					int tmp = Compare(new_leaf->keys[0],upKey);
-					if (tmp >= 0) {
+					new_sibling = new_inner_node();
+
+					if (new_leaf->num_keys == 1) {
+						new_sibling->num_keys = 0;
+						ArrayAssign(upKey, new_leaf->keys[0]);
 						toInsert = new_sibling;
-						if (k >= treshold) k = k - treshold; 
-						else k = 0;
+						k = -1;
 					}
-					ArrayAssign(inner->keys[IN-1] , upKey);
+					else { 
+						unsigned treshold= (IN+1)/2;
+					
+					
+						new_sibling->num_keys= inner->num_keys -treshold;
+						//printf("sibling num %d\n",new_sibling->num_keys);
+    	                for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+        	            	ArrayAssign(new_sibling->keys[i], inner->keys[treshold+i]);
+            	            new_sibling->children[i]= inner->children[treshold+i];
+                	    }
+                    	new_sibling->children[new_sibling->num_keys]=
+                        	        inner->children[inner->num_keys];
+	                    inner->num_keys= treshold-1;
+						//printf("remain num %d\n",inner->num_keys);
+						ArrayAssign(upKey, inner->keys[treshold-1]);
+						//printf("UP %lx\n",upKey);
+						int tmp = Compare(new_leaf->keys[0],upKey);
+						if (tmp >= 0) {
+							toInsert = new_sibling;
+							if (k >= treshold) k = k - treshold; 
+							else k = 0;
+						}
+					}
+					
+					ArrayAssign(new_sibling->keys[IN-1] , upKey);
 //					checkConflict(new_sibling, 1);
 #if SBTREE_PROF
 					writes++;
@@ -651,13 +665,15 @@ public:
 //					new_sibling->writes++;
 					
 				}
-				
-				for (int i=toInsert->num_keys; i>k; i--) {
-					ArrayAssign(toInsert->keys[i] , toInsert->keys[i-1]);
-					toInsert->children[i+1] = toInsert->children[i];					
+
+				if (k != -1) {
+					for (int i=toInsert->num_keys; i>k; i--) {
+						ArrayAssign(toInsert->keys[i] , toInsert->keys[i-1]);
+						toInsert->children[i+1] = toInsert->children[i];					
+					}
+					toInsert->num_keys++;
+					ArrayAssign(toInsert->keys[k] , new_leaf->keys[0]);
 				}
-				toInsert->num_keys++;
-				ArrayAssign(toInsert->keys[k] , new_leaf->keys[0]);
 				toInsert->children[k+1] = new_leaf;
 //				checkConflict(inner, 1);
 #if SBTREE_PROF
@@ -689,29 +705,39 @@ public:
 				if (inner->num_keys == IN) {										
 					
 					new_sibling = new_inner_node();
-					new_sibling->num_keys= inner->num_keys -treshold;
+
+					if (child_sibling->num_keys == 0) {
+						new_sibling->num_keys = 0;
+						ArrayAssign(upKey , child_sibling->keys[IN-1]);
+						toInsert = new_sibling;
+						k = -1;
+					}
 					
-                    for(unsigned i=0; i < new_sibling->num_keys; ++i) {
-                    	ArrayAssign(new_sibling->keys[i], inner->keys[treshold+i]);
-                        new_sibling->children[i]= inner->children[treshold+i];
-                    }
-                    new_sibling->children[new_sibling->num_keys]=
+					else  {
+					
+						new_sibling->num_keys= inner->num_keys -treshold;
+					
+	                    for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+    	                	ArrayAssign(new_sibling->keys[i], inner->keys[treshold+i]);
+        	                new_sibling->children[i]= inner->children[treshold+i];
+            	        }
+                	    new_sibling->children[new_sibling->num_keys]=
                                 inner->children[inner->num_keys];
                                 
-                    //XXX: should threshold ???
-                    inner->num_keys= treshold-1;
+                    	//XXX: should threshold ???
+	                    inner->num_keys= treshold-1;
 					
-					ArrayAssign(upKey , inner->keys[treshold-1]);
-					//printf("UP %lx\n",upKey);
-					int tmp = Compare(key, upKey);
-					if (tmp >= 0) {
-						toInsert = new_sibling;
-						if (k >= treshold) k = k - treshold; 
-						else k = 0;
+						ArrayAssign(upKey , inner->keys[treshold-1]);
+						//printf("UP %lx\n",upKey);
+						int tmp = Compare(key, upKey);
+						if (tmp >= 0) {
+							toInsert = new_sibling;
+							if (k >= treshold) k = k - treshold; 
+							else k = 0;
+						}
 					}
-
 					//XXX: what is this used for???
-					ArrayAssign(inner->keys[IN-1] , upKey);
+					ArrayAssign(new_sibling->keys[IN-1] , upKey);
 
 #if SBTREE_PROF
 					writes++;
@@ -719,15 +745,16 @@ public:
 //					new_sibling->writes++;
 //					checkConflict(new_sibling, 1);
 				}	
-				
-				for (int i=toInsert->num_keys; i>k; i--) {
-					ArrayAssign(toInsert->keys[i] , toInsert->keys[i-1]);
-					toInsert->children[i+1] = toInsert->children[i];					
-				}
-			
-				toInsert->num_keys++;
-				ArrayAssign(toInsert->keys[k] , reinterpret_cast<InnerNode*>(child)->keys[IN-1]);
 
+				if (k != -1 ) {
+					for (int i=toInsert->num_keys; i>k; i--) {
+						ArrayAssign(toInsert->keys[i] , toInsert->keys[i-1]);
+						toInsert->children[i+1] = toInsert->children[i];					
+					}
+			
+					toInsert->num_keys++;
+					ArrayAssign(toInsert->keys[k] , reinterpret_cast<InnerNode*>(child_sibling)->keys[IN-1]);
+				}
 				toInsert->children[k+1] = child_sibling;
 														
 #if SBTREE_PROF
@@ -794,18 +821,27 @@ public:
 		LeafNode *toInsert = leaf;
 		if (leaf->num_keys == IM) {
 			new_sibling = new_leaf_node();
-			unsigned threshold= (IM+1)/2;
-			new_sibling->num_keys= leaf->num_keys -threshold;
-            for(unsigned j=0; j < new_sibling->num_keys; ++j) {
-            	ArrayAssign(new_sibling->keys[j], leaf->keys[threshold+j]);
-				new_sibling->values[j]= leaf->values[threshold+j];
-            }
-            leaf->num_keys= threshold;
+
+			if (leaf->right == NULL && k == leaf->num_keys) {
+				new_sibling->num_keys = 0;
+				toInsert = new_sibling;
+				k = 0;
+			}
+			else {
+			
+				unsigned threshold= (IM+1)/2;
+				new_sibling->num_keys= leaf->num_keys -threshold;
+        	    for(unsigned j=0; j < new_sibling->num_keys; ++j) {
+            		ArrayAssign(new_sibling->keys[j], leaf->keys[threshold+j]);
+					new_sibling->values[j]= leaf->values[threshold+j];
+	            }
+    	        leaf->num_keys= threshold;
 			
 
-			if (k>=threshold) {
-				k = k - threshold;
-				toInsert = new_sibling;
+				if (k>=threshold) {
+					k = k - threshold;
+					toInsert = new_sibling;
+				}
 			}
 
 			if (leaf->right != NULL) leaf->right->left = new_sibling;

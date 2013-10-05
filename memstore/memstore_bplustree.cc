@@ -10,7 +10,8 @@ namespace leveldb {
 			printf(" ");
 		printf("Leaf Addr %lx Key num %d  :", n, n->num_keys);
 		for (int i=0; i<n->num_keys;i++)
-			printf("key  %ld value %ld \t ",n->keys[i], n->values[i]->value);
+			printf("key  %ld \t ",n->keys[i]);
+//			printf("key  %ld value %ld \t ",n->keys[i], n->values[i]->value);
 			printf("\n");
 //		total_key += n->num_keys;
 	}

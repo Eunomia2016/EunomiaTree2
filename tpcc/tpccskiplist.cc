@@ -906,7 +906,7 @@ namespace leveldb {
 	  output->d_tax = d->d_tax;
 	  
 	  output->o_id = d->d_next_o_id;
-      //printf("%d %d %d\n", warehouse_id, district_id, output->o_id);
+    //  printf("[%lx] %d %d %d\n",  pthread_self(), warehouse_id, district_id, output->o_id );
   	  //District *newd = new District();
 	  updateDistrict(district_dummy, d);
 	  //d->d_next_o_id = d->d_next_o_id + 1;
@@ -977,7 +977,7 @@ namespace leveldb {
   	  assert(strlen(order_dummy->o_entry_d) == DATETIME_SIZE);
 	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order_dummy->o_id);
 	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order_dummy);
-	  int64_t o_sec = makeOrderIndex(warehouse_id, district_id, customer_id, output->o_id);
+	  int64_t o_sec = makeOrderIndex(warehouse_id, district_id, customer_id, order_dummy->o_id);
 #if SEC_INDEX
 #if USESECONDINDEX
 	  tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, o_value, sizeof(Order));
@@ -986,7 +986,9 @@ namespace leveldb {
 	  uint64_t *value;
 	  bool f = tx.Get(ORDER_INDEX, o_sec, &value);
 	  if (f) {
-		printf("!!!\n");
+	//	printf("[%lx] !!! %lx\n", pthread_self(),o_key );
+	//	printf("[%lx] prikey %lx\n", pthread_self(),value[1]);
+		//exit(0);
 	  	//std::vector<uint64_t> *v = (std::vector<uint64_t> *)value;	
 		//memcpy(vector_dummy, v, sizeof(v));
 		//vector_dummy->push_back(o_key);
@@ -1000,6 +1002,7 @@ namespace leveldb {
 		tx.Add(ORDER_INDEX, o_sec, prikeys, (num+2)*8);
 	  }
 	  else {
+	//  	printf("[%lx] %lx\n", pthread_self(), o_key );
 	  //	vector_dummy->clear();
 	//	vector_dummy->push_back(o_key);
 	//	uint64_t *array = new uint64_t[2];
@@ -1168,10 +1171,15 @@ namespace leveldb {
 	
 	  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
  	//  printf("Step 13\n");
- 	
+ 	//printf("[%lx] try to commit \n", pthread_self());
  	  bool b = tx.End();  
 
-  	  if (b) break;
+  	  if (b) {
+	  //	printf("%lx \n", o_key);
+	  //	printf("[%lx] commit \n", pthread_self());
+	  	break;
+  	  }
+	//  else printf("[%lx] abort \n", pthread_self());
 
 #if ABORTPRO
 	  atomic_add64(&neworderabort, 1);
