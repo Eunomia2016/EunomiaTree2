@@ -12,6 +12,8 @@
 #include "lockRegion.h"
 
 
+#define CYCLES
+
 #define ARRAYSIZE 4*1024*1024/8 //4M
 #define CASHELINESIZE 64 //64 bytes
 
@@ -27,6 +29,15 @@ volatile int ready = 0;
 volatile int epoch = 0;
 int thrnum = 1;
 int bench = 1; // 1: RTM 2: Lock 3: Atomic 4: Raw
+
+
+inline uint64_t rdtsc(void)                                                                                                                      
+{
+    unsigned a, d;                                                                                                                              
+    __asm __volatile("rdtsc":"=a"(a), "=d"(d));
+    return ((uint64_t)a) | (((uint64_t) d) << 32);                                                                                    
+}
+
 
 inline void RTMCompute() {
 	
@@ -98,6 +109,7 @@ void* thread_body(void *x) {
 	int lepoch = 0;
 	
 	struct timespec start, end;
+	uint64_t cstart, cend;
 	
 	uint64_t tid = (uint64_t)x;
 
@@ -113,6 +125,11 @@ void* thread_body(void *x) {
 	while(epoch == 0);
 
 	clock_gettime(CLOCK_REALTIME, &start);
+	
+#ifdef CYCLES
+	cstart = rdtsc();
+#endif
+	
 	lepoch = epoch;
 	
 	while(true) {
@@ -133,14 +150,23 @@ void* thread_body(void *x) {
 		count+= 1000;
 		
 		if(lepoch < epoch) {
+			
+#ifdef CYCLES
+			cend = rdtsc();
+#endif
 			clock_gettime(CLOCK_REALTIME, &end);
 			int t = diff_timespec(end, start);
-			printf("Thread [%d] Time %.2f s Count %ld Throughput %.3f\n", 
-						tid, t/1000.0, count, count*1000.0/t);
+			printf("Thread [%d] Time %.2f s Count %ld Throughput %.3f Cycle/Op: %.2f\n", 
+						tid, t/1000.0, count, count*1000.0/t, (cend-cstart)*1.0/count);
 
 			count = 0;
 			clock_gettime(CLOCK_REALTIME, &start);
 			lepoch = epoch;
+
+#ifdef CYCLES
+			cstart = rdtsc();
+#endif
+
 			
 		}
 

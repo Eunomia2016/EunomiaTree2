@@ -8,6 +8,8 @@
 #include <time.h>
 #include <assert.h>
 #include <sched.h>
+
+#define PROF
 #include "rtmRegion.h"
 
 typedef unsigned long uint64_t;
@@ -101,8 +103,10 @@ void* thread_body(void *x) {
 	__sync_fetch_and_add(&ready, 1);
 	
 	while(epoch == 0);
-
+	
 	clock_gettime(CLOCK_REALTIME, &start);
+
+
 	lepoch = epoch;
 	
 	while(true) {
@@ -119,14 +123,21 @@ void* thread_body(void *x) {
 				
 		}
 
-		if(lepoch < epoch) {
+		if(lepoch < epoch && tid == 1) {
+
+
+
 			clock_gettime(CLOCK_REALTIME, &end);
-			printf("Thread [%d] Time %.2f s\n", 
+			printf("Thread [%d] Time: %.2f s \n", 
 						tid, diff_timespec(end, start)/1000.0);
+
 			prof.ReportProfile();
 			prof.Reset();
 			printf("count %d\n", count);
+		
 			clock_gettime(CLOCK_REALTIME, &start);
+
+
 			lepoch = epoch;
 			
 		}
