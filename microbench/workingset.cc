@@ -115,7 +115,7 @@ void* thread_body(void *x) {
 			else if(lbench == 2)
 				Write((char *)array);
 			else if(lbench == 3)
-				ReadWrite((char *)array)
+				ReadWrite((char *)array);
 				
 		}
 
