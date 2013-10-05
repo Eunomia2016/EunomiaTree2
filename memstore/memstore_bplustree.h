@@ -14,7 +14,7 @@
 
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
-#define BTPREFETCH 1
+#define BTPREFETCH 0
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 	

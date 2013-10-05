@@ -395,10 +395,10 @@ private:
 
 	void Run(){
 
-	  //table = new leveldb::MemstoreBPlusTree();
+	  table = new leveldb::MemstoreBPlusTree();
 	  //table = new leveldb::LockfreeHashTable();
 	  //table = new leveldb::MemstoreHashTable();
-	  table = new leveldb::MemStoreSkipList();
+	  //table = new leveldb::MemStoreSkipList();
 	  //table = new MemstoreCuckooHashTable();
       store = new DBTables();
  
