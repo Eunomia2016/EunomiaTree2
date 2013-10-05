@@ -353,7 +353,7 @@ private:
 
 #endif
 		
-#if 0
+#if 1
 
 		
 		int32_t *a = (int32_t *) malloc(sizeof(int32_t) * num);

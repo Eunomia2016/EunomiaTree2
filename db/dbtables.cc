@@ -53,7 +53,8 @@ DBTables::~DBTables() {
 		else if (types[i] == SKIPLIST) delete (MemStoreSkipList *)tables[i];
 		else if (types[i] == CUCKOO) delete (MemstoreCuckooHashTable *)tables[i];
 #if !USESECONDINDEX
-		else if (types[i] == SBTREE) delete (MemstoreStringBPlusTree *)tables[i];
+//		else if (types[i] == SBTREE) delete (MemstoreStringBPlusTree *)tables[i];
+		else if (types[i] == SBTREE) delete (MemstoreUint64BPlusTree *)tables[i];
 #endif			
 	}
 	delete tables;
@@ -245,7 +246,8 @@ int DBTables::AddTable(int tableid, int index_type,int secondary_index_type)
 	else if (index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
 	else if (index_type == CUCKOO) tables[next] = new MemstoreCuckooHashTable();
 #if !USESECONDINDEX
-	else if (index_type == SBTREE) tables[next] = new MemstoreStringBPlusTree();
+//	else if (index_type == SBTREE) tables[next] = new MemstoreStringBPlusTree();
+	else if (index_type == SBTREE) tables[next] = new MemstoreUint64BPlusTree();
 #endif
 	types[next] = index_type;
 	next++;

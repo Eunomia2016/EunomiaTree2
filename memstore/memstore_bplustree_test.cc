@@ -25,7 +25,7 @@ static const char* FLAGS_benchmarks ="random";
 static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
 
-#define CHECK 0
+#define CHECK 1
 
 namespace leveldb {
 	
@@ -204,7 +204,7 @@ private:
 
 		//Step 1. Only Has 1 Node
 
-		for(int i = 0; i < 50; i++) {
+		for(uint64_t i = 0; i < 50; i++) {
 			node = btree->GetWithInsert(i);
 			node->value = (uint64_t *)i;
 		}
@@ -458,9 +458,9 @@ private:
 	void Run(){
 
 	  btree = new leveldb::MemstoreBPlusTree();
-      RunBenchmark(1, 1, &Benchmark::DeleteSingleThread);
+ //     RunBenchmark(1, 1, &Benchmark::DeleteSingleThread);
      
-	return;
+//	return;
  
      int num_threads = FLAGS_threads;  
       int num_ = FLAGS_num/num_threads;

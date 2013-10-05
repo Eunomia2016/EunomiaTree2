@@ -571,28 +571,37 @@ public:
 				InnerNode *toInsert = inner;
 				
 				if (inner->num_keys == N) {
-					
-					unsigned treshold= (N+1)/2;
+										
 					new_sibling = new_inner_node();
-					
-					new_sibling->num_keys= inner->num_keys -treshold;
 
-        			for(unsigned i=0; i < new_sibling->num_keys; ++i) {
-        				new_sibling->keys[i]= inner->keys[treshold+i];
-            			new_sibling->children[i]= inner->children[treshold+i];
-        			}
-					
-        			new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
-        			inner->num_keys= treshold-1;
-
-					upKey = inner->keys[treshold-1];
-
-					if (new_leaf->keys[0] >= upKey) {
+					if (new_leaf->num_keys == 1) {
+						new_sibling->num_keys = 0;
+						upKey = new_leaf->keys[0];
 						toInsert = new_sibling;
-						if (k >= treshold) k = k - treshold; 
-						else k = 0;
+						k = -1;
 					}
-					inner->keys[N-1] = upKey;
+					else {
+						unsigned treshold= (N+1)/2;
+						new_sibling->num_keys= inner->num_keys -treshold;
+	
+    	    			for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+        					new_sibling->keys[i]= inner->keys[treshold+i];
+            				new_sibling->children[i]= inner->children[treshold+i];
+        				}
+					
+        				new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
+        				inner->num_keys= treshold-1;
+
+						upKey = inner->keys[treshold-1];
+
+						if (new_leaf->keys[0] >= upKey) {
+							toInsert = new_sibling;
+							if (k >= treshold) k = k - treshold; 
+							else k = 0;
+						}
+					}
+//					inner->keys[N-1] = upKey;
+					new_sibling->keys[N-1] = upKey;
 //					checkConflict(new_sibling, 1);
 #if BTREE_PROF
 					writes++;
@@ -601,12 +610,15 @@ public:
 					
 				}
 				
-				for (int i=toInsert->num_keys; i>k; i--) {
-					toInsert->keys[i] = toInsert->keys[i-1];
-					toInsert->children[i+1] = toInsert->children[i];					
+				if (k != -1) {
+					for (int i=toInsert->num_keys; i>k; i--) {
+						toInsert->keys[i] = toInsert->keys[i-1];
+						toInsert->children[i+1] = toInsert->children[i];					
+					}
+					toInsert->num_keys++;
+					toInsert->keys[k] = new_leaf->keys[0];
 				}
-				toInsert->num_keys++;
-				toInsert->keys[k] = new_leaf->keys[0];
+				
 				toInsert->children[k+1] = new_leaf;
 //				checkConflict(inner, 1);
 #if BTREE_PROF
@@ -635,32 +647,43 @@ public:
 			if (new_inner != NULL) {
 				InnerNode *toInsert = inner;
 				InnerNode *child_sibling = new_inner;
+
+				
 				unsigned treshold= (N+1)/2;
 				if (inner->num_keys == N) {										
-					
 					new_sibling = new_inner_node();
-					new_sibling->num_keys= inner->num_keys -treshold;
 					
-                    for(unsigned i=0; i < new_sibling->num_keys; ++i) {
-                    	new_sibling->keys[i]= inner->keys[treshold+i];
-                        new_sibling->children[i]= inner->children[treshold+i];
-                    }
-                    new_sibling->children[new_sibling->num_keys]=
+					if (child_sibling->num_keys == 0) {
+						new_sibling->num_keys = 0;
+						upKey = child_sibling->keys[N-1];
+						toInsert = new_sibling;
+						k = -1;
+					}
+					
+					else  {
+						new_sibling->num_keys= inner->num_keys -treshold;
+					
+	                    for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+    	                	new_sibling->keys[i]= inner->keys[treshold+i];
+        	                new_sibling->children[i]= inner->children[treshold+i];
+            	        }
+                	    new_sibling->children[new_sibling->num_keys]=
                                 inner->children[inner->num_keys];
                                 
-                    //XXX: should threshold ???
-                    inner->num_keys= treshold-1;
+                    	//XXX: should threshold ???
+	                    inner->num_keys= treshold-1;
 					
-					upKey = inner->keys[treshold-1];
-					//printf("UP %lx\n",upKey);
-					if (key >= upKey) {
-						toInsert = new_sibling;
-						if (k >= treshold) k = k - treshold; 
-						else k = 0;
+						upKey = inner->keys[treshold-1];
+						//printf("UP %lx\n",upKey);
+						if (key >= upKey) {
+							toInsert = new_sibling;
+							if (k >= treshold) k = k - treshold; 
+							else k = 0;
+						}
 					}
-
 					//XXX: what is this used for???
-					inner->keys[N-1] = upKey;
+					//inner->keys[N-1] = upKey;
+					new_sibling->keys[N-1] = upKey;
 
 #if BTREE_PROF
 					writes++;
@@ -668,15 +691,15 @@ public:
 //					new_sibling->writes++;
 //					checkConflict(new_sibling, 1);
 				}	
-				
-				for (int i=toInsert->num_keys; i>k; i--) {
-					toInsert->keys[i] = toInsert->keys[i-1];
-					toInsert->children[i+1] = toInsert->children[i];					
-				}
+				if (k != -1) {
+					for (int i=toInsert->num_keys; i>k; i--) {
+						toInsert->keys[i] = toInsert->keys[i-1];
+						toInsert->children[i+1] = toInsert->children[i];					
+					}
 			
-				toInsert->num_keys++;
-				toInsert->keys[k] = reinterpret_cast<InnerNode*>(child)->keys[N-1];
-
+					toInsert->num_keys++;
+					toInsert->keys[k] = reinterpret_cast<InnerNode*>(child_sibling)->keys[N-1];
+				}
 				toInsert->children[k+1] = child_sibling;
 														
 #if BTREE_PROF
@@ -744,20 +767,27 @@ public:
 		LeafNode *toInsert = leaf;
 		if (leaf->num_keys == M) {
 			new_sibling = new_leaf_node();
-			unsigned threshold= (M+1)/2;
-			new_sibling->num_keys= leaf->num_keys -threshold;
-            for(unsigned j=0; j < new_sibling->num_keys; ++j) {
-            	new_sibling->keys[j]= leaf->keys[threshold+j];
-				new_sibling->values[j]= leaf->values[threshold+j];
-            }
-            leaf->num_keys= threshold;
+
+			if (leaf->right == NULL && k == leaf->num_keys) {
+				new_sibling->num_keys = 0;
+				toInsert = new_sibling;
+				k = 0;
+			}
+			else {
+				unsigned threshold= (M+1)/2;
+				new_sibling->num_keys= leaf->num_keys -threshold;
+    	        for(unsigned j=0; j < new_sibling->num_keys; ++j) {
+        	    	new_sibling->keys[j]= leaf->keys[threshold+j];
+					new_sibling->values[j]= leaf->values[threshold+j];
+            	}
+            	leaf->num_keys= threshold;
 			
 
-			if (k>=threshold) {
-				k = k - threshold;
-				toInsert = new_sibling;
+				if (k>=threshold) {
+					k = k - threshold;
+					toInsert = new_sibling;
+				}
 			}
-
 			if (leaf->right != NULL) leaf->right->left = new_sibling;
 			new_sibling->right = leaf->right;
 			new_sibling->left = leaf;

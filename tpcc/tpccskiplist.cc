@@ -69,29 +69,47 @@ namespace leveldb {
     return id;
   }
 
+  static void convertString(char *newstring, char *oldstring) {
+  	for (int i=0; i<8; i++)
+		newstring[7 -i] = oldstring[i];
+	
+  	for (int i=8; i<16; i++)
+		newstring[23 -i] = oldstring[i];
+#if 0	
+	for (int i=0; i<16; i++)
+		printf("%lx ", oldstring[i]);
+	printf("\n");
+	for (int i=0; i<16; i++)
+		printf("%lx ", newstring[i]);
+	printf("\n");		
+#endif
+  }
+
   static uint64_t makeCustomerIndex(int32_t w_id, int32_t d_id, char* c_last, char* c_first) {
-  	char *seckey = new char[38];
+	int ptr_end = strcspn(c_last, "\0");
+	memset(c_last+ptr_end, 0, 17 - ptr_end);
+	ptr_end = strcspn(c_first, "\0");
+	memset(c_first+ptr_end, 0, 17 - ptr_end);
+	uint64_t *seckey = new uint64_t[5];
   	int32_t did = d_id + (w_id * District::NUM_PER_WAREHOUSE);
-	memcpy(seckey, &did, 4);
-	memcpy(seckey+4, c_last, 17);
-	//if (c_last[17] != '/0') printf("--\n"); 
-	memcpy(seckey+21, c_first, 17);
+	seckey[0] = did;
+	convertString((char *)(&seckey[1]), c_last);
+	convertString((char *)(&seckey[3]), c_first);
+#if 0	
+	printf("%d %d %s %s \n", w_id, d_id, c_last, c_first);
+	for (int i= 0;i<5; i++)
+		printf("%lx ",seckey[i]);
+	printf("\n");
+#endif	
 	return (uint64_t)seckey;
   }
 
   static bool compareCustomerIndex(uint64_t key, uint64_t bound){
-  	char *a = (char *)key;
-//	printf("last %s\n",a+4);
-	char *b = (char *)bound;
-	
-	for (int i=0; i<38; i++){	
-	//	printf("i%d %ud %ud\n",i,a[i] ,b[i]);
-		if ((uint8_t)a[i] > (uint8_t)b[i]) return false;
-		if ((uint8_t)a[i] < (uint8_t)b[i]) return true;
-		if (i > 4 && i < 21 && a[i] == 0)
-			i = 20;
-		else if (i > 20 &&	a[i] == 0)
-			return true;
+	uint64_t *k = (uint64_t *)key;
+	uint64_t *b = (uint64_t *)bound;
+	for (int i=0; i<5; i++) {
+		if (k[i] > b[i]) return false;
+		if (k[i] < b[i]) return true;
 	}
 	return true;
 	
@@ -888,7 +906,7 @@ namespace leveldb {
 	  output->d_tax = d->d_tax;
 	  
 	  output->o_id = d->d_next_o_id;
-      //printf("%d %d %d\n", warehouse_id, district_id, output->o_id);
+    //  printf("[%lx] %d %d %d\n",  pthread_self(), warehouse_id, district_id, output->o_id );
   	  //District *newd = new District();
 	  updateDistrict(district_dummy, d);
 	  //d->d_next_o_id = d->d_next_o_id + 1;
@@ -959,7 +977,7 @@ namespace leveldb {
   	  assert(strlen(order_dummy->o_entry_d) == DATETIME_SIZE);
 	  int64_t o_key = makeOrderKey(warehouse_id, district_id, order_dummy->o_id);
 	  uint64_t *o_value = reinterpret_cast<uint64_t *>(order_dummy);
-	  int64_t o_sec = makeOrderIndex(warehouse_id, district_id, customer_id, output->o_id);
+	  int64_t o_sec = makeOrderIndex(warehouse_id, district_id, customer_id, order_dummy->o_id);
 #if SEC_INDEX
 #if USESECONDINDEX
 	  tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, o_value, sizeof(Order));
@@ -968,7 +986,9 @@ namespace leveldb {
 	  uint64_t *value;
 	  bool f = tx.Get(ORDER_INDEX, o_sec, &value);
 	  if (f) {
-		printf("!!!\n");
+	//	printf("[%lx] !!! %lx\n", pthread_self(),o_key );
+	//	printf("[%lx] prikey %lx\n", pthread_self(),value[1]);
+		//exit(0);
 	  	//std::vector<uint64_t> *v = (std::vector<uint64_t> *)value;	
 		//memcpy(vector_dummy, v, sizeof(v));
 		//vector_dummy->push_back(o_key);
@@ -982,6 +1002,7 @@ namespace leveldb {
 		tx.Add(ORDER_INDEX, o_sec, prikeys, (num+2)*8);
 	  }
 	  else {
+	//  	printf("[%lx] %lx\n", pthread_self(), o_key );
 	  //	vector_dummy->clear();
 	//	vector_dummy->push_back(o_key);
 	//	uint64_t *array = new uint64_t[2];
@@ -1150,10 +1171,15 @@ namespace leveldb {
 	
 	  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
  	//  printf("Step 13\n");
- 	
+ 	//printf("[%lx] try to commit \n", pthread_self());
  	  bool b = tx.End();  
 
-  	  if (b) break;
+  	  if (b) {
+	  //	printf("%lx \n", o_key);
+	  //	printf("[%lx] commit \n", pthread_self());
+	  	break;
+  	  }
+	//  else printf("[%lx] abort \n", pthread_self());
 
 #if ABORTPRO
 	  atomic_add64(&neworderabort, 1);
@@ -1276,12 +1302,12 @@ namespace leveldb {
 			uint64_t c_end = makeCustomerIndex(c_warehouse_id, c_district_id, clast, fend);
 #if 0
 
-			printf("start\n");
-			for (int i=0; i<38; i++)
-				printf("%d ",((char *)c_start)[i]);
+			printf("start   ");
+			for (int i=0; i<17; i++)
+				printf("%d ",c_last[i]);
 			printf("\n");
 			
-			printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
+	//		printf("end %d %d %s\n",c_warehouse_id, c_district_id, clast);
 #endif	
 #if USESECONDINDEX
 			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
@@ -1301,7 +1327,7 @@ namespace leveldb {
 #endif			
 				if (compareCustomerIndex(iter.Key(), c_end)){
 #if 0					
-					for (int i=0; i<38; i++)
+					for (int i=0; i<40; i++)
 						printf("%d ",((char *)iter.Key())[i]);
 					printf("\n");
 #endif

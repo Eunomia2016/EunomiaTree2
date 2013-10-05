@@ -419,8 +419,9 @@ private:
 		}
 	  }
 
-
-
+	//  printf("depth %d\n",((leveldb::MemstoreBPlusTree *)table)->depth);
+	//  table->PrintStore();
+	//  exit(0);
 
 	  void (Benchmark::*method)(ThreadState*) = NULL;
 	   if (name == "mix")
