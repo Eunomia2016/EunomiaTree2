@@ -1098,7 +1098,7 @@ retry:
   Memstore::MemNode* node = NULL;
 
   node = txdb_->tables[tableid]->GetWithInsert(key);
-  
+
 #if BUFFERNODE	
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;

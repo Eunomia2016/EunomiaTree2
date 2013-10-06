@@ -295,6 +295,7 @@ Memstore::MemNode* MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 	Memstore::MemNode* n = GetWithInsert(k);
 	n->value = val;
 	n->seq = 1;
+
 	return n;
 }
  
@@ -360,7 +361,12 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsertRTM(uint64_t key)
   	  goto found;
     }
 
-  	 int height = dummy_->height;
+	 x = dummy_;
+	 dummy_ = NULL;
+
+	 x->key = key;
+	 
+  	 int height = x->height;
 	 
      if (height > max_height_){
       for (int i = max_height_; i < height; i++) {
@@ -371,12 +377,11 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsertRTM(uint64_t key)
     	
     
     for (int i = 0; i < height; i++) {
-  		dummy_->next_[i] = preds[i]->next_[i];
-  		preds[i]->next_[i] = dummy_;	
+  		x->next_[i] = preds[i]->next_[i];
+  		preds[i]->next_[i] = x;	
     }
 
-	x = dummy_;
-	dummy_ = NULL;
+	
 	
 #if SKIPLISTGLOBALLOCK
 				  //MutexLock lock(&DBTX::storemutex);
@@ -491,7 +496,8 @@ Memstore::Iterator* MemStoreSkipList::GetIterator()
 
 void MemStoreSkipList::PrintStore(){
 
-	/*
+	printf("------Store-------\n");
+	
 	Node* cur = head_;
 		
 	while(cur != NULL)
@@ -500,22 +506,12 @@ void MemStoreSkipList::PrintStore(){
 		//Key prev = cur->key;
 		cur = cur->next_[0];
 		if(cur != NULL) {
-			printf("key %ld value %ld, seq %ld snapshot %d\n", 
-			cur->key, *cur->value, cur->seq, cur->counter);
-
-			Node* v = cur->oldVersions;
-			while(v != NULL)
-			{
-				if(v != NULL)
-					printf("key %ld value %ld, seq %ld snapshot %d\n", 
-					v->key, *v->value, v->seq, v->counter);
-				v = v->next_[0];
-			}
+			printf("key %ld value addr %lx\n", 	cur->key, cur->memVal);
 
 		}
 	}
 		
-	*/
+	/*
 
 	
 
@@ -545,7 +541,7 @@ void MemStoreSkipList::PrintStore(){
 
 		printf(" Layer %d Has %d Elements\n", i, count);
 	}
-
+*/
 }
 
 
