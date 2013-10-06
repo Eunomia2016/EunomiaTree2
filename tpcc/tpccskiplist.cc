@@ -354,7 +354,7 @@ namespace leveldb {
 	store->AddTable(ITEM, HASH, NONE);
 	store->AddTable(STOC, HASH, NONE);
 #else
-#if 1
+#if 0
 	for (int i=0; i<9; i++)
 		if (i == CUST) store->AddTable(i, BTREE, SBTREE);
 		else if (i == ORDE) store->AddTable(i, BTREE, IBTREE);
@@ -363,11 +363,10 @@ namespace leveldb {
 #else
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
-			int a = store->AddTable(i, CUCKOO, SBTREE);
-			if (a != CUST_INDEX) printf("Customer index Wrong!\n");
+			int a = store->AddTable(i, SKIPLIST, SBTREE);
 		}
-		else if (i == ORDE) store->AddTable(i, CUCKOO, IBTREE);
-		else store->AddTable(i, CUCKOO, NONE);
+		else if (i == ORDE) store->AddTable(i, SKIPLIST, IBTREE);
+		else store->AddTable(i, SKIPLIST, NONE);
 #endif
 #endif
 

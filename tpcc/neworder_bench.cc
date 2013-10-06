@@ -22,7 +22,7 @@ static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
-#define SHAREWAREHOUSE 1
+#define SHAREWAREHOUSE 0
 #define SETAFFINITY	1
 
 namespace leveldb {
@@ -171,10 +171,12 @@ class Benchmark {
 	int x = thread->tid;
 //	if (x == 0) x = 1;
 //	else if (x == 1) x = 6;
+if (x <=7) {
 	cpu_set_t  mask;
     CPU_ZERO(&mask);
     CPU_SET(x, &mask);
     sched_setaffinity(0, sizeof(mask), &mask);
+}
 #endif	
 	
     {

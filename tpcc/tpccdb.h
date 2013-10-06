@@ -9,7 +9,7 @@
 
 
 //Define if use secondary index or not
-#define SEC_INDEX 1
+#define SEC_INDEX 0
 
 
 // Avoid std::tr1::unordered_set on Mac OS X, which has compile errors

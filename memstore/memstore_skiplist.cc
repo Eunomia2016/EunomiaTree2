@@ -14,7 +14,7 @@
 
 
 #define SKIPLISTGLOBALLOCK 0
-#define SKIPLISTRTM 0
+#define SKIPLISTRTM 1
 #define SKIPLISTLOCKFREE 0
 #define NODEPROFILE 0
 
@@ -79,6 +79,7 @@ MemStoreSkipList::Node* MemStoreSkipList::NewNode(uint64_t key, int height)
   n->key = key;
   n->height = height;
   n->memVal.counter = 0;
+  n->memVal.seq = 0;
   n->memVal.value = NULL;
   n->memVal.oldVersions = NULL;
   n->next_[0] = NULL;
