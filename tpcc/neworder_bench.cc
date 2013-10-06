@@ -22,7 +22,7 @@ static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
-#define SHAREWAREHOUSE 0
+#define SHAREWAREHOUSE 1
 #define SETAFFINITY	1
 
 namespace leveldb {
@@ -355,9 +355,12 @@ class Benchmark {
 		
 		for (int i =0; i < 1000; i++) {   
 		  client.doReadOnly();
+		  
+		  //client.doStockLevel();
 		  thread->stats.FinishedSingleOp();
 		}
 	  }
+	//  printf("%ld\n", ((leveldb::TPCCSkiplist*)tables)->secs);
 	}
 };
 }
