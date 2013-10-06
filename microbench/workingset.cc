@@ -48,11 +48,13 @@ inline void Write(char * data) {
 
 inline int ReadWrite(char* data) {
 	int res = 0;
-	for(int i = 0; i < workingset; i++) {
-		if(i % 2)
-			data[i]++;
-		else
-			res += (int)data[i];
+	int i = 0;
+	for(; i < workingset/2; i++) {
+		data[i]++;
+	}
+
+	for(; i < 1024*1024 + workingset/2; i++) {
+		res += (int)data[i];
 	}
 	return res;
 }

@@ -44,51 +44,68 @@ inline uint64_t rdtsc(void)
 }
 
 
-inline void RTMCompute() {
-	
+inline uint64_t RTMCompute() {
+
+	uint64_t res = 0;
+		
 	for(int i = 0; i < workingset; i++) {		
 		RTMRegion rtm(NULL);
 #if READ
-		result += array[i];
+		res += array[i];
 #else
 		array[i]++;
 #endif
 	}
-	
+
+	return res;
 }
 
-inline void LockCompute() {
+inline uint64_t LockCompute() {
 
+	uint64_t res = 0;
+	
 	for(int i = 0; i < workingset; i++) {
 		
 		LockRegion l(&lock);
 #if READ
-		result += array[i];
+		res += array[i];
 #else
 		array[i]++;
 #endif
 	}
+
+	return res;
 }
 
-inline void AtomicCompute() {
+inline uint64_t AtomicCompute() {
+
+	uint64_t res = 0;
+	
 	for(int i = 0; i < workingset; i++) {
 #if READ
-	  atomic_add64(&result, array[i]);
+	  atomic_add64(&res, array[i]);
 #else
 	  atomic_inc64(&array[i]);
 #endif
 	}
+
+	return res;
 }
 
-inline void RawCompute() {
+inline uint64_t RawCompute() {
+
+	uint64_t res = 0;
+	
 	for(int i = 0; i < workingset; i++) {
 #if READ
-		result += array[i];
+		res += array[i];
 #else
 		array[i]++;
 #endif
 
 	}
+
+	return res;
 }
 
 
@@ -132,6 +149,7 @@ void* thread_body(void *x) {
 	
 	struct timespec start, end;
 	uint64_t cstart, cend;
+	int  tmp;
 	
 	uint64_t tid = (uint64_t)x;
 
@@ -159,13 +177,13 @@ void* thread_body(void *x) {
 		for(int i = 0; i < 1000; i++)
 		{
 			if(lbench == 1)
-				RTMCompute();
+				tmp += RTMCompute();
 			else if(lbench == 2)
-				LockCompute();
+				tmp += LockCompute();
 			else if(lbench == 3)
-				AtomicCompute();
+				tmp += AtomicCompute();
 			else if(lbench == 4)
-				RawCompute();
+				tmp += RawCompute();
 				
 		}
 
@@ -180,7 +198,7 @@ void* thread_body(void *x) {
 			int t = diff_timespec(end, start);
 			printf("Thread [%d] Time %.2f s Count %ld Throughput %.3f Cycle/Op: %.2f\n", 
 						tid, t/1000.0, count, count*1000.0/t, (cend-cstart)*1.0/count);
-
+			printf("TMP %d\n", tmp);
 			count = 0;
 			clock_gettime(CLOCK_REALTIME, &start);
 			lepoch = epoch;

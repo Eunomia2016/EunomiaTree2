@@ -34,15 +34,17 @@ DBROTX::~DBROTX()
 
 void DBROTX::Begin()
 {
-//fetch and increase the global snapshot counter
-#if GLOBALOCK
-  SpinLockScope slock(&DBTX::slock);
-#endif
- 
+//fetch and increase the global snapshot counter 
   txdb_->RCUTXBegin();
 
-  oldsnapshot = atomic_fetch_and_add64(&txdb_->snapshot, 1);
+#if GLOBALOCK
+	SpinLockScope slock(&DBTX::slock);
+#else
+	RTMScope rtm(NULL); 
+#endif
 
+	oldsnapshot = txdb_->snapshot;
+	txdb_->snapshot++;
   
   //printf("snapshot %ld\n", txdb_->snapshot);
 }
