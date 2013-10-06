@@ -227,6 +227,9 @@ write_batch_test: db/write_batch_test.o $(LIBOBJECTS) $(TESTHARNESS)
 ycsb_test: ycsb/ycsb_test.o $(LIBOBJECTS) $(TESTHARNESS)
 	$(CXX) $(LDFLAGS) ycsb/ycsb_test.o $(LIBOBJECTS) $(TESTHARNESS) -o $@ $(LIBS)
 
+ycsb_tree_test: ycsb/ycsb_tree_test.o $(LIBOBJECTS) $(TESTHARNESS)
+	$(CXX) $(LDFLAGS) ycsb/ycsb_tree_test.o $(LIBOBJECTS) $(TESTHARNESS) -o $@ $(LIBS)
+
 $(MEMENVLIBRARY) : $(MEMENVOBJECTS)
 	rm -f $@
 	$(AR) -rs $@ $(MEMENVOBJECTS)

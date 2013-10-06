@@ -24,7 +24,6 @@ class TPCCSkiplist : public TPCCDB {
  public :
   
   DBTables* store;
-
   uint64_t abort;
   uint64_t conflict;
   uint64_t capacity;
@@ -105,7 +104,7 @@ class TPCCSkiplist : public TPCCDB {
   static __thread NewOrder *neworder_dummy;
   static __thread std::vector<uint64_t> *vector_dummy;
   static __thread uint64_t *array_dummy;
-
+  static __thread uint64_t secs;
   inline unsigned long rdtsc(void)                                                                                                                      
   {
         unsigned a, d;                                                                                                                              

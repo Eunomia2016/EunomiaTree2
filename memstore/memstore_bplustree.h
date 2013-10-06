@@ -842,7 +842,301 @@ public:
 	void PrintStore();
 	void PrintList();
 
-//Test Purpose	
+//YCSB TREE COMPARE Test Purpose	
+	void TPut(uint64_t key, uint64_t *value){	
+#if BTREE_LOCK
+		MutexSpinLock lock(&slock);
+#else
+		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+#endif
+		
+			if (root == NULL) {
+				root = new_leaf_node();
+				reinterpret_cast<LeafNode*>(root)->left = NULL;
+				reinterpret_cast<LeafNode*>(root)->right = NULL;
+				reinterpret_cast<LeafNode*>(root)->seq = 0;
+				depth = 0;
+			}
+	
+			if (depth == 0) {
+				LeafNode *new_leaf = TLeafInsert(key, reinterpret_cast<LeafNode*>(root), value);
+				if (new_leaf != NULL) {
+					InnerNode *inner = new_inner_node();
+					inner->num_keys = 1;
+					inner->keys[0] = new_leaf->keys[0];
+					inner->children[0] = root;
+					inner->children[1] = new_leaf;
+					depth++;
+					root = inner;
+	//				checkConflict(inner, 1);
+	//				checkConflict(&root, 1);
+#if BTREE_PROF
+					writes++;
+#endif
+	//				inner->writes++;
+				}
+			}
+			else {
+	
+#if BTPREFETCH
+				for(int i = 0; i <= 64; i+= 64)
+					prefetch(reinterpret_cast<char*>(root) + i);
+#endif
+	
+				TInnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, value);
+				
+			}
+	
+	}
+
+	
+	
+	inline LeafNode* TLeafInsert(uint64_t key, LeafNode *leaf, uint64_t *value) {
+					
+			LeafNode *new_sibling = NULL;
+			unsigned k = 0;
+			while((k < leaf->num_keys) && (leaf->keys[k]<key)) {
+			   ++k;
+			}
+	
+			if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
+				
+				leaf->values[k] = (Memstore::MemNode *)value;
+
+				return NULL;
+			}
+				
+	
+			LeafNode *toInsert = leaf;
+			if (leaf->num_keys == M) {
+				new_sibling = new_leaf_node();
+	
+				if (leaf->right == NULL && k == leaf->num_keys) {
+					new_sibling->num_keys = 0;
+					toInsert = new_sibling;
+					k = 0;
+				}
+				else {
+					unsigned threshold= (M+1)/2;
+					new_sibling->num_keys= leaf->num_keys -threshold;
+					for(unsigned j=0; j < new_sibling->num_keys; ++j) {
+						new_sibling->keys[j]= leaf->keys[threshold+j];
+						new_sibling->values[j]= leaf->values[threshold+j];
+					}
+					leaf->num_keys= threshold;
+				
+	
+					if (k>=threshold) {
+						k = k - threshold;
+						toInsert = new_sibling;
+					}
+				}
+				if (leaf->right != NULL) leaf->right->left = new_sibling;
+				new_sibling->right = leaf->right;
+				new_sibling->left = leaf;
+				leaf->right = new_sibling;
+				new_sibling->seq = 0;
+#if BTREE_PROF
+				writes++;
+#endif
+	//			new_sibling->writes++;
+	//			checkConflict(new_sibling, 1);
+			}
+			
+			
+			//printf("IN LEAF1 %d\n",toInsert->num_keys);
+			//printTree();
+	
+
+	
+			for (int j=toInsert->num_keys; j>k; j--) {
+				toInsert->keys[j] = toInsert->keys[j-1];
+				toInsert->values[j] = toInsert->values[j-1];
+			}
+			
+			toInsert->num_keys = toInsert->num_keys + 1;
+			toInsert->keys[k] = key;
+			toInsert->values[k] = (Memstore::MemNode *)value;
+	
+
+			return new_sibling;
+	}
+
+
+	inline InnerNode* TInnerInsert(uint64_t key, InnerNode *inner, int d, uint64_t* value) {
+		
+
+
+		unsigned k = 0;
+		uint64_t upKey;
+		InnerNode *new_sibling = NULL;
+
+		while((k < inner->num_keys) && (key >= inner->keys[k])) {
+		   ++k;
+		}
+
+
+		void *child = inner->children[k];
+
+#if BTPREFETCH
+		for(int i = 0; i <= 64; i+= 64)
+			prefetch(reinterpret_cast<char*>(child) + i);
+#endif
+
+
+		if (d == 1) {
+
+			LeafNode *new_leaf = TLeafInsert(key, reinterpret_cast<LeafNode*>(child), value);
+
+			if (new_leaf != NULL) {
+				
+				InnerNode *toInsert = inner;
+				
+				if (inner->num_keys == N) {
+										
+					new_sibling = new_inner_node();
+
+					if (new_leaf->num_keys == 1) {
+						new_sibling->num_keys = 0;
+						upKey = new_leaf->keys[0];
+						toInsert = new_sibling;
+						k = -1;
+					}
+					else {
+						unsigned treshold= (N+1)/2;
+						new_sibling->num_keys= inner->num_keys -treshold;
+	
+    	    			for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+        					new_sibling->keys[i]= inner->keys[treshold+i];
+            				new_sibling->children[i]= inner->children[treshold+i];
+        				}
+					
+        				new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
+        				inner->num_keys= treshold-1;
+
+						upKey = inner->keys[treshold-1];
+
+						if (new_leaf->keys[0] >= upKey) {
+							toInsert = new_sibling;
+							if (k >= treshold) k = k - treshold; 
+							else k = 0;
+						}
+					}
+//					inner->keys[N-1] = upKey;
+					new_sibling->keys[N-1] = upKey;
+
+					
+				}
+				
+				if (k != -1) {
+					for (int i=toInsert->num_keys; i>k; i--) {
+						toInsert->keys[i] = toInsert->keys[i-1];
+						toInsert->children[i+1] = toInsert->children[i];					
+					}
+					toInsert->num_keys++;
+					toInsert->keys[k] = new_leaf->keys[0];
+				}
+				
+				toInsert->children[k+1] = new_leaf;
+
+			}
+
+			
+//			if (new_sibling!=NULL && new_sibling->num_keys == 0) printf("sibling\n");
+		}
+		else {
+			
+
+			bool s = true;
+			InnerNode *new_inner = 
+				TInnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, value);
+			
+			
+			if (new_inner != NULL) {
+				InnerNode *toInsert = inner;
+				InnerNode *child_sibling = new_inner;
+
+				
+				unsigned treshold= (N+1)/2;
+				if (inner->num_keys == N) {										
+					new_sibling = new_inner_node();
+					
+					if (child_sibling->num_keys == 0) {
+						new_sibling->num_keys = 0;
+						upKey = child_sibling->keys[N-1];
+						toInsert = new_sibling;
+						k = -1;
+					}
+					
+					else  {
+						new_sibling->num_keys= inner->num_keys -treshold;
+					
+	                    for(unsigned i=0; i < new_sibling->num_keys; ++i) {
+    	                	new_sibling->keys[i]= inner->keys[treshold+i];
+        	                new_sibling->children[i]= inner->children[treshold+i];
+            	        }
+                	    new_sibling->children[new_sibling->num_keys]=
+                                inner->children[inner->num_keys];
+                                
+                    	//XXX: should threshold ???
+	                    inner->num_keys= treshold-1;
+					
+						upKey = inner->keys[treshold-1];
+						//printf("UP %lx\n",upKey);
+						if (key >= upKey) {
+							toInsert = new_sibling;
+							if (k >= treshold) k = k - treshold; 
+							else k = 0;
+						}
+					}
+					//XXX: what is this used for???
+					//inner->keys[N-1] = upKey;
+					new_sibling->keys[N-1] = upKey;
+
+
+				}	
+				if (k != -1) {
+					for (int i=toInsert->num_keys; i>k; i--) {
+						toInsert->keys[i] = toInsert->keys[i-1];
+						toInsert->children[i+1] = toInsert->children[i];					
+					}
+			
+					toInsert->num_keys++;
+					toInsert->keys[k] = reinterpret_cast<InnerNode*>(child_sibling)->keys[N-1];
+				}
+				toInsert->children[k+1] = child_sibling;
+														
+
+			}
+
+	
+			
+		}
+		
+		if (d==depth && new_sibling != NULL) {
+			InnerNode *new_root = new_inner_node();			
+			new_root->num_keys = 1;
+			new_root->keys[0]= upKey;
+			new_root->children[0] = root;
+			new_root->children[1] = new_sibling;
+			root = new_root;
+			depth++;	
+
+
+		}
+//		else if (d == depth) checkConflict(&root, 0);
+//		if (inner->num_keys == 0) printf("inner\n");
+		//if (new_sibling->num_keys == 0) printf("sibling\n");
+		return new_sibling;
+	}
+
+
+
+
+
+
+
 public:
 		
 		static __thread RTMArena* arena_;	  // Arena used for allocations of nodes

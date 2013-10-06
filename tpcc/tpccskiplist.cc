@@ -43,7 +43,7 @@ namespace leveldb {
   __thread NewOrder* TPCCSkiplist::neworder_dummy = NULL;
   __thread std::vector<uint64_t>* TPCCSkiplist::vector_dummy = NULL;
   __thread uint64_t* TPCCSkiplist::array_dummy = NULL; 
-
+  __thread uint64_t TPCCSkiplist::secs = 0;
   static int64_t makeWarehouseKey(int32_t w_id) {
   	int64_t id = static_cast<int64_t>(w_id);
 	return id;
@@ -336,6 +336,7 @@ namespace leveldb {
   }
   
   TPCCSkiplist::TPCCSkiplist() {
+  	secs = 0;
 #if USESECONDINDEX
 	store = new DBTables(9);
 #else
@@ -471,6 +472,7 @@ namespace leveldb {
   }
 
   TPCCSkiplist::~TPCCSkiplist() {
+  	//printf("rdtsc %ld\n",secs);
   	delete store;
 
 	printf("#Abort : %d\n", abort);
@@ -509,7 +511,6 @@ namespace leveldb {
 	printf("deliverreadcount %f max %ld min %ld\n", (float)deliverreadcount/delivernum, deliverreadmax, deliverreadmin);
 	printf("deliverwritecount %f max %ld min %ld\n", (float)deliverwritecount/delivernum, deliverwritemax, deliverwritemin);
 	printf("deliveritercount %f max %ld min %ld\n", (float)deliveritercount/delivernum, deliveritermax, deliveritermin);
-	  ieveldb::DBROTX tx(store);
 	
 #endif
   }
@@ -525,6 +526,7 @@ namespace leveldb {
 	stock_dummy = new Stock();
 	vector_dummy = new std::vector<uint64_t>();
 	array_dummy = new uint64_t[2];
+	secs = 0;
   }
 
   
@@ -2126,12 +2128,15 @@ retry:
 	    int64_t d_key = makeDistrictKey(warehouse_id, district_id);
 	  
   	    uint64_t *d_value;
+	//	uint64_t slstart = rdtsc();
 	    bool found = tx.Get(DIST, d_key, &d_value);
 #if PROFILE
 	    rcount++;
 #endif
 	    assert(found);
         District *d = reinterpret_cast<District *>(d_value);   
+	//	memcpy(district_dummy, d, sizeof(d));
+	//	secs += (rdtsc() - slstart);
 	    int32_t o_id = d->d_next_o_id;
 
 	    //-------------------------------------------------------------------------
@@ -2149,9 +2154,12 @@ retry:
 	    DBROTX::Iterator iter(&tx, ORLI);
 #endif
 	    int64_t start = makeOrderLineKey(warehouse_id, district_id, i, 1);
+	//	uint64_t slstart = rdtsc();
 	    iter.Seek(start);
+	//	secs += (rdtsc() - slstart);
 	    int64_t end = makeOrderLineKey(warehouse_id, district_id, o_id, 1);
 	    while (iter.Valid()) {
+	//	  slstart = rdtsc();
 	  	  int64_t ol_key = iter.Key();
 		  if (ol_key >= end) break;
 
@@ -2161,10 +2169,13 @@ retry:
 		  }
 #endif
 	  	  uint64_t *ol_value = iter.Value();
+		  
 #if PROFILE
 		  icount++;
 #endif
 		  OrderLine *ol = reinterpret_cast<OrderLine *>(ol_value);   
+	//	  memcpy(orderline_dummy, ol, sizeof(OrderLine));
+		  
 		  //-------------------------------------------------------------------------
 		  //All rows in the STOCK table with matching S_I_ID (equals OL_I_ID) and S_W_ID (equals W_ID) 
 		  //from the list of distinct item numbers and with S_QUANTITY lower than threshold are counted (giving low_stock).
@@ -2173,6 +2184,7 @@ retry:
 		  //printf("ol_key %ld end %ld\n",ol_key, end);
 
 		  int32_t s_i_id = ol->ol_i_id;
+//		  secs += (rdtsc() - slstart);
 
 #if 0
 		  if (s_i_id < 1 || s_i_id > Stock::NUM_STOCK_PER_WAREHOUSE)  {
@@ -2185,20 +2197,27 @@ retry:
 			
 		  }
 #endif		  
-		  
+#if 1		  
 		  int64_t s_key = makeStockKey(warehouse_id, s_i_id);
 		  
 		  uint64_t *s_value;
+	//	  slstart = rdtsc();
 		  found = tx.Get(STOC, s_key, &s_value);
+		  Stock *s = reinterpret_cast<Stock *>(s_value);
+	  
+	//	  memcpy(stock_dummy, s, sizeof(Stock));
+	//	  secs += (rdtsc() - slstart);
 #if PROFILE
 		  rcount++;
 #endif
-		  Stock *s = reinterpret_cast<Stock *>(s_value);
+		  //Stock *s = reinterpret_cast<Stock *>(s_value);
+		  //memcpy(stock_dummy, s, sizeof(Stock));
 		  if (s->s_quantity < threshold) 
 		  	s_i_ids.push_back(s_i_id);
-		  
-	  	
+#endif			  
+	//  	  slstart = rdtsc();
 		  iter.Next();
+	//	  secs += (rdtsc() - slstart);
 #if AGGRESSIVEDETECT
 		  if(tx.hasConflict()){
 		    goto retry;
