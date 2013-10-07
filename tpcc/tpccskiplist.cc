@@ -6,11 +6,11 @@
 
 #include <algorithm>
 #include <vector>
-#define SEPERATE 0
+#define SEPERATE 1
 
 #define PROFILE 0
 #define ABORTPRO 0
-#define SLDBTX	0
+#define SLDBTX	1
 #define CHECKTPCC 0
 
 
