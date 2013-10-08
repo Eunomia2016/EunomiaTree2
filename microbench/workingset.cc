@@ -22,6 +22,10 @@ struct Cacheline {
 };
 
 //critical data
+char padding0[64];
+//only used in mix model
+int readset = 16*1024;
+int writeset = 16*1024;
 char padding[64];
 int workingset = 16 * 1024; //Default ws: 16KB
 __thread Cacheline *array;
@@ -49,13 +53,17 @@ inline void Write(char * data) {
 inline int ReadWrite(char* data) {
 	int res = 0;
 	int i = 0;
-	for(; i < workingset/2; i++) {
-		data[i]++;
-	}
 
-	for(; i < 1024*1024 + workingset/2; i++) {
+	for(; i < writeset; i++) {
+			data[i]++;
+	}	
+
+	int j = i;
+	for(; i < readset + j; i++) {
 		res += (int)data[i];
 	}
+
+
 	return res;
 }
 
@@ -115,13 +123,16 @@ void* thread_body(void *x) {
 
 		
 		{
+			
 			RTMRegion rtm(&prof);
 			if(lbench == 1)
 				count += Read((char *)array);
-			else if(lbench == 2)
+			else if(lbench == 2) {
+//				count += Read((char *)array);	
 				Write((char *)array);
+			}
 			else if(lbench == 3)
-				ReadWrite((char *)array);
+				count += ReadWrite((char *)array);
 				
 		}
 
@@ -161,10 +172,13 @@ int main(int argc, char** argv) {
 			printf("./a.out --ws=working set size (KB default:16KB)\n");
 					return 1;
 		}
-		else if(sscanf(argv[i], "--ws=%d%c", &n, &junk) == 1) {
+		else if(sscanf(argv[i], "-ws=%d%c", &n, &junk) == 1) {
 			workingset = n * 1024;
-		}
-		else if(strcmp(argv[i], "-ht") == 0) {
+		}else if(sscanf(argv[i], "-wset=%d%c", &n, &junk) == 1) {
+			writeset = n * 1024;
+		}else if(sscanf(argv[i], "-rset=%d%c", &n, &junk) == 1) {
+			readset= n * 1024;
+		}else if(strcmp(argv[i], "-ht") == 0) {
 			thrnum = 2;
 		}else if(strcmp(argv[i], "-r") == 0) {
 			bench = 1;
@@ -175,7 +189,10 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	printf("Touch Work Set %d\n", workingset);
+	if(bench != 3)
+		printf("Touch Work Set %d\n", workingset);
+	else
+		printf("Read %d Write %d\n", readset, writeset);
 	
 	pthread_t th[2];
 	for(int i = 0; i < thrnum; i++)
@@ -191,7 +208,7 @@ int main(int argc, char** argv) {
 	epoch++;
 	
 	while(true) {
-		sleep(60);
+		sleep(5);
 		epoch++;
 	}
 
