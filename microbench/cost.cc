@@ -14,7 +14,7 @@
 
 #define CYCLES
 
-#define READ 1
+#define READ 0
 
 #define ARRAYSIZE 4*1024*1024/8 //4M
 #define CASHELINESIZE 64 //64 bytes
@@ -27,7 +27,7 @@ __thread uint64_t *array;
 __thread uint64_t result;
 
 char padding1[CASHELINESIZE];
-__thread uint8_t lock = 0;
+__thread uint8_t* lock;
 char padding2[CASHELINESIZE];
 
 volatile int ready = 0;
@@ -66,7 +66,7 @@ inline uint64_t LockCompute() {
 	
 	for(int i = 0; i < workingset; i++) {
 		
-		LockRegion l(&lock);
+		LockRegion l(&lock[i]);
 #if READ
 		res += array[i];
 #else
@@ -125,9 +125,12 @@ diff_timespec(const struct timespec &end, const struct timespec &start)
 
 void thread_init(){
 	//Allocate the array at heap
-	array = (uint64_t *)malloc(ARRAYSIZE * sizeof(uint64_t));	
+	array = (uint64_t *)malloc(ARRAYSIZE * sizeof(uint64_t));
+	lock = (uint8_t *)malloc(ARRAYSIZE * sizeof(uint8_t));
+	
 	//Touch every byte to avoid page fault 
 	memset(array, 0, ARRAYSIZE * sizeof(uint64_t)); 
+	memset(lock, 0, ARRAYSIZE * sizeof(uint8_t)); 
 
 }
 
