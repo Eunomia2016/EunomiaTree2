@@ -139,6 +139,8 @@ class RTMProfile {
 		if(succCounts != 0 ){
 			printf("Abort Counts %d\n", abortCounts);
 			printf("Succ Counts %d\n", succCounts);
+			printf("Capacity Counts %d\n", capacityCounts);
+			printf("Conflict Counts %d\n", conflictCounts);
 		}
 
  }

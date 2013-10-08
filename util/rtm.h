@@ -13,10 +13,12 @@
 #define MAXZERO 3
 #define MAXCAPACITY 16
 #define MAXCONFLICT 128
-#define RTMPROFILE 0
+#define RTMPROFILE 1
 
 #define MAXWRITE 64
 #define MAXREAD 128
+
+#define SIMPLERETY 1
 
 class RTMScope {
 
@@ -52,12 +54,14 @@ class RTMScope {
 	} else {
 		slock = sl;
 	}
-	
+
+#if !SIMPLERETY
 	if(read > MAXREAD || write > MAXWRITE) {
 		slock->Lock();
 		return;
 	}
-	
+#endif
+
 	while(true) {
 	    unsigned stat;
 	 	stat = _xbegin();
@@ -86,7 +90,10 @@ class RTMScope {
 			 	_mm_pause();
 		  }
 
-
+#if SIMPLERETY
+		  if(retry > 100)
+		  	break;
+#else
 
 		  int step = (read + write) / 64;
 		  
@@ -108,7 +115,8 @@ class RTMScope {
 		  if (conflict > MAXCONFLICT/step) {  	
 		  	break;
 		  }
-		
+#endif
+
 		}
 	}
 	//printf("hold lock\n");
