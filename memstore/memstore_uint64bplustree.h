@@ -166,7 +166,7 @@ public:
 
 	
 	~MemstoreUint64BPlusTree() {
-		prof.reportAbortStatus();
+	//	prof.reportAbortStatus();
 		delprof.reportAbortStatus();
 		//PrintList();
 		//PrintStore();

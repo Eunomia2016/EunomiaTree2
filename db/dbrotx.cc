@@ -5,7 +5,7 @@
 #include <string>
 #include "leveldb/db.h"
 #include "util/rtm.h"
-
+#include "port/atomic.h"
 #include "db/dbformat.h"
 #include "db/dbrotx.h"
 #include "db/dbtx.h"
@@ -42,7 +42,7 @@ void DBROTX::Begin()
 #else
 	RTMScope rtm(NULL); 
 #endif
-
+	//oldsnapshot = atomic_fetch_and_add64(&(txdb_->snapshot), 1);
 	oldsnapshot = txdb_->snapshot;
 	txdb_->snapshot++;
   
