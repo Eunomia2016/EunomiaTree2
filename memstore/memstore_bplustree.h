@@ -140,7 +140,7 @@ public:
 
 	
 	~MemstoreBPlusTree() {
-		prof.reportAbortStatus();
+		//prof.reportAbortStatus();
 		delprof.reportAbortStatus();
 		
 		//PrintList();

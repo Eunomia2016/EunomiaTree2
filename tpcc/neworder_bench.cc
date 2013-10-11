@@ -327,6 +327,7 @@ if (x <=7) {
 		thread->stats.FinishedSingleOp();
 	  }
     }
+	printf("rdtsc %ld\n", ((leveldb::TPCCSkiplist*)tables)->secs);
   }
 
   
