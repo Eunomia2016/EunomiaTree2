@@ -14,10 +14,10 @@
 
 
 #define SKIPLISTGLOBALLOCK 0
-#define SKIPLISTRTM 1
+#define SKIPLISTRTM 0
 #define SKIPLISTLOCKFREE 0
 #define NODEPROFILE 0
-
+#define SKIPLISTFINEGRAINLOCK 1
 namespace leveldb {
 
 
@@ -25,6 +25,11 @@ __thread Random* MemStoreSkipList::rnd_;
 __thread bool MemStoreSkipList::localinit_ = false;
 __thread MemStoreSkipList::Node* MemStoreSkipList::dummy_ = NULL;
 
+inline void MemoryBarrier() {
+  // See http://gcc.gnu.org/ml/gcc/2003-04/msg01180.html for a discussion on
+  // this idiom. Also see http://en.wikipedia.org/wiki/Memory_ordering.
+  __asm__ __volatile__("" : : : "memory");
+}
 
 MemStoreSkipList::MemStoreSkipList()
 {
@@ -287,6 +292,28 @@ inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key
     }
   }
 }
+inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key, Node** prev, Node** succs)
+{
+  Node* x = head_;
+  int level = kMaxHeight - 1;
+  while (true) {
+  	MemoryBarrier();
+    Node* next = x->next_[level];
+    if (next != NULL && key > next->key) {
+      // Keep searching in this list
+      x = next;
+    } else {
+      if (prev != NULL) prev[level] = x;
+	  if (succs != NULL) succs[level] = next;
+      if (level == 0) {
+        return next;
+      } else {
+        // Switch to next list
+        level--;
+      }
+    }
+  }
+}
 
 
 Memstore::MemNode* MemStoreSkipList::Put(uint64_t k,uint64_t * val)
@@ -318,8 +345,10 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsert(uint64_t key)
 	ThreadLocalInit();
 #if SKIPLISTLOCKFREE
 	Memstore::MemNode* x = GetWithInsertLockFree(key);
-#else
+#elif SKIPLISTRTM
 	Memstore::MemNode* x = GetWithInsertRTM(key);
+#elif SKIPLISTFINEGRAINLOCK
+	Memstore::MemNode* x = GetWithInsertFineGrainLock(key);
 #endif
 
 	if(dummy_ == NULL) {
@@ -328,6 +357,79 @@ Memstore::MemNode*  MemStoreSkipList::GetWithInsert(uint64_t key)
 	}
 
 	return x;
+}
+
+Memstore::MemNode* MemStoreSkipList::GetWithInsertFineGrainLock(uint64_t key)
+{
+	Node* preds[kMaxHeight];
+	Node* succs[kMaxHeight];
+	int height = RandomHeight();
+	
+	int highestLocked = -1;
+
+	while(true) {
+		//find the prevs and succs
+		Node* x = FindGreaterOrEqual(key, preds, succs);
+	
+		if(x!= NULL && x->key == key)
+			return (Memstore::MemNode*)&x->memVal;
+
+		
+		Node *pred, *succ;
+		bool valid = true;
+		Node *prevpred = NULL;
+		
+		for (int i = 0; i < height && valid; i++) {
+			pred = preds[i];
+			succ = succs[i];
+			if(pred != prevpred) {
+				pred->lock.Lock();
+				highestLocked = i;
+				prevpred = pred;
+			}
+			//check if its succ has been modified
+			MemoryBarrier();
+			valid = (succ == pred->next_[i]);			
+		}
+
+		
+		if(!valid)
+		{	
+			prevpred = NULL;
+			for (int i = 0; i < highestLocked + 1; i++) {
+				pred = preds[i];
+				succ = succs[i];
+				if(pred != prevpred) {
+					pred->lock.Unlock();
+					prevpred = pred;
+				}
+			}
+			
+			continue;
+		
+		}
+
+		 x = NewNode(key, height);
+		 
+		 
+		 for (int i = 0; i < height; i++) {
+			 x->next_[i] = preds[i]->next_[i];
+			 MemoryBarrier();
+			 preds[i]->next_[i] =  x;
+		 }
+		 
+		 prevpred = NULL;
+		 for (int i = 0; i < height; i++) {
+			 pred = preds[i];
+			 succ = succs[i];
+			 if(pred != prevpred) {
+				 pred->lock.Unlock();
+				 prevpred = pred;
+			 }
+		 }
+		 
+		 return (Memstore::MemNode*)&x->memVal;
+	}
 }
 
 

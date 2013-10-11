@@ -6,9 +6,12 @@
 #include <stdlib.h>
 #include <vector>
 #include <malloc.h>
-#include "port/port.h"
+#include "port/port.h"å
+#include "port/port_posix.h"
 #include "port/atomic.h"
 #include "util/arena.h"
+#include "util/spinlock.h"
+
 #include "util/random.h"
 #include "port/port_posix.h"
 #include "memstore/memstore.h"
@@ -26,6 +29,7 @@ class MemStoreSkipList: public Memstore {
 	uint64_t key;
 	int height;
 	MemNode memVal;
+	SpinLock lock;	
 	Node* next_[1];
   };
 
@@ -87,7 +91,7 @@ class MemStoreSkipList: public Memstore {
 
   //Only for initialization
   MemNode* Put(uint64_t k, uint64_t* val);
-  
+  MemNode* GetWithInsertFineGrainLock(uint64_t key);
   MemNode* GetWithInsertLockFree(uint64_t key);
   MemNode* GetWithInsertRTM(uint64_t key);
 
@@ -105,7 +109,8 @@ class MemStoreSkipList: public Memstore {
   
   inline uint32_t RandomHeight();
 
-  
+   
+  inline Node* FindGreaterOrEqual(uint64_t key, Node** prev,Node** succs );
   inline Node* FindGreaterOrEqual(uint64_t key, Node** prev);
 
   inline Node* FindGreaterOrEqualProfile(uint64_t key, Node** prev);
