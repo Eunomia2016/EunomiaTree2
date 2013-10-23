@@ -37,6 +37,7 @@ DBTables::DBTables(int n) {
 	next = 0;
 	nextindex = 0;
 	tables = new Memstore*[n];
+	schemas = new TableSchema[n];
 	secondIndexes = new SecondIndex*[n];
 	types = new int[n];	
 	indextypes = new int[n];
@@ -57,8 +58,11 @@ DBTables::~DBTables() {
 		else if (types[i] == SBTREE) delete (MemstoreUint64BPlusTree *)tables[i];
 #endif			
 	}
-	delete tables;
-	delete types;
+	
+	delete[] tables;
+	delete[] types;
+	delete[] schemas;
+	
 #if USESECONDINDEX
 	for (int i=0; i<nextindex; i++) {
 		if (indextypes[i] == SBTREE) delete (SecondIndexStringBPlusTree *)secondIndexes[i];
@@ -67,7 +71,9 @@ DBTables::~DBTables() {
 	delete secondIndexes;
 	delete indextypes;
 #endif	
+
 	RMQueue::rtmProf->reportAbortStatus();
+
 }
 
 
@@ -205,6 +211,16 @@ void DBTables::GC()
 	rmPool->RemoveAll();
 }
 
+void DBTables::WriteRecord(int tableid, uint64_t key, Memstore::MemNode* node)
+{
+	
+}
+
+void DBTables::WriteSnapshot(int tableid, uint64_t sn)
+{
+
+}
+
 void DBTables::ThreadLocalInit(int tid)
 {
 
@@ -235,6 +251,13 @@ void DBTables::ThreadLocalInit(int tid)
 	
 	for (int i=0; i<next; i++)
 		tables[i]->ThreadLocalInit();
+}
+
+
+void DBTables::AddSchema(int tableid, int kl, int vl)
+{
+	schemas[tableid].klen = kl;
+	schemas[tableid].vlen = vl;
 }
 
 int DBTables::AddTable(int tableid, int index_type,int secondary_index_type)

@@ -42,6 +42,11 @@ class RMPool;
 
 class DBTables {
 
+
+  struct TableSchema {
+	int klen;
+	int vlen; //We didn't support varible length of value
+  };
   
 
   public:
@@ -60,6 +65,7 @@ class DBTables {
 	uint64_t snapshot; // the counter for current snapshot
 	int number;
 	Memstore **tables;
+	TableSchema* schemas;
 	SecondIndex ** secondIndexes;
 	int *types;
 	int *indextypes;
@@ -75,6 +81,8 @@ class DBTables {
 	void ThreadLocalInit(int tid);
 	int AddTable(int tableid, int index_type, int secondary_index_type);
 
+	void AddSchema(int tableid, int kl, int vl);
+	
 	//For Epoch
 	void InitEpoch(int thr_num);	
 	void EpochTXBegin();
@@ -103,6 +111,10 @@ class DBTables {
 
 	Memstore::MemNode* GetMemNode();	
 	void GC();
+
+	//For Perisistence
+	void WriteRecord(int tableid, uint64_t key, Memstore::MemNode* node);
+	void WriteSnapshot(int tableid, uint64_t sn);
 	
 };
 

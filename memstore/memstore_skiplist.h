@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <vector>
 #include <malloc.h>
-#include "port/port.h"å
+#include "port/port.h"
 #include "port/port_posix.h"
 #include "port/atomic.h"
 #include "util/arena.h"
