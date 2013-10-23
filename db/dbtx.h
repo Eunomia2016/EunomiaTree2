@@ -23,11 +23,12 @@
 #define BUFFERNODE 1
 #define PROFILEBUFFERNODE 0
 
+//For interface
+#define COPY_WHEN_ADD 1
+
 //For deletion (read only TX)
 #define RCUGC 1
 
-//For interface
-#define COPY_WHEN_ADD 1
 
 #define LOGICALDELETE (uint64_t *)NULL
 #define HAVEREMOVED (uint64_t *)-1
