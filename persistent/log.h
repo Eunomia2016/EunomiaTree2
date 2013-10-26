@@ -28,6 +28,8 @@ class Log {
 public:
 		
 	Log(const char* path, bool sync = false);
+
+	~Log();
 	
 	void writeLog(char *data, int len);
 

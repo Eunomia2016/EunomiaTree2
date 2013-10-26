@@ -9,14 +9,14 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
-#include <assert.h>
+
 
 
 Log::Log(const char* p, bool sync): path(p)
 { 
 	length = CHUNCKSIZE;
 	//XXX: p shouldn't exist
-	int fd = open(path, O_RDWR|O_CREAT);
+	fd = open(path, O_RDWR|O_CREAT);
 	
 	if(fd < 0) {
 		perror("LOG ERROR: create log file\n");
@@ -43,6 +43,10 @@ Log::Log(const char* p, bool sync): path(p)
     }
 }
 
+Log::~Log()
+{
+	closelog();
+}
 
 void Log::enlarge(int inc_size)
 {
