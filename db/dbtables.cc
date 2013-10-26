@@ -1,4 +1,5 @@
 #include "dbtables.h"
+#include "dbtx.h"
 
 namespace leveldb {
 
@@ -45,6 +46,25 @@ DBTables::DBTables(int n) {
 	epoch = NULL;
 
 }
+
+//n: tables number, thr: threads number
+DBTables::DBTables(int n, int thrs)
+{
+	number = n;
+	next = 0;
+	nextindex = 0;
+	tables = new Memstore*[n];
+	schemas = new TableSchema[n];
+	secondIndexes = new SecondIndex*[n];
+	types = new int[n];	
+	indextypes = new int[n];
+	snapshot = 1;
+	epoch = NULL;
+
+	RCUInit(thrs);
+	
+}
+
 
 DBTables::~DBTables() {
 
@@ -211,15 +231,37 @@ void DBTables::GC()
 	rmPool->RemoveAll();
 }
 
-void DBTables::WriteRecord(int tableid, uint64_t key, Memstore::MemNode* node)
+void DBTables::PBufInit(int thrs)
 {
+	pbuf_ = new PBuf(thrs);
+}
+
+
+void DBTables::WriteUpdateRecords()
+{
+	int capacity = 0;
+	int recnum = DBTX::writeset->elems;
+
+	if(recnum == 0)
+		return;
 	
+	uint64_t sn = DBTX::writeset->kvs[0].node->counter;
+
+	pbuf_->RecordTX(sn, recnum);
+	
+	for(int i = 0; i < recnum; i++)
+	{
+		//FIXME: shouldn't directly use memnode
+		pbuf_->WriteRecord(DBTX::writeset->kvs[i].tableid, DBTX::writeset->kvs[i].key,
+			DBTX::writeset->kvs[i].node->seq, DBTX::writeset->kvs[i].node->value, 
+			schemas[DBTX::writeset->kvs[i].tableid].vlen);
+		
+		assert(sn == DBTX::writeset->kvs[0].node->counter);
+	}
 }
 
-void DBTables::WriteSnapshot(int tableid, uint64_t sn)
-{
 
-}
+	
 
 void DBTables::ThreadLocalInit(int tid)
 {
@@ -241,6 +283,9 @@ void DBTables::ThreadLocalInit(int tid)
 	if(rcu != NULL)
 		rcu->RegisterThread(tid);
 
+	if(pbuf_ != NULL)
+		pbuf_->RegisterThread(tid);
+	
 	nodeGCQueue = new GCQueue();
 
 	valueGCQueue = new GCQueue();

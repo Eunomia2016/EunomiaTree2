@@ -11,7 +11,6 @@ using namespace leveldb;
 
 class DELSet {
 
-
 struct DELElement {
 	int tableid;
 	uint64_t key;

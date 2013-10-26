@@ -17,6 +17,8 @@
 #include "db/objpool.h"
 #include "db/rcu.h"
 #include "db/rmpool.h"
+#include "persistent/pbuf.h"
+
 
 #define USESECONDINDEX 0
 
@@ -24,6 +26,7 @@ namespace leveldb{
 
 class RMQueue;
 class RMPool;
+class DBTX;
 
 
 #define NONE 0
@@ -41,8 +44,7 @@ class RMPool;
 #define RMThreshold 100
 
 class DBTables {
-
-
+	
   struct TableSchema {
 	int klen;
 	int vlen; //We didn't support varible length of value
@@ -73,9 +75,15 @@ class DBTables {
 	int nextindex;
 	Epoch* epoch;
 	RCU* rcu;
+	PBuf* pbuf_;
+	
 	
 	DBTables();
 	DBTables(int n);
+	
+	//n: tables number, thr: threads number
+	DBTables(int n, int thrs);
+	
 	~DBTables();
 
 	void ThreadLocalInit(int tid);
@@ -113,8 +121,8 @@ class DBTables {
 	void GC();
 
 	//For Perisistence
-	void WriteRecord(int tableid, uint64_t key, Memstore::MemNode* node);
-	void WriteSnapshot(int tableid, uint64_t sn);
+	void PBufInit(int thrs);
+	void WriteUpdateRecords();
 	
 };
 
