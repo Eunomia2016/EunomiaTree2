@@ -190,6 +190,8 @@ DBTX::WriteSet::WriteSet()
 		kvs[i].val = NULL;
 		kvs[i].node = NULL;
 		kvs[i].dummy = NULL;
+		kvs[i].commitseq = 0;
+		kvs[i].commitval = NULL;
   }
   
 #if CACHESIM
@@ -377,6 +379,9 @@ inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
 //gcounter should be added into the rtm readset
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
 { 
+
+  commitSN = gcounter;
+  
   for(int i = 0; i < elems; i++) {
 	
 #if GLOBALOCK
@@ -422,9 +427,13 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		
 		uint64_t* oldval = kvs[i].node->value;
 		kvs[i].node->value = kvs[i].val;
+		kvs[i].commitval = kvs[i].val;
+		
 		kvs[i].val = oldval;
+
 		kvs[i].node->seq++;
-			
+		kvs[i].commitseq = kvs[i].node->seq;
+		
 	} else if(kvs[i].node->counter < gcounter){
 
 #if DEBUG_PRINT
@@ -469,10 +478,13 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	  	  
 	    kvs[i].node->value = kvs[i].val;
 	    kvs[i].node->seq++;
-
+		
+		kvs[i].commitseq = kvs[i].node->seq;
+		kvs[i].commitval = kvs[i].val;
+		
 	    //Fix me: here we set the val in write set to be NULL
 	    kvs[i].val = NULL;
-	   
+
 	} else {
 	  //Error Check: Shouldn't arrive here
 	  while(_xtest()) _xend();

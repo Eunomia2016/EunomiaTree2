@@ -237,6 +237,8 @@ public:
 			int tableid;
 			uint64_t key; //pointer to the written key 
 			uint64_t *val;
+			uint64_t *commitval;
+			uint64_t commitseq;
 			Memstore::MemNode* node;
 			Memstore::MemNode* dummy;
 		};
@@ -257,6 +259,8 @@ public:
 		uint64_t cachetypes[64][8];
 		int max_length;
 		int elems;
+		uint64_t commitSN;
+		
 #if USESECONDINDEX
 		int cursindex;
 #endif

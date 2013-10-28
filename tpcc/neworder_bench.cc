@@ -22,7 +22,7 @@ static int NUM_TRANSACTIONS = 100000;
 static int NUM_WAREHOUSE = 1;
 
 #define LOCALRANDOM 0
-#define SHAREWAREHOUSE 1
+#define SHAREWAREHOUSE 0
 #define SETAFFINITY	1
 
 namespace leveldb {
@@ -238,6 +238,11 @@ if (x <=7) {
     }
     shared.mu.Unlock();
 	double end_ = leveldb::Env::Default()->NowMicros() - start_;
+
+	
+  	((leveldb::TPCCSkiplist*)tables)->store->Sync();
+
+	double syncend_ = leveldb::Env::Default()->NowMicros() - start_;
 	
     for (int i = 1; i < n; i++) {
       arg[0].thread->stats.Merge(arg[i].thread->stats);
@@ -250,6 +255,7 @@ if (x <=7) {
     delete[] arg;
 
 	printf("Throughput %g tx/sec\n", NUM_TRANSACTIONS / end_  * 1e6);
+	printf("Sync Throughput %g tx/sec\n", NUM_TRANSACTIONS / syncend_  * 1e6);
 	//printf("Write records %d . Read records %d .", tables->wcount, tables->rcount );
   }
 

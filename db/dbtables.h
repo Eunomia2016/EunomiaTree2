@@ -95,6 +95,7 @@ class DBTables {
 	void InitEpoch(int thr_num);	
 	void EpochTXBegin();
 	void EpochTXEnd();
+
 	
 	void AddDeletedNodes(uint64_t **nodes, int len);
 	void GCDeletedNodes();
@@ -122,6 +123,7 @@ class DBTables {
 
 	//For Perisistence
 	void PBufInit(int thrs);
+	void Sync();
 	void WriteUpdateRecords();
 	
 };

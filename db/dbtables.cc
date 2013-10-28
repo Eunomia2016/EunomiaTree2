@@ -237,6 +237,10 @@ void DBTables::PBufInit(int thrs)
 	pbuf_ = new PBuf(thrs);
 }
 
+void DBTables::Sync()
+{
+	pbuf_->Sync();
+}
 
 void DBTables::WriteUpdateRecords()
 {
@@ -246,7 +250,7 @@ void DBTables::WriteUpdateRecords()
 	if(recnum == 0)
 		return;
 	
-	uint64_t sn = DBTX::writeset->kvs[0].node->counter;
+	uint64_t sn = DBTX::writeset->commitSN;
 
 	pbuf_->RecordTX(sn, recnum);
 	
@@ -254,7 +258,7 @@ void DBTables::WriteUpdateRecords()
 	{
 		//FIXME: shouldn't directly use memnode
 		pbuf_->WriteRecord(DBTX::writeset->kvs[i].tableid, DBTX::writeset->kvs[i].key,
-			DBTX::writeset->kvs[i].node->seq, DBTX::writeset->kvs[i].node->value, 
+			DBTX::writeset->kvs[i].commitseq, DBTX::writeset->kvs[i].commitval, 
 			schemas[DBTX::writeset->kvs[i].tableid].vlen);
 		
 		assert(sn == DBTX::writeset->kvs[0].node->counter);
