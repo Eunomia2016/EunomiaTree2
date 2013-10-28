@@ -62,6 +62,7 @@ DBTables::DBTables(int n, int thrs)
 	epoch = NULL;
 
 	RCUInit(thrs);
+	PBufInit(thrs);
 	
 }
 

@@ -26,8 +26,10 @@
 //For interface
 #define COPY_WHEN_ADD 1
 
+#define PERSISTENT 1
+
 //For deletion (read only TX)
-#define RCUGC 1
+#define RCUGC 0
 
 
 #define LOGICALDELETE (uint64_t *)NULL

@@ -738,7 +738,11 @@ bool DBTX::End()
 
 	deleteset->GCRMNodes(txdb_);
 	
-	txdb_->RCUTXEnd();	
+	txdb_->RCUTXEnd();
+	
+#if PERSISTENT
+	txdb_->WriteUpdateRecords();
+#endif
 
 #if RCUGC
 	txdb_->GC();
@@ -752,8 +756,11 @@ bool DBTX::End()
 
 ABORT:
 
-	txdb_->RCUTXEnd();	
+	txdb_->RCUTXEnd();
+	
+#if RCUGC
 	txdb_->GC();
+#endif
 
 #if DEBUG_PRINT
 	printf("[%ld] TX Abort\n", pthread_self());

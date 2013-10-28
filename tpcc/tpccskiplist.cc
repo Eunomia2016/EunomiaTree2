@@ -340,6 +340,7 @@ namespace leveldb {
 #if USESECONDINDEX
 	store = new DBTables(9);
 #else
+//	store = new DBTables(11);
 	store = new DBTables(11);
 #endif
 	//insert an end value

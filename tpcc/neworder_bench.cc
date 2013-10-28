@@ -414,6 +414,7 @@ int main(int argc, const char* argv[]) {
     //TPCCDB* tables = new leveldb::TPCCSkiplist();
     leveldb::TPCCSkiplist* tables = new leveldb::TPCCSkiplist();
 	tables->store->RCUInit(NUM_WAREHOUSE);
+	tables->store->PBufInit(NUM_WAREHOUSE);
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.

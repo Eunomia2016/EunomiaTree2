@@ -3,18 +3,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <time.h>
 #include "db/dbtx.h"
 
 using namespace leveldb;
 
 __thread int PBuf::tid_;
 
+// number of nanoseconds in 1 second (1e9)
+#define ONE_SECOND_NS 1000000000
+
+//40ms
+#define SLEEPEPOCH  ONE_SECOND_NS / 1000 * 40
+
 PBuf::PBuf(int thr)
 {
-	lbuf = new PBuf*[thr];
+	lbuf = new LocalPBuf*[thr];
 	for(int i = 0; i < thr; i++) {
 		lbuf[i] = new LocalPBuf();
 	}
+
+	logpath = "test.txt";
+	
+	logf = new Log(logpath, true);
+	
+	//Create Serialization Thread
+	pthread_t tid;
+	pthread_create(&tid, NULL, loggerThread, (void *)this);
 }
 
 PBuf::~PBuf()
@@ -36,7 +51,7 @@ void PBuf::RecordTX(uint64_t sn, int recnum)
 	if(lbuf[tid_]->EmptySlotNum() < recnum || lbuf[tid_]->GetSN() != sn) {
 		assert(lbuf[tid_]->GetSN() < sn);
 		FrozeLocalBuffer();
-		lbuf[tid_]->SetSN(sn)
+		lbuf[tid_]->SetSN(sn);
 	}
 
 }
@@ -45,6 +60,7 @@ void PBuf::RecordTX(uint64_t sn, int recnum)
 void PBuf::WriteRecord(int tabid, uint64_t key, 
 						uint64_t seqno, uint64_t* value, int vlen)
 {
+	//printf("Write Record table %d key %ld seqno %ld value len %d\n", tabid, key, seqno, vlen);
 	lbuf[tid_]->PutRecord(tabid, key, seqno, value, vlen);
 }
 
@@ -69,6 +85,47 @@ void PBuf::FrozeLocalBuffer()
 
 }
 
+void* PBuf::loggerThread(void * arg)
+{
+	PBuf* pb = (PBuf*) arg;
+
+	while(true) {
+		struct timespec t;
+		t.tv_sec  = SLEEPEPOCH / ONE_SECOND_NS;
+     	t.tv_nsec = SLEEPEPOCH % ONE_SECOND_NS;
+      	nanosleep(&t, NULL);
+	  	
+		pb->Writer();
+	}
+}
+
+void PBuf::Writer()
+{
+
+	if(frozenbufs == NULL)
+		return;
+	
+	frozenlock.Lock();
+	LocalPBuf* lfbufs = frozenbufs;
+	frozenbufs = NULL;
+	frozenlock.Unlock();
+
+	LocalPBuf* cur = lfbufs;
+	LocalPBuf* tail = cur;
+	
+	while(cur != NULL) {
+		cur->Serialize(logf);
+		tail = cur;
+		cur =  cur->next;
+	}
+
+	
+	freelock.Lock();
+	assert(tail != NULL && tail->next == NULL);
+	tail->next = freebufs;
+	freebufs = lfbufs;
+	freelock.Unlock();
+}
 
 void PBuf::Print()
 {

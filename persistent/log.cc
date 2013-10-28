@@ -16,6 +16,7 @@ Log::Log(const char* p, bool sync): path(p)
 { 
 	length = CHUNCKSIZE;
 	//XXX: p shouldn't exist
+	printf("Create log %s\n", path);
 	fd = open(path, O_RDWR|O_CREAT);
 	
 	if(fd < 0) {
