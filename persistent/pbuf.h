@@ -4,10 +4,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
+#include <pthread.h>
 #include "util/spinlock.h"
+#include "log.h"
+
+
 
 #define BSIZE 64*1024 //64KB
-#define LOGPATH "log/test.persist"
 
 class LocalPBuf {
 
@@ -63,13 +66,35 @@ public:
 		sn = 0;
 		next = NULL;
 	}
+
+	void Serialize(Log* lf) {
+		
+		for(int i = 0; i < cur; i++) {
+			lf->writeLog((char *)&buf[i].tableid, sizeof(int));
+			lf->writeLog((char *)&buf[i].key, sizeof(uint64_t));
+			lf->writeLog((char *)&buf[i].seqno, sizeof(uint64_t));
+			
+			if(buf[i].value == NULL) {
+				uint64_t nulval = -1;
+				lf->writeLog((char *)&nulval, sizeof(uint64_t));
+			} else {
+				lf->writeLog((char *)buf[i].value, buf[i].vlen);
+			}
+		}
+	}
 	
 };
 
 class PBuf {
 	
 static __thread int tid_;
+static volatile bool sync_;
 
+pthread_t write_id;
+
+char * logpath;
+
+int buflen;
 LocalPBuf** lbuf;
 
 SpinLock frozenlock;
@@ -78,6 +103,8 @@ LocalPBuf* frozenbufs;
 SpinLock freelock;
 LocalPBuf* freebufs;
 
+Log* logf;
+
 
 public:
 
@@ -85,6 +112,8 @@ public:
 	
 	~PBuf();
 
+	static void* loggerThread(void * arg);
+	
 	void RegisterThread(int tid);
 
 	void RecordTX(uint64_t sn, int recnum);
@@ -92,10 +121,14 @@ public:
 	void WriteRecord(int tabid, uint64_t key, 
 		uint64_t seqno, uint64_t* value, int vlen);
 	
-	void FrozeLocalBuffer();
+	void FrozeLocalBuffer(int idx);
+
+	void FrozeAllBuffer();
+
+	void Sync();
 
 	void Writer();
-
+		
 	void Print();
 	
 };

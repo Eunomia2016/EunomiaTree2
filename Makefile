@@ -6,11 +6,14 @@
 # Uncomment exactly one of the lines labelled (A), (B), and (C) below
 # to switch between compilation modes.
 
-#OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
-OPT ?= -g2              # (B) Debug mode, w/ full line-level debugging symbols
+OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
+#OPT ?= -g2              # (B) Debug mode, w/ full line-level debugging symbols
 #OPT ?= -O2 -g2 -DNDEBUG
 #OPT ?= -O2 -fno-omit-frame-pointer -g2 -DNDEBUG # (C) Profiling mode: opt, but w/debugging symbols
 #-----------------------------------------------
+
+CC=gcc-4.8
+CXX=g++-4.8
 
 # detect what platform we're building on
 $(shell CC=$(CC) CXX=$(CXX) TARGET_OS=$(TARGET_OS) \
@@ -19,7 +22,7 @@ $(shell CC=$(CC) CXX=$(CXX) TARGET_OS=$(TARGET_OS) \
 include build_config.mk
 
 CFLAGS += -I. -I./include $(PLATFORM_CCFLAGS) $(OPT)
-CXXFLAGS += -I. -I./include $(PLATFORM_CXXFLAGS) $(OPT)
+CXXFLAGS += -I. -I./include $(PLATFORM_CXXFLAGS) $(OPT)  -std=c++0x 
 
 LDFLAGS += $(PLATFORM_LDFLAGS)
 LIBS += $(PLATFORM_LIBS)
@@ -105,6 +108,9 @@ db_bench: db/db_bench.o $(LIBOBJECTS) $(TESTUTIL)
 
 tpcc_bench: tpcc/tpcc_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) tpcc/tpcc_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+
+dbtest: silo_benchmark/dbtest.o $(LIBOBJECTS) $(TESTUTIL)
+	$(CXX) $(LDFLAGS) silo_benchmark/dbtest.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
 neworder_bench: tpcc/neworder_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) tpcc/neworder_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
