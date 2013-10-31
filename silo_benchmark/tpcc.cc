@@ -1009,11 +1009,11 @@ protected:
             if (RandomNumber(r, 1, 100) > 10) {
               const string s_data = RandomStr(r, len);
 //              v_data.s_data.assign(s_data);
-			  v->s_data.assign(s_data);
+//			  v->s_data.assign(s_data);
             } else {
               const int startOriginal = RandomNumber(r, 2, (len - 8));
               const string s_data = RandomStr(r, startOriginal + 1) + "ORIGINAL" + RandomStr(r, len - startOriginal - 7);
-			  v->s_data.assign(s_data);
+//			  v->s_data.assign(s_data);
 //			  v_data.s_data.assign(s_data);
             }
 /*			
@@ -1027,7 +1027,7 @@ protected:
             v_data.s_dist_08.assign(RandomStr(r, 24));
             v_data.s_dist_09.assign(RandomStr(r, 24));
             v_data.s_dist_10.assign(RandomStr(r, 24));
-		*/
+	
 
 		v->s_dist_01.assign(RandomStr(r, 24));
 		v->s_dist_02.assign(RandomStr(r, 24));
@@ -1039,6 +1039,7 @@ protected:
 		v->s_dist_08.assign(RandomStr(r, 24));
 		v->s_dist_09.assign(RandomStr(r, 24));
 		v->s_dist_10.assign(RandomStr(r, 24));
+			*/
 
 			
 

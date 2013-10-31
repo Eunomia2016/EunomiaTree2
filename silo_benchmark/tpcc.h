@@ -163,7 +163,8 @@ DO_STRUCT(order_line, ORDER_LINE_KEY_FIELDS, ORDER_LINE_VALUE_FIELDS)
   x(int16_t,s_quantity) \
   y(float,s_ytd) \
   y(int32_t,s_order_cnt) \
-  y(int32_t,s_remote_cnt) \
+  y(int32_t,s_remote_cnt) 
+#if 0  
 	y(inline_str_8<50>,s_data) \
 	y(inline_str_fixed<24>,s_dist_01) \
 	y(inline_str_fixed<24>,s_dist_02) \
@@ -175,7 +176,7 @@ DO_STRUCT(order_line, ORDER_LINE_KEY_FIELDS, ORDER_LINE_VALUE_FIELDS)
 	y(inline_str_fixed<24>,s_dist_08) \
 	y(inline_str_fixed<24>,s_dist_09) \
 	y(inline_str_fixed<24>,s_dist_10)
-
+#endif
 
 DO_STRUCT(stock, STOCK_KEY_FIELDS, STOCK_VALUE_FIELDS)
 
