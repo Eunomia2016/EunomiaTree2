@@ -213,11 +213,12 @@ public:
   bench_runner(const bench_runner &) = delete;
   bench_runner(bench_runner &&) = delete;
   bench_runner &operator=(const bench_runner &) = delete;
-
+  
   bench_runner(abstract_db *db)
     : db(db), barrier_a(nthreads), barrier_b(1) {}
   virtual ~bench_runner() {}
   void run();
+  
 protected:
   // only called once
   virtual std::vector<bench_loader*> make_loaders() = 0;
@@ -225,6 +226,8 @@ protected:
   // only called once
   virtual std::vector<bench_worker*> make_workers() = 0;
 
+  virtual void sync_log() = 0;
+  
   abstract_db *const db;
 
   // barriers for actual benchmark execution

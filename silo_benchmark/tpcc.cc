@@ -3182,6 +3182,11 @@ public:
 }
 
 protected:
+
+  virtual void sync_log() {
+		store->Sync();
+  }
+  
   virtual vector<bench_loader *>
   make_loaders()
   {
