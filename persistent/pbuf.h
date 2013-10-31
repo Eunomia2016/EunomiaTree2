@@ -98,12 +98,15 @@ int buflen;
 LocalPBuf** lbuf;
 
 SpinLock frozenlock;
-LocalPBuf* frozenbufs;
+LocalPBuf** frozenbufs;
 
 SpinLock freelock;
 LocalPBuf* freebufs;
 
 Log* logf;
+
+//Only update in the logger thread
+volatile uint64_t safe_sn;
 
 
 public:
@@ -130,6 +133,8 @@ public:
 	void Writer();
 		
 	void Print();
+
+	uint64_t GetSafeSN() {return safe_sn;};
 	
 };
 

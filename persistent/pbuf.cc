@@ -21,12 +21,19 @@ volatile bool PBuf::sync_ = false;
 PBuf::PBuf(int thr)
 {
 	buflen = thr;
+	
 	lbuf = new LocalPBuf*[thr];
 	for(int i = 0; i < thr; i++) {
 		lbuf[i] = new LocalPBuf();
 	}
 
+	frozenbufs = new LocalPBuf*[thr];
+	for(int i = 0; i < thr; i++)
+		frozenbufs[i] = NULL;
+
 	logpath = "test.txt";
+
+	safe_sn = 0;
 	
 	logf = new Log(logpath, true);
 	
@@ -86,8 +93,8 @@ void PBuf::FrozeAllBuffer()
 void PBuf::FrozeLocalBuffer(int idx)
 {
 	frozenlock.Lock();
-	lbuf[idx]->next = frozenbufs;
-	frozenbufs = lbuf[idx];
+	lbuf[idx]->next = frozenbufs[idx];
+	frozenbufs[idx] = lbuf[idx];
 	frozenlock.Unlock();
 
 	freelock.Lock();
@@ -127,29 +134,48 @@ void* PBuf::loggerThread(void * arg)
 void PBuf::Writer()
 {
 
-	if(frozenbufs == NULL)
-		return;
-	
-	frozenlock.Lock();
-	LocalPBuf* lfbufs = frozenbufs;
-	frozenbufs = NULL;
-	frozenlock.Unlock();
+	uint64_t minsn = 0;
+	for(int i = 0; i < buflen; i++) {
 
-	LocalPBuf* cur = lfbufs;
-	LocalPBuf* tail = cur;
+		if(frozenbufs[i] == NULL)
+			continue;
 	
-	while(cur != NULL) {
-		cur->Serialize(logf);
-		tail = cur;
-		cur =  cur->next;
+		frozenlock.Lock();
+		LocalPBuf* lfbufs = frozenbufs[i];
+		frozenbufs[i] = NULL;
+		frozenlock.Unlock();
+
+		LocalPBuf* cur = lfbufs;
+		LocalPBuf* tail = cur;
+
+		uint64_t cursn = cur->GetSN();
+		
+		assert(cursn >= safe_sn);
+		
+		if( i == 0 || minsn > cursn) {
+			minsn = cursn;	
+		}
+		
+		
+		while(cur != NULL) {
+			
+			assert(cursn >= cur->GetSN());
+			
+			cur->Serialize(logf);
+			tail = cur;
+			cur =  cur->next;
+		}
+
+	
+		freelock.Lock();
+		assert(tail != NULL && tail->next == NULL);
+		tail->next = freebufs;
+		freebufs = lfbufs;
+		freelock.Unlock();
 	}
 
-	
-	freelock.Lock();
-	assert(tail != NULL && tail->next == NULL);
-	tail->next = freebufs;
-	freebufs = lfbufs;
-	freelock.Unlock();
+	if(minsn > safe_sn)
+		safe_sn = minsn;
 }
 
 void PBuf::Print()
