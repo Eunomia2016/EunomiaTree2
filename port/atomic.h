@@ -8,7 +8,7 @@
 #define glue(a, b) xglue(a, b)
 
 #define xstr(s) # s
-#define str(s) xstr(s)
+#define sstr(s) xstr(s)
 
 #define __inline__ inline __attribute__((always_inline))
 

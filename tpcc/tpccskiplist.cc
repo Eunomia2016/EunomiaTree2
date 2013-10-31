@@ -9,7 +9,7 @@
 #define SEPERATE 0
 
 #define PROFILE 0
-#define ABORTPRO 1
+#define ABORTPRO 0
 #define SLDBTX	0
 #define CHECKTPCC 0
 
@@ -364,10 +364,11 @@ namespace leveldb {
 #else
 	for (int i=0; i<9; i++)
 		if (i == CUST) {
-			int a = store->AddTable(i, SKIPLIST, SBTREE);
+			int a = store->AddTable(i, CUCKOO, SBTREE);
+			if (a != CUST_INDEX) printf("Customer index Wrong!\n");
 		}
-		else if (i == ORDE) store->AddTable(i, SKIPLIST, IBTREE);
-		else store->AddTable(i, SKIPLIST, NONE);
+		else if (i == ORDE) store->AddTable(i, CUCKOO, IBTREE);
+		else store->AddTable(i, CUCKOO, NONE);
 #endif
 #endif
 
@@ -872,8 +873,9 @@ namespace leveldb {
 
 	leveldb::DBTX tx(store);
 	while(true) {
-	  
+	  uint64_t slstart = rdtsc();
 	  tx.Begin();
+	  secs += (rdtsc() - slstart);
 	  //output->status[0] = '\0';
 	  //Cheat
   	  for (int i = 0; i < items.size(); ++i) 
@@ -891,7 +893,9 @@ namespace leveldb {
 	  //printf("w_key %d\n", w_key);
   	  
 	  uint64_t *w_value;  
+	  slstart = rdtsc();
  	  bool found = tx.Get(WARE, w_key, &w_value);
+	  secs += (rdtsc() - slstart);
 #if PROFILE
 	  rcount++;
 #endif
@@ -911,7 +915,9 @@ namespace leveldb {
 	  int64_t d_key = makeDistrictKey(warehouse_id, district_id);
   	  
   	  uint64_t *d_value;
+	  slstart = rdtsc();
   	  found = tx.Get(DIST, d_key, &d_value);
+	  secs += (rdtsc() - slstart);
 #if PROFILE
 	  rcount++;
 #endif
@@ -930,7 +936,9 @@ namespace leveldb {
 	  //d->d_next_o_id = d->d_next_o_id + 1;
 	  uint64_t *d_v = reinterpret_cast<uint64_t *>(district_dummy);
 #if COPY_WHEN_ADD
+	  slstart = rdtsc();
 	  tx.Add(DIST, d_key, d_v, sizeof(District));
+	  secs += (rdtsc() - slstart);
 #else 
 	  tx.Add(DIST, d_key, d_v);
 #endif
@@ -947,7 +955,9 @@ namespace leveldb {
 	  uint64_t c_key = makeCustomerKey(warehouse_id, district_id, customer_id);
   	  
   	  uint64_t *c_value;
+	  slstart = rdtsc();
 	  found = tx.Get(CUST, c_key, &c_value);
+	  secs += (rdtsc() - slstart);
 #if PROFILE
 	  rcount++;
 #endif
@@ -1000,9 +1010,13 @@ namespace leveldb {
 #if USESECONDINDEX
 	  tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, o_value, sizeof(Order));
 #else 
+	  slstart = rdtsc();
 	  tx.Add(ORDE, o_key, o_value, sizeof(Order));
+	  secs += (rdtsc() - slstart);
 	  uint64_t *value;
+	  slstart = rdtsc();
 	  bool f = tx.Get(ORDER_INDEX, o_sec, &value);
+	  secs += (rdtsc() - slstart);
 	  if (f) {
 	//	printf("[%lx] !!! %lx\n", pthread_self(),o_key );
 	//	printf("[%lx] prikey %lx\n", pthread_self(),value[1]);
@@ -1017,7 +1031,9 @@ namespace leveldb {
 		for (int i=1; i<=num; i++) 
 			prikeys[i] = value[i];
 		prikeys[num+1] = o_key;
+		slstart = rdtsc();
 		tx.Add(ORDER_INDEX, o_sec, prikeys, (num+2)*8);
+		secs += (rdtsc() - slstart);
 	  }
 	  else {
 	//  	printf("[%lx] %lx\n", pthread_self(), o_key );
@@ -1027,7 +1043,9 @@ namespace leveldb {
 		array_dummy[0] = 1;
 		array_dummy[1] = o_key; 
 	//	tx.Add(ORDER_INDEX, o_sec, (uint64_t *)vector_dummy, sizeof(vector_dummy));
+		slstart = rdtsc();
 		tx.Add(ORDER_INDEX, o_sec, array_dummy, 16);
+		secs += (rdtsc() - slstart);
 #if 0
 		uint64_t *temp;
 		tx.Get(ORDER_INDEX, o_sec, &temp);
@@ -1049,7 +1067,9 @@ namespace leveldb {
 	  int64_t no_key = makeNewOrderKey(warehouse_id, district_id, neworder_dummy->no_o_id);
 	  uint64_t *no_value = reinterpret_cast<uint64_t *>(neworder_dummy);
 #if COPY_WHEN_ADD
+	  slstart = rdtsc();
 	  tx.Add(NEWO, no_key, no_value, sizeof(NewOrder));
+	  secs += (rdtsc() - slstart);
 #else
 	  tx.Add(NEWO, no_key, no_value);
 #endif
@@ -1079,8 +1099,9 @@ namespace leveldb {
 		uint64_t i_key = makeItemKey(items[i].i_id);
 		
 		uint64_t *i_value;
-	
+		slstart = rdtsc();
 		bool found = tx.Get(ITEM, i_key, &i_value);
+		secs += (rdtsc() - slstart);
 #if PROFILE
 		rcount++;
 #endif
@@ -1113,7 +1134,9 @@ namespace leveldb {
 		
     	uint64_t *s_value;
 	    //if (items[i].i_id > 100000) printf("Unused key!\n");
+	    slstart = rdtsc();
 	    found = tx.Get(STOC, s_key, &s_value);
+		secs += (rdtsc() - slstart);
 #if PROFILE
 		rcount++;
 #endif
@@ -1132,9 +1155,9 @@ namespace leveldb {
 		
 		output->items[i].s_quantity = s->s_quantity;
 		uint64_t *s_v = reinterpret_cast<uint64_t *>(stock_dummy);
-
+		slstart = rdtsc();
 		tx.Add(STOC, s_key, s_v, sizeof(Stock));
-
+		secs += (rdtsc() - slstart);
 #if PROFILE
 		wcount++;
 #endif
@@ -1172,9 +1195,9 @@ namespace leveldb {
 		uint64_t *l_value = reinterpret_cast<uint64_t *>(orderline_dummy);
 	//	printf("%d %d %d %d\n", line->ol_w_id, line->ol_d_id, line->ol_o_id, line->ol_number);
 	//	printf("OrderLine %lx\n", l_key);
-
+		slstart = rdtsc();
 		tx.Add(ORLI, l_key, l_value, sizeof(OrderLine));
-
+		secs += (rdtsc() - slstart);
 #if PROFILE
 		wcount++;
 #endif
@@ -1190,7 +1213,9 @@ namespace leveldb {
 	  output->total = output->total * (1 - output->c_discount) * (1 + output->w_tax + output->d_tax);
  	//  printf("Step 13\n");
  	//printf("[%lx] try to commit \n", pthread_self());
+ 	slstart = rdtsc();
  	  bool b = tx.End();  
+	  secs += (rdtsc() - slstart);
 
   	  if (b) {
 	  //	printf("%lx \n", o_key);
@@ -1848,7 +1873,7 @@ namespace leveldb {
 					}
 #endif
 					if (j >= 100) {
-						printf("P Array Full\n");
+						printf("OS Array Full\n");
 						exit(0);
 					}
 				}

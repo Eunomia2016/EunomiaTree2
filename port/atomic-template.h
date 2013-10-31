@@ -19,7 +19,7 @@
 
 static __inline__ void glue(atomic_inc, DATA_BITS)(DATA_TYPE *p) {
     asm volatile(
-        LOCK_PREFIX "inc"str(SUFFIX)" %0"
+        LOCK_PREFIX "inc" sstr(SUFFIX)" %0"
         : "+m"(*p)
         :
         : "cc");
@@ -28,7 +28,7 @@ static __inline__ void glue(atomic_inc, DATA_BITS)(DATA_TYPE *p) {
 
 static __inline__ void glue(atomic_dec, DATA_BITS)(DATA_TYPE *p) {
     asm volatile(
-        LOCK_PREFIX "dec"str(SUFFIX)" %0"
+        LOCK_PREFIX "dec" sstr(SUFFIX)" %0"
         : "+m"(*p)
         :
         : "cc");
@@ -38,7 +38,7 @@ static __inline__ void glue(atomic_dec, DATA_BITS)(DATA_TYPE *p) {
 static __inline__ void glue(atomic_add, DATA_BITS)(DATA_TYPE* addr,
         DATA_TYPE val) {
     asm volatile(
-        LOCK_PREFIX "add"str(SUFFIX)" %1, %0"
+        LOCK_PREFIX "add" sstr(SUFFIX)" %1, %0"
         : "+m"(*addr)
         : "a"(val)
         : "cc");
@@ -49,7 +49,7 @@ static __inline__ void glue(atomic_add, DATA_BITS)(DATA_TYPE* addr,
 static __inline__ DATA_TYPE glue(atomic_cmpxchg, DATA_BITS)(DATA_TYPE *addr,
         DATA_TYPE oldval, DATA_TYPE newval) {
     asm volatile(
-        LOCK_PREFIX "cmpxchg"str(SUFFIX)" %2, %1"
+        LOCK_PREFIX "cmpxchg" sstr(SUFFIX)" %2, %1"
         : "+a"(oldval), "+m"(*addr)
         : "q"(newval)
         : "cc");
@@ -58,10 +58,11 @@ static __inline__ DATA_TYPE glue(atomic_cmpxchg, DATA_BITS)(DATA_TYPE *addr,
 }
 
 /* We don't need the lock prefix for xchg. */
+
 static __inline__ DATA_TYPE glue(xchg, DATA_BITS)(DATA_TYPE *addr, DATA_TYPE val)
 {
     asm volatile(
-            "xchg"str(SUFFIX)" %0,%1"
+            "xchg" sstr(SUFFIX)" %0,%1"
             :"=r" (val)
             :"m" (*addr), "0" (val)
             :"memory");
@@ -72,7 +73,7 @@ static __inline__ DATA_TYPE glue(xchg, DATA_BITS)(DATA_TYPE *addr, DATA_TYPE val
 static __inline__ void glue(atomic_and, DATA_BITS)(DATA_TYPE *addr,
         DATA_TYPE mask) {
     asm volatile(
-        LOCK_PREFIX "and"str(SUFFIX)" %1, %0"
+        LOCK_PREFIX "and" sstr(SUFFIX)" %1, %0"
         : "+m"(*addr)
         : "r"(mask)
         : "cc");
@@ -81,7 +82,7 @@ static __inline__ void glue(atomic_and, DATA_BITS)(DATA_TYPE *addr,
 static __inline__ void glue(atomic_or, DATA_BITS)(DATA_TYPE *addr,
         DATA_TYPE mask) {
     asm volatile(
-        LOCK_PREFIX "or"str(SUFFIX)" %1, %0"
+        LOCK_PREFIX "or" sstr(SUFFIX)" %1, %0"
         : "+m"(*addr)
         : "r"(mask)
         : "cc");
@@ -91,7 +92,7 @@ static __inline__ void glue(atomic_or, DATA_BITS)(DATA_TYPE *addr,
 static __inline__ DATA_TYPE glue(atomic_fetch_and_add, DATA_BITS)(
         DATA_TYPE* addr, DATA_TYPE val) {
     asm volatile(
-        LOCK_PREFIX "xadd"str(SUFFIX)" %0, %1"
+        LOCK_PREFIX "xadd" sstr(SUFFIX)" %0, %1"
         : "+a"(val), "+m"(*addr)
         :
         : "cc");

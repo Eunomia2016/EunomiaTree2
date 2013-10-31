@@ -171,12 +171,10 @@ class Benchmark {
 	int x = thread->tid;
 //	if (x == 0) x = 1;
 //	else if (x == 1) x = 6;
-if (x <=7) {
 	cpu_set_t  mask;
     CPU_ZERO(&mask);
     CPU_SET(x, &mask);
     sched_setaffinity(0, sizeof(mask), &mask);
-}
 #endif	
 	
     {
@@ -445,7 +443,7 @@ int main(int argc, const char* argv[]) {
         generator.makeWarehouse(tables, i+1);
     }
     int64_t end = clock->getMicroseconds();
-    printf("%"PRId64" ms\n", (end - begin + 500)/1000);
+    printf("%" PRId64" ms\n", (end - begin + 500)/1000);
 
 	//tables->printSkiplist();
 	
