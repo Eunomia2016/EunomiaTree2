@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#define CHUNCKSIZE PAGESIZE //64KB
+#define CHUNCKSIZE 1024*1024 //1MB
 #define PAGESIZE 4*1024 //4KB
 
 class Log {
