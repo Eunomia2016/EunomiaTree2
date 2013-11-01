@@ -3,6 +3,12 @@
 
 namespace leveldb {
 
+// number of nanoseconds in 1 second (1e9)
+#define ONE_SECOND_NS 1000000000
+
+//40ms
+#define UPDATEPOCH  ONE_SECOND_NS / 1000 * 40
+
 
 __thread GCQueue* DBTables::nodeGCQueue = NULL;
 __thread GCQueue* DBTables::valueGCQueue = NULL;
@@ -63,6 +69,9 @@ DBTables::DBTables(int n, int thrs)
 
 	RCUInit(thrs);
 	PBufInit(thrs);
+
+	pthread_t tid;
+	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
 	
 }
 
@@ -241,6 +250,23 @@ void DBTables::Sync()
 {
 	pbuf_->Sync();
 }
+
+void* DBTables::SnapshotUpdateThread(void * arg)
+{
+	DBTables* store = (DBTables*)arg;
+	
+	while(true) {
+
+		struct timespec t;
+		t.tv_sec  = UPDATEPOCH / ONE_SECOND_NS;
+     	t.tv_nsec = UPDATEPOCH % ONE_SECOND_NS;
+      	nanosleep(&t, NULL);
+
+		//Other snapshot updates (RO TX) are protected by RTM
+		store->snapshot++;
+	}
+}
+
 
 void DBTables::WriteUpdateRecords()
 {

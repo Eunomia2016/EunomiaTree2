@@ -64,7 +64,8 @@ class DBTables {
 
 	static __thread RMPool* rmPool;
 	
-	uint64_t snapshot; // the counter for current snapshot
+	volatile uint64_t snapshot; // the counter for current snapshot
+		
 	int number;
 	Memstore **tables;
 	TableSchema* schemas;
@@ -125,6 +126,9 @@ class DBTables {
 	void PBufInit(int thrs);
 	void Sync();
 	void WriteUpdateRecords();
+
+	//An independent thread updates the snapshot number periodically	
+	static void* SnapshotUpdateThread(void * arg);
 	
 };
 

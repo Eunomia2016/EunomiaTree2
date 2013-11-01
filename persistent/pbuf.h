@@ -99,6 +99,7 @@ LocalPBuf** lbuf;
 
 SpinLock frozenlock;
 LocalPBuf** frozenbufs;
+uint64_t* localsn;
 
 SpinLock freelock;
 LocalPBuf* freebufs;
