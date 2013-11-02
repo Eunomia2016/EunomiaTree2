@@ -38,7 +38,9 @@ class DBTX;
 #define SBTREE 5
 
 //GC when the number of gc objects reach GCThreshold
-#define GCThreshold 10000000
+//XXX FIXME: this is critical to the performance, 
+//larger means less gc times and higher performance
+#define GCThreshold 10000000 
 
 //GC when the number of rm objects reach RMThreshold
 #define RMThreshold 1000
