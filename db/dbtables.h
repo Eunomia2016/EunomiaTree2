@@ -20,7 +20,7 @@
 #include "persistent/pbuf.h"
 
 
-#define USESECONDINDEX 1
+#define USESECONDINDEX 0
 
 namespace leveldb{
 
@@ -38,10 +38,10 @@ class DBTX;
 #define SBTREE 5
 
 //GC when the number of gc objects reach GCThreshold
-#define GCThreshold 100000
+#define GCThreshold 1000000
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 100
+#define RMThreshold 10000
 
 class DBTables {
 	

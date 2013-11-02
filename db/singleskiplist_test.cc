@@ -1860,6 +1860,7 @@ int main(int argc, char**argv)
 	  printf("run %s\n", name.ToString().c_str());
 	  benchmark->Run(method, name);
 
+	  store->Sync();
 	  delete store;
     }
 	
