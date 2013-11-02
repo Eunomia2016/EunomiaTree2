@@ -20,7 +20,7 @@
 #define CACHESIM 0
 #define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
-#define BUFFERNODE 1
+#define BUFFERNODE 0
 #define PROFILEBUFFERNODE 0
 
 //For interface
@@ -29,7 +29,7 @@
 #define PERSISTENT 1
 
 //For deletion (read only TX)
-#define RCUGC 0
+#define RCUGC 1
 
 
 #define LOGICALDELETE (uint64_t *)NULL

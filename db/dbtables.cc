@@ -51,6 +51,10 @@ DBTables::DBTables(int n) {
 	snapshot = 1;
 	epoch = NULL;
 
+#if PERSISTENT
+	pthread_t tid;
+	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
+#endif
 }
 
 //n: tables number, thr: threads number
@@ -70,8 +74,10 @@ DBTables::DBTables(int n, int thrs)
 	RCUInit(thrs);
 	PBufInit(thrs);
 
+#if PERSISTENT
 	pthread_t tid;
 	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
+#endif
 	
 }
 
@@ -189,10 +195,10 @@ void DBTables::RCUTXEnd()
 	rcu->EndTX();
 }
 
-void DBTables::AddDeletedValue(int tableid, uint64_t* value)
+void DBTables::AddDeletedValue(int tableid, uint64_t* value, uint64_t sn)
 {
 	gcnum++;
-	valuesPool[tableid].AddGCObj(value);
+	valuesPool[tableid].AddGCObj(value, sn);
 }
 
 Memstore::MemNode* DBTables::GetMemNode()
@@ -214,7 +220,9 @@ uint64_t* DBTables::GetEmptyValue(int tableid)
 void DBTables::AddDeletedNode(uint64_t *node)
 {
 	gcnum++;
-	memnodesPool->AddGCObj(node); 
+	
+	//XXX: we set the safe sn of memnode to be 0
+	memnodesPool->AddGCObj(node, 0); 
 }
 
 void DBTables::AddRemoveNode(int tableid, uint64_t key, 
@@ -232,10 +240,10 @@ void DBTables::GC()
 	
 	//Delete all values 
 	for(int i = 0; i < number; i++) {
-		valuesPool[i].GC();
+		valuesPool[i].GC(pbuf_->GetSafeSN());
 	}
 
-	memnodesPool->GC();
+	memnodesPool->GC(pbuf_->GetSafeSN());
 	gcnum = 0;
 
 	rmPool->RemoveAll();
@@ -287,7 +295,6 @@ void DBTables::WriteUpdateRecords()
 			DBTX::writeset->kvs[i].commitseq, DBTX::writeset->kvs[i].commitval, 
 			schemas[DBTX::writeset->kvs[i].tableid].vlen);
 		
-		assert(sn == DBTX::writeset->kvs[0].node->counter);
 	}
 }
 

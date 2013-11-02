@@ -10,15 +10,35 @@ class OBJPool {
 
 	struct Obj {
 		Obj *next;
+		uint64_t* value;
 	};
+	
+	struct Header {
+		uint64_t sn;
+		Obj* head;
+		Obj* tail;
+		Header* next;
+		int gcnum;
+
+		Header(){
+			sn = 0;
+			head = NULL;
+			tail = NULL;
+			next = NULL;
+			gcnum = 0;
+		}
+	};
+	
+	
 
 
 private:
 
-	int gcnum_;
+
+	Header* gclists_;
+	Header* curlist_;
+	
 	int freenum_;
-	Obj* gclist_;
-	Obj* gctail_;
 	Obj* freelist_;
 
 	
@@ -30,12 +50,14 @@ public:
 	
 	~OBJPool();
 	
-	void AddGCObj(uint64_t* gobj);
+	void AddGCObj(uint64_t* gobj, uint64_t sn);
 
 	uint64_t* GetFreeObj();
 
-	void FreeList();
-	void GC();
+	void FreeList(Header* list);
+	
+	void GCList(Header* list);
+	void GC(uint64_t safesn);
 
 	void Print();
 	

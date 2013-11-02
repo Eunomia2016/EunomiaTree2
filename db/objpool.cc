@@ -8,12 +8,10 @@
 
 OBJPool::OBJPool()
 {
-	gcnum_ = 0;
-	freenum_ = 0;
+	gclists_ = NULL;
+	curlist_ = NULL;
 
-	gclist_ = NULL;
-	gctail_ = NULL;
-	
+	freenum_ = 0;	
 	freelist_ = NULL;
 
 	debug = false;
@@ -21,22 +19,45 @@ OBJPool::OBJPool()
 	
 OBJPool::~OBJPool()
 {
-	FreeList();
+	while(gclists_ != NULL) {
+		Header* cur = gclists_;
+		gclists_ = gclists_->next;
+		FreeList(cur);
+		delete cur;
+	}
 }
 	
-void OBJPool::AddGCObj(uint64_t* gobj)
+void OBJPool::AddGCObj(uint64_t* gobj, uint64_t sn)
 {
-	Obj* o = reinterpret_cast<Obj *>(gobj);
 
-	if(NULL == gctail_) {
-		gctail_ = o;
-		assert(NULL == gclist_);
+	Obj* o = new Obj();
+	o->value = gobj;
+	
+	if(curlist_ == NULL) {
+
+		assert(gclists_ == NULL);
+		gclists_ = curlist_ = new Header();
+		curlist_->sn = sn;
+		
+	} else if(curlist_->sn != sn) {
+	
+		assert(curlist_->sn < sn);
+
+		curlist_->next = new Header();
+		curlist_ = curlist_->next;
+		curlist_->sn = sn;
+	}
+
+	
+	if(NULL == curlist_->tail) {
+		curlist_->tail = o;
+		assert(NULL == curlist_->head);
 	}
 		
-	o->next = gclist_;
-	gclist_ = o;
-
-	gcnum_++;
+	o->next = curlist_->head;
+	curlist_->head = o;
+		
+	curlist_->gcnum++;
 
 }
 
@@ -48,38 +69,52 @@ uint64_t* OBJPool::GetFreeObj()
 	assert(freenum_ > 0);
 
 	
-	uint64_t* r = reinterpret_cast<uint64_t *>(freelist_);
+	Obj* r = freelist_;
 
 	freelist_ = freelist_->next;
 	freenum_--;
+
+	uint64_t *val = r->value;
+	delete r;
 	
-	return r;
+	return val;
 }
 
-void OBJPool::GC()
+void OBJPool::GC(uint64_t safesn)
 {
-	if(gclist_ == NULL) {
-		assert(gctail_ == NULL);
+	if(gclists_ == NULL) {
+		assert(curlist_ == NULL);
 		return;
 	}
-	
-	gctail_->next = freelist_;
-	freelist_ = gclist_;
-	
-	freenum_ += gcnum_;
+
+	while(gclists_ != NULL && gclists_->sn <= safesn) {
+		Header* cur = gclists_;
+		gclists_ = gclists_->next;
+		if(cur == curlist_) {
+			curlist_ = NULL;
+			assert(gclists_ == NULL);
+		}
+		FreeList(cur);
+		delete cur;
+	}
 		
-	gclist_ = NULL;
-	gctail_ = NULL;
-	gcnum_ = 0;
 }
 
-void OBJPool::FreeList()
+void OBJPool::GCList(Header* list)
 {
-	//TODO: Put the objects into 
-	while (NULL != gclist_) {
-		uint64_t * o = reinterpret_cast<uint64_t *>(gclist_);
-		gclist_ = gclist_->next;
-		//printf("[%lx] Delete %lx\n", pthread_self(), o);
+	list->tail = freelist_;
+	freelist_ = list->head;
+	freenum_ += list->gcnum;
+}
+
+void OBJPool::FreeList(Header* list)
+{
+	assert(list != NULL);
+	
+	while (NULL != list->head) {
+		Obj* o = list->head;
+		list->head = list->head->next;
+		delete o->value;
 		delete o;
 	}
 }
@@ -87,20 +122,24 @@ void OBJPool::FreeList()
 
 void OBJPool::Print()
 {
-	Obj* cur = NULL;
 	
 	printf("==================GC List=======================\n");
-	cur = gclist_;
-	while(cur != NULL) {
-		printf("Cur %lx Next %lx\n", cur, cur->next);
+	
+	int i = 0;
+	Header* cur = gclists_;
+	while(cur  != NULL) {
 		cur = cur->next;
+		i++;
+		printf("Header [%d] cur %lx elems %d sn %ld\n", 
+			i, cur, cur->gcnum, cur->sn);
 	}
-
+/*
 	printf("==================Free List=======================\n");
 	cur = freelist_;
 	while(cur != NULL) {
 		printf("Cur %lx Next %lx\n", cur, cur->next);
 		cur = cur->next;
-	}
+	}*/
+	
 }
 

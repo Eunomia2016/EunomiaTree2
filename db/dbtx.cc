@@ -178,7 +178,10 @@ DBTX::WriteSet::WriteSet()
 #if USESECONDINDEX
   cursindex = 0;
 #endif
+
   dbtx_ = NULL;
+
+  commitSN = 0;
   
   kvs = new WSKV[max_length];
 #if USESECONDINDEX
@@ -243,12 +246,14 @@ void DBTX::WriteSet::Clear()
 	}
 
 	elems = 0;
-
+	commitSN = 0;
 }
 
 void DBTX::WriteSet::Reset() 
 {
 	elems = 0;
+	commitSN = 0;
+	
 #if USESECONDINDEX
 	cursindex = 0;
 #endif
@@ -380,8 +385,10 @@ inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
 { 
 
+#if PERSISTENT
   commitSN = gcounter;
-  
+#endif
+
   for(int i = 0; i < elems; i++) {
 	
 #if GLOBALOCK
@@ -408,9 +415,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 						  kvs[i].node->seq, (uint64_t)kvs[i].node->value);
 #endif
 
-
-			//Directly remove the node from the memstore	
-			//Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
 
 			assert(dbtx_ != NULL);
 
@@ -512,21 +516,20 @@ inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables)
 {
 	
 	for(int i = 0; i < elems; i++) {
+
 		//First check if there is value replaced by the put operation
 		if(DBTX::ValidateValue(kvs[i].val)) {
-			tables->AddDeletedValue(kvs[i].tableid, kvs[i].val);
+			tables->AddDeletedValue(kvs[i].tableid, kvs[i].val, commitSN);
+		}
 		
-
 		//Then check if there is some old version records
 		if(kvs[i].dummy != NULL) {
 			
 			tables->AddDeletedNode((uint64_t *) kvs[i].dummy);
-				
+
 			if(DBTX::ValidateValue(kvs[i].dummy->value))
-				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value);	
+				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value, commitSN);	
 		}
-		
-	}
 
 	}
 }
@@ -977,10 +980,11 @@ retryA:
 
 #endif
 
+
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =  
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
-	
+
 	//mw->memnode = node;
 	
 	//2. add the record seq number into write set

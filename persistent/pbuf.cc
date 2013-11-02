@@ -35,9 +35,9 @@ PBuf::PBuf(int thr)
 
 	localsn = new uint64_t[thr];
 	for(int i = 0; i < thr; i++)
-		localsn[i] = 0;
+		localsn[i] = 1;
 	
-	safe_sn = -1;
+	safe_sn = 0;
 	
 	logf = new Log(logpath, true);
 
@@ -138,7 +138,7 @@ void PBuf::Writer()
 
 	for(int i = 0; i < buflen; i++) {
 
-		if(frozenbufs[i] == NULL)
+		if(frozenbufs[i] == NULL|| frozenbufs[i]->cur == 0)
 			continue;
 	
 		frozenlock.Lock();
@@ -152,7 +152,7 @@ void PBuf::Writer()
 		uint64_t cursn = cur->GetSN();
 
 		localsn[i] = cursn;
-	
+
 		assert(cursn >= (safe_sn + 1));
 		
 		while(cur != NULL) {

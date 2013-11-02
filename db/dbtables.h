@@ -20,7 +20,7 @@
 #include "persistent/pbuf.h"
 
 
-#define USESECONDINDEX 0
+#define USESECONDINDEX 1
 
 namespace leveldb{
 
@@ -64,7 +64,7 @@ class DBTables {
 
 	static __thread RMPool* rmPool;
 	
-	volatile uint64_t snapshot; // the counter for current snapshot
+	volatile uint64_t snapshot; // the counter for current snapshot: 1 is the first snapshot
 		
 	int number;
 	Memstore **tables;
@@ -112,7 +112,7 @@ class DBTables {
 	void RCUTXEnd();
 	
 	
-	void AddDeletedValue(int tableid, uint64_t* value);
+	void AddDeletedValue(int tableid, uint64_t* value, uint64_t sn);
 	uint64_t*GetEmptyValue(int tableid);
 	
 	void AddDeletedNode(uint64_t *node);

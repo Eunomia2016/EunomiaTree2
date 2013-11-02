@@ -60,8 +60,11 @@ bool DBROTX::End()
   txdb_->GCDeletedNodes();
   
   txdb_->RCUTXEnd();
+
+#if RCUGC
   txdb_->GC();
-  
+#endif
+
   return true;
 }
 

@@ -1853,6 +1853,7 @@ int main(int argc, char**argv)
 	 leveldb::DBTables *store = new leveldb::DBTables(1);
 	 store->InitEpoch(FLAGS_threads+1);
 	 store->RCUInit(FLAGS_threads+1);
+	 store->PBufInit(FLAGS_threads+1);
 	 store->AddTable(0, BTREE, IBTREE);
 	  
 	 leveldb::Benchmark *benchmark = new leveldb::Benchmark(store);

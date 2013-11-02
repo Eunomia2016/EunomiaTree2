@@ -22,11 +22,13 @@ class LocalPBuf {
 		int vlen;
 	};
 
+public:
+
 	uint64_t sn;
 	int cur;
 	PEntry buf[BSIZE];
 
-public:
+
 
 	LocalPBuf* next;
 		

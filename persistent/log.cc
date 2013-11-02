@@ -17,7 +17,8 @@ Log::Log(const char* p, bool sync): path(p)
 	length = CHUNCKSIZE;
 	//XXX: p shouldn't exist
 	printf("Create log %s\n", path);
-	fd = open(path, O_RDWR|O_CREAT);
+	
+	fd = open(path, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO);
 	
 	if(fd < 0) {
 		perror("LOG ERROR: create log file\n");
