@@ -9,16 +9,25 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
-
+#include <asm-generic/errno-base.h>
+#include <errno.h>
 
 
 Log::Log(const char* p, bool sync): path(p)
 { 
 	length = CHUNCKSIZE;
-	//XXX: p shouldn't exist
+
 	printf("Create log %s\n", path);
 	
-	fd = open(path, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO);
+	fd = open(path, O_RDWR|O_CREAT|O_EXCL, S_IRWXU|S_IRWXG|S_IRWXO);
+
+	//If it's aready exist, first delete it then create
+	if(fd == -1 && errno == EEXIST) {
+		int err = remove(path);
+		if(err < 0)
+			perror("LOG ERROR: remove log file\n");
+		fd = open(path, O_RDWR|O_CREAT|O_EXCL, S_IRWXU|S_IRWXG|S_IRWXO);
+	}
 	
 	if(fd < 0) {
 		perror("LOG ERROR: create log file\n");
