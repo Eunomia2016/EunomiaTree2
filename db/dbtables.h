@@ -38,10 +38,10 @@ class DBTX;
 #define SBTREE 5
 
 //GC when the number of gc objects reach GCThreshold
-#define GCThreshold 1000000
+#define GCThreshold 10000000
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 10000
+#define RMThreshold 1000
 
 class DBTables {
 	
@@ -121,6 +121,9 @@ class DBTables {
 
 	Memstore::MemNode* GetMemNode();	
 	void GC();
+	
+	void DelayRemove();
+	
 
 	//For Perisistence
 	void PBufInit(int thrs);

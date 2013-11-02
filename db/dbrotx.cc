@@ -63,6 +63,7 @@ bool DBROTX::End()
 
 #if RCUGC
   txdb_->GC();
+  txdb_->DelayRemove();
 #endif
 
   return true;

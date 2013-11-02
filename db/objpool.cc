@@ -73,10 +73,8 @@ uint64_t* OBJPool::GetFreeObj()
 
 	freelist_ = freelist_->next;
 	freenum_--;
-
 	uint64_t *val = r->value;
 	delete r;
-	
 	return val;
 }
 
@@ -86,7 +84,6 @@ void OBJPool::GC(uint64_t safesn)
 		assert(curlist_ == NULL);
 		return;
 	}
-
 	while(gclists_ != NULL && gclists_->sn <= safesn) {
 		Header* cur = gclists_;
 		gclists_ = gclists_->next;
@@ -94,7 +91,7 @@ void OBJPool::GC(uint64_t safesn)
 			curlist_ = NULL;
 			assert(gclists_ == NULL);
 		}
-		FreeList(cur);
+		GCList(cur);
 		delete cur;
 	}
 		
@@ -102,7 +99,9 @@ void OBJPool::GC(uint64_t safesn)
 
 void OBJPool::GCList(Header* list)
 {
-	list->tail = freelist_;
+	assert(list->head != NULL);
+	
+	list->tail->next = freelist_;
 	freelist_ = list->head;
 	freenum_ += list->gcnum;
 }

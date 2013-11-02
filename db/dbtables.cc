@@ -233,12 +233,12 @@ void DBTables::AddRemoveNode(int tableid, uint64_t key,
 
 void DBTables::GC()
 {
-	if(gcnum < GCThreshold && rmPool->GCElems() < RMThreshold)
+
+	if(gcnum < GCThreshold)
 		return;
 
 	rcu->WaitForGracePeriod();
 	
-	//Delete all values 
 	for(int i = 0; i < number; i++) {
 		valuesPool[i].GC(pbuf_->GetSafeSN());
 	}
@@ -246,8 +246,19 @@ void DBTables::GC()
 	memnodesPool->GC(pbuf_->GetSafeSN());
 	gcnum = 0;
 
+}
+
+void DBTables::DelayRemove()
+{
+	if(rmPool->GCElems() < RMThreshold)
+		return;
+
+	rcu->WaitForGracePeriod();
+	
 	rmPool->RemoveAll();
 }
+
+
 
 void DBTables::PBufInit(int thrs)
 {

@@ -11,6 +11,10 @@ class OBJPool {
 	struct Obj {
 		Obj *next;
 		uint64_t* value;
+		Obj(){
+			next = NULL;
+			value = NULL;
+		}
 	};
 	
 	struct Header {

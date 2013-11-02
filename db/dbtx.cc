@@ -761,8 +761,9 @@ bool DBTX::End()
 
 #if RCUGC
 	txdb_->GC();
+	txdb_->DelayRemove();
 #endif
-
+	
 #if DEBUG_PRINT
    printf("[%ld] TX Success\n", pthread_self());
 #endif
@@ -775,6 +776,7 @@ ABORT:
 	
 #if RCUGC
 	txdb_->GC();
+	txdb_->DelayRemove();
 #endif
 
 #if DEBUG_PRINT
