@@ -17,7 +17,6 @@
 #include "util/mutexlock.h"
 
 
-
 namespace leveldb {
 
 port::Mutex DBTX::storemutex;
@@ -33,6 +32,8 @@ __thread DBTX::BufferNode* DBTX::buffer = NULL;
 
 
 #define MAXSIZE 1024 // the initial read/write set size
+
+uint64_t DBTX::treetime = 0;
 
 void DBTX::ThreadLocalInit()
 {
@@ -628,7 +629,6 @@ void DBTX::WriteSet::Print()
 	*/
   }
 }
-
 DBTX::DBTX(DBTables* store)
 {
   txdb_ = store;
@@ -696,7 +696,7 @@ bool DBTX::End()
   uint64_t **rmnodes;
   
   if (abort) goto ABORT;
-
+  
   //printf("TXEND\n");
   //Phase 1. Validation & Commit
   {
@@ -705,6 +705,7 @@ bool DBTX::End()
 #else
     RTMScope rtm(&rtmProf, readset->elems, writeset->elems);
 #endif
+	
 
     if(!readset->Validate()) {
 		
@@ -842,8 +843,10 @@ retry:
 #if PROFILEBUFFERNODE
   bufferMiss++;
 #endif
-
+//	uint64_t s_start = rdtsc();
   	node = txdb_->tables[tableid]->GetWithInsert(key);
+//	treetime += rdtsc() - s_start;
+//	printf("%ld\n",treetime);
 	assert(node != NULL);
   }
   

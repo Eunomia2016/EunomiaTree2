@@ -1635,10 +1635,11 @@ tpcc_worker::txn_new_order()
   
 //  scoped_str_arena s_arena(arena);
 //  scoped_multilock<spinlock> mlock;
-
+//  char dummy[sizeof(customer::value)];
   try {
+  uint64_t slstart ;
 //  while (true) {
-//	uint64_t slstart = rdtsc();
+//	slstart = rdtsc();
 	tx.Begin();
 //	secs += (rdtsc() - slstart);
     ssize_t ret = 0;
@@ -1654,6 +1655,7 @@ tpcc_worker::txn_new_order()
 	uint64_t *c_value;
 //	slstart = rdtsc();
 	bool  found = tx.Get(CUST, c_key, &c_value);
+	//memcpy(dummy,c_value, sizeof(customer::value));
 //	secs += (rdtsc() - slstart);
 	assert(found);
     customer::value *v_c = (customer::value *)c_value;
@@ -1671,6 +1673,7 @@ tpcc_worker::txn_new_order()
 	uint64_t *w_value;
 //	slstart = rdtsc();
 	found = tx.Get(WARE, warehouse_id, &w_value);
+//	memcpy(dummy, w_value, sizeof(warehouse::value));
 //	secs += (rdtsc() - slstart);
 	assert(found);
     warehouse::value *v_w = (warehouse::value *)c_value;
@@ -1689,6 +1692,7 @@ tpcc_worker::txn_new_order()
 	uint64_t *d_value;
 //	slstart = rdtsc();
   	found = tx.Get(DIST, d_key, &d_value);
+	//memcpy(dummy, d_value, sizeof(district::value));
 //	secs += (rdtsc() - slstart);
 	assert(found);
     district::value *v_d = (district::value *)d_value;
@@ -1806,6 +1810,7 @@ tpcc_worker::txn_new_order()
 	  uint64_t* i_value;
 //	  slstart = rdtsc();
 	  found = tx.Get(ITEM, ol_i_id, &i_value);
+//	  memcpy(dummy, i_value, sizeof(item::value));
 //	  secs += (rdtsc() - slstart);
       item::value *v_i = (item::value *)i_value;
 	  checker::SanityCheckItem(NULL, v_i);
@@ -1822,6 +1827,7 @@ tpcc_worker::txn_new_order()
 	  uint64_t* s_value;
 //	  slstart = rdtsc();
 	  found = tx.Get(STOC, s_key, &s_value);
+//	  memcpy(dummy, s_value, sizeof(stock::value));
 //	  secs += (rdtsc() - slstart);
 	  assert(found);
       stock::value *v_s = (stock::value *)s_value;

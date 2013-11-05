@@ -39,6 +39,7 @@ namespace leveldb {
 
 class DBTX {
  public:
+	 static uint64_t treetime ;
 
 	RTMProfile rtmProf;
 	int count;

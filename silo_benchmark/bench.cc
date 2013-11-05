@@ -15,7 +15,7 @@
 //#include "counter.h"
 #include "scopedperf.hh"
 //#include "allocator.h"
-
+#include "db/dbtx.h"
 #define SET_AFFINITY 1
 
 #ifdef USE_JEMALLOC
@@ -196,7 +196,7 @@ bench_worker::run()
       d -= workload[i].frequency;
     }
   }
-  printf("rdtsc %ld\n",secs);
+  printf("%ld\n",secs);
 }
 
 
@@ -368,6 +368,7 @@ bench_runner::run()
       }
     }
 #endif
+	printf("t %ld\n",DBTX::treetime);
     cerr << "--- benchmark statistics ---" << endl;
     cerr << "runtime: " << elapsed_sec << " sec" << endl;
     cerr << "memory delta: " << delta_mb  << " MB" << endl;

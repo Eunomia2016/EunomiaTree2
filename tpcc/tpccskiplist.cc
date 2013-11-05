@@ -474,7 +474,7 @@ namespace leveldb {
   TPCCSkiplist::~TPCCSkiplist() {
   	//printf("rdtsc %ld\n",secs);
   	delete store;
-
+	
 	printf("#Abort : %d\n", abort);
 	printf("#Conflict : %d\n", conflict);
 	printf("#Capacity: %d\n", capacity);
