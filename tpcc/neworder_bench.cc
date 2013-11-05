@@ -236,6 +236,11 @@ class Benchmark {
     }
     shared.mu.Unlock();
 	double end_ = leveldb::Env::Default()->NowMicros() - start_;
+
+	
+  	((leveldb::TPCCSkiplist*)tables)->store->Sync();
+
+	double syncend_ = leveldb::Env::Default()->NowMicros() - start_;
 	
     for (int i = 1; i < n; i++) {
       arg[0].thread->stats.Merge(arg[i].thread->stats);
@@ -248,6 +253,7 @@ class Benchmark {
     delete[] arg;
 
 	printf("Throughput %g tx/sec\n", NUM_TRANSACTIONS / end_  * 1e6);
+	printf("Sync Throughput %g tx/sec\n", NUM_TRANSACTIONS / syncend_  * 1e6);
 	//printf("Write records %d . Read records %d .", tables->wcount, tables->rcount );
   }
 
@@ -412,6 +418,7 @@ int main(int argc, const char* argv[]) {
     //TPCCDB* tables = new leveldb::TPCCSkiplist();
     leveldb::TPCCSkiplist* tables = new leveldb::TPCCSkiplist();
 	tables->store->RCUInit(NUM_WAREHOUSE);
+	tables->store->PBufInit(NUM_WAREHOUSE);
     SystemClock* clock = new SystemClock();
 
     // Create a generator for filling the database.

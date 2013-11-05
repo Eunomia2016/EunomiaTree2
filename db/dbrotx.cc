@@ -60,8 +60,12 @@ bool DBROTX::End()
   txdb_->GCDeletedNodes();
   
   txdb_->RCUTXEnd();
+
+#if RCUGC
   txdb_->GC();
-  
+  txdb_->DelayRemove();
+#endif
+
   return true;
 }
 

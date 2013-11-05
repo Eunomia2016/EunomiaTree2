@@ -3,6 +3,12 @@
 
 namespace leveldb {
 
+// number of nanoseconds in 1 second (1e9)
+#define ONE_SECOND_NS 1000000000
+
+//40ms
+#define UPDATEPOCH  ONE_SECOND_NS / 1000 * 40
+
 
 __thread GCQueue* DBTables::nodeGCQueue = NULL;
 __thread GCQueue* DBTables::valueGCQueue = NULL;
@@ -45,6 +51,10 @@ DBTables::DBTables(int n) {
 	snapshot = 1;
 	epoch = NULL;
 
+#if PERSISTENT
+	pthread_t tid;
+	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
+#endif
 }
 
 //n: tables number, thr: threads number
@@ -62,6 +72,12 @@ DBTables::DBTables(int n, int thrs)
 	epoch = NULL;
 
 	RCUInit(thrs);
+	PBufInit(thrs);
+
+#if PERSISTENT
+	pthread_t tid;
+	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
+#endif
 	
 }
 
@@ -179,10 +195,10 @@ void DBTables::RCUTXEnd()
 	rcu->EndTX();
 }
 
-void DBTables::AddDeletedValue(int tableid, uint64_t* value)
+void DBTables::AddDeletedValue(int tableid, uint64_t* value, uint64_t sn)
 {
 	gcnum++;
-	valuesPool[tableid].AddGCObj(value);
+	valuesPool[tableid].AddGCObj(value, sn);
 }
 
 Memstore::MemNode* DBTables::GetMemNode()
@@ -204,7 +220,9 @@ uint64_t* DBTables::GetEmptyValue(int tableid)
 void DBTables::AddDeletedNode(uint64_t *node)
 {
 	gcnum++;
-	memnodesPool->AddGCObj(node); 
+	
+	//XXX: we set the safe sn of memnode to be 0
+	memnodesPool->AddGCObj(node, 0); 
 }
 
 void DBTables::AddRemoveNode(int tableid, uint64_t key, 
@@ -215,25 +233,56 @@ void DBTables::AddRemoveNode(int tableid, uint64_t key,
 
 void DBTables::GC()
 {
-	if(gcnum < GCThreshold && rmPool->GCElems() < RMThreshold)
+
+	if(gcnum < GCThreshold)
+		return;
+	rcu->WaitForGracePeriod();
+	
+	for(int i = 0; i < number; i++) {
+		valuesPool[i].GC(pbuf_->GetSafeSN());
+	}
+
+	memnodesPool->GC(pbuf_->GetSafeSN());
+	gcnum = 0;
+
+}
+
+void DBTables::DelayRemove()
+{
+	if(rmPool->GCElems() < RMThreshold)
 		return;
 
 	rcu->WaitForGracePeriod();
 	
-	//Delete all values 
-	for(int i = 0; i < number; i++) {
-		valuesPool[i].GC();
-	}
-
-	memnodesPool->GC();
-	gcnum = 0;
-
 	rmPool->RemoveAll();
 }
+
+
 
 void DBTables::PBufInit(int thrs)
 {
 	pbuf_ = new PBuf(thrs);
+}
+
+void DBTables::Sync()
+{
+	pbuf_->Sync();
+}
+
+void* DBTables::SnapshotUpdateThread(void * arg)
+{
+	DBTables* store = (DBTables*)arg;
+	
+	while(true) {
+
+		struct timespec t;
+		t.tv_sec  = UPDATEPOCH / ONE_SECOND_NS;
+     	t.tv_nsec = UPDATEPOCH % ONE_SECOND_NS;
+      	nanosleep(&t, NULL);
+
+		//Other snapshot updates (RO TX) are protected by RTM
+		store->snapshot++;
+	}
 }
 
 
@@ -245,7 +294,7 @@ void DBTables::WriteUpdateRecords()
 	if(recnum == 0)
 		return;
 	
-	uint64_t sn = DBTX::writeset->kvs[0].node->counter;
+	uint64_t sn = DBTX::writeset->commitSN;
 
 	pbuf_->RecordTX(sn, recnum);
 	
@@ -253,10 +302,9 @@ void DBTables::WriteUpdateRecords()
 	{
 		//FIXME: shouldn't directly use memnode
 		pbuf_->WriteRecord(DBTX::writeset->kvs[i].tableid, DBTX::writeset->kvs[i].key,
-			DBTX::writeset->kvs[i].node->seq, DBTX::writeset->kvs[i].node->value, 
+			DBTX::writeset->kvs[i].commitseq, DBTX::writeset->kvs[i].commitval, 
 			schemas[DBTX::writeset->kvs[i].tableid].vlen);
 		
-		assert(sn == DBTX::writeset->kvs[0].node->counter);
 	}
 }
 

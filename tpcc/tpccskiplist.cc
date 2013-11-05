@@ -340,6 +340,7 @@ namespace leveldb {
 #if USESECONDINDEX
 	store = new DBTables(9);
 #else
+//	store = new DBTables(11);
 	store = new DBTables(11);
 #endif
 	//insert an end value
@@ -375,6 +376,22 @@ namespace leveldb {
 	store->AddTable(CUST_INDEX, SBTREE, NONE);
 	store->AddTable(ORDER_INDEX, BTREE, NONE);
 #endif
+
+
+	//Add the schema 
+	store->AddSchema(WARE, sizeof(uint64_t), sizeof(Warehouse));
+	store->AddSchema(DIST, sizeof(uint64_t), sizeof(District));
+	store->AddSchema(CUST, sizeof(uint64_t), sizeof(Customer));
+	store->AddSchema(HIST, sizeof(uint64_t), sizeof(History));
+	store->AddSchema(NEWO, sizeof(uint64_t), sizeof(NewOrder));
+	store->AddSchema(ORDE, sizeof(uint64_t), sizeof(Order));
+	store->AddSchema(ORLI, sizeof(uint64_t), sizeof(OrderLine));
+	store->AddSchema(ITEM, sizeof(uint64_t), sizeof(Item));
+	store->AddSchema(STOC, sizeof(uint64_t), sizeof(Stock));
+
+	//XXX FIXME: won't serialize sec index currently
+	store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
+	store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
 
 	Memstore::MemNode *mn;
 	for (int i=0; i<9; i++) {

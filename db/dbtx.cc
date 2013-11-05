@@ -179,7 +179,10 @@ DBTX::WriteSet::WriteSet()
 #if USESECONDINDEX
   cursindex = 0;
 #endif
+
   dbtx_ = NULL;
+
+  commitSN = 0;
   
   kvs = new WSKV[max_length];
 #if USESECONDINDEX
@@ -191,6 +194,8 @@ DBTX::WriteSet::WriteSet()
 		kvs[i].val = NULL;
 		kvs[i].node = NULL;
 		kvs[i].dummy = NULL;
+		kvs[i].commitseq = 0;
+		kvs[i].commitval = NULL;
   }
   
 #if CACHESIM
@@ -242,12 +247,14 @@ void DBTX::WriteSet::Clear()
 	}
 
 	elems = 0;
-
+	commitSN = 0;
 }
 
 void DBTX::WriteSet::Reset() 
 {
 	elems = 0;
+	commitSN = 0;
+	
 #if USESECONDINDEX
 	cursindex = 0;
 #endif
@@ -378,6 +385,11 @@ inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
 //gcounter should be added into the rtm readset
 inline void DBTX::WriteSet::Write(uint64_t gcounter)
 { 
+
+#if PERSISTENT
+  commitSN = gcounter;
+#endif
+
   for(int i = 0; i < elems; i++) {
 	
 #if GLOBALOCK
@@ -405,9 +417,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 #endif
 
 
-			//Directly remove the node from the memstore	
-			//Memstore::MemNode* n = dbtx_->txdb_->tables[kvs[i].tableid]->GetWithDelete(kvs[i].key);
-
 			assert(dbtx_ != NULL);
 
 #if USESECONDINDEX
@@ -423,9 +432,13 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 		
 		uint64_t* oldval = kvs[i].node->value;
 		kvs[i].node->value = kvs[i].val;
+		kvs[i].commitval = kvs[i].val;
+		
 		kvs[i].val = oldval;
+
 		kvs[i].node->seq++;
-			
+		kvs[i].commitseq = kvs[i].node->seq;
+		
 	} else if(kvs[i].node->counter < gcounter){
 
 #if DEBUG_PRINT
@@ -470,10 +483,13 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 	  	  
 	    kvs[i].node->value = kvs[i].val;
 	    kvs[i].node->seq++;
-
+		
+		kvs[i].commitseq = kvs[i].node->seq;
+		kvs[i].commitval = kvs[i].val;
+		
 	    //Fix me: here we set the val in write set to be NULL
 	    kvs[i].val = NULL;
-	   
+
 	} else {
 	  //Error Check: Shouldn't arrive here
 	  while(_xtest()) _xend();
@@ -501,21 +517,20 @@ inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables)
 {
 	
 	for(int i = 0; i < elems; i++) {
+
 		//First check if there is value replaced by the put operation
 		if(DBTX::ValidateValue(kvs[i].val)) {
-			tables->AddDeletedValue(kvs[i].tableid, kvs[i].val);
+			tables->AddDeletedValue(kvs[i].tableid, kvs[i].val, commitSN);
+		}
 		
-
 		//Then check if there is some old version records
 		if(kvs[i].dummy != NULL) {
 			
 			tables->AddDeletedNode((uint64_t *) kvs[i].dummy);
-				
+
 			if(DBTX::ValidateValue(kvs[i].dummy->value))
-				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value);	
+				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value, commitSN);	
 		}
-		
-	}
 
 	}
 }
@@ -739,12 +754,17 @@ bool DBTX::End()
 
 	deleteset->GCRMNodes(txdb_);
 	
-	txdb_->RCUTXEnd();	
+	txdb_->RCUTXEnd();
+	
+#if PERSISTENT
+	txdb_->WriteUpdateRecords();
+#endif
 
 #if RCUGC
 	txdb_->GC();
+	txdb_->DelayRemove();
 #endif
-
+	
 #if DEBUG_PRINT
    printf("[%ld] TX Success\n", pthread_self());
 #endif
@@ -753,8 +773,12 @@ bool DBTX::End()
 
 ABORT:
 
-	txdb_->RCUTXEnd();	
+	txdb_->RCUTXEnd();
+	
+#if RCUGC
 	txdb_->GC();
+	txdb_->DelayRemove();
+#endif
 
 #if DEBUG_PRINT
 	printf("[%ld] TX Abort\n", pthread_self());
@@ -961,10 +985,11 @@ retryA:
 
 #endif
 
+
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =  
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
-	
+
 	//mw->memnode = node;
 	
 	//2. add the record seq number into write set

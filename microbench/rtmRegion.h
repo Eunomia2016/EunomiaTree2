@@ -16,13 +16,16 @@ struct RTMRegionProfile {
 	int conflict;
 	int capacity;
 	int zero;
+	int nest;
 	RTMRegionProfile(): 
-		abort(0), succ(0), conflict(0), capacity(0), zero(0){}
+		abort(0), succ(0), conflict(0), capacity(0), zero(0), nest(0){}
 	
 	void ReportProfile()
 	{
-		printf("Avg Abort %.5f [Conflict %.5f : Capacity %.5f Zero: %.5f] \n",
-				abort/(double)succ, conflict/(double)succ, capacity/(double)succ, zero/(double)succ);
+		printf("Avg Abort %.5f [Conflict %.5f : Capacity %.5f Zero: %.5f Nest: %.5f] \n",
+				abort/(double)succ, conflict/(double)succ, 
+				capacity/(double)succ, zero/(double)succ,
+				nest/(double)succ);
 		printf("Succ %d\n", succ);
 	}
 
@@ -32,6 +35,7 @@ struct RTMRegionProfile {
 		conflict = 0;
 		capacity = 0;
 		zero = 0;
+		nest = 0;
 	}
 };
 
@@ -47,6 +51,7 @@ class RTMRegion {
  int conflict;
  int capacity;
  int zero;
+ int nest;
  
  inline RTMRegion(RTMRegionProfile *p) {
  	
@@ -69,6 +74,9 @@ class RTMRegion {
 
 #ifdef PROF
 		  abort++;
+
+		  if(stat & _XABORT_NESTED)
+			nest++;
 		  
 		  if(stat & _XABORT_CONFLICT)
 			conflict++;
@@ -79,6 +87,9 @@ class RTMRegion {
 		  
 		  if(stat == 0)
 		  	zero++;
+
+		  if(abort > MAXRETRY)
+		  	return;
 #endif
 		}
 	}
@@ -91,14 +102,18 @@ class RTMRegion {
 	
   }
 inline  ~RTMRegion() {  
+	if(_xtest())
 	  _xend ();
 
 #ifdef PROF
+if(prof != NULL) {
 	  prof->abort += abort;
 	  prof->capacity += capacity;
 	  prof->conflict += conflict;
 	  prof->zero += zero;
+	  prof->nest += nest;
 	  prof->succ++;
+	  }
 #endif
  }
 

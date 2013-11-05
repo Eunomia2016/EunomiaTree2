@@ -52,12 +52,14 @@ public:
    */
   virtual void do_txn_epoch_sync() const {}
 
+
+
   /**
    * XXX(stephentu): hack
    */
   virtual void do_txn_finish() const {}
-#endif
 
+#endif  
 
   virtual size_t
   sizeof_txn_object(uint64_t txn_flags) const { NDB_UNIMPLEMENTED("sizeof_txn_object"); };

@@ -22,11 +22,13 @@ class LocalPBuf {
 		int vlen;
 	};
 
+public:
+
 	uint64_t sn;
 	int cur;
 	PEntry buf[BSIZE];
 
-public:
+
 
 	LocalPBuf* next;
 		
@@ -98,12 +100,16 @@ int buflen;
 LocalPBuf** lbuf;
 
 SpinLock frozenlock;
-LocalPBuf* frozenbufs;
+LocalPBuf** frozenbufs;
+uint64_t* localsn;
 
 SpinLock freelock;
 LocalPBuf* freebufs;
 
 Log* logf;
+
+//Only update in the logger thread
+volatile uint64_t safe_sn;
 
 
 public:
@@ -130,6 +136,8 @@ public:
 	void Writer();
 		
 	void Print();
+
+	uint64_t GetSafeSN() {return safe_sn;};
 	
 };
 

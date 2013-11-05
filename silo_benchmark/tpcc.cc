@@ -3112,9 +3112,11 @@ public:
   {
 
 #if USESECONDINDEX
-	store = new DBTables(9);
+	store = new DBTables(9, NumWarehouses());
 #else
-	store = new DBTables(11);
+	store = new DBTables(11, NumWarehouses());
+	//store->RCUInit(NumWarehouses());
+
 #endif
 	//insert an end value
 #if SEPERATE
@@ -3151,6 +3153,21 @@ public:
 	store->AddTable(ORDER_INDEX, BTREE, NONE);
 #endif
 
+	//Add the schema 
+	store->AddSchema(WARE, sizeof(uint64_t), sizeof(warehouse::value));
+	store->AddSchema(DIST, sizeof(uint64_t), sizeof(district::value));
+	store->AddSchema(CUST, sizeof(uint64_t), sizeof(customer::value));
+	store->AddSchema(HIST, sizeof(uint64_t), sizeof(history::value));
+	store->AddSchema(NEWO, sizeof(uint64_t), sizeof(new_order::value));
+	store->AddSchema(ORDE, sizeof(uint64_t), sizeof(oorder::value));
+	store->AddSchema(ORLI, sizeof(uint64_t), sizeof(order_line::value));
+	store->AddSchema(ITEM, sizeof(uint64_t), sizeof(item::value));
+	store->AddSchema(STOC, sizeof(uint64_t), sizeof(stock::value));
+
+	//XXX FIXME: won't serialize sec index currently
+	store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
+	store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
+
 	Memstore::MemNode *mn;
 	for (int i=0; i<9; i++) {
 		//Fixme: invalid value pointer
@@ -3161,53 +3178,21 @@ public:
 	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
 #else
 
+	//XXX: add empty record to identify the end of the table./
 	uint64_t *temp = new uint64_t[2];
 	temp[0] = 1; temp[1] = 0xFFFF;
 	store->tables[ORDER_INDEX]->Put((uint64_t)1<<60, temp);
 #endif
-	store->RCUInit(NumWarehouses());
 
   
-#if 0
-#define OPEN_TABLESPACE_X(x) \
-    partitions[#x] = OpenTablesForTablespace(db, #x, sizeof(x));
-
-    TPCC_TABLE_LIST(OPEN_TABLESPACE_X);
-
-#undef OPEN_TABLESPACE_X
-
-    for (auto &t : partitions) {
-      auto v = unique_filter(t.second);
-      for (size_t i = 0; i < v.size(); i++)
-        open_tables[t.first + "_" + to_string(i)] = v[i];
-    }
-
-    if (g_enable_partition_locks) {
-      static_assert(sizeof(aligned_padded_elem<spinlock>) == CACHELINE_SIZE, "xx");
-      void * const px = memalign(CACHELINE_SIZE, sizeof(aligned_padded_elem<spinlock>) * nthreads);
-      ALWAYS_ASSERT(px);
-      ALWAYS_ASSERT(reinterpret_cast<uintptr_t>(px) % CACHELINE_SIZE == 0);
-      g_partition_locks = reinterpret_cast<aligned_padded_elem<spinlock> *>(px);
-      for (size_t i = 0; i < nthreads; i++) {
-        new (&g_partition_locks[i]) aligned_padded_elem<spinlock>();
-        ALWAYS_ASSERT(!g_partition_locks[i].elem.is_locked());
-      }
-    }
-
-    if (g_new_order_fast_id_gen) {
-      void * const px =
-        memalign(
-            CACHELINE_SIZE,
-            sizeof(aligned_padded_elem<atomic<uint64_t>>) *
-              NumWarehouses() * NumDistrictsPerWarehouse());
-      g_district_ids = reinterpret_cast<aligned_padded_elem<atomic<uint64_t>> *>(px);
-      for (size_t i = 0; i < NumWarehouses() * NumDistrictsPerWarehouse(); i++)
-        new (&g_district_ids[i]) atomic<uint64_t>(3001);
-    }
-#endif	
-  }
+}
 
 protected:
+
+  virtual void sync_log() {
+		store->Sync();
+  }
+  
   virtual vector<bench_loader *>
   make_loaders()
   {

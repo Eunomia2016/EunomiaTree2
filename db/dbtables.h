@@ -38,10 +38,12 @@ class DBTX;
 #define SBTREE 5
 
 //GC when the number of gc objects reach GCThreshold
-#define GCThreshold 100000
+//XXX FIXME: this is critical to the performance, 
+//larger means less gc times and higher performance
+#define GCThreshold 10000000 
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 100
+#define RMThreshold 1000
 
 class DBTables {
 	
@@ -64,7 +66,8 @@ class DBTables {
 
 	static __thread RMPool* rmPool;
 	
-	uint64_t snapshot; // the counter for current snapshot
+	volatile uint64_t snapshot; // the counter for current snapshot: 1 is the first snapshot
+		
 	int number;
 	Memstore **tables;
 	TableSchema* schemas;
@@ -95,6 +98,7 @@ class DBTables {
 	void InitEpoch(int thr_num);	
 	void EpochTXBegin();
 	void EpochTXEnd();
+
 	
 	void AddDeletedNodes(uint64_t **nodes, int len);
 	void GCDeletedNodes();
@@ -110,7 +114,7 @@ class DBTables {
 	void RCUTXEnd();
 	
 	
-	void AddDeletedValue(int tableid, uint64_t* value);
+	void AddDeletedValue(int tableid, uint64_t* value, uint64_t sn);
 	uint64_t*GetEmptyValue(int tableid);
 	
 	void AddDeletedNode(uint64_t *node);
@@ -119,10 +123,17 @@ class DBTables {
 
 	Memstore::MemNode* GetMemNode();	
 	void GC();
+	
+	void DelayRemove();
+	
 
 	//For Perisistence
 	void PBufInit(int thrs);
+	void Sync();
 	void WriteUpdateRecords();
+
+	//An independent thread updates the snapshot number periodically	
+	static void* SnapshotUpdateThread(void * arg);
 	
 };
 
