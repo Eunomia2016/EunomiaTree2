@@ -1424,7 +1424,7 @@ protected:
 #endif
             oorder::value *v_oo = new oorder::value();
             v_oo->o_c_id = c_ids[c - 1];
-            if (k_oo.o_id < 2101)
+            if (c < 2101)
               v_oo->o_carrier_id = RandomNumber(r, 1, 10);
             else
               v_oo->o_carrier_id = 0;
