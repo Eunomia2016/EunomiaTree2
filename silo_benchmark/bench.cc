@@ -15,7 +15,6 @@
 //#include "counter.h"
 #include "scopedperf.hh"
 //#include "allocator.h"
-#include "db/dbtx.h"
 #define SET_AFFINITY 1
 
 #ifdef USE_JEMALLOC
@@ -106,7 +105,18 @@ write_cb(void *p, const char *s)
 
 
 //static event_avg_counter evt_avg_abort_spins("avg_abort_spins");
+__inline__ int64_t XADD64(uint64_t* addr, int64_t val) {
+    asm volatile(
+        "lock;xaddq %0, %1"
+        : "+a"(val), "+m"(*addr)
+        :
+        : "cc");
 
+    return val;
+}
+
+
+uint64_t bench_worker::total_ops = 0;
 void
 bench_worker::run()
 {
@@ -156,7 +166,10 @@ bench_worker::run()
   txn_counts.resize(workload.size());
   barrier_a->count_down();
   barrier_b->wait_for();
-  while (running && (run_mode != RUNMODE_OPS || ntxn_commits < ops_per_worker)) {
+  while (running && (run_mode != RUNMODE_OPS || total_ops > 0)) {
+  	int64_t oldv = XADD64(&total_ops, -1000);
+  	if(oldv <= 0) break;
+	for (int i =0; i < 1000; i++) {  
     double d = r.next_uniform();
     for (size_t i = 0; i < workload.size(); i++) {
       if ((i + 1) == workload.size() || d < workload[i].frequency) {
@@ -167,6 +180,7 @@ bench_worker::run()
 		
         if (likely(ret.first)) {
           ++ntxn_commits;
+		  //printf("c %d\n",ntxn_commits);
           latency_numer_us += t.lap();
           backoff_shifts >>= 1;
         } else {
@@ -196,7 +210,8 @@ bench_worker::run()
       d -= workload[i].frequency;
     }
   }
-  printf("%ld\n",secs);
+  }
+  printf("rdtsc %ld\n",secs);
 }
 
 
@@ -265,7 +280,8 @@ bench_runner::run()
 #endif		 
     cerr << "starting benchmark..." << endl;
   }
-
+  
+  bench_worker::total_ops = ops_per_worker * nthreads;
   const pair<uint64_t, uint64_t> mem_info_before = get_system_memory_info();
 
   const vector<bench_worker *> workers = make_workers();
@@ -289,6 +305,9 @@ bench_runner::run()
   //db->do_txn_finish(); // waits for all worker txns to persist  
   sync_log();
   
+  const unsigned long elapsed = t.lap(); // lap() must come after do_txn_finish(),
+                                         // because do_txn_finish() potentially
+                                         // waits a bit
   size_t n_commits = 0;
   size_t n_aborts = 0;
   uint64_t latency_numer_us = 0;
@@ -299,9 +318,6 @@ bench_runner::run()
   }
 //  const auto persisted_info = db->get_ntxn_persisted();
 
-  const unsigned long elapsed = t.lap(); // lap() must come after do_txn_finish(),
-                                         // because do_txn_finish() potentially
-                                         // waits a bit
 
   // various sanity checks
 //  ALWAYS_ASSERT(get<0>(persisted_info) == get<1>(persisted_info));
@@ -371,7 +387,6 @@ bench_runner::run()
       }
     }
 #endif
-	printf("t %ld\n",DBTX::treetime);
     cerr << "--- benchmark statistics ---" << endl;
     cerr << "runtime: " << elapsed_sec << " sec" << endl;
     cerr << "memory delta: " << delta_mb  << " MB" << endl;
@@ -380,12 +395,12 @@ bench_runner::run()
     cerr << "logical memory delta rate: " << (size_delta_mb / elapsed_sec) << " MB/sec" << endl;
     cerr << "agg_nosync_throughput: " << agg_nosync_throughput << " ops/sec" << endl;
     cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
-    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
-    cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
-    cerr << "agg_persist_throughput: " << agg_persist_throughput << " ops/sec" << endl;
-    cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
-    cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
-    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
+//    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
+ //   cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
+//    cerr << "agg_persist_throughput: " << agg_persist_throughput << " ops/sec" << endl;
+//    cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
+//    cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
+//    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
     cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
 	cerr << "agg_abort_num: " << n_aborts <<endl;
     cerr << "avg_per_core_abort_rate: " << avg_per_core_abort_rate << " aborts/sec/core" << endl;
@@ -395,7 +410,7 @@ bench_runner::run()
     for (map<string, counter_data>::iterator it = ctrs.begin();
          it != ctrs.end(); ++it)
       cerr << it->first << ": " << it->second << endl;
-#endif		 
+#endif	
     cerr << "--- perf counters (if enabled, for benchmark) ---" << endl;
     PERF_EXPR(scopedperf::perfsum_base::printall());
   //  cerr << "--- allocator stats ---" << endl;
@@ -414,10 +429,9 @@ bench_runner::run()
   }
 
   // output for plotting script
-  cout << agg_throughput << " "
-       << agg_persist_throughput << " "
-       << avg_latency_ms << " "
-       << avg_persist_latency_ms << " "
+  cout << agg_nosync_throughput << " "
+ //      << agg_persist_throughput << " "
+       << elapsed_sec << " "
        << agg_abort_rate << endl;
   cout.flush();
 

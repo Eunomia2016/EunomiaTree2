@@ -105,7 +105,7 @@ protected:
 class bench_worker : public ndb_thread {
 public:
 	uint64_t secs;
-
+	static uint64_t total_ops;
   bench_worker(unsigned int worker_id,
                bool set_core_id,
                unsigned long seed, abstract_db *db,
@@ -225,7 +225,6 @@ protected:
 
   // only called once
   virtual std::vector<bench_worker*> make_workers() = 0;
-
   virtual void sync_log() = 0;
   
   abstract_db *const db;
@@ -234,110 +233,4 @@ protected:
   spin_barrier barrier_a;
   spin_barrier barrier_b;
 };
-#if 0
-class limit_callback : public abstract_ordered_index::scan_callback {
-public:
-  limit_callback(ssize_t limit = -1)
-    : limit(limit), n(0)
-  {
-    ALWAYS_ASSERT(limit == -1 || limit > 0);
-  }
-
-  virtual bool invoke(
-      const std::string &key,
-      const std::string &value)
-  {
-    INVARIANT(limit == -1 || n < size_t(limit));
-    values.emplace_back(key, value);
-    return (limit == -1) || (++n < size_t(limit));
-  }
-
-  typedef std::pair<std::string, std::string> kv_pair;
-  std::vector<kv_pair> values;
-
-  const ssize_t limit;
-private:
-  size_t n;
-};
-
-
-class latest_key_callback : public abstract_ordered_index::scan_callback {
-public:
-  latest_key_callback(std::string &k, ssize_t limit = -1)
-    : limit(limit), n(0), k(&k)
-  {
-    ALWAYS_ASSERT(limit == -1 || limit > 0);
-  }
-
-  virtual bool invoke(
-      const std::string &key,
-      const std::string &value)
-  {
-    INVARIANT(limit == -1 || n < size_t(limit));
-    // see the note in static_limit_callback for why we explicitly
-    // copy over regular (ref-counting) assignment
-    k->assign(key.data(), key.size());
-    ++n;
-    return (limit == -1) || (n < size_t(limit));
-  }
-
-  inline size_t size() const { return n; }
-  inline std::string &kstr() { return *k; }
-
-private:
-  ssize_t limit;
-  size_t n;
-  std::string *k;
-};
-
-// explicitly copies keys, because btree::search_range_call() interally
-// re-uses a single string to pass keys (so using standard string assignment
-// will force a re-allocation b/c of shared ref-counting)
-//
-// this isn't done for values, because each value has a distinct string from
-// the string allocator, so there are no mutations while holding > 1 ref-count
-template <size_t N>
-class static_limit_callback : public abstract_ordered_index::scan_callback {
-public:
-  // XXX: push ignore_key into lower layer
-  static_limit_callback(str_arena *arena, bool ignore_key)
-    : n(0), arena(arena), ignore_key(ignore_key)
-  {
-    static_assert(N > 0, "xx");
-  }
-
-  virtual bool invoke(
-      const std::string &key,
-      const std::string &value)
-  {
-    INVARIANT(n < N);
-    INVARIANT(arena->manages(&key));
-    INVARIANT(arena->manages(&value));
-    if (ignore_key) {
-      values.emplace_back(nullptr, &value);
-    } else {
-      // see note above
-      std::string * const s_px = likely(arena) ? arena->next() : nullptr;
-      INVARIANT(s_px && s_px->empty());
-      s_px->assign(key.data(), key.size());
-      values.emplace_back(s_px, &value);
-    }
-    return ++n < N;
-  }
-
-  inline size_t
-  size() const
-  {
-    return values.size();
-  }
-
-  typedef std::pair<const std::string *, const std::string *> kv_pair;
-  typename util::vec<kv_pair, N>::type values;
-
-private:
-  size_t n;
-  str_arena *arena;
-  bool ignore_key;
-};
-#endif
 #endif /* _NDB_BENCH_H_ */
