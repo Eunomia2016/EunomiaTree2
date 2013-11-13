@@ -113,6 +113,7 @@ volatile uint64_t safe_sn;
 
 
 public:
+	static uint64_t write_time;
 
 	PBuf(int thr);
 	

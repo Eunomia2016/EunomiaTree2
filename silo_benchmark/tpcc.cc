@@ -989,6 +989,8 @@ protected:
         try {
           const size_t iend = std::min((b + 1) * batchsize + 1, NumItems());
           for (uint i = (b * batchsize + 1); i <= iend; i++) {
+		  	
+			
 		  	uint64_t key = makeStockKey(w, i);
 #if SHORTKEY 		  	
             const stock::key k(makeStockKey(w, i));
@@ -1048,8 +1050,8 @@ protected:
             stock_total_sz += sz;
             n_stocks++;
 
-		
 			store->tables[STOC]->Put(key, (uint64_t *)v);
+		//	printf("key %ld\n" , key);
 #if 0			
             tbl_stock(w)->insert(txn, Encode(k), Encode(obj_buf, v));
 #endif
@@ -1065,7 +1067,9 @@ protected:
             if (verbose)
               cerr << "[WARNING] stock loader loading abort" << endl;
           }
+			
 #endif
+//			store->tables[STOC]->PrintStore();
         } catch (abstract_db::abstract_abort_exception &ex) {
 #if 0        
           db->abort_txn(txn);
@@ -3168,21 +3172,6 @@ public:
 	store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
 	store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
 
-	Memstore::MemNode *mn;
-	for (int i=0; i<9; i++) {
-		//Fixme: invalid value pointer
-		Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)new Memstore::MemNode());		
-		if (i == ORDE) mn = node;
-	}
-#if USESECONDINDEX
-	store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
-#else
-
-	//XXX: add empty record to identify the end of the table./
-	uint64_t *temp = new uint64_t[2];
-	temp[0] = 1; temp[1] = 0xFFFF;
-	store->tables[ORDER_INDEX]->Put((uint64_t)1<<60, temp);
-#endif
 
   
 }
@@ -3191,6 +3180,25 @@ protected:
 
   virtual void sync_log() {
 		store->Sync();
+  }
+
+  virtual void initPut() {
+  	
+		Memstore::MemNode *mn;
+		for (int i=0; i<9; i++) {
+			//Fixme: invalid value pointer
+			Memstore::MemNode *node = store->tables[i]->Put((uint64_t)1<<60, (uint64_t *)new Memstore::MemNode());		
+			if (i == ORDE) mn = node;
+		}
+#if USESECONDINDEX
+		store->secondIndexes[ORDER_INDEX]->Put((uint64_t)1<<60, (uint64_t)1<<60, mn);
+#else
+	
+		//XXX: add empty record to identify the end of the table./
+		uint64_t *temp = new uint64_t[2];
+		temp[0] = 1; temp[1] = 0xFFFF;
+		store->tables[ORDER_INDEX]->Put((uint64_t)1<<60, temp);
+#endif
   }
   
   virtual vector<bench_loader *>

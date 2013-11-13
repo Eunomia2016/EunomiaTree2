@@ -15,6 +15,7 @@
 //#include "counter.h"
 #include "scopedperf.hh"
 //#include "allocator.h"
+#include "persistent/pbuf.h"
 #define SET_AFFINITY 1
 
 #ifdef USE_JEMALLOC
@@ -128,7 +129,7 @@ bench_worker::run()
 
   int x = worker_id;
   int y = x - 8;
-  if (nthreads == 8) {
+  if (nthreads == 8 || nthreads == 7) {
    	if (x == 8) y = 0;
   	else if (x == 9) y = 2;
   	else if (x == 10) y = 4;  
@@ -240,6 +241,8 @@ bench_runner::run()
     if (verbose)
       cerr << "DB size: " << delta_mb << " MB" << endl;
   }
+
+  initPut();
 #if 0
   db->do_txn_epoch_sync(); // also waits for worker threads to be persisted
   {
@@ -388,6 +391,7 @@ bench_runner::run()
     }
 #endif
     cerr << "--- benchmark statistics ---" << endl;
+	cerr << PBuf::write_time << endl;
     cerr << "runtime: " << elapsed_sec << " sec" << endl;
     cerr << "memory delta: " << delta_mb  << " MB" << endl;
     cerr << "memory delta rate: " << (delta_mb / elapsed_sec)  << " MB/sec" << endl;
@@ -397,8 +401,8 @@ bench_runner::run()
     cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
  //   cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
-//    cerr << "agg_persist_throughput: " << agg_persist_throughput << " ops/sec" << endl;
-//    cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
+    cerr << "agg_persist_throughput: " << agg_persist_throughput << " ops/sec" << endl;
+    cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
 //    cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
 //    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
     cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
@@ -430,7 +434,7 @@ bench_runner::run()
 
   // output for plotting script
   cout << agg_nosync_throughput << " "
- //      << agg_persist_throughput << " "
+       << agg_persist_throughput << " "
        << elapsed_sec << " "
        << agg_abort_rate << endl;
   cout.flush();

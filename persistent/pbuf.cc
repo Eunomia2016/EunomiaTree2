@@ -112,14 +112,31 @@ void PBuf::FrozeLocalBuffer(int idx)
 
 }
 
+
+uint64_t PBuf::write_time = 0;
+inline unsigned long rdtsc(void)
+{
+	unsigned a, d;
+	__asm __volatile("rdtsc":"=a"(a), "=d"(d));
+	return ((unsigned long)a) | (((unsigned long) d) << 32);
+}
+
 void* PBuf::loggerThread(void * arg)
 {
+#if 0	
+	   cpu_set_t  mask;
+	  CPU_ZERO(&mask);
+	  CPU_SET(7 , &mask);
+	sched_setaffinity(0, sizeof(mask), &mask);
+#endif
 	PBuf* pb = (PBuf*) arg;
 
 	while(true) {
 
 		if(sync_) {
+	//		uint64_t ss = rdtsc();
 			pb->Writer();
+	//		write_time += (rdtsc()-ss);
 			break;
 		}
 		
@@ -127,8 +144,10 @@ void* PBuf::loggerThread(void * arg)
 		t.tv_sec  = SLEEPEPOCH / ONE_SECOND_NS;
      	t.tv_nsec = SLEEPEPOCH % ONE_SECOND_NS;
       	nanosleep(&t, NULL);
-	  	
+	//  	
 		pb->Writer();
+	//	write_time += (rdtsc()-s);
+	
 	}
 }
 
@@ -158,8 +177,9 @@ void PBuf::Writer()
 		while(cur != NULL) {
 			
 			assert(cursn >= cur->GetSN());
-			
+		//	uint64_t s = rdtsc();
 			cur->Serialize(logf);
+		//	write_time += (rdtsc()-s);
 			tail = cur;
 			cur =  cur->next;
 		}

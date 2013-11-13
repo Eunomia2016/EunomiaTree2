@@ -1,8 +1,7 @@
+
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include "log.h"
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -11,6 +10,8 @@
 #include <string.h>
 #include <asm-generic/errno-base.h>
 #include <errno.h>
+#include <stdio.h>
+#include "log.h"
 
 
 Log::Log(const char* p, bool sync): path(p)
