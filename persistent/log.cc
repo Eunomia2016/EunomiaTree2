@@ -92,7 +92,7 @@ void Log::enlarge(int inc_size)
 
 	long page_offset = (long)buf.cur & 0xFFF;
 	buf.cur = buf.start + (page_offset ? page_offset : PAGESIZE);
-
+	buf.end = buf.start + map_size;
 	
 #ifdef DEBUG
 		fprintf(stderr, "new start: %p buf: %p truncate to %ld bytes\n", 
