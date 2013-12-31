@@ -1680,7 +1680,7 @@ tpcc_worker::txn_new_order()
 //	memcpy(dummy, w_value, sizeof(warehouse::value));
 //	secs += (rdtsc() - slstart);
 	assert(found);
-    warehouse::value *v_w = (warehouse::value *)c_value;
+    warehouse::value *v_w = (warehouse::value *)w_value;
 	checker::SanityCheckWarehouse(NULL, v_w);
 #if 0	
     checker::SanityCheckWarehouse(&k_w, v_w);
