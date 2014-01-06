@@ -112,6 +112,16 @@ DBTables::~DBTables() {
 
 }
 
+//This interface is just used during initialization
+void DBTables::TupleInsert(int tabid, uint64_t key, uint64_t *val, int len)
+{
+ // 	char* value = new char[len];
+  
+//	memcpy(value, val, len);
+	tables[tabid]->Put(key, (uint64_t *)val);
+
+}
+
 
 void DBTables::InitEpoch(int thr_num)
 {
@@ -233,7 +243,7 @@ void DBTables::AddRemoveNode(int tableid, uint64_t key,
 
 void DBTables::GC()
 {
-
+	
 	if(gcnum < GCThreshold)
 		return;
 	rcu->WaitForGracePeriod();
@@ -319,7 +329,7 @@ void DBTables::ThreadLocalInit(int tid)
 	valuesPool = new OBJPool[number];
 	memnodesPool = new OBJPool();
 
-	memnodesPool->debug = true;
+	memnodesPool->debug = false;
 	
 	rmPool = new RMPool(this);
 	

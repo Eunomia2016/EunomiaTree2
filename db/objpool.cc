@@ -84,6 +84,7 @@ void OBJPool::GC(uint64_t safesn)
 		assert(curlist_ == NULL);
 		return;
 	}
+	
 	while(gclists_ != NULL && gclists_->sn <= safesn) {
 		Header* cur = gclists_;
 		gclists_ = gclists_->next;

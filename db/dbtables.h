@@ -40,7 +40,7 @@ class DBTX;
 //GC when the number of gc objects reach GCThreshold
 //XXX FIXME: this is critical to the performance, 
 //larger means less gc times and higher performance
-#define GCThreshold 10000000 
+#define GCThreshold 100000 
 
 //GC when the number of rm objects reach RMThreshold
 #define RMThreshold 1000
@@ -89,6 +89,9 @@ class DBTables {
 	
 	~DBTables();
 
+
+	void TupleInsert(int tabid, uint64_t key, uint64_t *val, int len);
+	
 	void ThreadLocalInit(int tid);
 	int AddTable(int tableid, int index_type, int secondary_index_type);
 
