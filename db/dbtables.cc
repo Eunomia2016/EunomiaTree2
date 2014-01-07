@@ -23,6 +23,8 @@ __thread uint64_t DBTables::gcnum = 0;
 __thread RMPool*  DBTables::rmPool = NULL;
 
 
+Memstore::MemNode* DBTables::bugnode = NULL;
+
 //FOR TEST
 DBTables::DBTables() {
 	number = 1;
@@ -115,11 +117,26 @@ DBTables::~DBTables() {
 //This interface is just used during initialization
 void DBTables::TupleInsert(int tabid, uint64_t key, uint64_t *val, int len)
 {
- // 	char* value = new char[len];
-  
-//	memcpy(value, val, len);
-	tables[tabid]->Put(key, (uint64_t *)val);
 
+
+  	char *value = (char *)malloc(sizeof(OBJPool::Obj) + len);
+
+
+  	value += sizeof(OBJPool::Obj);
+  	memcpy(value, val, len);
+
+	//printf("TupleInsert Alloc %lx\n", value);  
+	
+	Memstore::MemNode* mn = tables[tabid]->Put(key, (uint64_t *)value);
+
+#if 0
+	if(tabid == 1 && key == 0x13) {
+		printf("TupleInsert key %lx  Alloc Value %lx MN %lx Value Ptr Addr %lx\n", 
+			key, value, mn, &mn->value);
+		bugnode = mn;
+		DEBUGGC();
+	}
+#endif
 }
 
 
@@ -206,17 +223,20 @@ void DBTables::RCUTXEnd()
 }
 
 void DBTables::AddDeletedValue(int tableid, uint64_t* value, uint64_t sn)
-{
+{	
 	gcnum++;
-	valuesPool[tableid].AddGCObj(value, sn);
+	valuesPool[tableid].AddGCObj((char *)value, sn);
 }
 
 Memstore::MemNode* DBTables::GetMemNode()
 {
-	uint64_t* mn = memnodesPool->GetFreeObj();
+	char* mn = memnodesPool->GetFreeObj();
 
-	if(mn == NULL)
-		return new Memstore::MemNode();
+	if(mn == NULL) {
+		mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
+		mn += sizeof(OBJPool::Obj);
+	}
+
 	
 	return new (mn) Memstore::MemNode();
 }
@@ -224,7 +244,7 @@ Memstore::MemNode* DBTables::GetMemNode()
 
 uint64_t* DBTables::GetEmptyValue(int tableid)
 {
-	return valuesPool[tableid].GetFreeObj();
+	return (uint64_t *)valuesPool[tableid].GetFreeObj();
 }
 
 void DBTables::AddDeletedNode(uint64_t *node)
@@ -232,7 +252,7 @@ void DBTables::AddDeletedNode(uint64_t *node)
 	gcnum++;
 	
 	//XXX: we set the safe sn of memnode to be 0
-	memnodesPool->AddGCObj(node, 0); 
+	memnodesPool->AddGCObj((char *)node, 0); 
 }
 
 void DBTables::AddRemoveNode(int tableid, uint64_t key, 
@@ -277,6 +297,14 @@ void DBTables::PBufInit(int thrs)
 void DBTables::Sync()
 {
 	pbuf_->Sync();
+}
+
+void DBTables::DEBUGGC()
+{
+	if(bugnode == NULL)
+		printf("Bug Node is NULL\n");
+	else
+		printf("Bug Node Addr %lx Value Addr %lx\n", bugnode, bugnode->value);
 }
 
 void* DBTables::SnapshotUpdateThread(void * arg)

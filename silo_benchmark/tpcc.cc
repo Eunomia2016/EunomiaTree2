@@ -1720,6 +1720,11 @@ tpcc_worker::txn_new_order()
 #if 0	
     checker::SanityCheckDistrict(&k_d, v_d);
 #endif
+    if((uint64_t)v_d == 0x7f3938373635) {
+		DBTables::DEBUGGC();
+		printf("txn_new_order key %lx v_d %lx\n", d_key, v_d); 
+		fflush(stdout);
+	}
     const uint64_t my_next_o_id = g_new_order_fast_id_gen ?
         FastNewOrderIdGen(warehouse_id, districtID) : v_d->d_next_o_id;
 //	printf("oid %ld\n",my_next_o_id);

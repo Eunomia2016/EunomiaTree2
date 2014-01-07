@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <new>
+#include "db/objpool.h"
 
 
 class Memstore {
@@ -102,14 +105,12 @@ class Memstore {
   
   virtual void ThreadLocalInit() { assert(0); }
 
-  static MemNode* GetMemNode()
-  {
-	MemNode* mn = new Memstore::MemNode();
-	mn->seq = 0;
-	mn->value = 0;
-	mn->counter = 0;
-	mn->oldVersions = NULL;
-	return mn;
+  static MemNode* GetMemNode() {
+  
+	  char* mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
+	  mn += sizeof(OBJPool::Obj);
+  
+	  return new (mn) Memstore::MemNode();
   }
   
   

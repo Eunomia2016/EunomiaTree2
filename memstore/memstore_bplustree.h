@@ -163,7 +163,7 @@ public:
 		if(false == localinit_) {
 			arena_ = new RTMArena();
 
-			dummyval_ = new MemNode();
+			dummyval_ = GetMemNode();
 			dummyval_->value = NULL;
 			
 			localinit_ = true;
@@ -466,7 +466,7 @@ public:
 		MemNode* value = Delete_rtm(key);
 		
 		if(dummyval_ == NULL)
-			dummyval_ = new MemNode();
+			dummyval_ = GetMemNode();
 
 		return value;
 		
@@ -480,7 +480,7 @@ public:
 		MemNode* value = Insert_rtm(key);
 		
 		if(dummyval_ == NULL) {
-			dummyval_ = new MemNode();
+			dummyval_ = GetMemNode();
 		}
 		return value;
 				

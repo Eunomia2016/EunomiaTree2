@@ -40,10 +40,10 @@ class DBTX;
 //GC when the number of gc objects reach GCThreshold
 //XXX FIXME: this is critical to the performance, 
 //larger means less gc times and higher performance
-#define GCThreshold 100000 
+#define GCThreshold 1
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 1000
+#define RMThreshold 1
 
 class DBTables {
 	
@@ -79,7 +79,8 @@ class DBTables {
 	Epoch* epoch;
 	RCU* rcu;
 	PBuf* pbuf_;
-	
+
+	static Memstore::MemNode* bugnode;
 	
 	DBTables();
 	DBTables(int n);
@@ -137,6 +138,8 @@ class DBTables {
 
 	//An independent thread updates the snapshot number periodically	
 	static void* SnapshotUpdateThread(void * arg);
+
+	static void DEBUGGC();
 	
 };
 

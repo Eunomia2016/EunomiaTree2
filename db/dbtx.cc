@@ -880,13 +880,16 @@ retry:
 
   if(node->value == HAVEREMOVED)
   	goto retry;
-  
+
   char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
 
-  if(value == NULL)
-  	value = new char[len];
+  if(value == NULL) {
+  	value = (char *)malloc(sizeof(OBJPool::Obj) + len);
+	value += sizeof(OBJPool::Obj);
+  }
   
   memcpy(value, val, len);
+  
   writeset->Add(tableid, key, (uint64_t *)value, node);
 
 }

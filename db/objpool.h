@@ -8,13 +8,11 @@
 
 class OBJPool {
 
+public:
+
 	struct Obj {
 		Obj *next;
-		uint64_t* value;
-		Obj(){
-			next = NULL;
-			value = NULL;
-		}
+		char value[0];
 	};
 	
 	struct Header {
@@ -54,9 +52,9 @@ public:
 	
 	~OBJPool();
 	
-	void AddGCObj(uint64_t* gobj, uint64_t sn);
+	void AddGCObj(char* gobj, uint64_t sn);
 
-	uint64_t* GetFreeObj();
+	char* GetFreeObj();
 
 	void FreeList(Header* list);
 	
