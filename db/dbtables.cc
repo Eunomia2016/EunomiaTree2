@@ -228,9 +228,9 @@ void DBTables::AddDeletedValue(int tableid, uint64_t* value, uint64_t sn)
 	valuesPool[tableid].AddGCObj((char *)value, sn);
 }
 
-Memstore::MemNode* DBTables::GetMemNode()
+Memstore::MemNode* DBTables::GetMemNode(int tableid)
 {
-	char* mn = memnodesPool->GetFreeObj();
+	char* mn =  memnodesPool[tableid].GetFreeObj();
 
 	if(mn == NULL) {
 		mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
@@ -247,12 +247,12 @@ uint64_t* DBTables::GetEmptyValue(int tableid)
 	return (uint64_t *)valuesPool[tableid].GetFreeObj();
 }
 
-void DBTables::AddDeletedNode(uint64_t *node)
+void DBTables::AddDeletedNode(int tableid, uint64_t *node)
 {
 	gcnum++;
 	
 	//XXX: we set the safe sn of memnode to be 0
-	memnodesPool->AddGCObj((char *)node, 0); 
+	memnodesPool[tableid].AddGCObj((char *)node, 0); 
 }
 
 void DBTables::AddRemoveNode(int tableid, uint64_t key, 
@@ -270,9 +270,10 @@ void DBTables::GC()
 	
 	for(int i = 0; i < number; i++) {
 		valuesPool[i].GC(pbuf_->GetSafeSN());
+		memnodesPool[i].GC(pbuf_->GetSafeSN());
 	}
 
-	memnodesPool->GC(pbuf_->GetSafeSN());
+	
 	gcnum = 0;
 
 }
@@ -355,9 +356,9 @@ void DBTables::ThreadLocalInit(int tid)
 	assert(number != 0);
 	
 	valuesPool = new OBJPool[number];
-	memnodesPool = new OBJPool();
+	memnodesPool = new OBJPool[number];
 
-	memnodesPool->debug = false;
+	//memnodesPool->debug = false;
 	
 	rmPool = new RMPool(this);
 	

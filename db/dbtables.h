@@ -40,10 +40,10 @@ class DBTX;
 //GC when the number of gc objects reach GCThreshold
 //XXX FIXME: this is critical to the performance, 
 //larger means less gc times and higher performance
-#define GCThreshold 1
+#define GCThreshold 100000
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 1
+#define RMThreshold 100
 
 class DBTables {
 	
@@ -121,11 +121,11 @@ class DBTables {
 	void AddDeletedValue(int tableid, uint64_t* value, uint64_t sn);
 	uint64_t*GetEmptyValue(int tableid);
 	
-	void AddDeletedNode(uint64_t *node);
+	void AddDeletedNode(int tableid, uint64_t *node);
 
 	void AddRemoveNode(int tableid, uint64_t key, uint64_t seq, Memstore::MemNode* value);
 
-	Memstore::MemNode* GetMemNode();	
+	Memstore::MemNode* GetMemNode(int tableid);	
 	void GC();
 	
 	void DelayRemove();
