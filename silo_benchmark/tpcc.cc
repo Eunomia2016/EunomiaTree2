@@ -3137,9 +3137,9 @@ public:
   {
 
 #if USESECONDINDEX
-	store = new DBTables(9, NumWarehouses());
+	store = new DBTables(9, nthreads);
 #else
-	store = new DBTables(11, NumWarehouses());
+	store = new DBTables(11, nthreads);
 	//store->RCUInit(NumWarehouses());
 
 #endif
