@@ -32,7 +32,7 @@
 
 using namespace std;
 using namespace util;
-#define SEPERATE 0
+#define SEPERATE 0	
 #define SLDBTX	0
 #define CHECKTPCC 0
 #define SEC_INDEX 1
@@ -845,7 +845,8 @@ protected:
         tbl_warehouse(i)->insert(txn, Encode(k), Encode(obj_buf, v));
 #endif	
 
-		store->tables[WARE]->Put(i, (uint64_t *)v);
+		store->TupleInsert(WARE, i, (uint64_t *)v, sizeof(warehouse::value));
+		//store->tables[WARE]->Put(i, (uint64_t *)v);
 		
 		if (Encode(k).size() !=8) cerr << Encode(k).size() << endl;
         warehouses.push_back(*v);
@@ -921,8 +922,8 @@ protected:
         const size_t sz = Size(*v);
         total_sz += sz;
 
-		
-		store->tables[ITEM]->Put(i, (uint64_t *)v);
+		store->TupleInsert(ITEM, i, (uint64_t *)v, sizeof(item::value));
+//		store->tables[ITEM]->Put(i, (uint64_t *)v);
 #if 0		
         tbl_item(1)->insert(txn, Encode(k), Encode(obj_buf, v)); // this table is shared, so any partition is OK
 
@@ -1051,8 +1052,9 @@ protected:
             const size_t sz = Size(*v);
             stock_total_sz += sz;
             n_stocks++;
-
-			store->tables[STOC]->Put(key, (uint64_t *)v);
+			
+			store->TupleInsert(STOC, key, (uint64_t *)v, sizeof(stock::value));
+			//store->tables[STOC]->Put(key, (uint64_t *)v);
 		//	printf("key %ld\n" , key);
 #if 0			
             tbl_stock(w)->insert(txn, Encode(k), Encode(obj_buf, v));
@@ -1148,7 +1150,8 @@ protected:
           n_districts++;
 		  
 
-		  store->tables[DIST]->Put(key, (uint64_t *)v);
+		  //store->tables[DIST]->Put(key, (uint64_t *)v);
+		  store->TupleInsert(DIST, key, (uint64_t *)v, sizeof(district::value));
 #if 0
           tbl_district(w)->insert(txn, Encode(k), Encode(obj_buf, v));
           if (bsize != -1 && !((cnt + 1) % bsize)) {
@@ -1264,7 +1267,8 @@ protected:
               const size_t sz = Size(*v);
               total_sz += sz;
 
-			  Memstore::MemNode *node = store->tables[CUST]->Put(key, (uint64_t *)v);
+//			  Memstore::MemNode *node = store->tables[CUST]->Put(key, (uint64_t *)v);
+			 store->TupleInsert(CUST, key, (uint64_t *)v, sizeof(customer::value));
 #if 0			  
               tbl_customer(w)->insert(txn, Encode(k), Encode(obj_buf, v));
 #endif
@@ -1290,7 +1294,8 @@ protected:
 					uint64_t *prikeys = new uint64_t[2];
 					prikeys[0] = 1; prikeys[1] = key;
 					//printf("key %ld\n",key);
-					store->tables[CUST_INDEX]->Put(sec, prikeys);
+					//store->tables[CUST_INDEX]->Put(sec, prikeys);
+					store->TupleInsert(CUST_INDEX, sec, (uint64_t *)prikeys, 2* sizeof(uint64_t));
 				}
 				else {
 					printf("ccccc\n");
@@ -1301,7 +1306,9 @@ protected:
 					for (int i=1; i<=num; i++) 
 						prikeys[i] = value[i];
 					prikeys[num+1] = key;
-					store->tables[CUST_INDEX]->Put(sec, prikeys);
+//					store->tables[CUST_INDEX]->Put(sec, prikeys);
+					store->TupleInsert(CUST_INDEX, sec, 
+										(uint64_t *)prikeys, (num + 2) * sizeof(uint64_t));
 					//delete[] value;
 				}
 			  #endif
@@ -1329,7 +1336,9 @@ protected:
               v_hist->h_amount = 10;
               v_hist->h_data.assign(RandomStr(r, RandomNumber(r, 10, 24)));
 
-			  store->tables[HIST]->Put(hkey, (uint64_t *)v_hist);
+			//  store->tables[HIST]->Put(hkey, (uint64_t *)v_hist);
+
+			  store->TupleInsert(HIST, hkey, (uint64_t *)v_hist, sizeof(history::value));
 #if 0
               tbl_history(w)->insert(txn, Encode(k_hist), Encode(obj_buf, v_hist));
 #endif			  
@@ -1443,9 +1452,11 @@ protected:
             oorder_total_sz += sz;
             n_oorders++;
 
-			Memstore::MemNode *node = store->tables[ORDE]->Put(okey, (uint64_t *)v_oo);
 
-			
+			store->TupleInsert(ORDE, okey, (uint64_t *)v_oo, sizeof(oorder::value));
+			//Memstore::MemNode *node = store->tables[ORDE]->Put(okey, (uint64_t *)v_oo);
+
+					
 			uint64_t sec = makeOrderIndex(w, d, v_oo->o_c_id, c);
 #if USESECONDINDEX
 			store->secondIndexes[ORDER_INDEX]->Put(sec, okey, node);
@@ -1454,7 +1465,8 @@ protected:
 			if (mn == NULL) {
 				uint64_t *prikeys = new uint64_t[2];
 				prikeys[0] = 1; prikeys[1] = okey;
-				store->tables[ORDER_INDEX]->Put(sec, prikeys);
+//		store->tables[ORDER_INDEX]->Put(sec, prikeys);
+				store->TupleInsert(ORDER_INDEX, sec, prikeys, 2*sizeof(uint64_t));
 			}
 			else {
 				printf("oooo\n");
@@ -1465,7 +1477,9 @@ protected:
 				for (int i=1; i<=num; i++) 
 					prikeys[i] = value[i];
 				prikeys[num+1] = okey;
-				store->tables[ORDER_INDEX]->Put(sec, prikeys);
+//				store->tables[ORDER_INDEX]->Put(sec, prikeys);
+				store->TupleInsert(ORDER_INDEX, sec, prikeys, (num + 2) * sizeof(uint64_t));
+
 				delete[] value;
 			}
 #endif
@@ -1499,7 +1513,9 @@ protected:
               new_order_total_sz += sz;
               n_new_orders++;
 
-			  store->tables[NEWO]->Put(nokey, (uint64_t *)v_no);
+			  //store->tables[NEWO]->Put(nokey, (uint64_t *)v_no);
+			  store->TupleInsert(NEWO, nokey, (uint64_t *)v_no, sizeof(new_order::value));
+			  
 #if 0			  
               tbl_new_order(w)->insert(txn, Encode(k_no), Encode(obj_buf, v_no));
 #endif
@@ -1533,8 +1549,8 @@ protected:
               order_line_total_sz += sz;
               n_order_lines++;
 
-			  
-			  store->tables[ORLI]->Put(olkey, (uint64_t *)v_ol);
+	 		 store->TupleInsert(ORLI, olkey, (uint64_t *)v_ol, sizeof(order_line::value));		  
+//			  store->tables[ORLI]->Put(olkey, (uint64_t *)v_ol);
 #if 0			  
               tbl_order_line(w)->insert(txn, Encode(k_ol), Encode(obj_buf, v_ol));
 #endif
@@ -1706,6 +1722,11 @@ tpcc_worker::txn_new_order()
 #if 0	
     checker::SanityCheckDistrict(&k_d, v_d);
 #endif
+    if((uint64_t)v_d == 0x7f3938373635) {
+		DBTables::DEBUGGC();
+		printf("txn_new_order key %lx v_d %lx\n", d_key, v_d); 
+		fflush(stdout);
+	}
     const uint64_t my_next_o_id = g_new_order_fast_id_gen ?
         FastNewOrderIdGen(warehouse_id, districtID) : v_d->d_next_o_id;
 //	printf("oid %ld\n",my_next_o_id);

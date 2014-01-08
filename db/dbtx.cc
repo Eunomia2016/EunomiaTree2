@@ -357,24 +357,7 @@ inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val)
 
 inline void DBTX::WriteSet::UpdateSecondaryIndex()
 {
-#if USESECONDINDEX
-	for(int i = 0; i < cursindex; i++) {
-		
-		//1. set memnode in wrapper
-		sindexes[i].sindex->memnode = sindexes[i].memnode;
-		
-		//if (sindexes[i].sindex->memnode->value == (uint64_t *)2) printf("---\n");
-		//2. logically delete the old secondary index
-		if(sindexes[i].sindex->memnode->secIndexValidateAddr != NULL)
-			*sindexes[i].sindex->memnode->secIndexValidateAddr = 0;
-
-		//3. update the new secondary index
-		sindexes[i].sindex->valid = 1;
-		sindexes[i].sindex->memnode->secIndexValidateAddr 
-					= &sindexes[i].sindex->valid;
-		*sindexes[i].seq += 1;
-	}
-#endif	
+	assert(0);	
 }
 
 inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx)
@@ -415,16 +398,7 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 						pthread_self(), kvs[i].key, kvs[i].node,	
 						  kvs[i].node->seq, (uint64_t)kvs[i].node->value);
 #endif
-
-
-			assert(dbtx_ != NULL);
-
-#if USESECONDINDEX
-			//Invalidate secondary index when deletion 	  	  			
-			if (kvs[i].node->secIndexValidateAddr != NULL)
-				*(kvs[i].node->secIndexValidateAddr) = -1;
-#endif			
-			
+			assert(dbtx_ != NULL);			
 			
 			dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
 			
@@ -458,14 +432,10 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter)
 					  kvs[i].node->seq, (uint64_t)kvs[i].node->value);
 #endif
 		  //Invalidate secondary index when deletion 	 
-#if USESECONDINDEX		  
-		  if (kvs[i].node->secIndexValidateAddr != NULL)
-				*(kvs[i].node->secIndexValidateAddr) = -1;
-#endif			
 		  dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
 	    }
 
-	    kvs[i].dummy = dbtx_->txdb_->GetMemNode();
+	    kvs[i].dummy = dbtx_->txdb_->GetMemNode(kvs[i].tableid);
 	    kvs[i].dummy->value = kvs[i].node->value;
 	    kvs[i].dummy->counter = kvs[i].node->counter;
 	    kvs[i].dummy->seq = kvs[i].node->seq; //need this ?
@@ -526,7 +496,7 @@ inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables)
 		//Then check if there is some old version records
 		if(kvs[i].dummy != NULL) {
 			
-			tables->AddDeletedNode((uint64_t *) kvs[i].dummy);
+			tables->AddDeletedNode(kvs[i].tableid, (uint64_t *) kvs[i].dummy);
 
 			if(DBTX::ValidateValue(kvs[i].dummy->value))
 				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value, commitSN);	
@@ -880,13 +850,16 @@ retry:
 
   if(node->value == HAVEREMOVED)
   	goto retry;
-  
+
   char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
 
-  if(value == NULL)
-  	value = new char[len];
+  if(value == NULL) {
+  	value = (char *)malloc(sizeof(OBJPool::Obj) + len);
+	value += sizeof(OBJPool::Obj);
+  }
   
   memcpy(value, val, len);
+  
   writeset->Add(tableid, key, (uint64_t *)value, node);
 
 }

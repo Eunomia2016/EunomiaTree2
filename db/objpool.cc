@@ -27,11 +27,12 @@ OBJPool::~OBJPool()
 	}
 }
 	
-void OBJPool::AddGCObj(uint64_t* gobj, uint64_t sn)
+void OBJPool::AddGCObj(char* gobj, uint64_t sn)
 {
 
-	Obj* o = new Obj();
-	o->value = gobj;
+//	printf("AddGCObj %lx\n", gobj);
+
+	Obj* o = (Obj*) (gobj - sizeof(Obj));
 	
 	if(curlist_ == NULL) {
 
@@ -53,7 +54,7 @@ void OBJPool::AddGCObj(uint64_t* gobj, uint64_t sn)
 		curlist_->tail = o;
 		assert(NULL == curlist_->head);
 	}
-		
+
 	o->next = curlist_->head;
 	curlist_->head = o;
 		
@@ -61,7 +62,7 @@ void OBJPool::AddGCObj(uint64_t* gobj, uint64_t sn)
 
 }
 
-uint64_t* OBJPool::GetFreeObj()
+char* OBJPool::GetFreeObj()
 {
 	if(0 == freenum_)
 		return NULL;
@@ -73,8 +74,10 @@ uint64_t* OBJPool::GetFreeObj()
 
 	freelist_ = freelist_->next;
 	freenum_--;
-	uint64_t *val = r->value;
-	delete r;
+	
+	r->next = NULL;
+	char *val = (char *)&r->value[0];
+//	printf("GetFreeObj %lx %lx\n", r, val);
 	return val;
 }
 
@@ -84,6 +87,7 @@ void OBJPool::GC(uint64_t safesn)
 		assert(curlist_ == NULL);
 		return;
 	}
+	
 	while(gclists_ != NULL && gclists_->sn <= safesn) {
 		Header* cur = gclists_;
 		gclists_ = gclists_->next;
@@ -109,12 +113,11 @@ void OBJPool::GCList(Header* list)
 void OBJPool::FreeList(Header* list)
 {
 	assert(list != NULL);
-	
+	int i = 0;
 	while (NULL != list->head) {
 		Obj* o = list->head;
 		list->head = list->head->next;
-		delete o->value;
-		delete o;
+		free(o);
 	}
 }
 

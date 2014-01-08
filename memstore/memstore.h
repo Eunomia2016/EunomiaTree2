@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <new>
+#include "db/objpool.h"
 
 
 class Memstore {
@@ -17,8 +20,7 @@ class Memstore {
 	uint64_t* value; //pointer of the real value. 1: logically delete 2: Node is removed from memstore
 	MemNode* oldVersions;
 	int gcRef;
-	int* secIndexValidateAddr;
-
+	//char padding [16];
 	MemNode()
 	{
 		counter = 0;
@@ -26,15 +28,14 @@ class Memstore {
 		value = NULL;
 		oldVersions = NULL;
 		gcRef = 0;
-		secIndexValidateAddr = NULL;
 	}
 
 	//For debuging
 	void Print()
 	{
 #if 0	
-		printf("Mem Addr %lx, Counter %ld, Seq %ld, Value Addr %lx, Old Addr %lx\n",
-			this, counter, seq, value, oldVersions, secIndexValidateAddr);
+		printf("Mem Addr %lx, Counter %ld, Seq %ld, Value Addr %lx, Old Addr %lx\nå",
+			this, counter, seq, value, oldVersions);
 #endif
 	}
   };
@@ -102,14 +103,16 @@ class Memstore {
   
   virtual void ThreadLocalInit() { assert(0); }
 
-  static MemNode* GetMemNode()
-  {
-	MemNode* mn = new Memstore::MemNode();
-	mn->seq = 0;
-	mn->value = 0;
-	mn->counter = 0;
-	mn->oldVersions = NULL;
-	return mn;
+  static MemNode* GetMemNode() {
+  
+	  char* mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
+
+	  //if(((uint64_t)mn & 63) != 0)
+	  	//printf("MemNode Not Cache Assignment addr %lx obj size %d memnode size %d\n", 
+	  	//mn, sizeof(OBJPool::Obj), sizeof(Memstore::MemNode));
+	  mn += sizeof(OBJPool::Obj);
+	  
+	  return new (mn) Memstore::MemNode();
   }
   
   

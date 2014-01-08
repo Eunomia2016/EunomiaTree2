@@ -52,7 +52,7 @@ void RMPool::RemoveAll()
 
 		if(o->node->value == HAVEREMOVED && ref == 1) {
 //			printf("[%lx] Add node %lx\n", pthread_self(), o->node);
-		 	store->AddDeletedNode((uint64_t *)o->node);
+		 	store->AddDeletedNode(o->tableid, (uint64_t *)o->node);
 		}
 
 		delete o;

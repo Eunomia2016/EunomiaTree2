@@ -40,10 +40,10 @@ class DBTX;
 //GC when the number of gc objects reach GCThreshold
 //XXX FIXME: this is critical to the performance, 
 //larger means less gc times and higher performance
-#define GCThreshold 10000000 
+#define GCThreshold 100000
 
 //GC when the number of rm objects reach RMThreshold
-#define RMThreshold 1000
+#define RMThreshold 100
 
 class DBTables {
 	
@@ -79,7 +79,8 @@ class DBTables {
 	Epoch* epoch;
 	RCU* rcu;
 	PBuf* pbuf_;
-	
+
+	static Memstore::MemNode* bugnode;
 	
 	DBTables();
 	DBTables(int n);
@@ -89,6 +90,9 @@ class DBTables {
 	
 	~DBTables();
 
+
+	void TupleInsert(int tabid, uint64_t key, uint64_t *val, int len);
+	
 	void ThreadLocalInit(int tid);
 	int AddTable(int tableid, int index_type, int secondary_index_type);
 
@@ -117,11 +121,11 @@ class DBTables {
 	void AddDeletedValue(int tableid, uint64_t* value, uint64_t sn);
 	uint64_t*GetEmptyValue(int tableid);
 	
-	void AddDeletedNode(uint64_t *node);
+	void AddDeletedNode(int tableid, uint64_t *node);
 
 	void AddRemoveNode(int tableid, uint64_t key, uint64_t seq, Memstore::MemNode* value);
 
-	Memstore::MemNode* GetMemNode();	
+	Memstore::MemNode* GetMemNode(int tableid);	
 	void GC();
 	
 	void DelayRemove();
@@ -134,6 +138,8 @@ class DBTables {
 
 	//An independent thread updates the snapshot number periodically	
 	static void* SnapshotUpdateThread(void * arg);
+
+	static void DEBUGGC();
 	
 };
 
