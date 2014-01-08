@@ -29,7 +29,7 @@
 #define PERSISTENT 0
 
 //For deletion (read only TX)
-#define RCUGC 1
+#define RCUGC 0
 
 
 #define LOGICALDELETE (uint64_t *)NULL

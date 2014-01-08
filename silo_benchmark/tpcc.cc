@@ -36,6 +36,8 @@ using namespace util;
 #define SLDBTX	0
 #define CHECKTPCC 0
 #define SEC_INDEX 1
+#define BINDWAREHOUSE 0	
+
 
 #define WARE 0
 #define DIST 1
@@ -787,7 +789,7 @@ protected:
 private:
   const uint warehouse_id_start;
   const uint warehouse_id_end;
-  int32_t last_no_o_ids[10]; // XXX(stephentu): hack
+  int32_t last_no_o_ids[32][10]; // XXX(stephentu): hack
 
   // some scratch buffer space
   string obj_key0;
@@ -2083,7 +2085,7 @@ tpcc_worker::txn_delivery()
 		
 	    int32_t no_o_id = 1;
 		uint64_t *no_value;
-		int64_t start = makeNewOrderKey(warehouse_id, d, last_no_o_ids[d - 1]);
+		int64_t start = makeNewOrderKey(warehouse_id, d, last_no_o_ids[warehouse_id -1][d - 1]);
 		int64_t end = makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max());
 		int64_t no_key  = -1;
 		DBTX::Iterator iter(&tx, NEWO);
@@ -2128,7 +2130,7 @@ tpcc_worker::txn_delivery()
       int32_t no_o_id = k_no->no_o_id;
 #endif
 #endif
-	  last_no_o_ids[d - 1] = no_o_id + 1; // XXX: update last seen
+	  last_no_o_ids[warehouse_id -1][d - 1] = no_o_id + 1; // XXX: update last seen
 #if 0	  
 #if SHORTKEY
 	  const oorder::key k_oo(makeOrderKey(warehouse_id, d, no_o_id));
@@ -3243,6 +3245,7 @@ protected:
  const int blockstart = 8;
     fast_random r(23984543);
     vector<bench_worker *> ret;
+#if BINDWAREHOUSE	
     if (NumWarehouses() <= nthreads) {
       for (size_t i = 0; i < nthreads; i++)
         ret.push_back(
@@ -3253,7 +3256,7 @@ protected:
             (i % NumWarehouses()) + 1, (i % NumWarehouses()) + 2, store));
     } else {
       const unsigned nwhse_per_partition = NumWarehouses() / nthreads;
-      for (size_t i = 0; i < nthreads; i++) {
+      for (size_t i = 0; i < nthreads; i++) {	  	
         const unsigned wstart = i * nwhse_per_partition;
         const unsigned wend   = (i + 1 == nthreads) ?
           NumWarehouses() : (i + 1) * nwhse_per_partition;
@@ -3264,6 +3267,20 @@ protected:
             &barrier_a, &barrier_b, wstart+1, wend+1, store));
       }
     }
+#else 
+	  const unsigned wstart = 0;
+	  const unsigned wend	= NumWarehouses();
+
+	  for (size_t i = 0; i < nthreads; i++) {	  	
+        ret.push_back(
+          new tpcc_worker(
+            blockstart + i,
+            r.next(), db, 
+            &barrier_a, &barrier_b, wstart+1, wend+1, store));
+      }
+
+	
+#endif
     return ret;
   }
 
