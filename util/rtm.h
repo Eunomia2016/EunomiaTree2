@@ -9,6 +9,8 @@
 #include "util/spinlock.h"
 #include "txprofile.h"
 
+//#define AVOIDNESTTX 
+
 #define MAXNEST 0
 #define MAXZERO 3
 #define MAXCAPACITY 16
@@ -30,10 +32,12 @@ class RTMScope {
  int capacity;
  int nested;
  int zero;
- uint64_t befcommit;
- uint64_t aftcommit;
  SpinLock* slock;
- 
+
+#ifdef AVOIDNESTTX
+ int isnest;
+#endif
+
  public:
 
  static SpinLock fblock;
@@ -41,12 +45,17 @@ class RTMScope {
 
  inline RTMScope(RTMProfile* prof, int read = 1, int write = 1, SpinLock* sl = NULL) {
 
+	
   	globalprof = prof;
 	retry = 0;
 	conflict = 0;
 	capacity = 0;
     zero = 0;
 	nested = 0;
+
+#ifdef AVOIDNESTTX
+	isnest = _xtest();
+#endif
 
 	if(sl == NULL) {
 		//If the user doesn't provide a lock, we give him a default locking
@@ -55,6 +64,15 @@ class RTMScope {
 		slock = sl;
 	}
 
+#ifdef AVOIDNESTTX
+	if(isnest != 0) {
+		if(slock->IsLocked())
+		    _xabort(0xff);
+		return;
+	}
+#endif
+
+	
 #if !SIMPLERETY
 	if(read > MAXREAD || write > MAXWRITE) {
 		slock->Lock();
@@ -129,7 +147,14 @@ class RTMScope {
   	  _xabort(0x1);
 	
   }
-inline  ~RTMScope() {  
+inline  ~RTMScope() { 
+
+#ifdef AVOIDNESTTX
+	if(isnest != 0) {
+		return;
+	}
+#endif
+	
   	if(slock->IsLocked())
 	  slock->Unlock();
 	else

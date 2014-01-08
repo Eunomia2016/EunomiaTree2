@@ -36,7 +36,7 @@ using namespace util;
 #define SLDBTX	0
 #define CHECKTPCC 0
 #define SEC_INDEX 1
-#define BINDWAREHOUSE 0	
+#define BINDWAREHOUSE 1	
 
 
 #define WARE 0
