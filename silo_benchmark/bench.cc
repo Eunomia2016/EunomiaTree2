@@ -185,7 +185,7 @@ bench_worker::run()
           latency_numer_us += t.lap();
           backoff_shifts >>= 1;
         } else {
-          ++ntxn_aborts;
+          ++ntxn_aborts[i];
           if (retry_aborted_transaction && running) {
             if (backoff_aborted_transaction) {
               if (backoff_shifts < 63)
@@ -283,7 +283,7 @@ bench_runner::run()
 #endif		 
     cerr << "starting benchmark..." << endl;
   }
-  
+
   bench_worker::total_ops = ops_per_worker * nthreads;
   const pair<uint64_t, uint64_t> mem_info_before = get_system_memory_info();
 
@@ -312,11 +312,14 @@ bench_runner::run()
                                          // because do_txn_finish() potentially
                                          // waits a bit
   size_t n_commits = 0;
-  size_t n_aborts = 0;
+  size_t n_aborts[5];
+  for (size_t i = 0; i<5; i++) 
+  	n_aborts[i] = 0;
   uint64_t latency_numer_us = 0;
   for (size_t i = 0; i < nthreads; i++) {
     n_commits += workers[i]->get_ntxn_commits();
-    n_aborts += workers[i]->get_ntxn_aborts();
+	for (size_t i = 0; i<5; i++) 
+    	n_aborts[i] += workers[i]->get_ntxn_aborts(i);
     latency_numer_us += workers[i]->get_latency_numer_us();
   }
 //  const auto persisted_info = db->get_ntxn_persisted();
@@ -335,8 +338,8 @@ bench_runner::run()
   const double agg_throughput = double(n_commits) / elapsed_sec;
   const double avg_per_core_throughput = agg_throughput / double(workers.size());
 
-  const double agg_abort_rate = double(n_aborts) / elapsed_sec;
-  const double avg_per_core_abort_rate = agg_abort_rate / double(workers.size());
+  //const double agg_abort_rate = double(n_aborts) / elapsed_sec;
+  //const double avg_per_core_abort_rate = agg_abort_rate / double(workers.size());
 
   // we can use n_commits here, because we explicitly wait for all txns
   // run to be durable
@@ -405,9 +408,10 @@ bench_runner::run()
     cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
 //    cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
 //    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
-    cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
-	cerr << "agg_abort_num: " << n_aborts <<endl;
-    cerr << "avg_per_core_abort_rate: " << avg_per_core_abort_rate << " aborts/sec/core" << endl;
+//    cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
+	for (int i=0; i< 5;i++)
+		cerr << "workload[" << i << "] agg_abort_num: " << n_aborts[i] <<endl;
+//    cerr << "avg_per_core_abort_rate: " << avg_per_core_abort_rate << " aborts/sec/core" << endl;
     cerr << "txn breakdown: " << format_list(agg_txn_counts.begin(), agg_txn_counts.end()) << endl;
 #if 0	
     cerr << "--- system counters (for benchmark) ---" << endl;
@@ -435,8 +439,7 @@ bench_runner::run()
   // output for plotting script
   cout << agg_nosync_throughput << " "
        << agg_persist_throughput << " "
-       << elapsed_sec << " "
-       << agg_abort_rate << endl;
+       << elapsed_sec <<  endl;
   cout.flush();
 
   if (!slow_exit)
