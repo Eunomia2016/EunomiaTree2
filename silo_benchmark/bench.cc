@@ -318,8 +318,8 @@ bench_runner::run()
   uint64_t latency_numer_us = 0;
   for (size_t i = 0; i < nthreads; i++) {
     n_commits += workers[i]->get_ntxn_commits();
-	for (size_t i = 0; i<5; i++) 
-    	n_aborts[i] += workers[i]->get_ntxn_aborts(i);
+	for (size_t j = 0; j<5; j++) 
+    	n_aborts[j] += workers[i]->get_ntxn_aborts(j);
     latency_numer_us += workers[i]->get_latency_numer_us();
   }
 //  const auto persisted_info = db->get_ntxn_persisted();
