@@ -409,8 +409,15 @@ bench_runner::run()
 //    cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
 //    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
 //    cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
-	for (int i=0; i< 5;i++)
+	int totalabort = 0;
+	
+	for (int i=0; i< 5;i++) {
+		totalabort += n_aborts[i];
 		cerr << "workload[" << i << "] agg_abort_num: " << n_aborts[i] <<endl;
+	}
+
+	cerr << "total_abort_num: " << totalabort << endl;
+	
 //    cerr << "avg_per_core_abort_rate: " << avg_per_core_abort_rate << " aborts/sec/core" << endl;
     cerr << "txn breakdown: " << format_list(agg_txn_counts.begin(), agg_txn_counts.end()) << endl;
 #if 0	
