@@ -45,7 +45,8 @@ inline int Read(char * data) {
 }
 
 inline void Write(char * data) {
-	for(int i = 0; i < workingset; i++) {
+	register int ws = workingset;
+	for(int i = 0; i < ws; i++) {
 		data[i]++;
 	}
 }
@@ -121,22 +122,21 @@ void* thread_body(void *x) {
 	
 	while(true) {
 
+		register int res = 0;
 		
 		{
-			
 			RTMRegion rtm(&prof);
 			if(lbench == 1)
-				count += Read((char *)array);
+				res += Read((char *)array);
 			else if(lbench == 2) {
 //				count += Read((char *)array);	
 				Write((char *)array);
 			}
 			else if(lbench == 3)
 				count += ReadWrite((char *)array);
-				
 		}
 
-		if(lepoch < epoch) {
+//		if(lepoch < epoch) {
 
 
 
@@ -146,6 +146,7 @@ void* thread_body(void *x) {
 
 			prof.ReportProfile();
 			prof.Reset();
+			count += res;
 			printf("count %d\n", count);
 		
 			clock_gettime(CLOCK_REALTIME, &start);
@@ -153,7 +154,7 @@ void* thread_body(void *x) {
 
 			lepoch = epoch;
 			
-		}
+	//	}
 
 	}
 
@@ -204,11 +205,11 @@ int main(int argc, char** argv) {
 	//Begin at the first epoch
 	epoch = 1;
 
-	sleep(5); //for warmup
+	sleep(1); //for warmup
 	epoch++;
 	
 	while(true) {
-		sleep(5);
+		sleep(1);
 		epoch++;
 	}
 

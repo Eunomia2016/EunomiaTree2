@@ -22,10 +22,10 @@
 
 #define SIMPLERETY 0
 
+#define AVOIDNESTTX
+
 class RTMScope {
 
-	
- RTMProfile localprofile;
  RTMProfile* globalprof;
  int retry;
  int conflict;
@@ -41,7 +41,6 @@ class RTMScope {
  public:
 
  static SpinLock fblock;
-
 
  inline RTMScope(RTMProfile* prof, int read = 1, int write = 1, SpinLock* sl = NULL) {
 
@@ -168,7 +167,6 @@ inline  ~RTMScope() {
 		globalprof->conflictCounts += conflict;
 	}
 #endif
-//		globalprof->MergeLocalStatus(localprofile);
 
   }
 
