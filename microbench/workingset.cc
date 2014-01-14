@@ -136,7 +136,7 @@ void* thread_body(void *x) {
 				count += ReadWrite((char *)array);
 		}
 
-//		if(lepoch < epoch) {
+		if(lepoch < epoch) {
 
 
 
@@ -154,7 +154,7 @@ void* thread_body(void *x) {
 
 			lepoch = epoch;
 			
-	//	}
+		}
 
 	}
 
