@@ -56,7 +56,7 @@ inline int WriteRead(char* data) {
 	int res = 0;
 	int i = 0;
 
-	register int ws = workingset;
+	register int ws = writeset;
 	
 	for(; i < ws; i++) {
 			data[i]++;
@@ -76,7 +76,7 @@ inline int ReadWrite(char* data) {
 	int res = 0;
 	int i = 0;
 
-	register int ws = workingset;
+	register int ws = writeset;
 	
 	for(; i < readset; i++) {
 		res += (int)data[i];
