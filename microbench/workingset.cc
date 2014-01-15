@@ -76,12 +76,12 @@ inline int ReadWrite(char* data) {
 	int res = 0;
 	int i = 0;
 
-	register int ws = writeset;
 	
 	for(; i < readset; i++) {
 		res += (int)data[i];
 	}
 	
+	register int ws = writeset;
 
 	int j = i;
 	
