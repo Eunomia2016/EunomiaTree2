@@ -51,7 +51,8 @@ inline void Write(char * data) {
 	}
 }
 
-inline int ReadWrite(char* data) {
+
+inline int WriteRead(char* data) {
 	int res = 0;
 	int i = 0;
 
@@ -62,6 +63,27 @@ inline int ReadWrite(char* data) {
 	int j = i;
 	for(; i < readset + j; i++) {
 		res += (int)data[i];
+	}
+
+
+	return res;
+}
+
+
+inline int ReadWrite(char* data) {
+	int res = 0;
+	int i = 0;
+
+	
+	for(; i < readset; i++) {
+		res += (int)data[i];
+	}
+	
+
+	int j = i;
+	
+	for(; i < writeset + j; i++) {
+		data[i]++;
 	}
 
 
@@ -84,7 +106,7 @@ diff_timespec(const struct timespec &end, const struct timespec &start)
 void thread_init(){
 	//Allocate the array at heap
 	array = (Cacheline *)malloc(ARRAYSIZE * sizeof(Cacheline));
-		
+	printf("Allocal array %lx\n", array);	
 	//Touch every byte to avoid page fault 
 	memset(array, 1, ARRAYSIZE * sizeof(Cacheline)); 
 
@@ -105,9 +127,9 @@ void* thread_body(void *x) {
 		cpu = 5;
 
 	cpu_set_t  mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu, &mask);
-    sched_setaffinity(0, sizeof(mask), &mask);
+    	CPU_ZERO(&mask);
+    	CPU_SET(cpu, &mask);
+    	sched_setaffinity(0, sizeof(mask), &mask);
 
 	thread_init();
 	
@@ -133,9 +155,12 @@ void* thread_body(void *x) {
 				Write((char *)array);
 			}
 			else if(lbench == 3)
-				count += ReadWrite((char *)array);
+				res += ReadWrite((char *)array);
+			else if(lbench == 4)
+				res += WriteRead((char *)array);
 		}
 
+		count += res;
 		if(lepoch < epoch) {
 
 
@@ -185,8 +210,10 @@ int main(int argc, char** argv) {
 			bench = 1;
 		}else if(strcmp(argv[i], "-w") == 0) {
 			bench = 2;
-		}else if(strcmp(argv[i], "-m") == 0) {
+		}else if(strcmp(argv[i], "-rw") == 0) {
 			bench = 3;
+		}else if(strcmp(argv[i], "-wr") == 0) {
+			bench = 4;
 		}
 	}
 
