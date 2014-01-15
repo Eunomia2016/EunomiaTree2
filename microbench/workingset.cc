@@ -239,7 +239,7 @@ int main(int argc, char** argv) {
 	epoch++;
 	
 	while(true) {
-		sleep(1);
+		sleep(5);
 		epoch++;
 	}
 
