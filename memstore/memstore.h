@@ -20,7 +20,7 @@ class Memstore {
 	uint64_t* value; //pointer of the real value. 1: logically delete 2: Node is removed from memstore
 	MemNode* oldVersions;
 	int gcRef;
-	//char padding [16];
+	//char padding[16];
 	MemNode()
 	{
 		counter = 0;

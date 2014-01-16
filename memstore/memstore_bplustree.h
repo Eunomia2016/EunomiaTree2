@@ -15,7 +15,7 @@
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
 #define BTPREFETCH 0
-#define DUMMY 0
+#define DUMMY 1
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 	
@@ -176,7 +176,7 @@ public:
 	}
 	
 	inline LeafNode* new_leaf_node() {
-			
+
 #if DUMMY
 			LeafNode* result = dummyleaf_;
 			dummyleaf_ = NULL;

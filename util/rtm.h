@@ -9,7 +9,6 @@
 #include "util/spinlock.h"
 #include "txprofile.h"
 
-//#define AVOIDNESTTX 
 
 #define MAXNEST 0
 #define MAXZERO 3
