@@ -105,8 +105,9 @@ class Memstore {
 
   static MemNode* GetMemNode() {
   
-	  char* mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
-
+	  //char* mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
+	  char* mn = (char *)malloc(64);
+	  
 	  //if(((uint64_t)mn & 63) != 0)
 	  	//printf("MemNode Not Cache Assignment addr %lx obj size %d memnode size %d\n", 
 	  	//mn, sizeof(OBJPool::Obj), sizeof(Memstore::MemNode));

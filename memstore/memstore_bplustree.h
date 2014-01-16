@@ -15,6 +15,7 @@
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
 #define BTPREFETCH 0
+#define DUMMY 0
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 	
@@ -175,9 +176,13 @@ public:
 	}
 	
 	inline LeafNode* new_leaf_node() {
-			//LeafNode* result = new LeafNode();
+			
+#if DUMMY
 			LeafNode* result = dummyleaf_;
 			dummyleaf_ = NULL;
+#else
+			LeafNode* result = new LeafNode();
+#endif
 			//LeafNode* result = (LeafNode *)(arena_->AllocateAligned(sizeof(LeafNode)));
 			return result;
 	}
@@ -469,7 +474,8 @@ public:
 		ThreadLocalInit();
 
 		MemNode* value = Delete_rtm(key);
-		
+
+#if DUMMY
 		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
 		}
@@ -477,7 +483,7 @@ public:
 		if(dummyleaf_ == NULL) {
 			dummyleaf_ = new LeafNode();
 		}
-		
+#endif		
 		return value;
 		
 	}
@@ -488,7 +494,8 @@ public:
 		ThreadLocalInit();
 
 		MemNode* value = Insert_rtm(key);
-		
+
+#if DUMMY
 		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
 		}
@@ -496,7 +503,8 @@ public:
 		if(dummyleaf_ == NULL) {
 			dummyleaf_ = new LeafNode();
 		}
-		
+#endif
+
 		return value;
 				
 	}
@@ -830,10 +838,15 @@ public:
 		
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
-		toInsert->values[k] = dummyval_;
 
-		
+#if DUMMY
+		toInsert->values[k] = dummyval_;
 		*val = dummyval_;
+#else
+		toInsert->values[k] = GetMemNode();
+		*val = toInsert->values[k]; 
+#endif
+
 		assert(*val != NULL);
 		dummyval_ = NULL;
 		

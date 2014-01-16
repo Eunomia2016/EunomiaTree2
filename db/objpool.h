@@ -54,7 +54,24 @@ public:
 	
 	void AddGCObj(char* gobj, uint64_t sn);
 
-	char* GetFreeObj();
+	__attribute__((always_inline)) char* GetFreeObj()
+	{
+		if(0 == freenum_)
+			return NULL;
+
+		assert(freenum_ > 0);
+
+		
+		Obj* r = freelist_;
+
+		freelist_ = freelist_->next;
+		freenum_--;
+		
+		r->next = NULL;
+		char *val = (char *)&r->value[0];
+	//	printf("GetFreeObj %lx %lx\n", r, val);
+		return val;
+	}
 
 	void FreeList(Header* list);
 	

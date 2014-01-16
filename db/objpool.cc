@@ -62,6 +62,8 @@ void OBJPool::AddGCObj(char* gobj, uint64_t sn)
 
 }
 
+
+#if 0
 char* OBJPool::GetFreeObj()
 {
 	if(0 == freenum_)
@@ -80,6 +82,7 @@ char* OBJPool::GetFreeObj()
 //	printf("GetFreeObj %lx %lx\n", r, val);
 	return val;
 }
+#endif
 
 void OBJPool::GC(uint64_t safesn)
 {
