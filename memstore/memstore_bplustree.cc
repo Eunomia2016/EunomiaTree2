@@ -5,6 +5,8 @@ namespace leveldb {
 	__thread RTMArena* MemstoreBPlusTree::arena_ = NULL;
 	__thread bool MemstoreBPlusTree::localinit_ = false;
 	__thread Memstore::MemNode *MemstoreBPlusTree::dummyval_ = NULL;
+	__thread MemstoreBPlusTree::LeafNode *MemstoreBPlusTree::dummyleaf_ = NULL;
+
 	void MemstoreBPlusTree::printLeaf(LeafNode *n) {
 		for(int i = 0; i < depth; i++)
 			printf(" ");

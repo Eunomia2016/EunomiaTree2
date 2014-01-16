@@ -166,13 +166,18 @@ public:
 			dummyval_ = GetMemNode();
 			dummyval_->value = NULL;
 			
+			dummyleaf_ = new LeafNode();
+		
+			
 			localinit_ = true;
 		}
 			
 	}
 	
 	inline LeafNode* new_leaf_node() {
-			LeafNode* result = new LeafNode();
+			//LeafNode* result = new LeafNode();
+			LeafNode* result = dummyleaf_;
+			dummyleaf_ = NULL;
 			//LeafNode* result = (LeafNode *)(arena_->AllocateAligned(sizeof(LeafNode)));
 			return result;
 	}
@@ -465,9 +470,14 @@ public:
 
 		MemNode* value = Delete_rtm(key);
 		
-		if(dummyval_ == NULL)
+		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
-
+		}
+		
+		if(dummyleaf_ == NULL) {
+			dummyleaf_ = new LeafNode();
+		}
+		
 		return value;
 		
 	}
@@ -482,6 +492,11 @@ public:
 		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
 		}
+
+		if(dummyleaf_ == NULL) {
+			dummyleaf_ = new LeafNode();
+		}
+		
 		return value;
 				
 	}
@@ -822,6 +837,7 @@ public:
 		assert(*val != NULL);
 		dummyval_ = NULL;
 		
+		
 #if BTREE_PROF
 		writes++;
 #endif
@@ -1142,6 +1158,7 @@ public:
 		static __thread RTMArena* arena_;	  // Arena used for allocations of nodes
 		static __thread bool localinit_;
 		static __thread MemNode *dummyval_;
+		static __thread LeafNode *dummyleaf_;
 		
 		char padding1[64];
 		void *root;
