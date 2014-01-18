@@ -1,9 +1,10 @@
-for i in 1 2 4 6 8
+for i in  1 2 3 4 5 6 7 8 #12 16 20 24 28 32 #thread number
 do
-	for j in origin padding dummy opt
+	for j in persistent #simple alloc rtm fb nodebuf nogc noss sep
 	do
-		echo "$i $j," >> nperf.csv
-		python get_th.py per_${j}_${i}_  3  >> nperf.csv
+		echo "$i $j," >> prof.csv
+		echo "eval_${j}_${i}_"
+		python get_th.py eval_${j}_${i}_  5  >> prof.csv
 	done
 	
 	#for j in profile padding

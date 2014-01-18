@@ -26,17 +26,33 @@ void RCU::RegisterThread(int i)
 void RCU::WaitForGracePeriod()
 {
 
+	
 	uint64_t * cur = GetStatesCopy();
 	
 	for(int i = 0; i < thrs_num; i++) {
 		
 		if(i == tid)
 			continue;
-		
+
+		int w = 0;
 		while (!states[i].Safe(cur[i])) {
+			w++;
 			cpu_relax();
-			if(thrs_num > 8)
-				pthread_yield();
+			if(thrs_num > 8) {
+
+				struct timespec t;
+				t.tv_sec  = 0;
+		     	t.tv_nsec = 5;
+
+				if(w > 128 & w <= 1024) {
+					pthread_yield();
+				}
+				else if(w > 1024) {
+					nanosleep(&t, NULL);
+					w = 0;
+				}
+				
+			}
 		}
 		
 	}

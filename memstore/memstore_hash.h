@@ -12,7 +12,7 @@
 #include "memstore.h"
 
 #define HASH_LOCK 0
-#define HASHLENGTH 40*1024*1024
+#define HASHLENGTH 256*1024*1024
 
 namespace leveldb {
 
@@ -149,7 +149,7 @@ public:
 #if HASH_LOCK		
 		MutexSpinLock lock(&slock);		
 #else
-		RTMScope begtx(&prof, 10, 10, &rtmlock);
+		RTMScope begtx(&prof, 1, 1, &rtmlock);
 //		RTMArenaScope begtx(&rtmlock, &prof, NULL);
 #endif
 
