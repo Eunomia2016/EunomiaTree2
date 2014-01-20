@@ -3160,9 +3160,9 @@ public:
 #if 1
 	printf("AddTable\n");
 	for (int i=0; i<9; i++)
-		if (i == CUST) store->AddTable(i, HASH, SBTREE);
-		else if (i == ORDE) store->AddTable(i, HASH, IBTREE);
-		else store->AddTable(i, HASH, NONE);
+		if (i == CUST) store->AddTable(i, BTREE, SBTREE);
+		else if (i == ORDE) store->AddTable(i, BTREE, IBTREE);
+		else store->AddTable(i, BTREE, NONE);
 
 #else
 	for (int i=0; i<9; i++)
