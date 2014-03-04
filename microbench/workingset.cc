@@ -14,8 +14,17 @@
 
 typedef unsigned long uint64_t;
 
+#define CPUFREQ 3400000000
 #define ARRAYSIZE 4*1024*1024/CASHELINESIZE //4M
 #define CASHELINESIZE 64 //64 bytes
+
+inline uint64_t rdtsc(void)
+{
+    unsigned a, d;
+    __asm __volatile("rdtsc":"=a"(a), "=d"(d));
+    return ((uint64_t)a) | (((uint64_t) d) << 32);
+}
+
 
 struct Cacheline {
 	char data[CASHELINESIZE];
@@ -30,11 +39,21 @@ char padding[64];
 int workingset = 16 * 1024; //Default ws: 16KB
 __thread Cacheline *array;
 char padding1[64];
+uint64_t cycles = CPUFREQ/1000; //1ms
 
 volatile int ready = 0;
 volatile int epoch = 0;
 int thrnum = 1;
 int bench = 1; // 1: read 2: write 3: mix
+
+inline void ExecNull(){
+	
+	register uint64_t interval = cycles;
+	register uint64_t start = rdtsc();
+	while(rdtsc() - start < interval);
+
+}
+
 
 inline int Read(char * data) {
 	int res = 0;
@@ -161,6 +180,8 @@ void* thread_body(void *x) {
 				res += ReadWrite((char *)array);
 			else if(lbench == 4)
 				res += WriteRead((char *)array);
+			else if(lbench == 5)
+				ExecNull();
 		}
 
 		count += res;
@@ -207,6 +228,8 @@ int main(int argc, char** argv) {
 			writeset = n * 1024;
 		}else if(sscanf(argv[i], "-rset=%d%c", &n, &junk) == 1) {
 			readset= n * 1024;
+		}else if(sscanf(argv[i], "-cycle=%d%c", &n, &junk) == 1) {
+			cycles= n * 3400;
 		}else if(strcmp(argv[i], "-ht") == 0) {
 			thrnum = 2;
 		}else if(strcmp(argv[i], "-r") == 0) {
@@ -217,14 +240,17 @@ int main(int argc, char** argv) {
 			bench = 3;
 		}else if(strcmp(argv[i], "-wr") == 0) {
 			bench = 4;
+		}else if(strcmp(argv[i], "-c") == 0) {
+			bench = 5;
 		}
 	}
 
-	if(bench != 3)
+	if(bench == 1 || bench == 2)
 		printf("Touch Work Set %d\n", workingset);
-	else
+	else if(bench == 3)
 		printf("Read %d Write %d\n", readset, writeset);
-	
+	else if(bench == 5)
+		printf("TX exec time %d us\n", cycles / 3400);
 	pthread_t th[2];
 	for(int i = 0; i < thrnum; i++)
 		pthread_create(&th[i], NULL, thread_body, (void *)i);
