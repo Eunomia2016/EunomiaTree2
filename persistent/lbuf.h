@@ -9,7 +9,7 @@
 #include "log.h"
 
 
-#define BSIZE 64*1024*1024 //64MB
+#define BSIZE 128*1024*1024 //64MB
 
 class LocalPBuf {
 
