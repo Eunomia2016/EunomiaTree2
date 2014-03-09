@@ -97,7 +97,12 @@ void* TBuf::loggerThread(void * arg)
 	//		write_time += (rdtsc()-ss);
 			break;
 		}
-		  	
+#if 0		  	
+		struct timespec t;
+		t.tv_sec  = 0;
+		t.tv_nsec = 1000;
+		nanosleep(&t, NULL);
+#endif		
 		tb->Writer();
 	
 	}
