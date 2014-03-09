@@ -20,6 +20,12 @@ class TBuf {
 
 	SpinLock frozenlock;
 	LocalPBuf** frozenbufs;
+
+	SpinLock freelock;
+	LocalPBuf* freebufs;
+		
+
+	
 	uint64_t* localsn;
 
 	Log* logf;
@@ -38,9 +44,11 @@ public:
 	
 	void PublishLocalBuffer(int tid, LocalPBuf* lbuf);
 	
-
+	LocalPBuf* GetFreeBuf();
+	
 	void Sync();
 
+	void WaitSyncFinish();
 	void Writer();
 		
 	void Print();

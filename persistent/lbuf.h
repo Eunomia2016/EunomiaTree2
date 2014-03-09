@@ -67,8 +67,9 @@ public:
 		next = NULL;
 	}
 
-	void Serialize(Log* lf) {
-		
+	int Serialize(Log* lf) {
+
+		int len = 0;
 		for(int i = 0; i < cur; i++) {
 			lf->writeLog((char *)&buf[i].tableid, sizeof(int));
 			lf->writeLog((char *)&buf[i].key, sizeof(uint64_t));
@@ -80,7 +81,10 @@ public:
 			} else {
 				lf->writeLog((char *)buf[i].value, buf[i].vlen);
 			}
+			len += 4+8+8+buf[i].vlen;
 		}
+
+		return len;
 	}
 	
 };

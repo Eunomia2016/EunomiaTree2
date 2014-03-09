@@ -23,7 +23,7 @@ PBuf::PBuf(int thr)
 
 
 	tbufs[0] = new TBuf(thr, "/media/ssd/log1");
-	tbufs[1] = new TBuf(thr, "/media/disk/log2");
+	tbufs[1] = new TBuf(thr, "/media/ssd2/log2");
 	
 	safe_sn = 0;
 	
@@ -63,7 +63,11 @@ void PBuf::WriteRecord(int tabid, uint64_t key,
 void PBuf::Sync()
 {
 	FrozeAllBuffer();
-	
+	tbufs[0]->Sync();
+	tbufs[1]->Sync();
+
+	tbufs[0]->WaitSyncFinish();
+	tbufs[1]->WaitSyncFinish();
 }
 
 void PBuf::FrozeAllBuffer()
@@ -75,8 +79,16 @@ void PBuf::FrozeAllBuffer()
 
 void PBuf::FrozeLocalBuffer(int idx)
 {
-	tbufs[ (idx%2)]->PublishLocalBuffer(idx, lbuf[idx]);
-	lbuf[idx] = new LocalPBuf();
+	tbufs[idx%2]->PublishLocalBuffer(idx, lbuf[idx]);
+
+	
+	lbuf[idx] = tbufs[0]->GetFreeBuf();
+
+	if(lbuf[idx] == NULL)
+		lbuf[idx] = tbufs[1]->GetFreeBuf();
+	
+	if(lbuf[idx] == NULL)
+		lbuf[idx] = new LocalPBuf();
 	
 	safe_sn = tbufs[0]->GetSafeSN() < tbufs[1]->GetSafeSN()? tbufs[0]->GetSafeSN(): tbufs[1]->GetSafeSN();
 

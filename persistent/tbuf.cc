@@ -19,6 +19,8 @@ TBuf::TBuf(int thr, char* lpath)
 	for(int i = 0; i < thr; i++)
 		frozenbufs[i] = NULL;
 
+	freebufs = NULL;
+		
 	logpath = lpath;
 	logf = new Log(logpath, true);
 	
@@ -41,6 +43,11 @@ TBuf::~TBuf()
 void TBuf::Sync()
 {
 	sync_ = true;
+
+}
+
+void TBuf::WaitSyncFinish()
+{
 	pthread_join(write_id, NULL);
 }
 
@@ -53,6 +60,23 @@ void TBuf::PublishLocalBuffer(int tid, LocalPBuf* lbuf)
 	frozenlock.Unlock();
 
 }
+
+LocalPBuf* TBuf::GetFreeBuf()
+{
+	
+	freelock.Lock();
+	LocalPBuf* lbuf = freebufs;
+	if(lbuf != NULL) 
+		freebufs = freebufs->next;
+	freelock.Unlock();
+	
+	if(lbuf != NULL) 
+		lbuf->Reset();
+	
+	return lbuf;
+
+}
+
 
 void* TBuf::loggerThread(void * arg)
 {
@@ -83,6 +107,7 @@ void TBuf::Writer()
 {
 
 
+	int flushbytes = 0;
 	for(int i = 0; i < buflen; i++) {
 
 		if(frozenbufs[i] == NULL|| frozenbufs[i]->cur == 0)
@@ -94,7 +119,6 @@ void TBuf::Writer()
 		frozenlock.Unlock();
 
 		LocalPBuf* cur = lfbufs;
-		LocalPBuf* next = NULL;
 		LocalPBuf* tail = cur;
 
 		uint64_t cursn = cur->GetSN();
@@ -107,15 +131,20 @@ void TBuf::Writer()
 			
 			assert(cursn >= cur->GetSN());
 
-			cur->Serialize(logf);
-			next = cur->next;
-			delete cur;
+			flushbytes += cur->Serialize(logf);
 			
 			tail = cur;
-			cur =  next;
+			cur =  cur->next;
 		}
+
+		freelock.Lock();
+		tail->next = freebufs;
+		freebufs = lfbufs;
+		freelock.Unlock();
+	
 	}
 
+//	printf("Flush bytes %d\n", flushbytes);
 	fdatasync(logf->fd);
 	
 	uint64_t minsn = 0;
