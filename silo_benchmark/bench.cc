@@ -394,7 +394,6 @@ bench_runner::run()
     }
 #endif
     cerr << "--- benchmark statistics ---" << endl;
-	cerr << PBuf::write_time << endl;
     cerr << "runtime: " << elapsed_sec << " sec" << endl;
     cerr << "memory delta: " << delta_mb  << " MB" << endl;
     cerr << "memory delta rate: " << (delta_mb / elapsed_sec)  << " MB/sec" << endl;

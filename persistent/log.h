@@ -18,7 +18,7 @@ class Log {
 	};
 	
 	const char* path;
-	int fd;
+	
 	int length;
 	
 	bool sync;
@@ -26,7 +26,9 @@ class Log {
 	Buffer buf;
 	
 public:
-		
+
+	int fd;		
+	
 	Log(const char* path, bool sync = false);
 
 	~Log();
