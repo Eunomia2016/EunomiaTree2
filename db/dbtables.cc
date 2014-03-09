@@ -332,10 +332,17 @@ void DBTables::WriteUpdateRecords()
 
 	if(recnum == 0)
 		return;
+
+	int bytes = 0;
 	
+	for(int i = 0; i < recnum; i++)
+	{
+		bytes += 4+8+8+schemas[DBTX::writeset->kvs[i].tableid].vlen;	
+	}
+
 	uint64_t sn = DBTX::writeset->commitSN;
 
-	pbuf_->RecordTX(sn, recnum);
+	pbuf_->RecordTX(sn, bytes);
 	
 	for(int i = 0; i < recnum; i++)
 	{
