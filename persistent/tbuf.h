@@ -20,10 +20,13 @@ class TBuf {
 
 	SpinLock frozenlock;
 	LocalPBuf** frozenbufs;
+	int frozennum;
 
+	
 	SpinLock freelock;
 	LocalPBuf* freebufs;
-		
+
+	LocalPBuf** flushbufs;
 
 	
 	uint64_t* localsn;
@@ -49,7 +52,7 @@ public:
 	void Sync();
 
 	void WaitSyncFinish();
-	void Writer();
+	int Writer();
 		
 	void Print();
 

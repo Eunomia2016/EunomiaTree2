@@ -5,7 +5,8 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
-
+#include <sys/uio.h>
+#include <limits.h>
 
 
 volatile bool TBuf::sync_ = false;
@@ -15,9 +16,15 @@ TBuf::TBuf(int thr, char* lpath)
 
 	buflen = thr;
 
+	flushbufs = new LocalPBuf*[thr];
+	
 	frozenbufs = new LocalPBuf*[thr];
+	
 	for(int i = 0; i < thr; i++)
 		frozenbufs[i] = NULL;
+	
+		frozennum = 0;
+	
 
 	freebufs = NULL;
 		
@@ -57,6 +64,7 @@ void TBuf::PublishLocalBuffer(int tid, LocalPBuf* lbuf)
 	frozenlock.Lock();
 	lbuf->next = frozenbufs[tid];
 	frozenbufs[tid] = lbuf;
+	frozennum++;
 	frozenlock.Unlock();
 
 }
@@ -88,13 +96,14 @@ void* TBuf::loggerThread(void * arg)
 #endif
 
 	TBuf* tb = (TBuf*) arg;
-
+	uint64_t res = 0;
 	while(true) {
 
 		if(sync_) {
 	//		uint64_t ss = rdtsc();
-			tb->Writer();
+			res += tb->Writer();
 	//		write_time += (rdtsc()-ss);
+			printf("Total Write %ld Bytes\n", res);
 			break;
 		}
 #if 0		  	
@@ -103,54 +112,110 @@ void* TBuf::loggerThread(void * arg)
 		t.tv_nsec = 1000;
 		nanosleep(&t, NULL);
 #endif		
-		tb->Writer();
+		res += tb->Writer();
 	
 	}
 }
 
-void TBuf::Writer()
+int TBuf::Writer()
 {
+	int bytes = 0;
+	
+	int num = 0;
+	
+	frozenlock.Lock();
+	
+	for(int i = 0; i < buflen; i++) {
+		if(frozenbufs[i] == NULL)
+			continue;
+		
+		flushbufs[i] = frozenbufs[i];
+		localsn[i] = flushbufs[i]->GetSN();
+				
+		frozenbufs[i] = NULL;
+	}
+	
+	num = frozennum;
+	
+	frozennum = 0;
+	frozenlock.Unlock();	
 
+	//init iovec
+	struct iovec iovs[IOV_MAX];
+	//memset(iovs, 0, num * sizeof(struct iovec));
+	
+	int idx = 0;
 
-	int flushbytes = 0;
+	LocalPBuf* lsbufs = NULL;
+	LocalPBuf* tail = NULL;
+
 	for(int i = 0; i < buflen; i++) {
 
-		if(frozenbufs[i] == NULL|| frozenbufs[i]->cur == 0)
+		if(flushbufs[i] == NULL)
 			continue;
-	
-		frozenlock.Lock();
-		LocalPBuf* lfbufs = frozenbufs[i];
-		frozenbufs[i] = NULL;
-		frozenlock.Unlock();
+			
 
-		LocalPBuf* cur = lfbufs;
-		LocalPBuf* tail = cur;
+		LocalPBuf* cur = flushbufs[i];
+		flushbufs[i] = NULL;
+		
+		if(lsbufs == NULL)
+			lsbufs = cur;
+
+		if(tail != NULL)
+			tail->next = cur;
+		
+		tail = cur;
 
 		uint64_t cursn = cur->GetSN();
-
-		localsn[i] = cursn;
-
-		assert(cursn >= (safe_sn + 1));
 		
 		while(cur != NULL) {
-			
-			assert(cursn >= cur->GetSN());
 
-			flushbytes += cur->Serialize(logf);
+			assert(cursn >= cur->GetSN());
+			assert(idx < num);
+			
+			if(cur->cur > 0) {	
+				iovs[idx].iov_base = cur->buf;
+				iovs[idx].iov_len = cur->cur;
+				idx++;
+
+				if(idx == IOV_MAX) {
+					bytes += writev(logf->fd, &iovs[0], idx);
+					if(bytes == -1) 
+						perror("Write Log ERROR");
+					idx = 0;
+				}
+			}
+			
+			//bytes += cur->cur;
 			
 			tail = cur;
 			cur =  cur->next;
 		}
-
-		freelock.Lock();
-		tail->next = freebufs;
-		freebufs = lfbufs;
-		freelock.Unlock();
 	
 	}
 
-//	printf("Flush bytes %d\n", flushbytes);
+//	printf("Flush idx %d num  %d\n", idx , num);
+	if(idx > 0) {
+		bytes += writev(logf->fd, &iovs[0], idx);
+		if(bytes == -1) {
+			for(int i = 0; i < idx; i++)
+				printf("LOG ERROR: Write Bufer %lx %d \n", iovs[i].iov_base, iovs[i].iov_len);
+			printf("MAX %d cur %d", IOV_MAX, idx);
+			perror("");
+			exit(1);
+		}
+	}
+
 	fdatasync(logf->fd);
+	
+	if(tail != NULL) {
+		freelock.Lock();
+		tail->next = freebufs;
+		freebufs = lsbufs;
+		freelock.Unlock();
+	}
+
+
 	
 	uint64_t minsn = 0;
 	for(int i = 0; i < buflen; i++) {
@@ -158,10 +223,10 @@ void TBuf::Writer()
 			minsn = localsn[i];
 	}
 		
-
-	assert(minsn >= (safe_sn + 1));
-		
 	safe_sn = minsn - 1;
+
+	
+	return bytes;
 }
 
 void TBuf::Print()
