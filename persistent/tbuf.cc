@@ -106,10 +106,10 @@ void* TBuf::loggerThread(void * arg)
 			printf("Total Write %ld Bytes\n", res);
 			break;
 		}
-#if 0		  	
+#if 1		  	
 		struct timespec t;
 		t.tv_sec  = 0;
-		t.tv_nsec = 1000;
+		t.tv_nsec = 1000000;
 		nanosleep(&t, NULL);
 #endif		
 		res += tb->Writer();
