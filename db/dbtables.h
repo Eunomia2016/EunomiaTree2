@@ -67,7 +67,7 @@ class DBTables {
 	static __thread RMPool* rmPool;
 	
 	volatile uint64_t snapshot; // the counter for current snapshot: 1 is the first snapshot
-		
+	int	threads;
 	int number;
 	Memstore **tables;
 	TableSchema* schemas;
@@ -138,7 +138,7 @@ class DBTables {
 
 	//An independent thread updates the snapshot number periodically	
 	static void* SnapshotUpdateThread(void * arg);
-
+	static void* PersistentInfoThread(void * arg);
 	static void DEBUGGC();
 	
 };

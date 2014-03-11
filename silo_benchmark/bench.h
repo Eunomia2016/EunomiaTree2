@@ -229,6 +229,7 @@ protected:
   virtual std::vector<bench_worker*> make_workers() = 0;
   virtual void sync_log() = 0;
   virtual void initPut() = 0;
+  virtual void  print_persisted_info() = 0;
   abstract_db *const db;
 
   // barriers for actual benchmark execution

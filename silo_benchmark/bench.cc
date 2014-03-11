@@ -323,7 +323,7 @@ bench_runner::run()
     latency_numer_us += workers[i]->get_latency_numer_us();
   }
 //  const auto persisted_info = db->get_ntxn_persisted();
-
+  print_persisted_info();
 
   // various sanity checks
 //  ALWAYS_ASSERT(get<0>(persisted_info) == get<1>(persisted_info));

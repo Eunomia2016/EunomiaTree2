@@ -19,7 +19,9 @@ PBuf::PBuf(int thr)
 	lbuf = new LocalPBuf*[thr];
 	for(int i = 0; i < thr; i++) {
 		lbuf[i] = new LocalPBuf();
+		
 	}
+	g_persist_stats =  new persist_stats[thr];
 
 
 	tbufs[0] = new TBuf(thr, "/media/ssd/log1");
@@ -50,6 +52,7 @@ void PBuf::RecordTX(uint64_t sn, int recnum)
 		FrozeLocalBuffer(tid_);
 		lbuf[tid_]->SetSN(sn);
 	}
+	lbuf[tid_]->txns++;
 
 }
 
@@ -68,6 +71,7 @@ void PBuf::Sync()
 
 	tbufs[0]->WaitSyncFinish();
 	tbufs[1]->WaitSyncFinish();
+	
 }
 
 void PBuf::FrozeAllBuffer()
@@ -79,6 +83,14 @@ void PBuf::FrozeAllBuffer()
 
 void PBuf::FrozeLocalBuffer(int idx)
 {
+
+	int snidx = lbuf[idx]->GetSN() % g_max_lag_epochs;
+	atomic_add64(&PBuf::g_persist_stats[idx].d_[snidx].ntxns_ , lbuf[idx]->txns);
+	if (g_persist_stats[idx].d_[snidx].earliest_start_us_ == 0 
+		|| lbuf[idx]->earliest_start_us_ < g_persist_stats[idx].d_[snidx].earliest_start_us_)
+		g_persist_stats[idx].d_[snidx].earliest_start_us_ = lbuf[idx]->earliest_start_us_;
+
+
 	tbufs[idx%2]->PublishLocalBuffer(idx, lbuf[idx]);
 
 	
@@ -90,14 +102,20 @@ void PBuf::FrozeLocalBuffer(int idx)
 	if(lbuf[idx] == NULL)
 		lbuf[idx] = new LocalPBuf();
 	
-	safe_sn = tbufs[0]->GetSafeSN() < tbufs[1]->GetSafeSN()? tbufs[0]->GetSafeSN(): tbufs[1]->GetSafeSN();
-
+//	safe_sn = tbufs[0]->GetSafeSN() < tbufs[1]->GetSafeSN()? tbufs[0]->GetSafeSN(): tbufs[1]->GetSafeSN();
 }
 
 
 void PBuf::Print()
 {
-	
+			uint64_t num = 0; 
+		uint64_t acc = 0;
+		for (size_t i = 0; i < buflen; i++) {
+			acc += g_persist_stats[i].ntxns_persisted_;
+			num += g_persist_stats[i].latency_numer_;
+		}
+		printf("%ld %ld\n", num,acc);
+		printf("persist latency %lf\n" , double(num)/double(acc)/ 1000.0);
 }
 
 

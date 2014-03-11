@@ -8,7 +8,6 @@
 #include <sys/uio.h>
 #include <limits.h>
 
-
 volatile bool TBuf::sync_ = false;
 
 TBuf::TBuf(int thr, char* lpath)
@@ -33,7 +32,7 @@ TBuf::TBuf(int thr, char* lpath)
 	
 	localsn = new uint64_t[thr];
 	for(int i = 0; i < thr; i++)
-		localsn[i] = 1;
+		localsn[i] = 0;
 	
 	safe_sn = 0;
 	
@@ -131,7 +130,6 @@ int TBuf::Writer()
 		
 		flushbufs[i] = frozenbufs[i];
 		localsn[i] = flushbufs[i]->GetSN();
-				
 		frozenbufs[i] = NULL;
 	}
 	
@@ -184,10 +182,12 @@ int TBuf::Writer()
 						perror("Write Log ERROR");
 					idx = 0;
 				}
-			}
+			
 			
 			//bytes += cur->cur;
 			
+			
+			}	
 			tail = cur;
 			cur =  cur->next;
 		}
@@ -219,13 +219,16 @@ int TBuf::Writer()
 	
 	uint64_t minsn = 0;
 	for(int i = 0; i < buflen; i++) {
-		if(i == 0 || minsn > localsn[i])
-			minsn = localsn[i];
-	}
+		if(localsn[i] == 0)
+			continue;
 		
-	safe_sn = minsn - 1;
-
-	
+		if(minsn == 0 || minsn > localsn[i]) {
+			minsn = localsn[i];
+		}
+	}
+	uint64_t old = safe_sn;
+	safe_sn = minsn > 0 ? minsn - 1: 0;
+	if (old > safe_sn) printf("TBuf %ld %ld\n",old, safe_sn);
 	return bytes;
 }
 

@@ -3203,8 +3203,14 @@ protected:
 
   virtual void sync_log() {
 		store->Sync();
+		printf("sync end\n");
+		while (store->pbuf_->last_safe_sn < store->pbuf_->GetSafeSN());
   }
 
+  virtual void print_persisted_info() {
+  	store->pbuf_->Print();
+  }
+  
   virtual void initPut() {
   	
 		Memstore::MemNode *mn;

@@ -56,6 +56,8 @@ DBTables::DBTables(int n) {
 #if PERSISTENT
 	pthread_t tid;
 	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
+	pthread_t tid1;
+	pthread_create(&tid1, NULL, PersistentInfoThread, (void *)this);
 #endif
 }
 
@@ -72,13 +74,15 @@ DBTables::DBTables(int n, int thrs)
 	indextypes = new int[n];
 	snapshot = 1;
 	epoch = NULL;
-
+	threads = thrs;
 	RCUInit(thrs);
 	PBufInit(thrs);
 
 #if PERSISTENT
 	pthread_t tid;
 	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
+	pthread_t tid1;
+	pthread_create(&tid1, NULL, PersistentInfoThread, (void *)this);
 #endif
 	
 }
@@ -308,6 +312,52 @@ void DBTables::DEBUGGC()
 		printf("Bug Node Addr %lx Value Addr %lx\n", bugnode, bugnode->value);
 }
 
+void* DBTables::PersistentInfoThread(void *arg) 
+{
+	
+		DBTables* store = (DBTables*)arg;
+		
+		while(true) {
+	
+			struct timespec t;
+			t.tv_sec  = UPDATEPOCH / ONE_SECOND_NS /8;
+			t.tv_nsec = UPDATEPOCH % ONE_SECOND_NS /8;
+			nanosleep(&t, NULL);
+	
+			//Other snapshot updates (RO TX) are protected by RTM
+	
+			PBuf* pbuf = store->pbuf_;
+	
+			uint64_t curSafe = pbuf->GetSafeSN();
+			if (curSafe < pbuf->last_safe_sn )
+				printf("%ld %ld\n", curSafe, pbuf->last_safe_sn );
+			
+			struct timeval tv;
+			gettimeofday(&tv, 0);
+			uint64_t now_us = ((uint64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
+			for (int i = 0; i<store->threads; i++) {
+				persist_stats &ps = pbuf->g_persist_stats[i];
+				for (int ss = pbuf->last_safe_sn+1; ss <= curSafe; ss++) {
+					auto &pes = ps.d_[ss % g_max_lag_epochs];				
+					const uint64_t ntxns_in_epoch = pes.ntxns_;
+					const uint64_t start_us = pes.earliest_start_us_;
+					ps.ntxns_persisted_ +=	ntxns_in_epoch;
+					ps.latency_numer_ += (now_us - start_us) * ntxns_in_epoch;
+					pes.ntxns_ = 0;
+					pes.earliest_start_us_ = 0;
+					
+				}
+			}
+			if (curSafe - pbuf->last_safe_sn >= g_max_lag_epochs) 
+				printf("enlarge array %ld %ld\n", curSafe ,pbuf->last_safe_sn);
+	//		printf("%ld %ld\n",pbuf->last_safe_sn , curSafe );
+			pbuf->last_safe_sn = curSafe;
+	//		store->snapshot++;
+	
+	
+		}
+}
+
 void* DBTables::SnapshotUpdateThread(void * arg)
 {
 	DBTables* store = (DBTables*)arg;
@@ -320,7 +370,10 @@ void* DBTables::SnapshotUpdateThread(void * arg)
       	nanosleep(&t, NULL);
 
 		//Other snapshot updates (RO TX) are protected by RTM
+
 		store->snapshot++;
+
+
 	}
 }
 

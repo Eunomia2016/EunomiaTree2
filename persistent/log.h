@@ -10,6 +10,7 @@
 
 class Log {
 
+public:
 
 	struct Buffer{
 		char* start;
@@ -25,7 +26,6 @@ class Log {
 	
 	Buffer buf;
 	
-public:
 
 	int fd;		
 	
