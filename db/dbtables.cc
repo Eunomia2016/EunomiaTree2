@@ -1,6 +1,6 @@
 #include "dbtables.h"
 #include "dbtx.h"
-
+#include "silo_benchmark/util.h"
 namespace leveldb {
 
 // number of nanoseconds in 1 second (1e9)
@@ -361,7 +361,8 @@ void* DBTables::PersistentInfoThread(void *arg)
 void* DBTables::SnapshotUpdateThread(void * arg)
 {
 	DBTables* store = (DBTables*)arg;
-	
+	util::timer update_timer;
+	uint64_t up ;
 	while(true) {
 
 		struct timespec t;
@@ -372,7 +373,8 @@ void* DBTables::SnapshotUpdateThread(void * arg)
 		//Other snapshot updates (RO TX) are protected by RTM
 
 		store->snapshot++;
-
+	//	up = update_timer.lap();
+	//	printf("%ld\n", up);
 
 	}
 }

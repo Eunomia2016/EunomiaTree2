@@ -3203,8 +3203,9 @@ protected:
 
   virtual void sync_log() {
 		store->Sync();
-		printf("sync end\n");
 		while (store->pbuf_->last_safe_sn < store->pbuf_->GetSafeSN());
+		
+		printf("Last Snapshot %ld\n", store->pbuf_->last_safe_sn);
   }
 
   virtual void print_persisted_info() {
