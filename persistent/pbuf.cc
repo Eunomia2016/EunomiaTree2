@@ -24,8 +24,8 @@ PBuf::PBuf(int thr)
 	g_persist_stats =  new persist_stats[thr];
 
 
-	tbufs[0] = new TBuf(thr, "/media/ssd/log1");
-	tbufs[1] = new TBuf(thr, "/media/ssd2/log2");
+	tbufs[0] = new TBuf(thr, "log1");
+	tbufs[1] = new TBuf(thr, "log2");
 	
 	safe_sn = 0;
 	

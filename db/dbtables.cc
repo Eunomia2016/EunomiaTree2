@@ -79,6 +79,7 @@ DBTables::DBTables(int n, int thrs)
 	PBufInit(thrs);
 
 #if PERSISTENT
+
 	pthread_t tid;
 	pthread_create(&tid, NULL, SnapshotUpdateThread, (void *)this);
 	pthread_t tid1;

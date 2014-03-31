@@ -26,8 +26,7 @@
 //For interface
 #define COPY_WHEN_ADD 1
 
-#define PERSISTENT 1
-
+#define PERSISTENT 0
 //For deletion (read only TX)
 #define RCUGC 1
 
