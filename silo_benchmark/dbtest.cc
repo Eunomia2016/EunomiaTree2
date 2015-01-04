@@ -199,7 +199,9 @@ main(int argc, char **argv)
     test_fn = ycsb_do_test;  
   else if (bench_type == "tpcc")
 #endif  	
-    test_fn = tpcc_do_test;
+	if (bench_type == "tpcc")
+	    test_fn = tpcc_do_test;
+	else test_fn = articles_do_test;
 #if 0
   else if (bench_type == "queue")
     test_fn = queue_do_test;

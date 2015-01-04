@@ -18,6 +18,8 @@
 
 extern void ycsb_do_test(abstract_db *db, int argc, char **argv);
 extern void tpcc_do_test(int argc, char **argv);
+extern void articles_do_test(int argc, char **argv);
+
 extern void queue_do_test(abstract_db *db, int argc, char **argv);
 extern void encstress_do_test(abstract_db *db, int argc, char **argv);
 
