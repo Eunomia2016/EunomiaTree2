@@ -54,9 +54,9 @@ public:
   {
 	store = s;
 	users_num = USERS_SIZE;
-	users_num *= nthreads;
+//	users_num *= nthreads;
 	articles_num = ARTICLES_SIZE;
-	articles_num *= nthreads;
+//	articles_num *= nthreads;
 	
   }
 
