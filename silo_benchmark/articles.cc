@@ -170,16 +170,16 @@ articles_worker::txn_get_comments()
 	int64_t start = a_id * max;
 	int64_t end = a_id * max + max;
 	
-	tx.Begin();
+	rotx.Begin();
 
-	DBTX::Iterator iter(&tx, COMM);
+	DBROTX::Iterator iter(&rotx, COMM);
 	iter.Seek(start);
 	while (iter.Valid() && iter.Key() < end) {
 		uint64_t *c_value = iter.Value();
 		comments::value *v_c = (comments::value *)c_value;
 		iter.Next();
 	}
-	tx.End();
+	rotx.End();
 	return txn_result(true, 0);
 }
 
