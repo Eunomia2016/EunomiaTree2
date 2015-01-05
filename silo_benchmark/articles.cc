@@ -25,10 +25,10 @@
 
 using namespace std;
 using namespace util; 
-#define ARTICLES_SIZE 10000;
+#define ARTICLES_SIZE 1000;
 #define USERS_SIZE 200;
 #define BATCH_SIZE 500;
-#define MAX_COMMENTS_PER_ARTICLE 5;
+#define MAX_COMMENTS_PER_ARTICLE 1000;
 
 #define USER 0
 #define ARTI 1
