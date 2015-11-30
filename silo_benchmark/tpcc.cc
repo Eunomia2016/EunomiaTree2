@@ -1599,13 +1599,10 @@ private:
 };
 
 
-
-
-
-
 tpcc_worker::txn_result
 tpcc_worker::txn_new_order()
 {
+  //cout << "[Alex]txn_new_order" <<endl;
   const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
   const uint districtID = RandomNumber(r, 1, 10);
   const uint customerID = GetCustomerId(r);

@@ -1,0 +1,5 @@
+*.o
+dbtest
+db_test
+*.orig
+log*

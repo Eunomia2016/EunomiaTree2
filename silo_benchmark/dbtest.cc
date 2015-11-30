@@ -86,7 +86,7 @@ main(int argc, char **argv)
       {"slow-exit"                  , no_argument       , &slow_exit                 , 1}   ,
       {"retry-aborted-transactions" , no_argument       , &retry_aborted_transaction , 1}   ,
       {"backoff-aborted-transactions" , no_argument     , &backoff_aborted_transaction , 1}   ,
-      {"bench"                      , required_argument , 0                          , 'b'} ,
+      {"bench"                      , required_argument , 0                          , 'b'} , //benchmark type
       {"scale-factor"               , required_argument , 0                          , 's'} ,
       {"num-threads"                , required_argument , 0                          , 't'} ,
       {"db-type"                    , required_argument , 0                          , 'd'} ,

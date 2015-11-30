@@ -148,11 +148,11 @@ bench_worker::run()
 	else if (x == 13) y = 5;
   }
   if (y <= 7) {
-   cpu_set_t  mask;
-  CPU_ZERO(&mask);
-  CPU_SET(y , &mask);
-  sched_setaffinity(0, sizeof(mask), &mask);
-  	}
+  	cpu_set_t  mask;
+  	CPU_ZERO(&mask);
+  	CPU_SET(y , &mask);
+  	sched_setaffinity(0, sizeof(mask), &mask);
+  }
 #endif
 #if 0
   if (set_core_id)
@@ -229,6 +229,7 @@ bench_runner::run()
       for (vector<bench_loader *>::const_iterator it = loaders.begin();
           it != loaders.end(); ++it) {
         (*it)->set_barrier(b);
+		//cerr << "Thread started here" << endl;
         (*it)->start();
       }
       for (vector<bench_loader *>::const_iterator it = loaders.begin();

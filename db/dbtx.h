@@ -243,14 +243,11 @@ public:
 			Memstore::MemNode* dummy;
 		};
 
-
 		struct WSSEC{
 			uint64_t *seq;
 			SecondIndex::MemNodeWrapper* sindex;
 			Memstore::MemNode* memnode;
 		};
-		
-		
 		
 	  public:
 
@@ -331,7 +328,6 @@ public:
 	
 	bool abort;
 	DBTables *txdb_;
-
 
 };
 

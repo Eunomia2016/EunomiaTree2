@@ -143,8 +143,8 @@ public:
       ALWAYS_ASSERT(frequency <= 1.0);
     }
     std::string name;
-    double frequency;
-    txn_fn_t fn;
+    double frequency; //frequency
+    txn_fn_t fn; //handler
   };
   typedef std::vector<workload_desc> workload_desc_vec;
   virtual workload_desc_vec get_workload() const = 0;
