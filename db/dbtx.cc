@@ -319,7 +319,6 @@ inline void DBTX::WriteSet::Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw,
 
 	cursindex++;
 #endif
-
 }
 
 inline bool DBTX::WriteSet::Lookup(int tableid, uint64_t key, uint64_t** val) {
@@ -599,7 +598,6 @@ DBTX::DBTX(DBTables* store) {
 }
 
 DBTX::~DBTX()
-
 {
 	//clear all the data
 }
@@ -653,16 +651,12 @@ bool DBTX::End() {
 		RTMScope rtm(&rtmProf, readset->elems, writeset->elems);
 #endif
 
-
 		if(!readset->Validate()) {
-
 			goto ABORT;
-
 		}
 
 
 		if(!writeset->CheckWriteSet()) {
-
 			goto ABORT;
 		}
 
@@ -678,8 +672,6 @@ bool DBTX::End() {
 #endif
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
 	}
-
-
 
 	//Put the objects into the object pool
 	writeset->CollectOldVersions(txdb_);
@@ -723,7 +715,6 @@ ABORT:
 
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
-
 {
 //  SpinLockScope spinlock(&slock);
 
@@ -1037,21 +1028,15 @@ retryGBI:
 
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
-
 	//step 1. First check if the <k,v> is in the write set
 	if(writeset->Lookup(tableid, key, val)) {
-
-		if((*val
-		   ) == LOGICALDELETE)
+		if((*val) == LOGICALDELETE)
 			return false;
-
 		return true;
 	}
 
 	//step 2.  Read the <k,v> from the in memory store
-
-	retry
-:
+	retry:
 
 	Memstore::MemNode* node = NULL;
 
@@ -1084,18 +1069,12 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 #endif
 
 	if(ValidateValue(node->value)) {
-
 		*val = node->value;
 		return true;
-
 	} else {
-
 		*val = NULL;
 		return false;
-
 	}
-
-
 }
 
 DBTX::Iterator::Iterator(DBTX* tx, int tableid) {

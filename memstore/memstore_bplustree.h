@@ -166,7 +166,6 @@ public:
 
 			dummyleaf_ = new LeafNode();
 
-
 			localinit_ = true;
 		}
 	}
@@ -538,9 +537,7 @@ public:
 			for(int i = 0; i <= 64; i += 64)
 				prefetch(reinterpret_cast<char*>(root) + i);
 #endif
-
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val);
-
 		}
 
 		return val;
@@ -555,7 +552,6 @@ public:
 			++k;
 		}
 
-
 		void *child = inner->children[k];
 
 #if BTPREFETCH
@@ -563,41 +559,34 @@ public:
 			prefetch(reinterpret_cast<char*>(child) + i);
 #endif
 
-
 		if(d == 1) {
-
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val);
-
 			if(new_leaf != NULL) {
-
 				InnerNode *toInsert = inner;
-
 				if(inner->num_keys == N) {
-
 					new_sibling = new_inner_node();
-
 					if(new_leaf->num_keys == 1) {
 						new_sibling->num_keys = 0;
 						upKey = new_leaf->keys[0];
 						toInsert = new_sibling;
 						k = -1;
 					} else {
-						unsigned treshold = (N + 1) / 2;
-						new_sibling->num_keys = inner->num_keys - treshold;
+						unsigned threshold = (N + 1) / 2;
+						new_sibling->num_keys = inner->num_keys - threshold;
 
 						for(unsigned i = 0; i < new_sibling->num_keys; ++i) {
-							new_sibling->keys[i] = inner->keys[treshold + i];
-							new_sibling->children[i] = inner->children[treshold + i];
+							new_sibling->keys[i] = inner->keys[threshold + i];
+							new_sibling->children[i] = inner->children[threshold + i];
 						}
 
 						new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
-						inner->num_keys = treshold - 1;
+						inner->num_keys = threshold - 1;
 
-						upKey = inner->keys[treshold - 1];
+						upKey = inner->keys[threshold - 1];
 
 						if(new_leaf->keys[0] >= upKey) {
 							toInsert = new_sibling;
-							if(k >= treshold) k = k - treshold;
+							if(k >= threshold) k = k - threshold;
 							else k = 0;
 						}
 					}
@@ -633,20 +622,15 @@ public:
 //				inner->reads++;
 //				checkConflict(inner, 0);
 			}
-
 //			if (new_sibling!=NULL && new_sibling->num_keys == 0) printf("sibling\n");
 		} else {
-
-
 			bool s = true;
 			InnerNode *new_inner =
 				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val);
 
-
 			if(new_inner != NULL) {
 				InnerNode *toInsert = inner;
 				InnerNode *child_sibling = new_inner;
-
 
 				unsigned treshold = (N + 1) / 2;
 				if(inner->num_keys == N) {
@@ -657,9 +641,7 @@ public:
 						upKey = child_sibling->keys[N - 1];
 						toInsert = new_sibling;
 						k = -1;
-					}
-
-					else  {
+					} else  {
 						new_sibling->num_keys = inner->num_keys - treshold;
 
 						for(unsigned i = 0; i < new_sibling->num_keys; ++i) {
@@ -668,7 +650,6 @@ public:
 						}
 						new_sibling->children[new_sibling->num_keys] =
 							inner->children[inner->num_keys];
-
 
 						//XXX: should threshold ???
 						inner->num_keys = treshold - 1;
@@ -701,7 +682,6 @@ public:
 					toInsert->keys[k] = reinterpret_cast<InnerNode*>(child_sibling)->keys[N - 1];
 				}
 				toInsert->children[k + 1] = child_sibling;
-
 #if BTREE_PROF
 				writes++;
 #endif
@@ -714,8 +694,6 @@ public:
 //				inner->reads++;
 //				checkConflict(inner, 0);
 			}
-
-
 		}
 
 		if(d == depth && new_sibling != NULL) {
@@ -740,14 +718,16 @@ public:
 		return new_sibling;
 	}
 
+//Insert a key at the leaf level
+//Return: the new node where the new key resides, NULL if no new node is created
+//@val: storing the pointer to new value in val
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val) {
-
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 			++k;
 		}
-
+		//The key already exists in the children
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 
 #if BTPREFETCH
@@ -761,9 +741,9 @@ public:
 			assert(*val != NULL);
 			return NULL;
 		}
-
-
+		//inserting a new key in the children
 		LeafNode *toInsert = leaf;
+		//create a new node to accommodate the new key if the leaf is full
 		if(leaf->num_keys == M) {
 			new_sibling = new_leaf_node();
 
@@ -772,24 +752,27 @@ public:
 				toInsert = new_sibling;
 				k = 0;
 			} else {
+				//spliting the current node
 				unsigned threshold = (M + 1) / 2;
 				new_sibling->num_keys = leaf->num_keys - threshold;
+				//moving the keys above the threshold to the new sibling
 				for(unsigned j = 0; j < new_sibling->num_keys; ++j) {
 					new_sibling->keys[j] = leaf->keys[threshold + j];
 					new_sibling->values[j] = leaf->values[threshold + j];
 				}
 				leaf->num_keys = threshold;
 
-
 				if(k >= threshold) {
 					k = k - threshold;
 					toInsert = new_sibling;
 				}
 			}
+			//inserting the newsibling at the right of the old leaf node
 			if(leaf->right != NULL) leaf->right->left = new_sibling;
 			new_sibling->right = leaf->right;
 			new_sibling->left = leaf;
 			leaf->right = new_sibling;
+
 			new_sibling->seq = 0;
 #if BTREE_PROF
 			writes++;
@@ -797,7 +780,6 @@ public:
 //			new_sibling->writes++;
 //			checkConflict(new_sibling, 1);
 		}
-
 
 		//printf("IN LEAF1 %d\n",toInsert->num_keys);
 		//printTree();
@@ -825,7 +807,6 @@ public:
 		assert(*val != NULL);
 		dummyval_ = NULL;
 
-
 #if BTREE_PROF
 		writes++;
 #endif
@@ -836,7 +817,6 @@ public:
 		leaf->seq = leaf->seq + 1;
 		return new_sibling;
 	}
-
 
 	Memstore::Iterator* GetIterator() {
 		return new MemstoreBPlusTree::Iterator(this);

@@ -39,44 +39,40 @@
 namespace leveldb {
 
 class DBTX {
- public:
-	 static uint64_t treetime ;
+public:
+	static uint64_t treetime ;
 
 	RTMProfile rtmProf;
 	int count;
 
 	struct KeyValues {
 
-	  int num;
-	  uint64_t *keys;
-	  uint64_t **values;
-	  
-	  KeyValues(int num)
-	  {
-	  	keys = new uint64_t[num];
-		values = new uint64_t* [num];
-	  }
-	  ~KeyValues()
-	  {
-	  	delete[] keys;
-		delete[] values;
-	  }
+		int num;
+		uint64_t *keys;
+		uint64_t **values;
+
+		KeyValues(int num) {
+			keys = new uint64_t[num];
+			values = new uint64_t* [num];
+		}
+		~KeyValues() {
+			delete[] keys;
+			delete[] values;
+		}
 	};
 
 	struct BufferNode {
 
-	  uint64_t key;
-	  Memstore::MemNode* node;
-	  
-	  BufferNode()
-	  {
-	  	key = -1;
-		node = NULL;
-	  }
-	};
-	
-	DBTX(DBTables* tables);
+		uint64_t key;
+		Memstore::MemNode* node;
 
+		BufferNode() {
+			key = -1;
+			node = NULL;
+		}
+	};
+
+	DBTX(DBTables* tables);
 
 	~DBTX();
 
@@ -91,151 +87,148 @@ class DBTX {
 	//Copy value
 	void Add(int tableid, uint64_t key, uint64_t* val, int len);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len);
-	
+
 	bool Get(int tableid, uint64_t key, uint64_t** val);
 	void Delete(int tableid, uint64_t key);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);
 	void PrintKVS(KeyValues* kvs);
-	inline bool hasConflict() {return abort;}
-	
+	inline bool hasConflict() {
+		return abort;
+	}
+
 	void ThreadLocalInit();
-	
+
 public:
-
 	class Iterator {
-	 public:
-	  // Initialize an iterator over the specified list.
-	  // The returned iterator is not valid.
-	  explicit Iterator(DBTX* tx, int tableid);
-	
-	  // Returns true iff the iterator is positioned at a valid node.
-	  bool Valid();
-	
-	  // Returns the key at the current position.
-	  // REQUIRES: Valid()
-	  uint64_t Key();
+	public:
+		// Initialize an iterator over the specified list.
+		// The returned iterator is not valid.
+		explicit Iterator(DBTX* tx, int tableid);
 
-	  uint64_t* Value();
-	
-	  // Advances to the next position.
-	  // REQUIRES: Valid()
-	  void Next();
-	
-	  // Advances to the previous position.
-	  // REQUIRES: Valid()
-	  void Prev();
-	
-	  // Advance to the first entry with a key >= target
-	  void Seek(uint64_t key);
+		// Returns true iff the iterator is positioned at a valid node.
+		bool Valid();
 
-	  // Just for profile
-	  void SeekProfiled(uint64_t key);
-	
-	  // Position at the first entry in list.
-	  // Final state of iterator is Valid() iff list is not empty.
-	  void SeekToFirst();
-	
-	  // Position at the last entry in list.
-	  // Final state of iterator is Valid() iff list is not empty.
-	  void SeekToLast();
-	
-	 private:
-	  DBTX* tx_;
-	  Memstore *table_;
-	  uint64_t tableid_;
-	  Memstore::MemNode* cur_;
-	  Memstore::Iterator *iter_;
-	  uint64_t *val_;
-	  uint64_t *prev_link;
+		// Returns the key at the current position.
+		// REQUIRES: Valid()
+		uint64_t Key();
+
+		uint64_t* Value();
+
+		// Advances to the next position.
+		// REQUIRES: Valid()
+		void Next();
+
+		// Advances to the previous position.
+		// REQUIRES: Valid()
+		void Prev();
+
+		// Advance to the first entry with a key >= target
+		void Seek(uint64_t key);
+
+		// Just for profile
+		void SeekProfiled(uint64_t key);
+
+		// Position at the first entry in list.
+		// Final state of iterator is Valid() iff list is not empty.
+		void SeekToFirst();
+
+		// Position at the last entry in list.
+		// Final state of iterator is Valid() iff list is not empty.
+		void SeekToLast();
+
+	private:
+		DBTX* tx_;
+		Memstore *table_;
+		uint64_t tableid_;
+		Memstore::MemNode* cur_;
+		Memstore::Iterator *iter_;
+		uint64_t *val_;
+		uint64_t *prev_link;
 	};
-
 
 	class SecondaryIndexIterator {
-	 public:
-	  // Initialize an iterator over the specified list.
-	  // The returned iterator is not valid.
-	  explicit SecondaryIndexIterator(DBTX* tx, int tableid);
-	
-	  // Returns true iff the iterator is positioned at a valid node.
-	  bool Valid();
-	
-	  // Returns the key at the current position.
-	  // REQUIRES: Valid()
-	  uint64_t Key();
+	public:
+		// Initialize an iterator over the specified list.
+		// The returned iterator is not valid.
+		explicit SecondaryIndexIterator(DBTX* tx, int tableid);
 
-	  KeyValues* Value();
-	
-	  // Advances to the next position.
-	  // REQUIRES: Valid()
-	  void Next();
-	
-	  // Advances to the previous position.
-	  // REQUIRES: Valid()
-	  void Prev();
-	
-	  // Advance to the first entry with a key >= target
-	  void Seek(uint64_t key);
-	
-	  // Position at the first entry in list.
-	  // Final state of iterator is Valid() iff list is not empty.
-	  void SeekToFirst();
-	
-	  // Position at the last entry in list.
-	  // Final state of iterator is Valid() iff list is not empty.
-	  void SeekToLast();
-	
-	 private:
-	  DBTX* tx_;
-	  SecondIndex* index_;
-	  SecondIndex::SecondNode* cur_;
-	  SecondIndex::Iterator *iter_;
-	  KeyValues* val_;
+		// Returns true iff the iterator is positioned at a valid node.
+		bool Valid();
+
+		// Returns the key at the current position.
+		// REQUIRES: Valid()
+		uint64_t Key();
+
+		KeyValues* Value();
+
+		// Advances to the next position.
+		// REQUIRES: Valid()
+		void Next();
+
+		// Advances to the previous position.
+		// REQUIRES: Valid()
+		void Prev();
+
+		// Advance to the first entry with a key >= target
+		void Seek(uint64_t key);
+
+		// Position at the first entry in list.
+		// Final state of iterator is Valid() iff list is not empty.
+		void SeekToFirst();
+
+		// Position at the last entry in list.
+		// Final state of iterator is Valid() iff list is not empty.
+		void SeekToLast();
+
+	private:
+		DBTX* tx_;
+		SecondIndex* index_;
+		SecondIndex::SecondNode* cur_;
+		SecondIndex::Iterator *iter_;
+		KeyValues* val_;
 	};
 
-	
- 	class ReadSet {
+	class ReadSet {
 
-	  struct RSSeqPair {
-	    uint64_t seq; //seq got when read the value
-	    uint64_t *seqptr; //pointer to the global memory location
-	  };
+		struct RSSeqPair {
+			uint64_t seq; //seq got when read the value
+			uint64_t *seqptr; //pointer to the global memory location
+		};
 
-	  //This is used to check the insertion problem in range query
-	  //FIXME: Still have the ABA problem
-	  struct RSSuccPair {
-	    uint64_t next; //next addr 
-	    uint64_t *nextptr; //pointer to next[0]
-	  };
-		
-	  private:
+		//This is used to check the insertion problem in range query
+		//FIXME: Still have the ABA problem
+		struct RSSuccPair {
+			uint64_t next; //next addr
+			uint64_t *nextptr; //pointer to next[0]
+		};
 
-	    int max_length;
-	    
-	    RSSeqPair *seqs;
+	private:
+
+		int max_length;
+
+		RSSeqPair *seqs;
 
 		int rangeElems;
 		RSSuccPair *nexts;
 
-	    void Resize();
-			
-	  public:
-	  	int elems;	
-	    ReadSet();
-	    ~ReadSet();
+		void Resize();
+
+	public:
+		int elems;
+		ReadSet();
+		~ReadSet();
 		inline void Reset();
-	    inline void Add(uint64_t *ptr);
+		inline void Add(uint64_t *ptr);
 		inline void AddNext(uint64_t *ptr, uint64_t value);
-	    inline bool Validate();
-	    void Print();
+		inline bool Validate();
+		void Print();
 	};
 
-
 	class WriteSet {
-		
-		struct WSKV{
+		struct WSKV {
 			int tableid;
-			uint64_t key; //pointer to the written key 
+			uint64_t key; //pointer to the written key
 			uint64_t *val;
 			uint64_t *commitval;
 			uint64_t commitseq;
@@ -243,21 +236,20 @@ public:
 			Memstore::MemNode* dummy;
 		};
 
-		struct WSSEC{
+		struct WSSEC {
 			uint64_t *seq;
 			SecondIndex::MemNodeWrapper* sindex;
 			Memstore::MemNode* memnode;
 		};
-		
-	  public:
 
+	public:
 		int cacheset[64];
 		uint64_t cacheaddr[64][8];
 		uint64_t cachetypes[64][8];
 		int max_length;
 		int elems;
 		uint64_t commitSN;
-		
+
 #if USESECONDINDEX
 		int cursindex;
 #endif
@@ -266,14 +258,14 @@ public:
 		WSSEC *sindexes;
 #endif
 		DBTX* dbtx_;
-		
+
 		void Resize();
-			
-	  public:
+
+	public:
 		WriteSet();
-		~WriteSet();	
+		~WriteSet();
 		void TouchAddr(uint64_t addr, int type);
-		
+
 		inline void Add(int tableid, uint64_t key, uint64_t* val, Memstore::MemNode* node);
 		inline void Add(uint64_t *seq, SecondIndex::MemNodeWrapper* mnw, Memstore::MemNode* node);
 		inline bool Lookup(int tableid, uint64_t key, uint64_t** val);
@@ -281,12 +273,12 @@ public:
 		inline void SetDBTX(DBTX* dbtx);
 		inline void Write(uint64_t gcounter);
 		inline bool CheckWriteSet();
-		
+
 		inline uint64_t** GetDeletedValues(int* len);
 		inline uint64_t** GetOldVersions(int* len);
 
 		inline void CollectOldVersions(DBTables* tables);
-		
+
 		void Clear();
 		void Print();
 		void Reset();
@@ -296,9 +288,8 @@ public:
 	static __thread WriteSet *writeset;
 	static __thread DELSet *deleteset;
 
-	
 	char padding[64];
-	
+
 	static __thread bool localinit;
 	static __thread BufferNode* buffer;
 	char padding2[64];
@@ -307,25 +298,22 @@ public:
 	int bufferHit;
 	int bufferMiss;
 
+	inline unsigned long rdtsc(void) {
+		unsigned a, d;
+		__asm __volatile("rdtsc":"=a"(a), "=d"(d));
+		return ((unsigned long)a) | (((unsigned long) d) << 32);
+	}
 
-    inline unsigned long rdtsc(void)
-    {
-        unsigned a, d;
-        __asm __volatile("rdtsc":"=a"(a), "=d"(d));
-        return ((unsigned long)a) | (((unsigned long) d) << 32);
-    }
-
-	static inline bool ValidateValue(uint64_t* value)
-	{		
-		return  ((value != LOGICALDELETE) && (value != HAVEREMOVED));
+	static inline bool ValidateValue(uint64_t* value) {
+		return ((value != LOGICALDELETE) && (value != HAVEREMOVED));
 	}
 
 	uint64_t searchTime;
 	uint64_t traverseTime;
-	uint64_t traverseCount;	
+	uint64_t traverseCount;
 	static port::Mutex storemutex;
 	static SpinLock slock;
-	
+
 	bool abort;
 	DBTables *txdb_;
 

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sched.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <sys/sysinfo.h>
 
 #include "bench.h"
@@ -126,9 +127,13 @@ bench_worker::run()
   //printf("worker id %d\n", worker_id);
   
 #if SET_AFFINITY
-
   int x = worker_id;
   int y = x - 8;
+  if(y >= 10){
+  	fprintf(stderr, "too many workers\n");
+	y = 0;
+  }
+  /*
   if (nthreads == 8 || nthreads == 7) {
    	if (x == 8) y = 0;
   	else if (x == 9) y = 2;
@@ -147,10 +152,19 @@ bench_worker::run()
   	else if (x == 12) y = 3;
 	else if (x == 13) y = 5;
   }
-  if (y <= 7) {
+  */
+  int socket_0[] = {0,2,4,6,8,10,12,14,16,18};
+  int mixed_sockets[] = {0,1,2,3,4,5,6,7,8,9};
+#ifdef MIXED_SOCKETS
+  int core_id = mixed_sockets[y];
+#else
+  int core_id = socket_0[y];
+#endif
+  if (y <= 9) {
   	cpu_set_t  mask;
   	CPU_ZERO(&mask);
-  	CPU_SET(y , &mask);
+  	CPU_SET(core_id , &mask);
+	printf("[Alex]worker_id = %d core_id = %d\n", worker_id,core_id);
   	sched_setaffinity(0, sizeof(mask), &mask);
   }
 #endif

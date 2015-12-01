@@ -8,5 +8,3 @@ do
 	../neworder_bench --benchmark=readonly --numtx=5000000 --numwarehouse=$i | tee -a ../eval/readonly_btree_noss_$i
    done
 done
-
-
