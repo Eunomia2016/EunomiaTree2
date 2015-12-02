@@ -182,7 +182,7 @@ bench_worker::run() {
 retry:
 					timer t;
 					const unsigned long old_seed = r.get_seed();
-					const auto ret = workload[i].fn(this);
+					const txn_result ret = workload[i].fn(this);
 
 					if(likely(ret.first)) {
 						++ntxn_commits;
@@ -407,12 +407,12 @@ bench_runner::run() {
 		cerr << "agg_nosync_throughput: " << agg_nosync_throughput << " ops/sec" << endl;
 		cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
-//   cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
+//    cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
 		cerr << "agg_persist_throughput: " << agg_persist_throughput << " ops/sec" << endl;
 		cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
-//    cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
+    	cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
 //    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
-//    cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
+    	
 		int totalabort = 0;
 
 		for(int i = 0; i < 5; i++) {
@@ -421,6 +421,8 @@ bench_runner::run() {
 		}
 
 		cerr << "total_abort_num: " << totalabort << endl;
+		const double agg_abort_rate = double(totalabort) / elapsed_sec;
+		cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
 
 //    cerr << "avg_per_core_abort_rate: " << avg_per_core_abort_rate << " aborts/sec/core" << endl;
 		cerr << "txn breakdown: " << format_list(agg_txn_counts.begin(), agg_txn_counts.end()) << endl;
@@ -448,9 +450,10 @@ bench_runner::run() {
 	}
 
 	// output for plotting script
-	cout << agg_nosync_throughput << " "
+	/*cout << agg_nosync_throughput << " "
 		 << agg_persist_throughput << " "
 		 << elapsed_sec <<  endl;
+	*/
 	cout.flush();
 
 	if(!slow_exit)

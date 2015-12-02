@@ -138,8 +138,10 @@ public:
 	}
 
 	~MemstoreBPlusTree() {
+		//printf("[Alex]~MemstoreBPlusTree\n");
 		//prof.reportAbortStatus();
-		delprof.reportAbortStatus();
+
+		//delprof.reportAbortStatus();
 
 		//PrintList();
 		//PrintStore();
@@ -156,7 +158,9 @@ public:
 		//printTree();
 		//top();
 	}
-
+	void transfer_para(RTMPara& para){
+		prof.transfer_para(para);
+	}
 	inline void ThreadLocalInit() {
 		if(false == localinit_) {
 			arena_ = new RTMArena();
@@ -494,9 +498,7 @@ public:
 
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
 #if BTREE_LOCK
-
 		MutexSpinLock lock(&slock);
-
 #else
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);

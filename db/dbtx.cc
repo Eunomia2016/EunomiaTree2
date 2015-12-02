@@ -144,7 +144,6 @@ inline bool DBTX::ReadSet::Validate() {
 	for(int i = 0; i < rangeElems; i++) {
 		assert(nexts[i].nextptr != NULL);
 		if(nexts[i].next != *nexts[i].nextptr) {
-
 			return false;
 		}
 	}
@@ -286,7 +285,6 @@ void DBTX::WriteSet::TouchAddr(uint64_t addr, int type) {
 		}
 	}
 }
-
 
 void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::MemNode* node) {
 	assert(elems <= max_length);
@@ -616,7 +614,6 @@ void DBTX::Begin() {
 #if DEBUG_PRINT
 	printf("[%ld] TX Begin\n", pthread_self());
 #endif
-
 }
 
 bool DBTX::Abort() {
@@ -655,14 +652,13 @@ bool DBTX::End() {
 			goto ABORT;
 		}
 
-
 		if(!writeset->CheckWriteSet()) {
 			goto ABORT;
 		}
 
 		writeset->SetDBTX(this);
 
-		//step 2.  update the the seq set
+		//step 2. update the the seq set
 		//can't use the iterator because the cur node may be deleted
 		writeset->Write(txdb_->snapshot);
 
@@ -709,10 +705,7 @@ ABORT:
 #endif
 
 	return false;
-
-
 }
-
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
 {
@@ -725,7 +718,6 @@ retry:
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
-
 
 	//Get the seq addr from the hashtable
 #if BUFFERNODE
@@ -760,9 +752,7 @@ retry:
 
 }
 
-
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len)
-
 {
 //  SpinLockScope spinlock(&slock);
 retry:
@@ -772,7 +762,6 @@ retry:
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
-
 
 	//Get the seq addr from the hashtable
 #if BUFFERNODE
@@ -814,7 +803,6 @@ retry:
 	memcpy(value, val, len);
 
 	writeset->Add(tableid, key, (uint64_t *)value, node);
-
 }
 
 //Update a column which has a secondary key
@@ -868,9 +856,6 @@ retryA:
 	//3. add the seq number of the second node and the validation flag address into the write set
 	writeset->Add(seq, mw, node);
 }
-
-
-
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len) {

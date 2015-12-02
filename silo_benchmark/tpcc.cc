@@ -1840,13 +1840,10 @@ tpcc_worker::txn_new_order() {
 //	secs += (rdtsc() - slstart);
 		if(b) {
 #if CHECKTPCC
-
 			leveldb::DBTX tx(store);
 			//printf("Check\n");
 			while(true) {
-
 				tx.Begin();
-
 				int64_t d_key = makeDistrictKey(warehouse_id, districtID);
 
 				uint64_t *d_value;
@@ -1862,7 +1859,6 @@ tpcc_worker::txn_new_order() {
 				assert(found);
 				oorder::value *o = (oorder::value *)o_value;
 				assert(o->o_c_id == customerID);
-
 
 //	  printf("oid%d \n", output->o_id);
 
@@ -1889,7 +1885,6 @@ tpcc_worker::txn_new_order() {
 				if(b) break;
 			}
 
-
 			int32_t o_id_first = 0;
 			int32_t o_id_second = 0;
 			int32_t dnext = 0;
@@ -1901,7 +1896,6 @@ tpcc_worker::txn_new_order() {
 			bool f = false;
 			while(!f) {
 				rotx.Begin();
-
 				//Consistency 2
 
 				uint64_t *d_value;
@@ -3053,6 +3047,11 @@ private:
 	}
 #endif
 public:
+	~tpcc_bench_runner(){
+		printf("[Alex]~tpcc_bench_runner\n");
+		delete store;
+	}
+
 	tpcc_bench_runner(abstract_db *db)
 		: bench_runner(db) {
 
@@ -3076,7 +3075,7 @@ public:
 		store->AddTable(STOC, HASH, NONE);
 #else
 #if 1
-		printf("AddTable\n");
+		//printf("AddTable\n");
 		for(int i = 0; i < 9; i++)
 			if(i == CUST) store->AddTable(i, BTREE, SBTREE);
 			else if(i == ORDE) store->AddTable(i, BTREE, IBTREE);
@@ -3111,8 +3110,6 @@ public:
 		//XXX FIXME: won't serialize sec index currently
 		store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
 		store->AddSchema(CUST_INDEX, sizeof(uint64_t), 0);
-
-
 
 	}
 

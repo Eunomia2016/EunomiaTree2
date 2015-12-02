@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <new>
 #include "db/objpool.h"
-
+#include "util/txprofile.h"
 class Memstore {
 public:
 	struct MemNode {
@@ -113,6 +113,8 @@ public:
 		return new(mn) Memstore::MemNode();
 	}
 
-
+	virtual void transfer_para(RTMPara&){
+		assert(0);
+	}
 };
 #endif

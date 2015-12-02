@@ -46,13 +46,11 @@ class DBTX;
 #define RMThreshold 100
 
 class DBTables {
-	
   struct TableSchema {
 	int klen;
 	int vlen; //We didn't support varible length of value
   };
   
-
   public:
 	static __thread GCQueue* nodeGCQueue;
 	static __thread GCQueue* valueGCQueue;
@@ -89,7 +87,6 @@ class DBTables {
 	DBTables(int n, int thrs);
 	
 	~DBTables();
-
 
 	void TupleInsert(int tabid, uint64_t key, uint64_t *val, int len);
 	
@@ -145,4 +142,3 @@ class DBTables {
 
 }
 #endif
-

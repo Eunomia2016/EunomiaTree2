@@ -331,7 +331,7 @@ class Benchmark {
 		thread->stats.FinishedSingleOp();
 	  }
     }
-	printf("rdtsc %ld\n", ((leveldb::TPCCSkiplist*)tables)->secs);
+	//printf("rdtsc %ld\n", ((leveldb::TPCCSkiplist*)tables)->secs);
   }
 
   

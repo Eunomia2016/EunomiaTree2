@@ -119,6 +119,4 @@ if(prof != NULL) {
 
 };
 
-
-
 #endif  // STORAGE_LEVELDB_UTIL_RTM_H_

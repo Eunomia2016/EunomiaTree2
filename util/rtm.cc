@@ -6,6 +6,3 @@
 
 //define the static member here
 SpinLock RTMScope::fblock;
-
-
-
