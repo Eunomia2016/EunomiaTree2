@@ -226,6 +226,7 @@ public:
 			}
 			node = inner->children[index];
 		}
+		//it is a defacto leaf node
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 //		reads++;
 		if(leaf->num_keys == 0) return NULL;
@@ -558,9 +559,10 @@ public:
 		for(int i = 0; i <= 64; i += 64)
 			prefetch(reinterpret_cast<char*>(child) + i);
 #endif
-
+		//inserting at the lowest inner level
 		if(d == 1) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val);
+			//a new leaf node is created 
 			if(new_leaf != NULL) {
 				InnerNode *toInsert = inner;
 				if(inner->num_keys == N) {
@@ -573,14 +575,14 @@ public:
 					} else {
 						unsigned threshold = (N + 1) / 2;
 						new_sibling->num_keys = inner->num_keys - threshold;
-
+						//moving the excessive keys to the new inner node
 						for(unsigned i = 0; i < new_sibling->num_keys; ++i) {
 							new_sibling->keys[i] = inner->keys[threshold + i];
 							new_sibling->children[i] = inner->children[threshold + i];
 						}
 
 						new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
-						inner->num_keys = threshold - 1;
+						inner->num_keys = threshold - 1; //below the threshold
 
 						upKey = inner->keys[threshold - 1];
 
@@ -599,7 +601,8 @@ public:
 //					new_sibling->writes++;
 
 				}
-
+				
+				//inserting the new key at the (k)th slot of the parent node
 				if(k != -1) {
 					for(int i = toInsert->num_keys; i > k; i--) {
 						toInsert->keys[i] = toInsert->keys[i - 1];
@@ -625,6 +628,7 @@ public:
 //			if (new_sibling!=NULL && new_sibling->num_keys == 0) printf("sibling\n");
 		} else {
 			bool s = true;
+			//recursively insert at the lower levels
 			InnerNode *new_inner =
 				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val);
 
@@ -633,15 +637,16 @@ public:
 				InnerNode *child_sibling = new_inner;
 
 				unsigned treshold = (N + 1) / 2;
-				if(inner->num_keys == N) {
+				//the current node is full, creating a new node to hold the inserted key
+				if(inner->num_keys == N) { 
 					new_sibling = new_inner_node();
-
 					if(child_sibling->num_keys == 0) {
 						new_sibling->num_keys = 0;
 						upKey = child_sibling->keys[N - 1];
 						toInsert = new_sibling;
 						k = -1;
-					} else  {
+					} else {
+						//new_sibling should hold the excessive (>=threshold) keys
 						new_sibling->num_keys = inner->num_keys - treshold;
 
 						for(unsigned i = 0; i < new_sibling->num_keys; ++i) {
@@ -655,7 +660,7 @@ public:
 						inner->num_keys = treshold - 1;
 
 						upKey = inner->keys[treshold - 1];
-						//printf("UP %lx\n",upKey);
+						//after split, the new key could be inserted into the old node or the new node 
 						if(key >= upKey) {
 							toInsert = new_sibling;
 							if(k >= treshold) k = k - treshold;
@@ -672,14 +677,14 @@ public:
 //					new_sibling->writes++;
 //					checkConflict(new_sibling, 1);
 				}
+				//inserting the new key to appropriate position
 				if(k != -1) {
 					for(int i = toInsert->num_keys; i > k; i--) {
 						toInsert->keys[i] = toInsert->keys[i - 1];
 						toInsert->children[i + 1] = toInsert->children[i];
 					}
-
 					toInsert->num_keys++;
-					toInsert->keys[k] = reinterpret_cast<InnerNode*>(child_sibling)->keys[N - 1];
+					toInsert->keys[k] = reinterpret_cast<InnerNode*>(child_sibling)->keys[N - 1]; //??
 				}
 				toInsert->children[k + 1] = child_sibling;
 #if BTREE_PROF
