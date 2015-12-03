@@ -404,6 +404,7 @@ bench_runner::run() {
 		cerr << "memory delta rate: " << (delta_mb / elapsed_sec)  << " MB/sec" << endl;
 		cerr << "logical memory delta: " << size_delta_mb << " MB" << endl;
 		cerr << "logical memory delta rate: " << (size_delta_mb / elapsed_sec) << " MB/sec" << endl;
+		cerr << "\e[44mtotal_database_transaction_commits: " << n_commits << "\e[0m" << endl;
 		cerr << "\e[44magg_nosync_throughput: " << agg_nosync_throughput << " ops/sec\e[0m" << endl;
 		cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;

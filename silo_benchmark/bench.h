@@ -47,8 +47,6 @@ extern int backoff_aborted_transaction;
 class scoped_db_thread_ctx {
 	public:
 
-
-
   scoped_db_thread_ctx(const scoped_db_thread_ctx &) = delete;
   scoped_db_thread_ctx(scoped_db_thread_ctx &&) = delete;
   scoped_db_thread_ctx &operator=(const scoped_db_thread_ctx &) = delete;
