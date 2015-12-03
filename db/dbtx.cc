@@ -418,7 +418,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter) {
 			kvs[i].dummy->Print();
 #endif
 
-
 			//update the current node
 			kvs[i].node->oldVersions = kvs[i].dummy;
 			kvs[i].node->counter = gcounter;
@@ -525,16 +524,11 @@ inline uint64_t** DBTX::WriteSet::GetDeletedValues(int* len) {
 
 	//First get the number of values needed to be deleted
 	for(int i = 0; i < elems; i++) {
-
 		if(kvs[i].val == (uint64_t *)NULL || !DBTX::ValidateValue(kvs[i].val)) {
-
 			kvs[i].val = NULL;
-
 		} else {
 			dvn++;
-
 		}
-
 	}
 
 	if(dvn > elems) {

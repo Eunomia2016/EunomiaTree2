@@ -404,16 +404,15 @@ bench_runner::run() {
 		cerr << "memory delta rate: " << (delta_mb / elapsed_sec)  << " MB/sec" << endl;
 		cerr << "logical memory delta: " << size_delta_mb << " MB" << endl;
 		cerr << "logical memory delta rate: " << (size_delta_mb / elapsed_sec) << " MB/sec" << endl;
-		cerr << "\e[44mtotal_database_transaction_commits: " << n_commits << "\e[0m" << endl;
 		cerr << "\e[44magg_nosync_throughput: " << agg_nosync_throughput << " ops/sec\e[0m" << endl;
 		cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
 //    cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
 		cerr << "agg_persist_throughput: " << agg_persist_throughput << " ops/sec" << endl;
 		cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
-    	cerr << "avg_latency: " << avg_latency_ms << " ms" << endl;
+		cerr << "\e[44mavg_latency: " << avg_latency_ms << " ms\e[0m" << endl;
 //    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
-    	
+
 		int totalabort = 0;
 
 		for(int i = 0; i < 5; i++) {
@@ -421,7 +420,7 @@ bench_runner::run() {
 			cerr << "workload[" << i << "] agg_abort_num: " << n_aborts[i] << endl;
 		}
 
-		cerr << "\e[44mtotal_abort_num: " << totalabort <<"\e[0m"<< endl;
+		cerr << "\e[44mtotal_abort_num: " << totalabort << "\e[0m" << endl;
 		const double agg_abort_rate = double(totalabort) / elapsed_sec;
 		cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
 

@@ -2501,9 +2501,6 @@ tpcc_worker::txn_payment() {
 	return txn_result(false, 0);
 }
 
-
-
-
 tpcc_worker::txn_result
 tpcc_worker::txn_order_status() {
 	const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
