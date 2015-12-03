@@ -399,12 +399,12 @@ bench_runner::run() {
 		}
 #endif
 		cerr << "--- benchmark statistics ---" << endl;
-		cerr << "runtime: " << elapsed_sec << " sec" << endl;
+		cerr << "\e[44mruntime: " << elapsed_sec << " sec\e[0m" << endl;
 		cerr << "memory delta: " << delta_mb  << " MB" << endl;
 		cerr << "memory delta rate: " << (delta_mb / elapsed_sec)  << " MB/sec" << endl;
 		cerr << "logical memory delta: " << size_delta_mb << " MB" << endl;
 		cerr << "logical memory delta rate: " << (size_delta_mb / elapsed_sec) << " MB/sec" << endl;
-		cerr << "agg_nosync_throughput: " << agg_nosync_throughput << " ops/sec" << endl;
+		cerr << "\e[44magg_nosync_throughput: " << agg_nosync_throughput << " ops/sec\e[0m" << endl;
 		cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
 //    cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
@@ -420,7 +420,7 @@ bench_runner::run() {
 			cerr << "workload[" << i << "] agg_abort_num: " << n_aborts[i] << endl;
 		}
 
-		cerr << "total_abort_num: " << totalabort << endl;
+		cerr << "\e[44mtotal_abort_num: " << totalabort <<"\e[0m"<< endl;
 		const double agg_abort_rate = double(totalabort) / elapsed_sec;
 		cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
 
