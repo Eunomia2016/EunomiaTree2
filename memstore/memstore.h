@@ -114,7 +114,7 @@ public:
 	}
 
 	virtual void transfer_para(RTMPara&){
-		assert(0);
+		printf("[Alex]transfer_para\n");
 	}
 };
 #endif

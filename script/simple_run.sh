@@ -5,6 +5,6 @@ if [ $# != 1 ]; then
 fi
 
 num_threads=$1
-m=$(expr 1000000 / $num_threads)
+m=$(expr 10000 / $num_threads)
 echo "../dbtest --bench tpcc --num-threads $num_threads --ops-per-worker $m --retry-aborted-transactions --verbose"
 ../dbtest --bench tpcc --num-threads $num_threads --ops-per-worker $m --retry-aborted-transactions --verbose

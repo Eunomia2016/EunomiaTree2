@@ -491,9 +491,7 @@ public:
 			dummyleaf_ = new LeafNode();
 		}
 #endif
-
 		return value;
-
 	}
 
 	inline Memstore::MemNode* Insert_rtm(uint64_t key) {

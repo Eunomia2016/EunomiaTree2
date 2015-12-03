@@ -49,7 +49,6 @@ void DBTX::ThreadLocalInit() {
 		localinit = true;
 		//	printf("%ld localinit BB\n", pthread_self());
 	}
-
 }
 
 DBTX::ReadSet::ReadSet() {
@@ -67,7 +66,6 @@ DBTX::ReadSet::ReadSet() {
 		nexts[i].next = 0;
 		nexts[i].nextptr = NULL;
 	}
-
 }
 
 DBTX::ReadSet::~ReadSet() {
@@ -98,7 +96,6 @@ void DBTX::ReadSet::Resize() {
 	}
 	delete[] nexts;
 	nexts = nts;
-
 }
 
 inline void DBTX::ReadSet::AddNext(uint64_t *ptr, uint64_t value) {
@@ -484,10 +481,8 @@ inline uint64_t** DBTX::WriteSet::GetOldVersions(int* len) {
 
 	//First get the number of values needed to be deleted
 	for(int i = 0; i < elems; i++) {
-
 		if(kvs[i].dummy != NULL)
 			ovn++;
-
 	}
 
 	assert(ovn <= elems);

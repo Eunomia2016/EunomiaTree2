@@ -33,6 +33,7 @@
 using namespace std;
 using namespace util;
 #define SEPERATE 0
+
 #define SLDBTX	0
 #define CHECKTPCC 0
 #define SEC_INDEX 1

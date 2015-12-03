@@ -13,10 +13,8 @@
 #include <stdio.h>
 #include "log.h"
 
-
 Log::Log(const char* p, bool sync): path(p)
 { 
-
 	printf("Create log %s\n", path);
 	fd = open(path, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO);
 
