@@ -297,7 +297,6 @@ void MemstoreBPlusTree::Iterator::SeekPrev(uint64_t key) {
 	}
 }
 
-
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.
 void MemstoreBPlusTree::Iterator::SeekToFirst() {
@@ -327,6 +326,4 @@ void MemstoreBPlusTree::Iterator::SeekToLast() {
 	//TODO
 	assert(0);
 }
-
 }
-

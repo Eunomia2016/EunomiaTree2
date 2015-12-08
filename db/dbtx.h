@@ -17,6 +17,9 @@
 #include "db/dbtables.h"
 #include "db/delset.h"
 
+#define DUMP 1
+#define BILLION 1000000000L
+
 #define CACHESIM 0
 #define GLOBALOCK 0
 #define AGGRESSIVEDETECT 0
@@ -44,7 +47,7 @@ public:
 
 	RTMProfile rtmProf;
 	int count;
-
+	int worker_id;
 	struct KeyValues {
 
 		int num;
@@ -88,7 +91,7 @@ public:
 	void Add(int tableid, uint64_t key, uint64_t* val, int len);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len);
 
-	bool Get(int tableid, uint64_t key, uint64_t** val);
+	bool Get( int tableid, uint64_t key, uint64_t** val);
 	void Delete(int tableid, uint64_t key);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);

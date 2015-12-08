@@ -19,6 +19,9 @@
 #include "persistent/pbuf.h"
 #define SET_AFFINITY 1
 
+#define blue_cerr cerr << "\e[44m"
+#define blue_endl "\e[0m"<<endl
+
 #ifdef USE_JEMALLOC
 //cannot include this header b/c conflicts with malloc.h
 //#include <jemalloc/jemalloc.h>
@@ -149,8 +152,8 @@ bench_worker::run() {
 
 	int socket_0[] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
 	int mixed_sockets[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-	int core_id = socket_0[y];
-	//int core_id = mixed_sockets[y];
+	//int core_id = socket_0[y];
+	int core_id = mixed_sockets[y];
 
 	cpu_set_t  mask;
 	CPU_ZERO(&mask);
@@ -399,18 +402,18 @@ bench_runner::run() {
 		}
 #endif
 		cerr << "--- benchmark statistics ---" << endl;
-		cerr << "\e[44mruntime: " << elapsed_sec << " sec\e[0m" << endl;
+		blue_cerr << "runtime: " << elapsed_sec << " sec" << blue_endl;
 		cerr << "memory delta: " << delta_mb  << " MB" << endl;
 		cerr << "memory delta rate: " << (delta_mb / elapsed_sec)  << " MB/sec" << endl;
 		cerr << "logical memory delta: " << size_delta_mb << " MB" << endl;
 		cerr << "logical memory delta rate: " << (size_delta_mb / elapsed_sec) << " MB/sec" << endl;
-		cerr << "\e[44magg_nosync_throughput: " << agg_nosync_throughput << " ops/sec\e[0m" << endl;
+		blue_cerr << "agg_nosync_throughput: " << agg_nosync_throughput << " ops/sec" << blue_endl;
 		cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
 //    cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
 		cerr << "agg_persist_throughput: " << agg_persist_throughput << " ops/sec" << endl;
 		cerr << "avg_per_core_persist_throughput: " << avg_per_core_persist_throughput << " ops/sec/core" << endl;
-		cerr << "\e[44mavg_latency: " << avg_latency_ms << " ms\e[0m" << endl;
+		blue_cerr << "avg_latency: " << avg_latency_ms << " ms" << blue_endl;
 //    cerr << "avg_persist_latency: " << avg_persist_latency_ms << " ms" << endl;
 
 		int totalabort = 0;
@@ -420,7 +423,7 @@ bench_runner::run() {
 			cerr << "workload[" << i << "] agg_abort_num: " << n_aborts[i] << endl;
 		}
 
-		cerr << "\e[44mtotal_abort_num: " << totalabort << "\e[0m" << endl;
+		blue_cerr << "total_abort_num: " << totalabort << blue_endl;
 		const double agg_abort_rate = double(totalabort) / elapsed_sec;
 		cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
 

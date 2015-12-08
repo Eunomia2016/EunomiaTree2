@@ -109,7 +109,6 @@ public:
   bench_worker(unsigned int worker_id,
                bool set_core_id,
                unsigned long seed, abstract_db *db,
-               
                spin_barrier *barrier_a, spin_barrier *barrier_b)
     : worker_id(worker_id), set_core_id(set_core_id),
       r(seed), db(db), 

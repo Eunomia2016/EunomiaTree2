@@ -6,9 +6,11 @@
 #define STORAGE_LEVELDB_UTIL_RTM_H_
 #include <immintrin.h>
 #include <sys/time.h>
+#include <time.h>
 #include "util/spinlock.h"
 #include "txprofile.h"
 
+#define BILLION 1000000000L
 
 #define MAXNEST 0
 #define MAXZERO 3
@@ -25,7 +27,6 @@
 #define AVOIDNESTTX
 
 class RTMScope {
-
 	RTMProfile* globalprof;
 	int retry;
 	int conflict;
@@ -33,6 +34,7 @@ class RTMScope {
 	int nested;
 	int zero;
 	SpinLock* slock;
+	//timespec begin, end;
 
 #ifdef AVOIDNESTTX
 	int isnest;
@@ -42,7 +44,7 @@ public:
 	static SpinLock fblock;
 
 	inline RTMScope(RTMProfile* prof, int read = 1, int write = 1, SpinLock* sl = NULL) {
-
+		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		globalprof = prof;
 		retry = 0;
 		conflict = 0;
@@ -151,6 +153,7 @@ public:
 		else
 			_xend();
 		//access the global profile info outside the transaction scope
+		//clock_gettime(CLOCK_MONOTONIC, &end);
 #if RTMPROFILE
 		if(globalprof != NULL) {
 			globalprof->succCounts++;
@@ -158,6 +161,7 @@ public:
 			globalprof->capacityCounts += capacity;
 			globalprof->conflictCounts += conflict;
 			globalprof->zeroCounts += zero;
+			//globalprof->interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
 		}
 #endif
 	}

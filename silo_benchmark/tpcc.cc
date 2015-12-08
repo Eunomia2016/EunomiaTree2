@@ -635,6 +635,7 @@ public:
 		warehouse_id_end(warehouse_id_end),
 		tx(store),
 		rotx(store) {
+		tx.worker_id = worker_id;
 		secs = 0;
 		INVARIANT(warehouse_id_start >= 1);
 		INVARIANT(warehouse_id_start <= NumWarehouses());
@@ -650,7 +651,6 @@ public:
 		obj_key0.reserve(2 * CACHELINE_SIZE);
 		obj_key1.reserve(2 * CACHELINE_SIZE);
 		obj_v.reserve(2 * CACHELINE_SIZE);
-
 	}
 
 	// XXX(stephentu): tune this
@@ -735,11 +735,7 @@ protected:
 //    const size_t b = a % nthreads;
 //    rcu::s_instance.pin_current_thread(b);
 //   rcu::s_instance.fault_region();
-
-
 	}
-
-
 
 private:
 	const uint warehouse_id_start;
@@ -984,7 +980,6 @@ protected:
 						            v_data.s_dist_09.assign(RandomStr(r, 24));
 						            v_data.s_dist_10.assign(RandomStr(r, 24));
 
-
 								v->s_dist_01.assign(RandomStr(r, 24));
 								v->s_dist_02.assign(RandomStr(r, 24));
 								v->s_dist_03.assign(RandomStr(r, 24));
@@ -996,8 +991,6 @@ protected:
 								v->s_dist_09.assign(RandomStr(r, 24));
 								v->s_dist_10.assign(RandomStr(r, 24));
 									*/
-
-
 
 						checker::SanityCheckStock(&k, v);
 						const size_t sz = Size(*v);
@@ -1618,6 +1611,7 @@ tpcc_worker::txn_new_order() {
 		uint64_t *c_value;
 //	slstart = rdtsc();
 		bool found = tx.Get(CUST, c_key, &c_value);
+		//printf("[Alex]worker_id = %2d, table_id = %2d, key = %ld\n", worker_id, CUST, c_key);
 		//memcpy(dummy,c_value, sizeof(customer::value));
 //	secs += (rdtsc() - slstart);
 		assert(found);

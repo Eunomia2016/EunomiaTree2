@@ -6,6 +6,7 @@
 #define STORAGE_LEVELDB_DB_DBTRANSACTIONTEMPLATE_H_
 
 #include <string>
+#include <time.h>
 #include "leveldb/db.h"
 #include "util/rtm.h"
 
@@ -193,7 +194,6 @@ DBTX::WriteSet::WriteSet() {
 #endif
 
 }
-
 
 DBTX::WriteSet::~WriteSet() {
 	//FIXME: Do nothing here
@@ -584,8 +584,7 @@ DBTX::DBTX(DBTables* store) {
 	traverseCount = 0;
 }
 
-DBTX::~DBTX()
-{
+DBTX::~DBTX() {
 	//clear all the data
 }
 
@@ -696,8 +695,15 @@ ABORT:
 	return false;
 }
 
-void DBTX::Add(int tableid, uint64_t key, uint64_t* val)
-{
+void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
+
+#if DUMP
+	struct timespec time_stamp;
+	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
+	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
+	printf("[%2d] ADD tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
+#endif
+
 //  SpinLockScope spinlock(&slock);
 
 retry:
@@ -741,8 +747,15 @@ retry:
 
 }
 
-void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len)
-{
+void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
+#if DUMP
+	struct timespec time_stamp;
+	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
+	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
+	printf("[%2d] ADD tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
+#endif
+
+
 //  SpinLockScope spinlock(&slock);
 retry:
 
@@ -760,11 +773,9 @@ retry:
 #if PROFILEBUFFERNODE
 		bufferHit++;
 #endif
-
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
-
 #if PROFILEBUFFERNODE
 		bufferMiss++;
 #endif
@@ -796,6 +807,12 @@ retry:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val) {
+#if DUMP
+	struct timespec time_stamp;
+	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
+	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
+	printf("[%2d] ADD tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
+#endif
 
 retryA:
 	uint64_t *seq;
@@ -803,7 +820,6 @@ retryA:
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
-
 
 	Memstore::MemNode* node;
 #if BUFFERNODE
@@ -848,13 +864,19 @@ retryA:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len) {
+#if DUMP
+	struct timespec time_stamp;
+	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
+	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
+	printf("[%2d] ADD tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
+#endif
+
 retryA:
 	uint64_t *seq;
 
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
-
 
 	Memstore::MemNode* node;
 #if BUFFERNODE
@@ -883,7 +905,6 @@ retryA:
 
 #endif
 
-
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
@@ -905,6 +926,13 @@ retryA:
 
 
 void DBTX::Delete(int tableid, uint64_t key) {
+#if DUMP
+	struct timespec time_stamp;
+	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
+	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
+	printf("[%2d] DEL tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
+#endif
+
 
 	uint64_t *val;
 
@@ -963,7 +991,6 @@ retryGBI:
 	if(knum != 0)
 		kvs = new KeyValues(knum);
 
-
 #if GLOBALOCK
 	SpinLockScope spinlock(&slock);
 #else
@@ -1000,8 +1027,14 @@ retryGBI:
 
 }
 
-
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
+#if DUMP
+	struct timespec time_stamp;
+	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
+	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
+	printf("[%2d] GET tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
+#endif
+
 	//step 1. First check if the <k,v> is in the write set
 	if(writeset->Lookup(tableid, key, val)) {
 		if((*val) == LOGICALDELETE)
@@ -1010,7 +1043,7 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 	}
 
 	//step 2.  Read the <k,v> from the in memory store
-	retry:
+retry:
 
 	Memstore::MemNode* node = NULL;
 

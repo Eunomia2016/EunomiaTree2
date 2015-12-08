@@ -19,7 +19,6 @@ def get_th(inpat, number):
 				th = th + float(temp.group(1))
 			
 	print "Throughput, "+str(th/number)
-			
 
 if __name__ == "__main__":
 	get_th(sys.argv[1], int(sys.argv[2]))

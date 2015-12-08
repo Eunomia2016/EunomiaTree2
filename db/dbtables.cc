@@ -95,14 +95,16 @@ DBTables::~DBTables() {
 		}
 	}
 
-	printf("=========[Alex]=========\n");
-	printf("%-10s = %10d\n","Aborts", rtmPara.abortCounts);
-	printf("%-10s = %10d\n","Succs", rtmPara.succCounts);
-	printf("%-10s = %10.3lf\n","Retry/Tx", (double)rtmPara.abortCounts/rtmPara.succCounts);
-	printf("%-10s = %10d (%.3lf)\n","CapaCity", rtmPara.capacityCounts, (double)rtmPara.capacityCounts/rtmPara.abortCounts);
-	printf("%-10s = %10d (%.3lf)\n","Conflicts", rtmPara.conflictCounts,(double)rtmPara.conflictCounts/rtmPara.abortCounts);
-	printf("%-10s = %10d (%.3lf)\n","Zeros", rtmPara.zeroCounts,(double)rtmPara.zeroCounts/rtmPara.abortCounts);
-	printf("=========[Alex]=========\n");
+	fprintf(stderr,"=========[Alex]=========\n");
+	fprintf(stderr,"%-10s = %10d\n","Aborts", rtmPara.abortCounts);
+	fprintf(stderr,"%-10s = %10d\n","Succs", rtmPara.succCounts);
+	fprintf(stderr,"%-10s = %10.3lf\n","Retry/Tx", (double)rtmPara.abortCounts/rtmPara.succCounts);
+	fprintf(stderr,"%-10s = %10d (%.3lf)\n","Capacity", rtmPara.capacityCounts, (double)rtmPara.capacityCounts/rtmPara.abortCounts);
+	fprintf(stderr,"%-10s = %10d (%.3lf)\n","Conflicts", rtmPara.conflictCounts,(double)rtmPara.conflictCounts/rtmPara.abortCounts);
+	fprintf(stderr,"%-10s = %10d (%.3lf)\n","Zeros", rtmPara.zeroCounts,(double)rtmPara.zeroCounts/rtmPara.abortCounts);
+	//fprintf(stderr,"%-10s = %ldns\n","Total Runtime", rtmPara.interval);
+	//fprintf(stderr,"%-10s = %ldns\n","Avg Runtime", rtmPara.interval/rtmPara.succCounts);
+	fprintf(stderr,"=========[Alex]=========\n");
 
 	
 	for(int i = 0; i < next; i++) {

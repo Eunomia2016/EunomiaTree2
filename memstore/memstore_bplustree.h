@@ -158,7 +158,7 @@ public:
 		//printTree();
 		//top();
 	}
-	void transfer_para(RTMPara& para){
+	void transfer_para(RTMPara& para) {
 		prof.transfer_para(para);
 	}
 	inline void ThreadLocalInit() {
@@ -260,13 +260,10 @@ public:
 	}
 
 	inline int slotAtLeaf(uint64_t key, LeafNode* cur) {
-
 		int slot = 0;
-
 		while((slot < cur->num_keys) && (cur->keys[slot] < key)) {
 			slot++;
 		}
-
 		return slot;
 	}
 
@@ -301,10 +298,7 @@ public:
 		if(slot == cur->num_keys) {
 			return NULL;
 		}
-
-
 //		 assert(cur->values[slot]->value == (uint64_t *)2);
-
 		//	printf("delete node\n");
 		DeleteResult *res = new DeleteResult();
 
@@ -344,7 +338,6 @@ public:
 	}
 
 	inline void removeInnerEntry(InnerNode* cur, int slot, DeleteResult* res) {
-
 		assert(slot <= cur->num_keys);
 
 		//If there is only one available entry
@@ -353,7 +346,6 @@ public:
 			res->freeNode = true;
 			return;
 		}
-
 
 		//The key deleted is the last one
 		if(slot == cur->num_keys) {
@@ -473,20 +465,15 @@ public:
 		}
 #endif
 		return value;
-
 	}
 
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
-
 		ThreadLocalInit();
-
 		MemNode* value = Insert_rtm(key);
-
 #if DUMMY
 		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
 		}
-
 		if(dummyleaf_ == NULL) {
 			dummyleaf_ = new LeafNode();
 		}
@@ -505,7 +492,6 @@ public:
 #if BTREE_PROF
 		calls++;
 #endif
-
 		if(root == NULL) {
 			root = new_leaf_node();
 			reinterpret_cast<LeafNode*>(root)->left = NULL;
@@ -533,14 +519,12 @@ public:
 //				inner->writes++;
 			}
 		} else {
-
 #if BTPREFETCH
 			for(int i = 0; i <= 64; i += 64)
 				prefetch(reinterpret_cast<char*>(root) + i);
 #endif
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val);
 		}
-
 		return val;
 	}
 
@@ -562,7 +546,7 @@ public:
 		//inserting at the lowest inner level
 		if(d == 1) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val);
-			//a new leaf node is created 
+			//a new leaf node is created
 			if(new_leaf != NULL) {
 				InnerNode *toInsert = inner;
 				if(inner->num_keys == N) {
@@ -599,9 +583,8 @@ public:
 					writes++;
 #endif
 //					new_sibling->writes++;
-
 				}
-				
+
 				//inserting the new key at the (k)th slot of the parent node
 				if(k != -1) {
 					for(int i = toInsert->num_keys; i > k; i--) {
@@ -638,7 +621,7 @@ public:
 
 				unsigned treshold = (N + 1) / 2;
 				//the current node is full, creating a new node to hold the inserted key
-				if(inner->num_keys == N) { 
+				if(inner->num_keys == N) {
 					new_sibling = new_inner_node();
 					if(child_sibling->num_keys == 0) {
 						new_sibling->num_keys = 0;
@@ -660,7 +643,7 @@ public:
 						inner->num_keys = treshold - 1;
 
 						upKey = inner->keys[treshold - 1];
-						//after split, the new key could be inserted into the old node or the new node 
+						//after split, the new key could be inserted into the old node or the new node
 						if(key >= upKey) {
 							toInsert = new_sibling;
 							if(k >= treshold) k = k - treshold;
@@ -873,13 +856,10 @@ public:
 #endif
 
 			TInnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, value);
-
 		}
-
 	}
 
 	inline LeafNode* TLeafInsert(uint64_t key, LeafNode *leaf, uint64_t *value) {
-
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
@@ -887,17 +867,13 @@ public:
 		}
 
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
-
 			leaf->values[k] = (Memstore::MemNode *)value;
-
 			return NULL;
 		}
-
 
 		LeafNode *toInsert = leaf;
 		if(leaf->num_keys == M) {
 			new_sibling = new_leaf_node();
-
 			if(leaf->right == NULL && k == leaf->num_keys) {
 				new_sibling->num_keys = 0;
 				toInsert = new_sibling;
@@ -910,7 +886,6 @@ public:
 					new_sibling->values[j] = leaf->values[threshold + j];
 				}
 				leaf->num_keys = threshold;
-
 
 				if(k >= threshold) {
 					k = k - threshold;
@@ -929,11 +904,8 @@ public:
 			//			checkConflict(new_sibling, 1);
 		}
 
-
 		//printf("IN LEAF1 %d\n",toInsert->num_keys);
 		//printTree();
-
-
 
 		for(int j = toInsert->num_keys; j > k; j--) {
 			toInsert->keys[j] = toInsert->keys[j - 1];
@@ -943,7 +915,6 @@ public:
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
 		toInsert->values[k] = (Memstore::MemNode *)value;
-
 
 		return new_sibling;
 	}
@@ -957,7 +928,6 @@ public:
 			++k;
 		}
 
-
 		void *child = inner->children[k];
 
 #if BTPREFETCH
@@ -965,19 +935,12 @@ public:
 			prefetch(reinterpret_cast<char*>(child) + i);
 #endif
 
-
 		if(d == 1) {
-
 			LeafNode *new_leaf = TLeafInsert(key, reinterpret_cast<LeafNode*>(child), value);
-
 			if(new_leaf != NULL) {
-
 				InnerNode *toInsert = inner;
-
 				if(inner->num_keys == N) {
-
 					new_sibling = new_inner_node();
-
 					if(new_leaf->num_keys == 1) {
 						new_sibling->num_keys = 0;
 						upKey = new_leaf->keys[0];
@@ -1005,8 +968,6 @@ public:
 					}
 //					inner->keys[N-1] = upKey;
 					new_sibling->keys[N - 1] = upKey;
-
-
 				}
 
 				if(k != -1) {
@@ -1017,20 +978,14 @@ public:
 					toInsert->num_keys++;
 					toInsert->keys[k] = new_leaf->keys[0];
 				}
-
 				toInsert->children[k + 1] = new_leaf;
-
 			}
-
 
 //			if (new_sibling!=NULL && new_sibling->num_keys == 0) printf("sibling\n");
 		} else {
-
-
 			bool s = true;
 			InnerNode *new_inner =
 				TInnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, value);
-
 
 			if(new_inner != NULL) {
 				InnerNode *toInsert = inner;
@@ -1086,12 +1041,7 @@ public:
 					toInsert->keys[k] = reinterpret_cast<InnerNode*>(child_sibling)->keys[N - 1];
 				}
 				toInsert->children[k + 1] = child_sibling;
-
-
 			}
-
-
-
 		}
 
 		if(d == depth && new_sibling != NULL) {
@@ -1102,8 +1052,6 @@ public:
 			new_root->children[1] = new_sibling;
 			root = new_root;
 			depth++;
-
-
 		}
 //		else if (d == depth) checkConflict(&root, 0);
 //		if (inner->num_keys == 0) printf("inner\n");
@@ -1112,7 +1060,6 @@ public:
 	}
 
 public:
-
 	static __thread RTMArena* arena_;	  // Arena used for allocations of nodes
 	static __thread bool localinit_;
 	static __thread MemNode *dummyval_;
@@ -1138,19 +1085,14 @@ public:
 	char padding4[64];
 	SpinLock rtmlock;
 	char padding5[64];
-
 	/*
 			int current_tid;
 			void *waccess[4][30];
 			void *raccess[4][30];
 			int windex[4];
 			int rindex[4];*/
-
 };
-
 //__thread RTMArena* MemstoreBPlusTree::arena_ = NULL;
 //__thread bool MemstoreBPlusTree::localinit_ = false;
-
 }
-
 #endif

@@ -24,6 +24,7 @@ public:
 	uint32_t conflictCounts;
 	uint32_t succCounts;
 	uint32_t zeroCounts;
+	//uint64_t interval;
 	RTMPara():abortCounts(0),capacityCounts(0),conflictCounts(0),succCounts(0),zeroCounts(0){}
 };
 
@@ -37,6 +38,7 @@ public:
 	uint32_t conflictCounts;
 	uint32_t succCounts;
 	uint32_t zeroCounts;
+	//uint64_t interval;
 
 	static __inline__ void atomic_inc32(uint32_t *p) {
 		__asm__ __volatile__("lock; incl %0"
@@ -58,6 +60,7 @@ public:
 		succCounts = 0;
 		capacityCounts = 0;
 		conflictCounts = 0;
+		zeroCounts = 0;
 		for(int i = 0; i < 7; i++)
 			status[i] = 0;
 	}
@@ -73,6 +76,7 @@ public:
 		para.conflictCounts += conflictCounts;
 		para.succCounts += succCounts;
 		para.zeroCounts += zeroCounts;
+		//para.interval += interval;
 	}
 
 	void recordAbortStatus(int stat) {
