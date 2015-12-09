@@ -164,12 +164,9 @@ public:
 	inline void ThreadLocalInit() {
 		if(false == localinit_) {
 			arena_ = new RTMArena();
-
 			dummyval_ = GetMemNode();
 			dummyval_->value = NULL;
-
 			dummyleaf_ = new LeafNode();
-
 			localinit_ = true;
 		}
 	}
@@ -216,7 +213,6 @@ public:
 		//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 #endif
-
 		InnerNode* inner;
 		register void* node = root;
 		register unsigned d = depth;
@@ -228,9 +224,10 @@ public:
 			while((index < inner->num_keys) && (key >= inner->keys[index])) {
 				++index;
 			}
+			//get down to the corresponding child
 			node = inner->children[index];
 		}
-		//it is a defacto leaf node
+		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 //		reads++;
 		if(leaf->num_keys == 0) return NULL;
@@ -268,32 +265,24 @@ public:
 	}
 
 	inline Memstore::MemNode* removeLeafEntry(LeafNode* cur, int slot) {
-
 		assert(slot < cur->num_keys);
 		cur->seq = cur->seq + 1;
-
 		Memstore::MemNode* value = cur->values[slot];
-
-		cur->num_keys--;
-
+		cur->num_keys--; //num_keys subtracts one
 		//The key deleted is the last one
 		if(slot == cur->num_keys)
 			return value;
-
 		//Re-arrange the entries in the leaf
 		for(int i = slot + 1; i <= cur->num_keys; i++) {
 			cur->keys[i - 1] = cur->keys[i];
 			cur->values[i - 1] = cur->values[i];
 		}
-
 		return value;
-
 	}
 
 	inline DeleteResult* LeafDelete(uint64_t key, LeafNode* cur) {
 		//step 1. find the slot of the key
 		int slot = slotAtLeaf(key, cur);
-
 		//the record of the key doesn't exist, just return
 		if(slot == cur->num_keys) {
 			return NULL;
@@ -314,75 +303,58 @@ public:
 
 			//Parent is responsible for the node deletion
 			res->freeNode = true;
-
 			return res;
 		}
-
 		//The smallest key in the leaf node has been changed, update the parent key
 		if(slot == 0) {
 			res->upKey = cur->keys[0];
 		}
-
 		return res;
 	}
 
 	inline int slotAtInner(uint64_t key, InnerNode* cur) {
-
 		int slot = 0;
-
 		while((slot < cur->num_keys) && (cur->keys[slot] <= key)) {
 			slot++;
 		}
-
 		return slot;
 	}
 
 	inline void removeInnerEntry(InnerNode* cur, int slot, DeleteResult* res) {
 		assert(slot <= cur->num_keys);
-
 		//If there is only one available entry
 		if(cur->num_keys == 0) {
 			assert(slot == 0);
 			res->freeNode = true;
 			return;
 		}
-
 		//The key deleted is the last one
 		if(slot == cur->num_keys) {
 			cur->num_keys--;
 			return;
 		}
-
-		//replace the children slot
+		//rearrange the children slot
 		for(int i = slot + 1; i <= cur->num_keys; i++)
 			cur->children[i - 1] = cur->children[i];
-
 		//delete the first entry, upkey is needed
 		if(slot == 0) {
-
 			//record the first key as the upkey
 			res->upKey = cur->keys[slot];
-
 			//delete the first key
 			for(int i = slot; i < cur->num_keys - 1; i++) {
 				cur->keys[i] = cur->keys[i + 1];
 			}
-
 		} else {
 			//delete the previous key
 			for(int i = slot; i < cur->num_keys; i++) {
 				cur->keys[i - 1] = cur->keys[i];
 			}
 		}
-
 		cur->num_keys--;
-
 	}
 
 	inline DeleteResult* InnerDelete(uint64_t key, InnerNode* cur , int depth) {
-
 		DeleteResult* res = NULL;
-
 		//step 1. find the slot of the key
 		int slot = slotAtInner(key, cur);
 
@@ -395,32 +367,26 @@ public:
 			//printInner((InnerNode *)cur->children[slot], depth - 1);
 			res = InnerDelete(key, (InnerNode *)cur->children[slot], (depth - 1));
 		}
-
 		//The record is not found
 		if(res == NULL) {
 			return res;
 		}
-
-		//step 3. Remove the entry if the total children node has been removed
+		//step 3. Remove the entry if the TOTAL children nodes have been removed
 		if(res->freeNode) {
 			//FIXME: Should free the children node here
-
 			//remove the node from the parent node
 			res->freeNode = false;
 			removeInnerEntry(cur, slot, res);
 			return res;
 		}
-
 		//step 4. update the key if needed
 		if(res->upKey != -1) {
 			if(slot != 0) {
-				cur->keys[slot - 1] = res->upKey;
+				cur->keys[slot - 1] = res->upKey; //the upkey should be updated
 				res->upKey = -1;
 			}
 		}
-
 		return res;
-
 	}
 
 	inline Memstore::MemNode* Delete_rtm(uint64_t key) {
@@ -430,8 +396,6 @@ public:
 		//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
 #endif
-
-
 		DeleteResult* res = NULL;
 		if(depth == 0) {
 			//Just delete the record from the root
@@ -450,16 +414,12 @@ public:
 	}
 
 	inline Memstore::MemNode* GetWithDelete(uint64_t key) {
-
 		ThreadLocalInit();
-
 		MemNode* value = Delete_rtm(key);
-
 #if DUMMY
 		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
 		}
-
 		if(dummyleaf_ == NULL) {
 			dummyleaf_ = new LeafNode();
 		}
@@ -503,7 +463,7 @@ public:
 		MemNode* val = NULL;
 		if(depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
-			if(new_leaf != NULL) {
+			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold 
 				InnerNode *inner = new_inner_node();
 				inner->num_keys = 1;
 				inner->keys[0] = new_leaf->keys[0];
@@ -532,13 +492,9 @@ public:
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
-
-		while((k < inner->num_keys) && (key >= inner->keys[k])) {
-			++k;
-		}
-
+		//find the appropriate position of the new key
+		while((k < inner->num_keys) && (key >= inner->keys[k])) k++;
 		void *child = inner->children[k];
-
 #if BTPREFETCH
 		for(int i = 0; i <= 64; i += 64)
 			prefetch(reinterpret_cast<char*>(child) + i);
@@ -549,6 +505,7 @@ public:
 			//a new leaf node is created
 			if(new_leaf != NULL) {
 				InnerNode *toInsert = inner;
+				//the inner node is full -> split it 
 				if(inner->num_keys == N) {
 					new_sibling = new_inner_node();
 					if(new_leaf->num_keys == 1) {
@@ -558,26 +515,40 @@ public:
 						k = -1;
 					} else {
 						unsigned threshold = (N + 1) / 2;
+						//num_keys(new inner node) = num_keys(old inner node) - threshold 
 						new_sibling->num_keys = inner->num_keys - threshold;
 						//moving the excessive keys to the new inner node
 						for(unsigned i = 0; i < new_sibling->num_keys; ++i) {
 							new_sibling->keys[i] = inner->keys[threshold + i];
 							new_sibling->children[i] = inner->children[threshold + i];
 						}
-
+						//the last child
 						new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
-						inner->num_keys = threshold - 1; //below the threshold
-
-						upKey = inner->keys[threshold - 1];
-
+						//the num_key of the original node should be below the threshold
+						inner->num_keys = threshold - 1; 
+						//upkey should be the delimiter of the old/new node in their common parent
+						upKey = inner->keys[threshold - 1]; 
+						//the new leaf node could be the child of old/new inner node
 						if(new_leaf->keys[0] >= upKey) {
 							toInsert = new_sibling;
-							if(k >= threshold) k = k - threshold;
+							//if the new inner node is to be inserted, the index to insert should subtract threshold
+							if(k >= threshold) k = k - threshold; 
 							else k = 0;
 						}
 					}
 //					inner->keys[N-1] = upKey;
-					new_sibling->keys[N - 1] = upKey;
+					new_sibling->keys[N - 1] = upKey; //???
+#if 0					
+					printf("==============\n");
+					for(int i = 0; i < inner->num_keys; i++){
+						printf("key[%2d] = %ld\n", i, inner->keys[i]);
+					}
+					printf("--------------\n");
+					for(int i = 0; i < new_sibling->num_keys; i++){
+						printf("key[%2d] = %ld\n", i, new_sibling->keys[i]);
+					}
+					printf("==============\n");
+#endif
 //					checkConflict(new_sibling, 1);
 #if BTREE_PROF
 					writes++;
@@ -585,13 +556,13 @@ public:
 //					new_sibling->writes++;
 				}
 
-				//inserting the new key at the (k)th slot of the parent node
+				//insert the new key at the (k)th slot of the parent node (old or new)
 				if(k != -1) {
 					for(int i = toInsert->num_keys; i > k; i--) {
 						toInsert->keys[i] = toInsert->keys[i - 1];
 						toInsert->children[i + 1] = toInsert->children[i];
 					}
-					toInsert->num_keys++;
+					toInsert->num_keys++; //add a new key
 					toInsert->keys[k] = new_leaf->keys[0];
 				}
 
@@ -609,8 +580,7 @@ public:
 //				checkConflict(inner, 0);
 			}
 //			if (new_sibling!=NULL && new_sibling->num_keys == 0) printf("sibling\n");
-		} else {
-			bool s = true;
+		} else { //not inserting at the lowest inner level
 			//recursively insert at the lower levels
 			InnerNode *new_inner =
 				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val);
@@ -619,7 +589,7 @@ public:
 				InnerNode *toInsert = inner;
 				InnerNode *child_sibling = new_inner;
 
-				unsigned treshold = (N + 1) / 2;
+				unsigned treshold = (N + 1) / 2; //split equally
 				//the current node is full, creating a new node to hold the inserted key
 				if(inner->num_keys == N) {
 					new_sibling = new_inner_node();
@@ -740,11 +710,12 @@ public:
 				toInsert = new_sibling;
 				k = 0;
 			} else {
-				//spliting the current node
+				//SPLITTING the current node
 				unsigned threshold = (M + 1) / 2;
 				new_sibling->num_keys = leaf->num_keys - threshold;
 				//moving the keys above the threshold to the new sibling
 				for(unsigned j = 0; j < new_sibling->num_keys; ++j) {
+					//move the keys beyond threshold in old leaf to the new leaf 
 					new_sibling->keys[j] = leaf->keys[threshold + j];
 					new_sibling->values[j] = leaf->values[threshold + j];
 				}

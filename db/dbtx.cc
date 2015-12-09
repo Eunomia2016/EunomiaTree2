@@ -656,7 +656,6 @@ bool DBTX::End() {
 #endif
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
 	}
-
 	//Put the objects into the object pool
 	writeset->CollectOldVersions(txdb_);
 
@@ -691,12 +690,10 @@ ABORT:
 #if DEBUG_PRINT
 	printf("[%ld] TX Abort\n", pthread_self());
 #endif
-
 	return false;
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
-
 #if DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -1034,19 +1031,15 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
 	printf("[%2d] GET tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
 #endif
-
 	//step 1. First check if the <k,v> is in the write set
 	if(writeset->Lookup(tableid, key, val)) {
 		if((*val) == LOGICALDELETE)
 			return false;
 		return true;
 	}
-
 	//step 2.  Read the <k,v> from the in memory store
 retry:
-
 	Memstore::MemNode* node = NULL;
-
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 
 #if BUFFERNODE
@@ -1064,10 +1057,8 @@ retry:
 
 	if(node->value == HAVEREMOVED)
 		goto retry;
-
 //	if(*val != NULL && **val == 1)
 	readset->Add(&node->seq);
-
 	//if this node has been removed from the memstore
 
 #if DEBUG_PRINT

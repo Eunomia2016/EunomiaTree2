@@ -17,7 +17,7 @@
 #include "db/dbtables.h"
 #include "db/delset.h"
 
-#define DUMP 1
+#define DUMP 0
 #define BILLION 1000000000L
 
 #define CACHESIM 0
