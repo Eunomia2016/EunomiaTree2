@@ -84,9 +84,9 @@ public:
 			stat = _xbegin();
 			if(stat == _XBEGIN_STARTED) {
 				//Put the global lock into read set
-				if(slock->IsLocked()){
+				if(slock->IsLocked()) {
 					_xabort(0xff);
-				}else if(retry == 0){
+				} else if(retry == 0) {
 					winner = true;
 				}
 				return;
@@ -142,7 +142,7 @@ public:
 	void Abort() {
 		_xabort(0x1);
 	}
-	
+
 	inline  ~RTMScope() {
 #ifdef AVOIDNESTTX
 		if(isnest != 0) {
@@ -154,7 +154,7 @@ public:
 		else
 			_xend();
 		//access the global profile info outside the transaction scope
-			//printf("winner\n");
+		//printf("winner\n");
 		clock_gettime(CLOCK_MONOTONIC, &end);
 #if RTMPROFILE
 		if(globalprof != NULL) {
@@ -163,11 +163,15 @@ public:
 			globalprof->capacityCounts += capacity;
 			globalprof->conflictCounts += conflict;
 			globalprof->zeroCounts += zero;
-			if(winner){
+			if(winner) {
 				globalprof->winners++;
-				globalprof->winner_interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
+				uint64_t winner_interval = (end.tv_sec - begin.tv_sec) * BILLION + (end.tv_nsec - begin.tv_nsec);
+				globalprof->winner_interval += winner_interval;
+				printf("Winner interval = %ld\n", winner_interval);
 			}
-			globalprof->total_interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
+			uint64_t total_interval = (end.tv_sec - begin.tv_sec) * BILLION + (end.tv_nsec - begin.tv_nsec);
+			globalprof->total_interval += total_interval;
+			printf("Total interval = %ld\n", total_interval);
 		}
 #endif
 	}
