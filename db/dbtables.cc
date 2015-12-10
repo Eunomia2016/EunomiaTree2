@@ -95,19 +95,19 @@ DBTables::~DBTables() {
 		}
 	}
 
-	fprintf(stderr,"=========[Alex]=========\n");
-	fprintf(stderr,"%-10s = %15d\n","Aborts", rtmPara.abortCounts);
-	fprintf(stderr,"%-10s = %15d\n","Succs", rtmPara.succCounts);
-	fprintf(stderr,"%-10s = %15.3lf\n","Retry/Tx", (double)rtmPara.abortCounts/rtmPara.succCounts);
-	fprintf(stderr,"%-10s = %15d (%.3lf)\n","Capacity", rtmPara.capacityCounts, (double)rtmPara.capacityCounts/rtmPara.abortCounts);
-	fprintf(stderr,"%-10s = %15d (%.3lf)\n","Conflicts", rtmPara.conflictCounts,(double)rtmPara.conflictCounts/rtmPara.abortCounts);
-	fprintf(stderr,"%-10s = %15d (%.3lf)\n","Zeros", rtmPara.zeroCounts,(double)rtmPara.zeroCounts/rtmPara.abortCounts);
-	fprintf(stderr,"%-10s = %15ld\n", "Winners",rtmPara.winners);
-	fprintf(stderr,"%-10s = %15ld\n", "Avg Winner Interval", rtmPara.winner_interval/rtmPara.winners);
+	fprintf(stderr,"===================[Alex]===================\n");
+	fprintf(stderr,"%-30s = %15d\n","Aborts", rtmPara.abortCounts);
+	fprintf(stderr,"%-30s = %15d\n","Succs", rtmPara.succCounts);
+	fprintf(stderr,"%-30s = %15d (%.3lf)\n","Capacity", rtmPara.capacityCounts, (double)rtmPara.capacityCounts/rtmPara.abortCounts);
+	fprintf(stderr,"%-30s = %15d (%.3lf)\n","Conflicts", rtmPara.conflictCounts,(double)rtmPara.conflictCounts/rtmPara.abortCounts);
+	fprintf(stderr,"%-30s = %15d (%.3lf)\n","Zeros", rtmPara.zeroCounts,(double)rtmPara.zeroCounts/rtmPara.abortCounts);
+	fprintf(stderr,"%-30s = %15ld\n", "Total Interval",rtmPara.total_interval);
+	fprintf(stderr,"%-30s = %15ld\n", "Winners",rtmPara.winners);
+	fprintf(stderr,"%-30s = %15ld\n", "Total Winner Interval",rtmPara.winner_interval);
 
 	//fprintf(stderr,"%-10s = %ldns\n","Total Runtime", rtmPara.interval);
 	//fprintf(stderr,"%-10s = %ldns\n","Avg Runtime", rtmPara.interval/rtmPara.succCounts);
-	fprintf(stderr,"=========[Alex]=========\n");
+	fprintf(stderr,"===================[Alex]===================\n");
 
 	
 	for(int i = 0; i < next; i++) {

@@ -154,10 +154,8 @@ public:
 		else
 			_xend();
 		//access the global profile info outside the transaction scope
-		if(winner){
 			//printf("winner\n");
-			clock_gettime(CLOCK_MONOTONIC, &end);
-		}
+		clock_gettime(CLOCK_MONOTONIC, &end);
 #if RTMPROFILE
 		if(globalprof != NULL) {
 			globalprof->totalCounts++;
@@ -169,7 +167,7 @@ public:
 				globalprof->winners++;
 				globalprof->winner_interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
 			}
-			//globalprof->interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
+			globalprof->total_interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
 		}
 #endif
 	}

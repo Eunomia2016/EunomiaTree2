@@ -26,13 +26,15 @@ public:
 	uint32_t zeroCounts;
 	uint64_t winner_interval;
 	uint64_t winners;
+	uint64_t total_interval;
 	RTMPara():abortCounts(0),
 		capacityCounts(0),
 		conflictCounts(0),
 		succCounts(0),
 		zeroCounts(0),
 		winners(0),
-		winner_interval(0){}
+		winner_interval(0),
+		total_interval(0){}
 };
 
 class RTMProfile {
@@ -47,6 +49,7 @@ public:
 	uint32_t zeroCounts;
 	uint64_t winner_interval;
 	uint64_t winners;
+	uint64_t total_interval;
 
 	static __inline__ void atomic_inc32(uint32_t *p) {
 		__asm__ __volatile__("lock; incl %0"
@@ -89,7 +92,7 @@ public:
 		para.zeroCounts += zeroCounts;
 		para.winners+=winners;
 		para.winner_interval+=winner_interval;
-		//para.interval += interval;
+		para.total_interval += total_interval;
 	}
 
 	void recordAbortStatus(int stat) {
