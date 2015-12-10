@@ -34,7 +34,8 @@ class RTMScope {
 	int nested;
 	int zero;
 	SpinLock* slock;
-	//timespec begin, end;
+	bool winner;
+	timespec begin, end;
 
 #ifdef AVOIDNESTTX
 	int isnest;
@@ -44,14 +45,14 @@ public:
 	static SpinLock fblock;
 
 	inline RTMScope(RTMProfile* prof, int read = 1, int write = 1, SpinLock* sl = NULL) {
-		//clock_gettime(CLOCK_MONOTONIC, &begin);
+		clock_gettime(CLOCK_MONOTONIC, &begin);
 		globalprof = prof;
 		retry = 0;
 		conflict = 0;
 		capacity = 0;
 		zero = 0;
 		nested = 0;
-
+		winner = false;
 #ifdef AVOIDNESTTX
 		isnest = _xtest();
 #endif
@@ -83,14 +84,15 @@ public:
 			stat = _xbegin();
 			if(stat == _XBEGIN_STARTED) {
 				//Put the global lock into read set
-				if(slock->IsLocked())
+				if(slock->IsLocked()){
 					_xabort(0xff);
-
+				}else if(retry == 0){
+					winner = true;
+				}
 				return;
 			} else {
-
 				retry++;
-				if(stat == 0)
+				if(stat == 0) //_XABORT_ZERO
 					zero++;
 				else if((stat & _XABORT_CONFLICT) != 0)
 					conflict++;
@@ -135,7 +137,6 @@ public:
 		}
 		//printf("hold lock\n");
 		slock->Lock();
-
 	}
 
 	void Abort() {
@@ -153,14 +154,21 @@ public:
 		else
 			_xend();
 		//access the global profile info outside the transaction scope
-		//clock_gettime(CLOCK_MONOTONIC, &end);
+		if(winner){
+			//printf("winner\n");
+			clock_gettime(CLOCK_MONOTONIC, &end);
+		}
 #if RTMPROFILE
 		if(globalprof != NULL) {
-			globalprof->succCounts++;
+			globalprof->totalCounts++;
 			globalprof->abortCounts += retry;
 			globalprof->capacityCounts += capacity;
 			globalprof->conflictCounts += conflict;
 			globalprof->zeroCounts += zero;
+			if(winner){
+				globalprof->winners++;
+				globalprof->winner_interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
+			}
 			//globalprof->interval += (end.tv_sec-begin.tv_sec)*BILLION+(end.tv_nsec - begin.tv_nsec);
 		}
 #endif

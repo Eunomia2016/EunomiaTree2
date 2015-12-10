@@ -271,6 +271,7 @@ static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
 static unsigned g_txn_workload_mix[] = { 45, 43, 4, 4, 4 }; // default TPC-C workload mix
+//static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -1704,7 +1705,6 @@ tpcc_worker::txn_new_order() {
 		v_oo.o_ol_cnt = int8_t(numItems);
 		v_oo.o_all_local = allLocal;
 		v_oo.o_entry_d = GetCurrentTimeMillis();
-
 		// const size_t oorder_sz = Size(v_oo);
 #if 0
 		tbl_oorder(warehouse_id)->insert(txn, Encode(str(), k_oo), Encode(str(), v_oo));
@@ -3039,7 +3039,7 @@ private:
 	}
 #endif
 public:
-	~tpcc_bench_runner(){
+	~tpcc_bench_runner() {
 		printf("[Alex]~tpcc_bench_runner\n");
 		delete store;
 	}

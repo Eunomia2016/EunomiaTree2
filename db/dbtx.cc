@@ -289,7 +289,6 @@ void DBTX::WriteSet::Add(int tableid, uint64_t key, uint64_t* val, Memstore::Mem
 	if(elems == max_length) {
 		Resize();
 	}
-
 	int cur = elems;
 	elems++;
 
@@ -658,11 +657,8 @@ bool DBTX::End() {
 	}
 	//Put the objects into the object pool
 	writeset->CollectOldVersions(txdb_);
-
 	deleteset->GCRMNodes(txdb_);
-
 	txdb_->RCUTXEnd();
-
 #if PERSISTENT
 	txdb_->WriteUpdateRecords();
 #endif
@@ -751,13 +747,9 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
 	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
 	printf("[%2d] ADD tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
 #endif
-
-
 //  SpinLockScope spinlock(&slock);
 retry:
-
 	Memstore::MemNode* node;
-
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
@@ -767,26 +759,24 @@ retry:
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferHit++;
-#endif
+	#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferMiss++;
-#endif
+	#endif
 //	uint64_t s_start = rdtsc();
 		node = txdb_->tables[tableid]->GetWithInsert(key);
 //	treetime += rdtsc() - s_start;
 //	printf("%ld\n",treetime);
 		assert(node != NULL);
 	}
-
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 #endif
-
 	if(node->value == HAVEREMOVED)
 		goto retry;
 
@@ -796,9 +786,7 @@ retry:
 		value = (char *)malloc(sizeof(OBJPool::Obj) + len);
 		value += sizeof(OBJPool::Obj);
 	}
-
 	memcpy(value, val, len);
-
 	writeset->Add(tableid, key, (uint64_t *)value, node);
 }
 
@@ -849,7 +837,6 @@ retryA:
 	//1. get the memnode wrapper of the secondary key
 	SecondIndex::MemNodeWrapper* mw =
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
-
 	//mw->memnode = node;
 
 	//2. add the record seq number into write set
@@ -881,16 +868,16 @@ retryA:
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferHit++;
-#endif
+	#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferMiss++;
-#endif
+	#endif
 
 		node = txdb_->tables[tableid]->GetWithInsert(key);
 		assert(node != NULL);

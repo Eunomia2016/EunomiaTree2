@@ -40,19 +40,13 @@ __inline__ int64_t XADD64(int64_t* addr, int64_t val) {
 }
 
 class Benchmark {
-
 private:
-
 	int64_t total_count;
-
 	leveldb::MemstoreBPlusTree *btree;
-
 	port::SpinLock slock;
-
 	Random ramdon;
 
 private:
-
 	static uint64_t getkey(Key key) {
 		return (key >> 40);
 	}
@@ -163,7 +157,6 @@ private:
 		for(int i = 0; i < total_count; i++) {
 			Key k = i * 10 + tid;
 			//	printf("Insert %d %ld\n", tid, k);
-
 			btree->GetWithInsert(k);
 		}
 #else
@@ -182,7 +175,6 @@ private:
 				btree->GetWithInsert(k);
 			}
 		}
-
 #endif
 	}
 
@@ -351,7 +343,6 @@ private:
 		int seqNum = 0;
 
 		while(total_count > 0) {
-
 			uint64_t oldv = XADD64(&total_count, -100);
 
 			if(oldv <= 0)
@@ -363,7 +354,6 @@ private:
 					k = MakeKey(tid, seqNum++);
 				else
 					k = MakeKey(tid, thread->rnd.Next());
-
 
 				if(btree->Get(k) == NULL) {
 					printf(" %ld Not Found\n", k);

@@ -24,8 +24,15 @@ public:
 	uint32_t conflictCounts;
 	uint32_t succCounts;
 	uint32_t zeroCounts;
-	//uint64_t interval;
-	RTMPara():abortCounts(0),capacityCounts(0),conflictCounts(0),succCounts(0),zeroCounts(0){}
+	uint64_t winner_interval;
+	uint64_t winners;
+	RTMPara():abortCounts(0),
+		capacityCounts(0),
+		conflictCounts(0),
+		succCounts(0),
+		zeroCounts(0),
+		winners(0),
+		winner_interval(0){}
 };
 
 class RTMProfile {
@@ -36,9 +43,10 @@ public:
 	uint32_t abortCounts;
 	uint32_t capacityCounts;
 	uint32_t conflictCounts;
-	uint32_t succCounts;
+	uint32_t totalCounts;
 	uint32_t zeroCounts;
-	//uint64_t interval;
+	uint64_t winner_interval;
+	uint64_t winners;
 
 	static __inline__ void atomic_inc32(uint32_t *p) {
 		__asm__ __volatile__("lock; incl %0"
@@ -57,25 +65,30 @@ public:
 	RTMProfile() {
 		pthread_spin_init(&slock, PTHREAD_PROCESS_PRIVATE);
 		abortCounts	= 0;
-		succCounts = 0;
+		totalCounts = 0;
 		capacityCounts = 0;
 		conflictCounts = 0;
 		zeroCounts = 0;
-		for(int i = 0; i < 7; i++)
+		for(int i = 0; i < 7; i++){
 			status[i] = 0;
+		}
+		winners = 0;
+		winner_interval = 0;
 	}
 
 	void recordRetryNum(int num) {
 		atomic_add32(&abortCounts, num);
-		atomic_inc32(&succCounts);
+		atomic_inc32(&totalCounts);
 	}
 
 	void transfer_para(RTMPara& para){
 		para.abortCounts += abortCounts;
 		para.capacityCounts += capacityCounts;
 		para.conflictCounts += conflictCounts;
-		para.succCounts += succCounts;
+		para.succCounts += totalCounts;
 		para.zeroCounts += zeroCounts;
+		para.winners+=winners;
+		para.winner_interval+=winner_interval;
 		//para.interval += interval;
 	}
 
@@ -97,7 +110,7 @@ public:
 	}
 
 	void MergeLocalStatus(RTMProfile& stat) {
-		atomic_inc32(&succCounts);
+		atomic_inc32(&totalCounts);
 		atomic_add32(&abortCounts, stat.abortCounts);
 		atomic_add32(&status[XABORT_EXPLICIT_INDEX], stat.status[XABORT_EXPLICIT_INDEX]);
 		atomic_add32(&status[XABORT_RETRY_INDEX], stat.status[XABORT_RETRY_INDEX]);
@@ -141,9 +154,9 @@ public:
 		if(status[XABORT_NESTED_INDEX] != 0)
 			printf("XABORT_LOCK %d\n", status[XABORT_NESTED_INDEX]);
 
-		if(succCounts != 0) {
+		if(totalCounts != 0) {
 			printf("Abort Counts %d\n", abortCounts);
-			printf("Succ Counts %d\n", succCounts);
+			printf("Total Counts %d\n", totalCounts);
 			printf("Capacity Counts %d\n", capacityCounts);
 			printf("Zero Counts %d\n", zeroCounts);
 			printf("Conflict Counts %d\n", conflictCounts);

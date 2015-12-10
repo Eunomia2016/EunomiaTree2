@@ -9,7 +9,6 @@
 #include "port/thread_annotations.h"
 #include "util/spinlock.h"
 
-
 namespace leveldb {
 
 // Helper class that locks a mutex on construction and unlocks the mutex when
@@ -23,53 +22,56 @@ namespace leveldb {
 //   }
 
 class SCOPED_LOCKABLE MutexLock {
- public:
-  explicit MutexLock(port::Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu)  {
-    this->mu_->Lock();
-  }
-  ~MutexLock() UNLOCK_FUNCTION() { this->mu_->Unlock(); }
+public:
+	explicit MutexLock(port::Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
+		: mu_(mu)  {
+		this->mu_->Lock();
+	}
+	~MutexLock() UNLOCK_FUNCTION() {
+		this->mu_->Unlock();
+	}
 
- private:
-  port::Mutex *const mu_;
-  // No copying allowed
-  MutexLock(const MutexLock&);
-  void operator=(const MutexLock&);
+private:
+	port::Mutex *const mu_;
+	// No copying allowed
+	MutexLock(const MutexLock&);
+	void operator=(const MutexLock&);
 };
 
 
 class SCOPED_LOCKABLE MutexSpinLock {
- public:
-  explicit MutexSpinLock(port::SpinLock *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu)  {
-    this->mu_->Lock();
-  }
-  ~MutexSpinLock() UNLOCK_FUNCTION() { this->mu_->Unlock(); }
+public:
+	explicit MutexSpinLock(port::SpinLock *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
+		: mu_(mu)  {
+		this->mu_->Lock();
+	}
+	~MutexSpinLock() UNLOCK_FUNCTION() {
+		this->mu_->Unlock();
+	}
 
- private:
-  port::SpinLock *const mu_;
-  // No copying allowed
-  MutexSpinLock(const MutexSpinLock&);
-  void operator=(const MutexSpinLock&);
+private:
+	port::SpinLock *const mu_;
+	// No copying allowed
+	MutexSpinLock(const MutexSpinLock&);
+	void operator=(const MutexSpinLock&);
 };
 
 class SCOPED_LOCKABLE SpinLockScope {
- public:
-  explicit SpinLockScope(SpinLock *slock)
-      : slock_(slock)  {
-    slock_->Lock();
-  }
-  ~SpinLockScope() { slock_->Unlock(); }
+public:
+	explicit SpinLockScope(SpinLock *slock)
+		: slock_(slock)  {
+		slock_->Lock();
+	}
+	~SpinLockScope() {
+		slock_->Unlock();
+	}
 
- private:
-  SpinLock *slock_;
-  // No copying allowed
-  SpinLockScope(const SpinLockScope&);
-  void operator=(const SpinLockScope&);
+private:
+	SpinLock *slock_;
+	// No copying allowed
+	SpinLockScope(const SpinLockScope&);
+	void operator=(const SpinLockScope&);
 };
-
-
 }  // namespace leveldb
-
 
 #endif  // STORAGE_LEVELDB_UTIL_MUTEXLOCK_H_

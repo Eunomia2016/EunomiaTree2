@@ -131,7 +131,7 @@ class RTMArenaScope {
 #if RTMArenaPROFILE	
 	//access the global profile info outside the transaction scope
 	if(globalprof != NULL) {
-		RTMProfile::atomic_inc32(&globalprof->succCounts);
+		RTMProfile::atomic_inc32(&globalprof->totalCounts);
 	    RTMProfile::atomic_add32(&globalprof->abortCounts, retry);
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_CONFLICT_INDEX], conflict);
 		RTMProfile::atomic_add32(&globalprof->status[XABORT_CAPACITY_INDEX], capacity);
