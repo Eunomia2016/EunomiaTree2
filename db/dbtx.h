@@ -17,6 +17,8 @@
 #include "db/dbtables.h"
 #include "db/delset.h"
 
+#define NUMA_DUMP 1
+
 #define DBX_DUMP 0
 #define BILLION 1000000000L
 

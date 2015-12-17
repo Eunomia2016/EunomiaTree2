@@ -57,6 +57,7 @@ using namespace util;
 #define ORDER_INDEX 10
 #endif
 
+
 #if 0
 #define TPCC_TABLE_LIST(x) \
   x(customer) \
@@ -1597,7 +1598,8 @@ tpcc_worker::txn_new_order() {
 		uint64_t *c_value;
 //	slstart = rdtsc();
 		bool found = tx.Get(CUST, c_key, &c_value);
-		//printf("[Alex]worker_id = %2d, table_id = %2d, key = %ld\n", worker_id, CUST, c_key);
+		
+		//printf("[Alex]worker_id = %2d, numa_node = %2d\n", worker_id, );
 		//memcpy(dummy,c_value, sizeof(customer::value));
 //	secs += (rdtsc() - slstart);
 		assert(found);

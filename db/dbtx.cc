@@ -16,7 +16,7 @@
 #include "util/txprofile.h"
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
-
+#include "util/numa_util.h"
 
 namespace leveldb {
 
@@ -726,6 +726,9 @@ retry:
 	}
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
+
+
+
 #endif
 
 	if(node->value == HAVEREMOVED)
@@ -1017,18 +1020,25 @@ retry:
 	Memstore::MemNode* node = NULL;
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 
-#if BUFFERNODE
+#if NUMA_DUMP
+	if( get_current_node()!=get_numa_node((void*)txdb_->tables[tableid])){
+		printf("[Alex] current node = %d\t table node = %d\n", get_current_node(), 
+		get_numa_node((void*)txdb_->tables[tableid]));
+	}
+#endif
+
+	#if BUFFERNODE
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;
 	assert(node != NULL);
-#endif
+	#endif
 
 	//Guarantee
-#if GLOBALOCK
+	#if GLOBALOCK
 	SpinLockScope spinlock(&slock);
-#else
+	#else
 	RTMScope rtm(&rtmProf);
-#endif
+	#endif
 
 	if(node->value == HAVEREMOVED)
 		goto retry;
