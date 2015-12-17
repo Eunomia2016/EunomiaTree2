@@ -155,7 +155,7 @@ bench_worker::run() {
 	//int core_id = socket_0[y];
 	int core_id = mixed_sockets[y];
 
-	cpu_set_t  mask;
+	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(core_id , &mask);
 	fprintf(stderr, "[Alex]worker_id = %2d core_id = %2d\n", worker_id, core_id);

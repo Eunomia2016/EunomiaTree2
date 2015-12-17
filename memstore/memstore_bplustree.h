@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <unordered_map>
+#include <utmpx.h>
 #include "util/rtmScope.h"
 #include "util/rtm.h"
 #include "util/rtm_arena.h"
@@ -18,12 +19,10 @@
 #define BTPREFETCH 0
 #define DUMMY 1
 
-#define NODEMAP 0
+#define NODEMAP  1
 #define NODEDUMP 0
-#define KEYDUMP 0
-#define KEYMAP 0
-
-#define NUMADUMP 0
+#define KEYDUMP  0
+#define KEYMAP   0
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -218,8 +217,8 @@ public:
 
 #if NODEDUMP
 		for(auto iter : node_map) {
-			if(iter.second.gets + iter.second.writes + iter.second.splits > 10)
-				printf("[%ld]: {%ld, %ld, %ld}\n", iter.first, iter.second.gets, iter.second.writes, iter.second.splits);
+			//if(iter.second.gets + iter.second.writes + iter.second.splits > 10)
+				printf("[%ld][%ld]: {%ld, %ld, %ld}\n",tableid, iter.first, iter.second.gets, iter.second.writes, iter.second.splits);
 		}
 		printf("Total Nodes: %ld\n", node_map.size());
 #endif
@@ -233,9 +232,6 @@ public:
 		printf("Total Keys: %ld\n", key_map.size());
 #endif
 
-#if NUMADUMP
-		printf("Total Access: %ld (Local: %ld  Remote: %ld)\n", (local_access+remote_access), local_access, remote_access);
-#endif
 		//printTree();
 		//top();
 	}
@@ -292,8 +288,6 @@ public:
 			node_map.insert(make_pair(((LeafNode*)node)->signature, new_log));
 		}
 #endif
-
-
 		return reinterpret_cast<LeafNode*>(node);
 	}
 
@@ -332,6 +326,7 @@ public:
 			access_log new_log = {1, 0, 0};
 			node_map.insert(make_pair(leaf->signature, new_log));
 		}
+		printf("[%d][GET] node = %d key = %ld\n", sched_getcpu(), leaf->signature, key);
 #endif
 
 		if(leaf->num_keys == 0) return NULL;
@@ -406,6 +401,7 @@ public:
 				access_log new_log = {0,  1, 0};
 				node_map.insert(make_pair(cur->signature, new_log));
 			}
+			printf("[%ld][DEL] node = %d key = %ld\n",  sched_getcpu(), cur->signature, key);
 		}
 #endif
 
@@ -841,6 +837,7 @@ public:
 					access_log new_log = {1, 0, 0};
 					node_map.insert(make_pair(leaf->signature, new_log));
 				}
+				printf("[%ld][GET] node = %d key = %ld\n", sched_getcpu(), leaf->signature, key);
 			}
 #endif
 
@@ -864,6 +861,7 @@ public:
 					access_log new_log = {0, 0, 1};
 					node_map.insert(make_pair(leaf->signature, new_log));
 				}
+				printf("[%ld][SPLIT] node = %d key = %ld\n", sched_getcpu(), leaf->signature, key);
 			}
 #endif
 
@@ -907,6 +905,7 @@ public:
 					access_log new_log = {0, 1, 0};
 					node_map.insert(make_pair(new_sibling->signature, new_log));
 				}
+				printf("[%ld][ADD] node = %d key = %ld\n", sched_getcpu(), new_sibling->signature, key);
 			}
 #endif
 
@@ -942,6 +941,7 @@ public:
 				access_log new_log = {0,  1, 0};
 				node_map.insert(make_pair(toInsert->signature, new_log));
 			}
+			printf("[%ld][ADD] node = %d key = %ld\n", sched_getcpu(), toInsert->signature, key);
 		}
 #endif
 

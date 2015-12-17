@@ -17,7 +17,7 @@
 #include "db/dbtables.h"
 #include "db/delset.h"
 
-#define NUMA_DUMP 1
+#define NUMA_DUMP 0
 
 #define TABLE_NUM 11
 

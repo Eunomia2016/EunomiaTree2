@@ -1956,7 +1956,6 @@ tpcc_worker::txn_new_order() {
 			assert(dnext == o_id_first);
 			assert(dnext == o_id_second);
 			assert(o_id_min == num);
-
 #endif
 		}
 

@@ -585,10 +585,12 @@ DBTX::DBTX(DBTables* store) {
 }
 
 DBTX::~DBTX() {
+#if NUMA_DUMP
 	for(int i = 0; i < TABLE_NUM; i++){
 		printf("Table[%d] local_access: %d remote_access: %d\n",i, local_access[i], 
 			remote_access[i]);
 	}
+#endif
 	//clear all the data
 }
 
