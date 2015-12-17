@@ -57,8 +57,6 @@ using namespace util;
 #define ORDER_INDEX 10
 #endif
 
-
-
 #if 0
 #define TPCC_TABLE_LIST(x) \
   x(customer) \
@@ -154,7 +152,6 @@ static bool compareCustomerIndex(uint64_t key, uint64_t bound) {
 		if(k[i] < b[i]) return true;
 	}
 	return true;
-
 }
 
 static uint64_t makeCustomerIndex(int32_t w_id, int32_t d_id, string s_last, string s_first) {
@@ -437,8 +434,6 @@ protected: \
 
 #undef DEFN_TBL_ACCESSOR_X
 #endif
-
-
 
 	// only TPCC loaders need to call this- workers are automatically
 	// pinned by their worker id (which corresponds to warehouse id
@@ -724,7 +719,6 @@ public:
 	}
 
 protected:
-
 	virtual void
 	on_run_setup() OVERRIDE {
 		printf("%ld wid %d\n", pthread_self(), worker_id);
@@ -852,7 +846,6 @@ protected:
 			for(uint i = 1; i <= NumItems(); i++) {
 				// items don't "belong" to a certain warehouse, so no pinning
 				const item::key k(i);
-
 				item::value *v = new item::value();
 				const string i_name = RandomStr(r, RandomNumber(r, 14, 24));
 				v->i_name.assign(i_name);
@@ -940,7 +933,6 @@ protected:
 				try {
 					const size_t iend = std::min((b + 1) * batchsize + 1, NumItems());
 					for(uint i = (b * batchsize + 1); i <= iend; i++) {
-
 
 						uint64_t key = makeStockKey(w, i);
 #if SHORTKEY
@@ -1058,7 +1050,6 @@ protected:
 	virtual void
 	load() {
 		string obj_buf;
-
 		const ssize_t bsize = -1;
 #if 0
 		void *txn = db->new_txn(txn_flags, arena, txn_buf());
@@ -1092,7 +1083,6 @@ protected:
 					const size_t sz = Size(*v);
 					district_total_sz += sz;
 					n_districts++;
-
 
 					//store->tables[DIST]->Put(key, (uint64_t *)v);
 					store->TupleInsert(DIST, key, (uint64_t *)v, sizeof(district::value));
@@ -1255,7 +1245,6 @@ protected:
 							}
 #endif
 
-
 #if 0
 							tbl_customer_name_idx(w)->insert(txn, Encode(k_idx), Encode(obj_buf, v_idx));
 #endif
@@ -1392,10 +1381,8 @@ protected:
 						oorder_total_sz += sz;
 						n_oorders++;
 
-
 						store->TupleInsert(ORDE, okey, (uint64_t *)v_oo, sizeof(oorder::value));
 						//Memstore::MemNode *node = store->tables[ORDE]->Put(okey, (uint64_t *)v_oo);
-
 
 						uint64_t sec = makeOrderIndex(w, d, v_oo->o_c_id, c);
 #if USESECONDINDEX
@@ -1433,8 +1420,6 @@ protected:
 						const oorder_c_id_idx::key k_oo_idx(k_oo.o_w_id, k_oo.o_d_id, v_oo->o_c_id, k_oo.o_id);
 #endif
 						const oorder_c_id_idx::value v_oo_idx(0);
-
-
 
 #if 0
 						tbl_oorder_c_id_idx(w)->insert(txn, Encode(k_oo_idx), Encode(obj_buf, v_oo_idx));
@@ -2031,9 +2016,7 @@ tpcc_worker::txn_delivery() {
 			DBTX::Iterator iter(&tx, NEWO);
 			iter.Seek(start);
 			if(iter.Valid()) {
-
 				no_key = iter.Key();
-
 				if(no_key <= end) {
 //			  no_value = iter.Value();
 					no_o_id = static_cast<int32_t>(no_key << 32 >> 32);
@@ -2107,7 +2090,6 @@ tpcc_worker::txn_delivery() {
 
 				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new));
 				iter1.Next();
-
 			}
 #if 0
 			const oorder::value *v_oo = Decode(obj_v, v_oo_temp);
@@ -2123,7 +2105,6 @@ tpcc_worker::txn_delivery() {
 #endif
 			// XXX(stephentu): mutable scans would help here
 			tbl_order_line(warehouse_id)->scan(txn, Encode(obj_key0, k_oo_0), &Encode(obj_key1, k_oo_1), c, s_arena.get());
-
 
 			float sum = 0.0;
 			for(size_t i = 0; i < c.size(); i++) {
@@ -2188,7 +2169,6 @@ tpcc_worker::txn_delivery() {
 			return txn_result(true, ret);
 #endif
 
-
 		return txn_result(tx.End(), ret);
 	} catch(abstract_db::abstract_abort_exception &ex) {
 #if 0
@@ -2197,7 +2177,6 @@ tpcc_worker::txn_delivery() {
 	}
 	return txn_result(false, 0);
 }
-
 
 tpcc_worker::txn_result
 tpcc_worker::txn_payment() {
@@ -2566,7 +2545,6 @@ tpcc_worker::txn_order_status() {
 					printf("\n");
 #endif
 
-
 #if USESECONDINDEX
 #if SLDBTX
 
@@ -2617,8 +2595,6 @@ tpcc_worker::txn_order_status() {
 			v_c = *(customer::value *)c_value;
 		}
 		checker::SanityCheckCustomer(NULL, &v_c);
-
-
 
 #if 0
 		customer::key k_c;
@@ -2819,7 +2795,6 @@ tpcc_worker::txn_order_status() {
 	}
 	return txn_result(false, 0);
 }
-
 
 tpcc_worker::txn_result
 tpcc_worker::txn_stock_level() {

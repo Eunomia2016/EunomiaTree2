@@ -96,7 +96,6 @@ class MemStoreSkipList: public Memstore {
   MemNode* GetWithInsertRTM(uint64_t key);
 
   MemNode* GetWithInsert(uint64_t key);
-  
   MemNode* Get(uint64_t key);
 
   Memstore::Iterator* GetIterator();

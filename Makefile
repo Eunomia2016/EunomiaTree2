@@ -22,7 +22,7 @@ $(shell CC=$(CC) CXX=$(CXX) TARGET_OS=$(TARGET_OS) \
 include build_config.mk
 
 CFLAGS += -I. -I./include $(PLATFORM_CCFLAGS) $(OPT)
-CXXFLAGS += -I. -I./include $(PLATFORM_CXXFLAGS) $(OPT)  -std=c++0x 
+CXXFLAGS += -I. -I./include $(PLATFORM_CXXFLAGS) $(OPT)  -std=c++11 
 
 LDFLAGS += $(PLATFORM_LDFLAGS)
 LIBS += $(PLATFORM_LIBS)
@@ -110,7 +110,7 @@ tpcc_bench: tpcc/tpcc_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) tpcc/tpcc_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
 
 dbtest: silo_benchmark/dbtest.o $(LIBOBJECTS) $(TESTUTIL)
-	$(CXX) $(LDFLAGS) silo_benchmark/dbtest.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)
+	$(CXX) $(LDFLAGS) silo_benchmark/dbtest.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS) $(CXXFLAGS)
 
 neworder_bench: tpcc/neworder_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(CXX) $(LDFLAGS) tpcc/neworder_bench.o $(LIBOBJECTS) $(TESTUTIL) -o $@ $(LIBS)

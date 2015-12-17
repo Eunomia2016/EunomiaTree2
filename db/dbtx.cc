@@ -435,7 +435,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter) {
 	}
 }
 
-
 //Check if any record in the write set has been remove from the memstore
 inline bool DBTX::WriteSet::CheckWriteSet() {
 
@@ -446,7 +445,6 @@ inline bool DBTX::WriteSet::CheckWriteSet() {
 	}
 	return true;
 }
-
 
 //Collect old version records
 inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables) {
@@ -466,7 +464,6 @@ inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables) {
 			if(DBTX::ValidateValue(kvs[i].dummy->value))
 				tables->AddDeletedValue(kvs[i].tableid, kvs[i].dummy->value, commitSN);
 		}
-
 	}
 }
 
@@ -568,6 +565,7 @@ void DBTX::WriteSet::Print() {
 		*/
 	}
 }
+
 DBTX::DBTX(DBTables* store) {
 	txdb_ = store;
 	count = 0;
@@ -690,7 +688,7 @@ ABORT:
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
-#if DUMP
+#ifdef DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
 	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
@@ -698,7 +696,6 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
 #endif
 
 //  SpinLockScope spinlock(&slock);
-
 retry:
 
 	Memstore::MemNode* node;
@@ -715,7 +712,6 @@ retry:
 #if PROFILEBUFFERNODE
 		bufferHit++;
 #endif
-
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
@@ -723,7 +719,6 @@ retry:
 #if PROFILEBUFFERNODE
 		bufferMiss++;
 #endif
-
 		node = txdb_->tables[tableid]->GetWithInsert(key);
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
@@ -737,7 +732,6 @@ retry:
 		goto retry;
 
 	writeset->Add(tableid, key, val, node);
-
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
@@ -759,15 +753,15 @@ retry:
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
-	#if PROFILEBUFFERNODE
+#if PROFILEBUFFERNODE
 		bufferHit++;
-	#endif
+#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
-	#if PROFILEBUFFERNODE
+#if PROFILEBUFFERNODE
 		bufferMiss++;
-	#endif
+#endif
 //	uint64_t s_start = rdtsc();
 		node = txdb_->tables[tableid]->GetWithInsert(key);
 //	treetime += rdtsc() - s_start;
@@ -821,7 +815,6 @@ retryA:
 #if PROFILEBUFFERNODE
 		bufferMiss++;
 #endif
-
 		node = txdb_->tables[tableid]->GetWithInsert(key);
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
@@ -867,18 +860,16 @@ retryA:
 	//Get the seq addr from the hashtable
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
-
-	#if PROFILEBUFFERNODE
+#if PROFILEBUFFERNODE
 		bufferHit++;
-	#endif
+#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
 
-	#if PROFILEBUFFERNODE
+#if PROFILEBUFFERNODE
 		bufferMiss++;
-	#endif
-
+#endif
 		node = txdb_->tables[tableid]->GetWithInsert(key);
 		assert(node != NULL);
 	}
@@ -908,7 +899,6 @@ retryA:
 	writeset->Add(seq, mw, node);
 }
 
-
 void DBTX::Delete(int tableid, uint64_t key) {
 #if DUMP
 	struct timespec time_stamp;
@@ -917,12 +907,10 @@ void DBTX::Delete(int tableid, uint64_t key) {
 	printf("[%2d] DEL tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
 #endif
 
-
 	uint64_t *val;
 
 	//Logically delete, set the value pointer to be NULL
 	Add(tableid, key, (uint64_t *)LOGICALDELETE);
-
 }
 
 void DBTX::PrintKVS(KeyValues* kvs) {
@@ -1012,7 +1000,7 @@ retryGBI:
 }
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
-#if DUMP
+#if DBX_DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
 	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
@@ -1074,7 +1062,6 @@ DBTX::Iterator::Iterator(DBTX* tx, int tableid) {
 bool DBTX::Iterator::Valid() {
 	return cur_ != NULL;
 }
-
 
 uint64_t DBTX::Iterator::Key() {
 	return iter_->Key();
@@ -1141,12 +1128,8 @@ void DBTX::Iterator::Prev() {
 		cur_ = NULL;
 		return;
 	}
-
-
 	while(iter_->Valid()) {
-
 		cur_ = iter_->CurNode();
-
 		{
 
 #if GLOBALOCK
@@ -1162,13 +1145,10 @@ void DBTX::Iterator::Prev() {
 
 			if(DBTX::ValidateValue(val_)) {
 				return;
-
 			}
-
 		}
 		iter_->Prev();
 	}
-
 	cur_ = NULL;
 }
 
@@ -1213,9 +1193,7 @@ void DBTX::Iterator::Seek(uint64_t key) {
 			if(DBTX::ValidateValue(val_)) {
 				return;
 			}
-
 		}
-
 		iter_->Next();
 		cur_ = iter_->CurNode();
 	}
@@ -1320,20 +1298,14 @@ void DBTX::Iterator::SeekToFirst() {
 #endif
 			val_ = cur_->value;
 
-
 			tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
-
 
 			tx_->readset->Add(&cur_->seq);
 
-
 			if(DBTX::ValidateValue(val_)) {
 				return;
-
 			}
-
 		}
-
 		iter_->Next();
 		cur_ = iter_->CurNode();
 	}
@@ -1576,7 +1548,6 @@ void DBTX::SecondaryIndexIterator::SeekToFirst() {
 		}
 
 		KeyValues* kvs = new KeyValues(knum);
-
 		{
 
 #if GLOBALOCK
@@ -1621,8 +1592,5 @@ void DBTX::SecondaryIndexIterator::SeekToLast() {
 	assert(0);
 }
 
-
-
 }  // namespace leveldb
-
 #endif  // STORAGE_LEVELDB_DB_MEMTABLE_H_

@@ -158,7 +158,7 @@ bench_worker::run() {
 	cpu_set_t  mask;
 	CPU_ZERO(&mask);
 	CPU_SET(core_id , &mask);
-	printf("[Alex]worker_id = %2d core_id = %2d\n", worker_id, core_id);
+	fprintf(stderr, "[Alex]worker_id = %2d core_id = %2d\n", worker_id, core_id);
 	sched_setaffinity(0, sizeof(mask), &mask);
 
 #endif

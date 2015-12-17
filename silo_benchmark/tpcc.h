@@ -11,9 +11,9 @@
 #define CUSTOMER_KEY_FIELDS(x, y) \
   x(int64_t,c_id)
 #if 0
-  x(int32_t,c_w_id) \
-  y(int32_t,c_d_id) \
-  y(int32_t,c_id)
+x(int32_t, c_w_id) \
+y(int32_t, c_d_id) \
+y(int32_t, c_id)
 #endif
 #define CUSTOMER_VALUE_FIELDS(x, y) \
   x(float,c_discount) \
@@ -39,24 +39,24 @@ DO_STRUCT(customer, CUSTOMER_KEY_FIELDS, CUSTOMER_VALUE_FIELDS)
 #define CUSTOMER_NAME_IDX_KEY_FIELDS(x, y) \
   x(int32_t,c_index_id) \
   y(inline_str_fixed<16>,c_last) \
-  y(inline_str_fixed<16>,c_first)  
-#if 0  
-  x(int32_t,c_w_id) \
-  y(int32_t,c_d_id) 
+  y(inline_str_fixed<16>,c_first)
+#if 0
+x(int32_t, c_w_id) \
+y(int32_t, c_d_id)
 #endif
 #define CUSTOMER_NAME_IDX_VALUE_FIELDS(x, y) \
 	x(int64_t,c_id)
-#if 0	
-	x(int32_t,c_id)
-#endif	
+#if 0
+x(int32_t, c_id)
+#endif
 DO_STRUCT(customer_name_idx, CUSTOMER_NAME_IDX_KEY_FIELDS, CUSTOMER_NAME_IDX_VALUE_FIELDS)
 
 #define DISTRICT_KEY_FIELDS(x, y) \
 	x(int64_t,d_id)
-#if 0	
-  x(int32_t,d_w_id) \
-  y(int32_t,d_id)
-#endif   
+#if 0
+x(int32_t, d_w_id) \
+y(int32_t, d_id)
+#endif
 #define DISTRICT_VALUE_FIELDS(x, y) \
   x(float,d_ytd) \
   y(float,d_tax) \
@@ -71,13 +71,13 @@ DO_STRUCT(district, DISTRICT_KEY_FIELDS, DISTRICT_VALUE_FIELDS)
 
 #define HISTORY_KEY_FIELDS(x, y) \
   x(int64_t,h_id)
-#if 0  
-  x(int32_t,h_c_id) \
-  y(int32_t,h_c_d_id) \
-  y(int32_t,h_c_w_id) \
-  y(int32_t,h_d_id) \
-  y(int32_t,h_w_id) \
-  y(uint32_t,h_date)
+#if 0
+x(int32_t, h_c_id) \
+y(int32_t, h_c_d_id) \
+y(int32_t, h_c_w_id) \
+y(int32_t, h_d_id) \
+y(int32_t, h_w_id) \
+y(uint32_t, h_date)
 #endif
 #define HISTORY_VALUE_FIELDS(x, y) \
   x(uint32_t,h_date) \
@@ -87,8 +87,8 @@ DO_STRUCT(history, HISTORY_KEY_FIELDS, HISTORY_VALUE_FIELDS)
 
 #define ITEM_KEY_FIELDS(x, y) \
   x(int64_t,i_id)
-#if 0  
-  x(int32_t,i_id)
+#if 0
+x(int32_t, i_id)
 #endif
 #define ITEM_VALUE_FIELDS(x, y) \
   x(inline_str_8<24>,i_name) \
@@ -99,10 +99,10 @@ DO_STRUCT(item, ITEM_KEY_FIELDS, ITEM_VALUE_FIELDS)
 
 #define NEW_ORDER_KEY_FIELDS(x, y) \
    x(int64_t,no_id)
-#if 0   
-  x(int32_t,no_w_id) \
-  y(int32_t,no_d_id) \
-  y(int32_t,no_o_id)
+#if 0
+x(int32_t, no_w_id) \
+y(int32_t, no_d_id) \
+y(int32_t, no_o_id)
 #endif
 // need dummy b/c our btree cannot have empty values.
 // we also size value so that it can fit a key
@@ -112,10 +112,10 @@ DO_STRUCT(new_order, NEW_ORDER_KEY_FIELDS, NEW_ORDER_VALUE_FIELDS)
 
 #define OORDER_KEY_FIELDS(x, y) \
   x(int64_t,o_id)
-#if 0  
-  x(int32_t,o_w_id) \
-  y(int32_t,o_d_id) \
-  y(int32_t,o_id)
+#if 0
+x(int32_t, o_w_id) \
+y(int32_t, o_d_id) \
+y(int32_t, o_id)
 #endif
 #define OORDER_VALUE_FIELDS(x, y) \
   x(int32_t,o_c_id) \
@@ -127,11 +127,11 @@ DO_STRUCT(oorder, OORDER_KEY_FIELDS, OORDER_VALUE_FIELDS)
 
 #define OORDER_C_ID_IDX_KEY_FIELDS(x, y) \
 	x(int64_t,o_index_id)
-#if 0	
-  x(int32_t,o_w_id) \
-  y(int32_t,o_d_id) \
-  y(int32_t,o_c_id) \
-  y(int32_t,o_o_id)
+#if 0
+x(int32_t, o_w_id) \
+y(int32_t, o_d_id) \
+y(int32_t, o_c_id) \
+y(int32_t, o_o_id)
 #endif
 #define OORDER_C_ID_IDX_VALUE_FIELDS(x, y) \
 	x(uint8_t,o_dummy)
@@ -139,11 +139,11 @@ DO_STRUCT(oorder_c_id_idx, OORDER_C_ID_IDX_KEY_FIELDS, OORDER_C_ID_IDX_VALUE_FIE
 
 #define ORDER_LINE_KEY_FIELDS(x, y) \
 	x(int64_t,ol_id)
-#if 0	
-  x(int32_t,ol_w_id) \
-  y(int32_t,ol_d_id) \
-  y(int32_t,ol_o_id) \
-  y(int32_t,ol_number)
+#if 0
+x(int32_t, ol_w_id) \
+y(int32_t, ol_d_id) \
+y(int32_t, ol_o_id) \
+y(int32_t, ol_number)
 #endif
 #define ORDER_LINE_VALUE_FIELDS(x, y) \
   x(int32_t,ol_i_id) \
@@ -155,37 +155,37 @@ DO_STRUCT(order_line, ORDER_LINE_KEY_FIELDS, ORDER_LINE_VALUE_FIELDS)
 
 #define STOCK_KEY_FIELDS(x, y) \
 	x(int64_t,s_id)
-#if 0	
-  x(int32_t,s_w_id) \
-  y(int32_t,s_i_id)
+#if 0
+x(int32_t, s_w_id) \
+y(int32_t, s_i_id)
 #endif
 #define STOCK_VALUE_FIELDS(x, y) \
   x(int16_t,s_quantity) \
   y(float,s_ytd) \
   y(int32_t,s_order_cnt) \
-  y(int32_t,s_remote_cnt) 
-#if 0  
-	y(inline_str_8<50>,s_data) \
-	y(inline_str_fixed<24>,s_dist_01) \
-	y(inline_str_fixed<24>,s_dist_02) \
-	y(inline_str_fixed<24>,s_dist_03) \
-	y(inline_str_fixed<24>,s_dist_04) \
-	y(inline_str_fixed<24>,s_dist_05) \
-	y(inline_str_fixed<24>,s_dist_06) \
-	y(inline_str_fixed<24>,s_dist_07) \
-	y(inline_str_fixed<24>,s_dist_08) \
-	y(inline_str_fixed<24>,s_dist_09) \
-	y(inline_str_fixed<24>,s_dist_10)
+  y(int32_t,s_remote_cnt)
+#if 0
+y(inline_str_8<50>, s_data) \
+y(inline_str_fixed<24>, s_dist_01) \
+y(inline_str_fixed<24>, s_dist_02) \
+y(inline_str_fixed<24>, s_dist_03) \
+y(inline_str_fixed<24>, s_dist_04) \
+y(inline_str_fixed<24>, s_dist_05) \
+y(inline_str_fixed<24>, s_dist_06) \
+y(inline_str_fixed<24>, s_dist_07) \
+y(inline_str_fixed<24>, s_dist_08) \
+y(inline_str_fixed<24>, s_dist_09) \
+y(inline_str_fixed<24>, s_dist_10)
 #endif
 
 DO_STRUCT(stock, STOCK_KEY_FIELDS, STOCK_VALUE_FIELDS)
 
 #define STOCK_DATA_KEY_FIELDS(x, y) \
-		x(int64_t,s_id) 
-#if 0		
-		x(int32_t,s_w_id) \
-		y(int32_t,s_i_id)
-#endif		
+		x(int64_t,s_id)
+#if 0
+x(int32_t, s_w_id) \
+y(int32_t, s_i_id)
+#endif
 #define STOCK_DATA_VALUE_FIELDS(x, y) \
   x(inline_str_8<50>,s_data) \
   y(inline_str_fixed<24>,s_dist_01) \
@@ -203,7 +203,7 @@ DO_STRUCT(stock_data, STOCK_DATA_KEY_FIELDS, STOCK_DATA_VALUE_FIELDS)
 #define WAREHOUSE_KEY_FIELDS(x, y) \
 	x(int64_t,w_id)
 //  x(int32_t,w_id)
-   
+
 #define WAREHOUSE_VALUE_FIELDS(x, y) \
   x(float,w_ytd) \
   y(float,w_tax) \

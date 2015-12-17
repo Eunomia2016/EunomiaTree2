@@ -17,7 +17,7 @@
 #include "db/dbtables.h"
 #include "db/delset.h"
 
-#define DUMP 0
+#define DBX_DUMP 0
 #define BILLION 1000000000L
 
 #define CACHESIM 0
@@ -32,7 +32,6 @@
 #define PERSISTENT 0
 //For deletion (read only TX)
 #define RCUGC 1
-
 
 #define LOGICALDELETE (uint64_t *)NULL
 #define HAVEREMOVED (uint64_t *)-1

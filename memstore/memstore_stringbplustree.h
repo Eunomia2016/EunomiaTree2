@@ -564,7 +564,6 @@ public:
 			
 	}
 
-
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
 
 		ThreadLocalInit();

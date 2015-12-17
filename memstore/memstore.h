@@ -7,6 +7,7 @@
 #include <new>
 #include "db/objpool.h"
 #include "util/txprofile.h"
+#include "util/rtm.h"
 class Memstore {
 public:
 	struct MemNode {
@@ -85,7 +86,7 @@ public:
 	virtual MemNode* Put(uint64_t k, uint64_t* val) = 0;
 
 	virtual MemNode* Get(uint64_t key) = 0;
-
+	
 	virtual MemNode* GetWithInsert(uint64_t key) = 0;
 
 	virtual MemNode* GetWithDelete(uint64_t key) {
@@ -101,7 +102,6 @@ public:
 	}
 
 	static MemNode* GetMemNode() {
-
 		//char* mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
 		char* mn = (char *)malloc(64);
 
@@ -113,7 +113,7 @@ public:
 		return new(mn) Memstore::MemNode();
 	}
 
-	virtual void transfer_para(RTMPara&){
+	virtual void transfer_para(RTMPara&) {
 		printf("[Alex]transfer_para\n");
 	}
 };

@@ -67,7 +67,6 @@ class SimpleMemstore: public Memstore {
   virtual MemNode* GetWithInsert(uint64_t key);
   
   virtual MemNode* GetWithDelete(uint64_t key) {assert(0);}
- 
   virtual void PrintStore() { assert(0); }
   
   virtual void ThreadLocalInit() { assert(0); }

@@ -404,7 +404,6 @@ public:
 			return;	
 		}
 
-
 		//The key deleted is the last one
 		if (slot == cur->num_keys) {
 			cur->num_keys--;
@@ -522,7 +521,6 @@ public:
 		return value;
 			
 	}
-
 
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
 

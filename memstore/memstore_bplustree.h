@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <iostream>
+#include <unordered_map>
 #include "util/rtmScope.h"
 #include "util/rtm.h"
 #include "util/rtm_arena.h"
@@ -16,6 +17,12 @@
 #define BTREE_LOCK 0
 #define BTPREFETCH 0
 #define DUMMY 1
+
+#define NODEMAP 0
+#define NODEDUMP 0
+#define KEYDUMP 0
+#define KEYMAP 0
+
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 
@@ -24,14 +31,46 @@ static int total_nodes = 0;
 static uint64_t rconflict = 0;
 static uint64_t wconflict = 0;
 */
-namespace leveldb {
-class MemstoreBPlusTree: public Memstore {
+using namespace std;
 
+/*void atomic_inc32(uint32_t *p) {
+	__asm__ __volatile__("lock; incl %0"
+						 : "+m"(*p)
+						 :
+						 : "cc");
+}*/
+
+namespace leveldb {
+
+struct access_log {
+	uint64_t gets;
+	uint64_t writes;
+	uint64_t splits;
+};
+
+struct key_log {
+	uint64_t gets;
+	uint64_t writes;
+	uint64_t dels;
+};
+
+static uint32_t leaf_id = 0;
+static uint32_t table_id = 0;
+
+class MemstoreBPlusTree: public Memstore {
 //Test purpose
 public:
+	unordered_map<uint32_t, access_log> node_map;
+	unordered_map<uint64_t, key_log> key_map;
+	int tableid;
+
 	struct LeafNode {
-		LeafNode() : num_keys(0) {} //, writes(0), reads(0) {}
+		LeafNode() : num_keys(0) {
+			signature = __sync_fetch_and_add(&leaf_id, 1);
+			//signature = leaf_id;
+		} //, writes(0), reads(0) {}
 //		uint64_t padding[4];
+		unsigned signature;
 		unsigned num_keys;
 		uint64_t keys[M];
 		MemNode *values[M];
@@ -114,11 +153,14 @@ public:
 		uint64_t key_;
 		MemNode* value_;
 		uint64_t snapshot_;
+
 		// Intentionally copyable
 	};
 
 public:
 	MemstoreBPlusTree() {
+		//leaf_id = 0;
+		//tableid = __sync_fetch_and_add(&table_id,1);
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
@@ -136,13 +178,26 @@ public:
 					rindex[i] = 0;
 				}*/
 	}
+	MemstoreBPlusTree(int _tablid) {
+		tableid = _tablid;
+		root = new LeafNode();
+		reinterpret_cast<LeafNode*>(root)->left = NULL;
+		reinterpret_cast<LeafNode*>(root)->right = NULL;
+		reinterpret_cast<LeafNode*>(root)->seq = 0;
+		depth = 0;
+#if BTREE_PROF
+		writes = 0;
+		reads = 0;
+		calls = 0;
+#endif
+
+	}
 
 	~MemstoreBPlusTree() {
+		printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
 		//printf("[Alex]~MemstoreBPlusTree\n");
 		//prof.reportAbortStatus();
-
 		//delprof.reportAbortStatus();
-
 		//PrintList();
 		//PrintStore();
 		//printf("rwconflict %ld\n", rconflict);
@@ -153,6 +208,23 @@ public:
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 #if BTREE_PROF
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes) / (float)calls, (float)(writes) / (float)calls);
+#endif
+
+#if NODEDUMP
+		for(auto iter : node_map) {
+			if(iter.second.gets + iter.second.writes + iter.second.splits > 10)
+				printf("[%ld]: {%ld, %ld, %ld}\n", iter.first, iter.second.gets, iter.second.writes, iter.second.splits);
+		}
+		printf("Total Nodes: %ld\n", node_map.size());
+#endif
+
+#if KEYDUMP
+		for(auto iter : key_map) {
+			if(iter.second.gets + iter.second.writes + iter.second.dels > 10)
+				printf("[%ld]: {%ld, %ld, %ld}\n", iter.first, iter.second.gets, iter.second.writes, iter.second.dels);
+			//printf("[%ld]: {%ld}\n", iter.first, iter.second);
+		}
+		printf("Total Keys: %ld\n", key_map.size());
 #endif
 
 		//printTree();
@@ -172,7 +244,6 @@ public:
 	}
 
 	inline LeafNode* new_leaf_node() {
-
 #if DUMMY
 		LeafNode* result = dummyleaf_;
 		dummyleaf_ = NULL;
@@ -202,6 +273,19 @@ public:
 			}
 			node = inner->children[index];
 		}
+
+#if NODEMAP
+		auto node_iter = node_map.find(((LeafNode*)node)->signature);
+		if(node_iter != node_map.end()) {
+			node_iter->second.gets++;
+		} else {
+			access_log new_log = {1, 0, 0};
+			node_map.insert(make_pair(((LeafNode*)node)->signature, new_log));
+		}
+#endif
+
+
+
 		return reinterpret_cast<LeafNode*>(node);
 	}
 
@@ -211,7 +295,7 @@ public:
 		MutexSpinLock lock(&slock);
 #else
 		//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
-		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 #endif
 		InnerNode* inner;
 		register void* node = root;
@@ -229,7 +313,19 @@ public:
 		}
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
+
 //		reads++;
+
+#if NODEMAP
+		auto node_iter = node_map.find(leaf->signature);
+		if(node_iter != node_map.end()) {
+			node_iter->second.gets++;
+		} else {
+			access_log new_log = {1, 0, 0};
+			node_map.insert(make_pair(leaf->signature, new_log));
+		}
+#endif
+
 		if(leaf->num_keys == 0) return NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
@@ -247,7 +343,6 @@ public:
 		ThreadLocalInit();
 		MemNode *node = GetWithInsert(k);
 		node->value = val;
-
 #if BTREE_PROF
 		reads = 0;
 		writes = 0;
@@ -287,12 +382,24 @@ public:
 		if(slot == cur->num_keys) {
 			return NULL;
 		}
-//		 assert(cur->values[slot]->value == (uint64_t *)2);
+		//	assert(cur->values[slot]->value == (uint64_t *)2);
 		//	printf("delete node\n");
 		DeleteResult *res = new DeleteResult();
 
 		//step 2. remove the entry of the key, and get the deleted value
 		res->value = removeLeafEntry(cur, slot);
+
+#if NODEMAP
+		{
+			auto node_iter = node_map.find(cur->signature);
+			if(node_iter != node_map.end()) {
+				node_iter->second.writes++;
+			} else {
+				access_log new_log = {0,  1, 0};
+				node_map.insert(make_pair(cur->signature, new_log));
+			}
+		}
+#endif
 
 		//step 3. if node is empty, remove the node from the list
 		if(cur->num_keys == 0) {
@@ -394,7 +501,7 @@ public:
 		MutexSpinLock lock(&slock);
 #else
 		//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
-		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, DEL_TYPE);
 #endif
 		DeleteResult* res = NULL;
 		if(depth == 0) {
@@ -403,6 +510,7 @@ public:
 		} else {
 			res = InnerDelete(key, (InnerNode*)root, depth);
 		}
+		//printf("[%ld] DEL: %lx\n", pthread_self(), root);
 
 		if(res == NULL)
 			return NULL;
@@ -415,7 +523,12 @@ public:
 
 	inline Memstore::MemNode* GetWithDelete(uint64_t key) {
 		ThreadLocalInit();
+		//timespec begin, end;
+		//clock_gettime(CLOCK_MONOTONIC, &begin);
+		//printf("[%ld] BeginTime = %ld\n", pthread_self(), begin.tv_sec * BILLION + begin.tv_nsec);
 		MemNode* value = Delete_rtm(key);
+		//clock_gettime(CLOCK_MONOTONIC, &end);
+		//printf("[%ld] EndTime = %ld\n", pthread_self(), end.tv_sec * BILLION + end.tv_nsec);
 #if DUMMY
 		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
@@ -428,8 +541,24 @@ public:
 	}
 
 	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
+		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
+#if 0
+		auto key_iter = key_map.find(key);
+		if(key_iter != key_map.end()) {
+			key_iter->second++;
+		} else {
+			key_map.insert(make_pair(key, 0));
+		}
+#endif
+		//printf("[END] key = %ld, type = %d\n", key, type);
+
 		ThreadLocalInit();
+		//timespec begin, end;
+		//clock_gettime(CLOCK_MONOTONIC, &begin);
+		//printf("[%ld] BeginTime = %ld\n", pthread_self(), begin.tv_sec * BILLION + begin.tv_nsec);
 		MemNode* value = Insert_rtm(key);
+		//clock_gettime(CLOCK_MONOTONIC, &end);
+		//printf("[%ld] EndTime = %ld\n", pthread_self(), end.tv_sec * BILLION + end.tv_nsec);
 #if DUMMY
 		if(dummyval_ == NULL) {
 			dummyval_ = GetMemNode();
@@ -446,7 +575,7 @@ public:
 		MutexSpinLock lock(&slock);
 #else
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
-		RTMScope begtx(&prof, depth * 2, 1, &rtmlock);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, ADD_TYPE);
 #endif
 
 #if BTREE_PROF
@@ -463,7 +592,7 @@ public:
 		MemNode* val = NULL;
 		if(depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
-			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold 
+			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
 				InnerNode *inner = new_inner_node();
 				inner->num_keys = 1;
 				inner->keys[0] = new_leaf->keys[0];
@@ -485,6 +614,7 @@ public:
 #endif
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val);
 		}
+		//printf("[%ld] ADD: %lx\n", pthread_self(), root);
 		return val;
 	}
 
@@ -505,7 +635,7 @@ public:
 			//a new leaf node is created
 			if(new_leaf != NULL) {
 				InnerNode *toInsert = inner;
-				//the inner node is full -> split it 
+				//the inner node is full -> split it
 				if(inner->num_keys == N) {
 					new_sibling = new_inner_node();
 					if(new_leaf->num_keys == 1) {
@@ -515,7 +645,7 @@ public:
 						k = -1;
 					} else {
 						unsigned threshold = (N + 1) / 2;
-						//num_keys(new inner node) = num_keys(old inner node) - threshold 
+						//num_keys(new inner node) = num_keys(old inner node) - threshold
 						new_sibling->num_keys = inner->num_keys - threshold;
 						//moving the excessive keys to the new inner node
 						for(unsigned i = 0; i < new_sibling->num_keys; ++i) {
@@ -525,26 +655,26 @@ public:
 						//the last child
 						new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
 						//the num_key of the original node should be below the threshold
-						inner->num_keys = threshold - 1; 
+						inner->num_keys = threshold - 1;
 						//upkey should be the delimiter of the old/new node in their common parent
-						upKey = inner->keys[threshold - 1]; 
+						upKey = inner->keys[threshold - 1];
 						//the new leaf node could be the child of old/new inner node
 						if(new_leaf->keys[0] >= upKey) {
 							toInsert = new_sibling;
 							//if the new inner node is to be inserted, the index to insert should subtract threshold
-							if(k >= threshold) k = k - threshold; 
+							if(k >= threshold) k = k - threshold;
 							else k = 0;
 						}
 					}
 //					inner->keys[N-1] = upKey;
 					new_sibling->keys[N - 1] = upKey; //???
-#if 0					
+#if 0
 					printf("==============\n");
-					for(int i = 0; i < inner->num_keys; i++){
+					for(int i = 0; i < inner->num_keys; i++) {
 						printf("key[%2d] = %ld\n", i, inner->keys[i]);
 					}
 					printf("--------------\n");
-					for(int i = 0; i < new_sibling->num_keys; i++){
+					for(int i = 0; i < new_sibling->num_keys; i++) {
 						printf("key[%2d] = %ld\n", i, new_sibling->keys[i]);
 					}
 					printf("==============\n");
@@ -680,6 +810,7 @@ public:
 //Return: the new node where the new key resides, NULL if no new node is created
 //@val: storing the pointer to new value in val
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val) {
+		//printf("[%ld] ADD: %lx\n", pthread_self(), (LeafNode*)root);
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
@@ -693,6 +824,18 @@ public:
 #endif
 			*val = leaf->values[k];
 
+#if NODEMAP
+			{
+				auto node_iter = node_map.find(leaf->signature);
+				if(node_iter != node_map.end()) {
+					node_iter->second.gets++;
+				} else {
+					access_log new_log = {1, 0, 0};
+					node_map.insert(make_pair(leaf->signature, new_log));
+				}
+			}
+#endif
+
 #if BTREE_PROF
 			reads++;
 #endif
@@ -703,6 +846,19 @@ public:
 		LeafNode *toInsert = leaf;
 		//create a new node to accommodate the new key if the leaf is full
 		if(leaf->num_keys == M) {
+
+#if NODEMAP
+			{
+				auto node_iter = node_map.find(leaf->signature);
+				if(node_iter != node_map.end()) {
+					node_iter->second.splits++;
+				} else {
+					access_log new_log = {0, 0, 1};
+					node_map.insert(make_pair(leaf->signature, new_log));
+				}
+			}
+#endif
+
 			new_sibling = new_leaf_node();
 
 			if(leaf->right == NULL && k == leaf->num_keys) {
@@ -715,7 +871,7 @@ public:
 				new_sibling->num_keys = leaf->num_keys - threshold;
 				//moving the keys above the threshold to the new sibling
 				for(unsigned j = 0; j < new_sibling->num_keys; ++j) {
-					//move the keys beyond threshold in old leaf to the new leaf 
+					//move the keys beyond threshold in old leaf to the new leaf
 					new_sibling->keys[j] = leaf->keys[threshold + j];
 					new_sibling->values[j] = leaf->values[threshold + j];
 				}
@@ -733,6 +889,20 @@ public:
 			leaf->right = new_sibling;
 
 			new_sibling->seq = 0;
+
+#if NODEMAP
+			{
+				auto node_iter = node_map.find(new_sibling->signature);
+				if(node_iter != node_map.end()) {
+					node_iter->second.writes++;
+				} else {
+					access_log new_log = {0, 1, 0};
+					node_map.insert(make_pair(new_sibling->signature, new_log));
+				}
+			}
+#endif
+
+
 #if BTREE_PROF
 			writes++;
 #endif
@@ -754,6 +924,18 @@ public:
 
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
+
+#if NODEMAP
+		{
+			auto node_iter = node_map.find(toInsert->signature);
+			if(node_iter != node_map.end()) {
+				node_iter->second.writes++;
+			} else {
+				access_log new_log = {0,  1, 0};
+				node_map.insert(make_pair(toInsert->signature, new_log));
+			}
+		}
+#endif
 
 #if DUMMY
 		toInsert->values[k] = dummyval_;

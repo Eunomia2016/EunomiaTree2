@@ -140,10 +140,7 @@ DBTables::~DBTables() {
 
 //This interface is just used during initialization
 void DBTables::TupleInsert(int tabid, uint64_t key, uint64_t *val, int len) {
-
-
 	char *value = (char *)malloc(sizeof(OBJPool::Obj) + len);
-
 
 	value += sizeof(OBJPool::Obj);
 	memcpy(value, val, len);
@@ -161,7 +158,6 @@ void DBTables::TupleInsert(int tabid, uint64_t key, uint64_t *val, int len) {
 	}
 #endif
 }
-
 
 void DBTables::InitEpoch(int thr_num) {
 	epoch = new Epoch(thr_num);
@@ -211,7 +207,6 @@ void DBTables::AddRemoveNodes(uint64_t **nodes, int len) {
 	assert(nodes != NULL);
 	assert(rmqueue != NULL);
 	rmqueue->AddRMArray(epoch->getCurrentEpoch(), nodes, len);
-
 }
 
 
@@ -240,13 +235,10 @@ void DBTables::AddDeletedValue(int tableid, uint64_t* value, uint64_t sn) {
 
 Memstore::MemNode* DBTables::GetMemNode(int tableid) {
 	char* mn =  memnodesPool[tableid].GetFreeObj();
-
 	if(mn == NULL) {
 		mn = (char *)malloc(sizeof(OBJPool::Obj) + sizeof(Memstore::MemNode));
 		mn += sizeof(OBJPool::Obj);
 	}
-
-
 	return new(mn) Memstore::MemNode();
 }
 
@@ -257,7 +249,6 @@ uint64_t* DBTables::GetEmptyValue(int tableid) {
 
 void DBTables::AddDeletedNode(int tableid, uint64_t *node) {
 	gcnum++;
-
 	//XXX: we set the safe sn of memnode to be 0
 	memnodesPool[tableid].AddGCObj((char *)node, 0);
 }
@@ -437,7 +428,8 @@ void DBTables::AddSchema(int tableid, int kl, int vl) {
 int DBTables::AddTable(int tableid, int index_type, int secondary_index_type) {
 	assert(tableid == next);
 	assert(next < number);
-	if(index_type == BTREE) tables[next] = new MemstoreBPlusTree();
+	//printf("[Alex] AddTable %d\n", tableid);
+	if(index_type == BTREE) tables[next] = new MemstoreBPlusTree(next);
 	else if(index_type == HASH) tables[next] = new MemstoreHashTable();
 	else if(index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
 	else if(index_type == CUCKOO) tables[next] = new MemstoreCuckooHashTable();

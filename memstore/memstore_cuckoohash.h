@@ -76,7 +76,6 @@ class MemstoreCuckooHashTable: public Memstore {
   MemNode* Get(uint64_t key);
   
   MemNode* GetWithInsert(uint64_t key);
-  
   void PrintStore();
   
   void ThreadLocalInit();

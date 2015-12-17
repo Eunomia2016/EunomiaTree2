@@ -7,6 +7,7 @@
 #include <immintrin.h>
 #include <sys/time.h>
 #include <time.h>
+#include <pthread.h>
 #include "util/spinlock.h"
 #include "txprofile.h"
 
@@ -26,6 +27,8 @@
 
 #define AVOIDNESTTX
 
+enum OP_TYPE {GET_TYPE, ADD_TYPE, DEL_TYPE, UNKNOWN_TYPE};
+
 class RTMScope {
 	RTMProfile* globalprof;
 	int retry;
@@ -36,7 +39,7 @@ class RTMScope {
 	SpinLock* slock;
 	bool winner;
 	timespec begin, end;
-
+	OP_TYPE type;
 #ifdef AVOIDNESTTX
 	int isnest;
 #endif
@@ -44,7 +47,9 @@ class RTMScope {
 public:
 	static SpinLock fblock;
 
-	inline RTMScope(RTMProfile* prof, int read = 1, int write = 1, SpinLock* sl = NULL) {
+	inline RTMScope(RTMProfile* prof, int read = 1, int write = 1,
+					SpinLock* sl = NULL, OP_TYPE _type = UNKNOWN_TYPE) {
+		type = _type;
 		clock_gettime(CLOCK_MONOTONIC, &begin);
 		globalprof = prof;
 		retry = 0;
@@ -167,11 +172,10 @@ public:
 				globalprof->winners++;
 				uint64_t winner_interval = (end.tv_sec - begin.tv_sec) * BILLION + (end.tv_nsec - begin.tv_nsec);
 				globalprof->winner_interval += winner_interval;
-				printf("Winner interval = %ld\n", winner_interval);
+				//printf("Winner interval = %ld\n", winner_interval);
 			}
 			uint64_t total_interval = (end.tv_sec - begin.tv_sec) * BILLION + (end.tv_nsec - begin.tv_nsec);
 			globalprof->total_interval += total_interval;
-			printf("Total interval = %ld\n", total_interval);
 		}
 #endif
 	}
