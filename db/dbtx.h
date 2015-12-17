@@ -19,6 +19,9 @@
 
 #define NUMA_DUMP 1
 
+#define TABLE_NUM 11
+
+
 #define DBX_DUMP 0
 #define BILLION 1000000000L
 
@@ -44,6 +47,9 @@ namespace leveldb {
 
 class DBTX {
 public:
+	uint64_t local_access[TABLE_NUM];
+	uint64_t remote_access[TABLE_NUM];
+	
 	static uint64_t treetime ;
 
 	RTMProfile rtmProf;

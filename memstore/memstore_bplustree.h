@@ -23,6 +23,8 @@
 #define KEYDUMP 0
 #define KEYMAP 0
 
+#define NUMADUMP 0
+
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 
@@ -62,6 +64,10 @@ class MemstoreBPlusTree: public Memstore {
 public:
 	unordered_map<uint32_t, access_log> node_map;
 	unordered_map<uint64_t, key_log> key_map;
+
+	uint64_t local_access;
+	uint64_t remote_access;
+
 	int tableid;
 
 	struct LeafNode {
@@ -194,7 +200,7 @@ public:
 	}
 
 	~MemstoreBPlusTree() {
-		printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
+		//printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
 		//printf("[Alex]~MemstoreBPlusTree\n");
 		//prof.reportAbortStatus();
 		//delprof.reportAbortStatus();
@@ -227,6 +233,9 @@ public:
 		printf("Total Keys: %ld\n", key_map.size());
 #endif
 
+#if NUMADUMP
+		printf("Total Access: %ld (Local: %ld  Remote: %ld)\n", (local_access+remote_access), local_access, remote_access);
+#endif
 		//printTree();
 		//top();
 	}
@@ -283,7 +292,6 @@ public:
 			node_map.insert(make_pair(((LeafNode*)node)->signature, new_log));
 		}
 #endif
-
 
 
 		return reinterpret_cast<LeafNode*>(node);

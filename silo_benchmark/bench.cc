@@ -459,8 +459,8 @@ bench_runner::run() {
 	*/
 	cout.flush();
 
-	if(!slow_exit)
-		return;
+	//if(!slow_exit)
+		//return;
 
 	map<string, uint64_t> agg_stats;
 #if 0

@@ -100,7 +100,6 @@ class DBTables {
 	void EpochTXBegin();
 	void EpochTXEnd();
 
-	
 	void AddDeletedNodes(uint64_t **nodes, int len);
 	void GCDeletedNodes();
 	void AddDeletedValues(uint64_t **nodes, int len);
@@ -108,12 +107,10 @@ class DBTables {
 	void AddRemoveNodes(uint64_t **nodes, int len);
 	void RemoveNodes();
 
-
 	//For RCU
 	void RCUInit(int thr_num);
 	void RCUTXBegin();
 	void RCUTXEnd();
-	
 	
 	void AddDeletedValue(int tableid, uint64_t* value, uint64_t sn);
 	uint64_t*GetEmptyValue(int tableid);

@@ -579,9 +579,16 @@ DBTX::DBTX(DBTables* store) {
 	searchTime = 0;
 	traverseTime = 0;
 	traverseCount = 0;
+	for(int i = 0; i < TABLE_NUM; i++){
+		local_access[i] = remote_access[i] = 0;
+	}
 }
 
 DBTX::~DBTX() {
+	for(int i = 0; i < TABLE_NUM; i++){
+		printf("Table[%d] local_access: %d remote_access: %d\n",i, local_access[i], 
+			remote_access[i]);
+	}
 	//clear all the data
 }
 
@@ -688,6 +695,15 @@ ABORT:
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
+#if NUMA_DUMP
+			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+				remote_access[tableid]++;
+			}else{
+				local_access[tableid]++;
+			}
+#endif
+
+
 #ifdef DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -726,9 +742,7 @@ retry:
 	}
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key);
-
-
-
+	
 #endif
 
 	if(node->value == HAVEREMOVED)
@@ -738,6 +752,15 @@ retry:
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
+#if NUMA_DUMP
+		if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+			remote_access[tableid]++;
+		}else{
+			local_access[tableid]++;
+		}
+#endif
+
+
 #if DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -789,6 +812,16 @@ retry:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val) {
+#if NUMA_DUMP
+			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+				remote_access[tableid]++;
+			}else{
+				local_access[tableid]++;
+			}
+#endif
+
+
+
 #if DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -844,6 +877,16 @@ retryA:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len) {
+#if NUMA_DUMP
+			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+				remote_access[tableid]++;
+			}else{
+				local_access[tableid]++;
+			}
+#endif
+
+
+
 #if DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -903,6 +946,15 @@ retryA:
 }
 
 void DBTX::Delete(int tableid, uint64_t key) {
+#if NUMA_DUMP
+			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+				remote_access[tableid]++;
+			}else{
+				local_access[tableid]++;
+			}
+#endif
+
+
 #if DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -1003,6 +1055,16 @@ retryGBI:
 }
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
+#if NUMA_DUMP
+			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+				remote_access[tableid]++;
+			}else{
+				local_access[tableid]++;
+			}
+#endif
+
+
+
 #if DBX_DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -1020,12 +1082,7 @@ retry:
 	Memstore::MemNode* node = NULL;
 	node = txdb_->tables[tableid]->GetWithInsert(key);
 
-#if NUMA_DUMP
-	if( get_current_node()!=get_numa_node((void*)txdb_->tables[tableid])){
-		printf("[Alex] current node = %d\t table node = %d\n", get_current_node(), 
-		get_numa_node((void*)txdb_->tables[tableid]));
-	}
-#endif
+
 
 	#if BUFFERNODE
 	buffer[tableid].node = node;

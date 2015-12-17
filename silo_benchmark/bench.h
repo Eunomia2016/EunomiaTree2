@@ -15,7 +15,6 @@
 #include "spinbarrier.h"
 //#include "rcu.h"
 
-
 extern void ycsb_do_test(abstract_db *db, int argc, char **argv);
 extern void tpcc_do_test(int argc, char **argv);
 extern void articles_do_test(int argc, char **argv);
@@ -125,7 +124,9 @@ public:
  //   txn_obj_buf.resize(db->sizeof_txn_object(txn_flags));
   }
 
-  virtual ~bench_worker() {}
+  virtual ~bench_worker() {
+  	//printf("[Alex] ~bench_worker\n");
+  }
   // returns [did_commit?, size_increase_bytes]
   typedef std::pair<bool, ssize_t> txn_result;
   typedef txn_result (*txn_fn_t)(bench_worker *);
