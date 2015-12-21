@@ -34,6 +34,11 @@ public:
 		}
 	};
 
+	struct InsertResult{
+		MemNode* node;
+		bool newNode;
+	};
+
 	class Iterator {
 	public:
 		// Initialize an iterator over the specified list.
@@ -87,7 +92,9 @@ public:
 
 	virtual MemNode* Get(uint64_t key) = 0;
 	
-	virtual MemNode* GetWithInsert(uint64_t key) = 0;
+	virtual InsertResult GetWithInsert(uint64_t key) = 0;
+
+	virtual MemNode* GetForRead(uint64_t key) = 0;
 
 	virtual MemNode* GetWithDelete(uint64_t key) {
 		assert(0);

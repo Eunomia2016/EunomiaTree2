@@ -319,7 +319,7 @@ inline MemStoreSkipList::Node* MemStoreSkipList::FindGreaterOrEqual(uint64_t key
 Memstore::MemNode* MemStoreSkipList::Put(uint64_t k,uint64_t * val)
 {
 	
-	Memstore::MemNode* n = GetWithInsert(k);
+	Memstore::MemNode* n = GetWithInsert(k).node;
 	n->value = val;
 	n->seq = 1;
 
@@ -340,7 +340,25 @@ Memstore::MemNode* MemStoreSkipList::Get(uint64_t key)
 	return NULL;
 }
 
-Memstore::MemNode*  MemStoreSkipList::GetWithInsert(uint64_t key) 
+Memstore::InsertResult  MemStoreSkipList::GetWithInsert(uint64_t key) 
+{
+	ThreadLocalInit();
+#if SKIPLISTLOCKFREE
+	Memstore::MemNode* x = GetWithInsertLockFree(key);
+#elif SKIPLISTRTM
+	Memstore::MemNode* x = GetWithInsertRTM(key);
+#elif SKIPLISTFINEGRAINLOCK
+	Memstore::MemNode* x = GetWithInsertFineGrainLock(key);
+#endif
+
+	if(dummy_ == NULL) {
+		 int height = RandomHeight();
+  		 dummy_ = NewNode(key, height);
+	}
+
+	return {x,false};
+}
+Memstore::MemNode*  MemStoreSkipList::GetForRead(uint64_t key) 
 {
 	ThreadLocalInit();
 #if SKIPLISTLOCKFREE

@@ -339,7 +339,7 @@ public:
 	MemNode* Put(uint64_t key, uint64_t* val){
 		ThreadLocalInit();
 		
-		MemNode *node = GetWithInsert(key);
+		MemNode *node = GetWithInsert(key).node;
 		node->value = val;
 
 		return node;
@@ -564,7 +564,7 @@ public:
 			
 	}
 
-	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
+	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 
 		ThreadLocalInit();
 //		NewNodes *dummy= new NewNodes(depth);
@@ -580,7 +580,7 @@ public:
 		if(dummyval_ == NULL) {
 			dummyval_ = new MemNode();
 		}
-		return value;
+		return {value,false};
 //		Insert_rtm(key, &dummy);
 
 /*		if (dummy->leaf->num_keys <=0) delete dummy->leaf;
@@ -591,6 +591,33 @@ public:
 //		delete dummy;
 		
 	}
+		inline Memstore::MemNode* GetForRead(uint64_t key) {
+	
+			ThreadLocalInit();
+	//		NewNodes *dummy= new NewNodes(depth);
+	//		NewNodes dummy(depth);
+	
+	/*		MutexSpinLock lock(&slock);
+			current_tid = tid;
+			windex[tid] = 0;
+			rindex[tid] = 0;
+		*/	
+			MemNode* value = Insert_rtm((char *)key);
+			
+			if(dummyval_ == NULL) {
+				dummyval_ = new MemNode();
+			}
+			return value;
+	//		Insert_rtm(key, &dummy);
+	
+	/*		if (dummy->leaf->num_keys <=0) delete dummy->leaf;
+			for (int i=dummy->used; i<dummy->d;i++) {
+				delete dummy->inner[i];
+				//if (dummy.inner[i]->num_keys > 0) printf("!!!\n");
+			}*/
+	//		delete dummy;
+			
+		}
 
 	inline Memstore::MemNode* Insert_rtm(char * key) {
 #if SBTREE_LOCK

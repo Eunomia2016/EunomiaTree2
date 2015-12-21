@@ -48,7 +48,7 @@ public:
 		}
 	}
 	
-	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
+	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 
 		ThreadLocalInit();
 		
@@ -65,7 +65,7 @@ retry:
 		}
 
 		if(cur != NULL && cur->key == key)
-			return &cur->memnode;
+			return {&cur->memnode,false};
 
 		dummynode_->key = key;
 		dummynode_->next = cur;
@@ -82,14 +82,14 @@ retry:
 		
 		Memstore::MemNode* res = &dummynode_->memnode;
 		dummynode_ = NULL;
-		return res;
+		return {res,false};
 	}	
 
 	
 
 	inline MemNode* Put(uint64_t key, uint64_t* val) {
 
-		Memstore::MemNode* node = GetWithInsert(key);
+		Memstore::MemNode* node = GetWithInsert(key).node;
 		node->value = val;
 		return node;
 	}

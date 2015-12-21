@@ -64,7 +64,8 @@ class SimpleMemstore: public Memstore {
 
   virtual MemNode* Get(uint64_t key);
   
-  virtual MemNode* GetWithInsert(uint64_t key);
+  virtual InsertResult GetWithInsert(uint64_t key);
+  virtual MemNode* GetForRead(uint64_t key);
   
   virtual MemNode* GetWithDelete(uint64_t key) {assert(0);}
   virtual void PrintStore() { assert(0); }

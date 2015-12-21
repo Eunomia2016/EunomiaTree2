@@ -336,17 +336,13 @@ inline void DBTX::WriteSet::SetDBTX(DBTX* dbtx) {
 
 //gcounter should be added into the rtm readset
 inline void DBTX::WriteSet::Write(uint64_t gcounter) {
-
 #if PERSISTENT
 	commitSN = gcounter;
 #endif
-
 	for(int i = 0; i < elems; i++) {
-
 #if GLOBALOCK
 		assert(kvs[i].node->counter <= gcounter);
 #endif
-
 		if(kvs[i].node->counter == 0)
 			kvs[i].node->counter = gcounter;
 
@@ -654,7 +650,7 @@ bool DBTX::End() {
 
 		//step 2. update the the seq set
 		//can't use the iterator because the cur node may be deleted
-		writeset->Write(txdb_->snapshot);
+		writeset->Write(txdb_->snapshot);//snapshot is the counter for current snapshot
 
 		//step 3. update the sencondary index
 #if USESECONDINDEX
@@ -697,6 +693,8 @@ ABORT:
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
+	bool newNode = false;  
+
 #if NUMA_DUMP
 			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
@@ -706,62 +704,66 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
 #endif
 
 
-#ifdef DUMP
-	struct timespec time_stamp;
-	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
-	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
-	printf("[%2d] ADD tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
-#endif
-
 //  SpinLockScope spinlock(&slock);
 retry:
 
 	Memstore::MemNode* node;
-
+	Memstore::InsertResult res;
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
-
+	
 	//Get the seq addr from the hashtable
 #if BUFFERNODE
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferHit++;
-#endif
+	#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferMiss++;
-#endif
-		node = txdb_->tables[tableid]->GetWithInsert(key);
+	#endif
+		res = txdb_->tables[tableid]->GetWithInsert(key);
+		node = res.node;
+		newNode = res.newNode;
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
 		assert(node != NULL);
 	}
 #else
-	node = txdb_->tables[tableid]->GetWithInsert(key);
-	
+	res = txdb_->tables[tableid]->GetWithInsert(key);
+	node=res.node;
+	newNode = res.newNode;
 #endif
 
 	if(node->value == HAVEREMOVED)
 		goto retry;
+	
+#if KEY_DUMP
+	if(newNode){
+		printf("[%d] ADD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+	}else{
+		printf("[%d] UPD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+	}
+#endif
 
 	writeset->Add(tableid, key, val, node);
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
+	bool newNode = false;
 #if NUMA_DUMP
-		if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+		if(get_current_node() != get_numa_node((void*)(txdb_->tables[tableid]))){
 			remote_access[tableid]++;
 		}else{
 			local_access[tableid]++;
 		}
 #endif
-
 
 #if DUMP
 	struct timespec time_stamp;
@@ -769,9 +771,11 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
 	long time_point = time_stamp.tv_sec * BILLION + time_stamp.tv_nsec;
 	printf("[%2d] ADD tableid = %2d key = %15ld timestamp = %20ld\n", worker_id, tableid, key, time_point);
 #endif
+
 //  SpinLockScope spinlock(&slock);
 retry:
 	Memstore::MemNode* node;
+	Memstore::InsertResult res;
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
@@ -791,13 +795,18 @@ retry:
 		bufferMiss++;
 #endif
 //	uint64_t s_start = rdtsc();
-		node = txdb_->tables[tableid]->GetWithInsert(key);
+		res = txdb_->tables[tableid]->GetWithInsert(key);
+		node = res.node;
+		newNode = res.newNode;
 //	treetime += rdtsc() - s_start;
 //	printf("%ld\n",treetime);
 		assert(node != NULL);
 	}
 #else
-	node = txdb_->tables[tableid]->GetWithInsert(key);
+	res = txdb_->tables[tableid]->GetWithInsert(key);
+	node = res.node;
+	newNode = res.newNode;
+
 #endif
 	if(node->value == HAVEREMOVED)
 		goto retry;
@@ -809,11 +818,20 @@ retry:
 		value += sizeof(OBJPool::Obj);
 	}
 	memcpy(value, val, len);
+#if KEY_DUMP
+	if(newNode){
+		printf("[%d] ADD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+	}else{
+		printf("[%d] UPD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+	}
+#endif
 	writeset->Add(tableid, key, (uint64_t *)value, node);
 }
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val) {
+	bool newNode = false;
+
 #if NUMA_DUMP
 			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
@@ -821,8 +839,6 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 				local_access[tableid]++;
 			}
 #endif
-
-
 
 #if DUMP
 	struct timespec time_stamp;
@@ -839,6 +855,8 @@ retryA:
 #endif
 
 	Memstore::MemNode* node;
+	Memstore::InsertResult res;
+
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
 	if(buffer[tableid].key == key
@@ -853,16 +871,29 @@ retryA:
 #if PROFILEBUFFERNODE
 		bufferMiss++;
 #endif
-		node = txdb_->tables[tableid]->GetWithInsert(key);
+		res = txdb_->tables[tableid]->GetWithInsert(key);
+		node = res.node;
+		newNode = res.newNode;
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
 		assert(node != NULL);
 	}
 #else
-	node = txdb_->tables[tableid]->GetWithInsert(key);
+	res  = txdb_->tables[tableid]->GetWithInsert(key);
+	node = res.node;
+	newNode = res.newNode;
+
 	if(node->value == HAVEREMOVED)
 		goto retryA;
 
+#endif
+
+#if KEY_DUMP
+		if(newNode){
+			printf("[%d] ADD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+		}else{
+			printf("[%d] UPD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+		}
 #endif
 
 	//1. get the memnode wrapper of the secondary key
@@ -879,6 +910,8 @@ retryA:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len) {
+	bool newNode = false;
+
 #if NUMA_DUMP
 			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
@@ -886,8 +919,6 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 				local_access[tableid]++;
 			}
 #endif
-
-
 
 #if DUMP
 	struct timespec time_stamp;
@@ -904,6 +935,7 @@ retryA:
 #endif
 
 	Memstore::MemNode* node;
+	Memstore::InsertResult res;
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
 	if(buffer[tableid].key == key
@@ -918,11 +950,15 @@ retryA:
 #if PROFILEBUFFERNODE
 		bufferMiss++;
 #endif
-		node = txdb_->tables[tableid]->GetWithInsert(key);
+				res = txdb_->tables[tableid]->GetWithInsert(key);
+		node = res.node;
+		newNode = res.newNode;
 		assert(node != NULL);
 	}
 #else
-	node = txdb_->tables[tableid]->GetWithInsert(key);
+			res = txdb_->tables[tableid]->GetWithInsert(key);
+		node = res.node;
+		newNode = res.newNode;
 	if(node->value == HAVEREMOVED)
 		goto retryA;
 
@@ -942,6 +978,13 @@ retryA:
 
 	memcpy(value, val, len);
 	writeset->Add(tableid, key, (uint64_t *)value, node);
+#if KEY_DUMP
+		if(newNode){
+			printf("[%d] ADD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+		}else{
+			printf("[%d] UPD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+		}
+#endif
 
 	//3. add the seq number of the second node and the validation flag address into the write set
 	writeset->Add(seq, mw, node);
@@ -965,6 +1008,9 @@ void DBTX::Delete(int tableid, uint64_t key) {
 #endif
 
 	uint64_t *val;
+#if KEY_DUMP
+				printf("[%d] DEL tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+#endif
 
 	//Logically delete, set the value pointer to be NULL
 	Add(tableid, key, (uint64_t *)LOGICALDELETE);
@@ -1065,7 +1111,9 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 			}
 #endif
 
-
+#if KEY_DUMP
+	printf("[%d] GET tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+#endif
 
 #if DBX_DUMP
 	struct timespec time_stamp;
@@ -1082,9 +1130,7 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 	//step 2.  Read the <k,v> from the in memory store
 retry:
 	Memstore::MemNode* node = NULL;
-	node = txdb_->tables[tableid]->GetWithInsert(key);
-
-
+	node = txdb_->tables[tableid]->GetForRead(key);
 
 	#if BUFFERNODE
 	buffer[tableid].node = node;

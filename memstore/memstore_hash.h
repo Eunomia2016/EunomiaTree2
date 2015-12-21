@@ -114,14 +114,21 @@ public:
 	inline MemNode* Put(uint64_t key, uint64_t* val) {
 		ThreadLocalInit();
 
-		Memstore::MemNode* res = GetWithInsert(key);
+		Memstore::MemNode* res = GetWithInsert(key).node;
 
 		res->value = val;
 
 		return res;
 	}
 
-	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
+	inline InsertResult GetWithInsert(uint64_t key) {
+		ThreadLocalInit();
+
+		MemNode* mn = Insert_rtm(key);
+
+		return {mn,false};
+	}
+	inline Memstore::MemNode* GetForRead(uint64_t key) {
 		ThreadLocalInit();
 
 		MemNode* mn = Insert_rtm(key);

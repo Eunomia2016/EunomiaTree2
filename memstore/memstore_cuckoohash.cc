@@ -236,7 +236,36 @@ Memstore::MemNode* MemstoreCuckooHashTable::Put(uint64_t k, uint64_t* val) {
 	return mnode;
 }
 
-Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key) {
+Memstore::InsertResult MemstoreCuckooHashTable::GetWithInsert(uint64_t key) {
+
+	ThreadLocalInit();
+
+	bool succ = false;
+	MemNode* mnode = NULL;
+
+	{
+#if GLOBALLOCK
+		leveldb::SpinLockScope lock(&glock);
+#else
+		RTMArenaScope begtx(&rtmlock, &prof, NULL);
+#endif
+
+		succ = Insert(key, &mnode);
+	}
+
+	if(dummyval_ == NULL)
+		dummyval_ = new MemNode();
+
+	if(succ)
+		return {mnode,false};
+	else {
+		//TODO: need rehash the table, then retry
+		//printf("Alert Failed to insert %ld\n", key);
+		return {NULL,false};
+	}
+}
+
+Memstore::MemNode* MemstoreCuckooHashTable::GetForRead(uint64_t key) {
 
 	ThreadLocalInit();
 
@@ -264,7 +293,6 @@ Memstore::MemNode* MemstoreCuckooHashTable::GetWithInsert(uint64_t key) {
 		return NULL;
 	}
 }
-
 
 void MemstoreCuckooHashTable::PrintStore() {
 	printf("========================STORE==========================\n");

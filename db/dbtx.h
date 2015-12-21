@@ -24,6 +24,7 @@
 
 #define DBX_DUMP 0
 #define BILLION 1000000000L
+#define KEY_DUMP 1
 
 #define CACHESIM 0
 #define GLOBALOCK 0
@@ -200,7 +201,6 @@ public:
 	};
 
 	class ReadSet {
-
 		struct RSSeqPair {
 			uint64_t seq; //seq got when read the value
 			uint64_t *seqptr; //pointer to the global memory location

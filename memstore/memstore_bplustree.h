@@ -19,7 +19,7 @@
 #define BTPREFETCH 0
 #define DUMMY 1
 
-#define NODEMAP  1
+#define NODEMAP  0
 #define NODEDUMP 0
 #define KEYDUMP  0
 #define KEYMAP   0
@@ -344,7 +344,7 @@ public:
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
 		ThreadLocalInit();
-		MemNode *node = GetWithInsert(k);
+		MemNode *node = GetWithInsert(k).node;
 		node->value = val;
 #if BTREE_PROF
 		reads = 0;
@@ -544,7 +544,7 @@ public:
 		return value;
 	}
 
-	inline Memstore::MemNode* GetWithInsert(uint64_t key) {
+	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if 0
 		auto key_iter = key_map.find(key);
@@ -560,7 +560,10 @@ public:
 		//timespec begin, end;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		//printf("[%ld] BeginTime = %ld\n", pthread_self(), begin.tv_sec * BILLION + begin.tv_nsec);
-		MemNode* value = Insert_rtm(key);
+		InsertResult res = Insert_rtm(key);
+
+		//MemNode* value = res.node;
+		//bool newNode = res.newNode;
 		//clock_gettime(CLOCK_MONOTONIC, &end);
 		//printf("[%ld] EndTime = %ld\n", pthread_self(), end.tv_sec * BILLION + end.tv_nsec);
 #if DUMMY
@@ -571,10 +574,41 @@ public:
 			dummyleaf_ = new LeafNode();
 		}
 #endif
-		return value;
+		return res;
 	}
 
-	inline Memstore::MemNode* Insert_rtm(uint64_t key) {
+		inline Memstore::MemNode* GetForRead(uint64_t key) {
+			//printf("[BEGIN] key = %ld, type = %d\n", key, type);
+#if 0
+			auto key_iter = key_map.find(key);
+			if(key_iter != key_map.end()) {
+				key_iter->second++;
+			} else {
+				key_map.insert(make_pair(key, 0));
+			}
+#endif
+			//printf("[END] key = %ld, type = %d\n", key, type);
+	
+			ThreadLocalInit();
+			//timespec begin, end;
+			//clock_gettime(CLOCK_MONOTONIC, &begin);
+			//printf("[%ld] BeginTime = %ld\n", pthread_self(), begin.tv_sec * BILLION + begin.tv_nsec);
+			MemNode* value = Insert_rtm(key).node;
+			//clock_gettime(CLOCK_MONOTONIC, &end);
+			//printf("[%ld] EndTime = %ld\n", pthread_self(), end.tv_sec * BILLION + end.tv_nsec);
+#if DUMMY
+			if(dummyval_ == NULL) {
+				dummyval_ = GetMemNode();
+			}
+			if(dummyleaf_ == NULL) {
+				dummyleaf_ = new LeafNode();
+			}
+#endif
+			return value;
+		}
+
+	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
+		bool newNode = false;
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
@@ -597,6 +631,7 @@ public:
 		if(depth == 0) {
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
 			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
+				newNode = true;
 				InnerNode *inner = new_inner_node();
 				inner->num_keys = 1;
 				inner->keys[0] = new_leaf->keys[0];
@@ -616,13 +651,13 @@ public:
 			for(int i = 0; i <= 64; i += 64)
 				prefetch(reinterpret_cast<char*>(root) + i);
 #endif
-			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val);
+			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val, &newNode);
 		}
 		//printf("[%ld] ADD: %lx\n", pthread_self(), root);
-		return val;
+		return {val, newNode};
 	}
 
-	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val) {
+	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newNode) {
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
@@ -638,6 +673,7 @@ public:
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val);
 			//a new leaf node is created
 			if(new_leaf != NULL) {
+				*newNode = true;
 				InnerNode *toInsert = inner;
 				//the inner node is full -> split it
 				if(inner->num_keys == N) {
@@ -717,7 +753,7 @@ public:
 		} else { //not inserting at the lowest inner level
 			//recursively insert at the lower levels
 			InnerNode *new_inner =
-				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val);
+				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val,newNode);
 
 			if(new_inner != NULL) {
 				InnerNode *toInsert = inner;
@@ -893,7 +929,6 @@ public:
 			new_sibling->right = leaf->right;
 			new_sibling->left = leaf;
 			leaf->right = new_sibling;
-
 			new_sibling->seq = 0;
 
 #if NODEMAP

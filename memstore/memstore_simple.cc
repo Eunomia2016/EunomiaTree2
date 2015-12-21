@@ -31,12 +31,17 @@ Memstore::MemNode* SimpleMemstore::Get(uint64_t k)
 }
 
 
-Memstore::MemNode* SimpleMemstore::GetWithInsert(uint64_t k)
+Memstore::InsertResult SimpleMemstore::GetWithInsert(uint64_t k)
+{
+	assert(k < STORESIZE);
+	return {&simplestore[k],false};
+}
+
+Memstore::MemNode* SimpleMemstore::GetForRead(uint64_t k)
 {
 	assert(k < STORESIZE);
 	return &simplestore[k];
 }
-
 
 
 

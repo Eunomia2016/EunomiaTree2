@@ -27,7 +27,7 @@
 
 #define AVOIDNESTTX
 
-enum OP_TYPE {GET_TYPE, ADD_TYPE, DEL_TYPE, UNKNOWN_TYPE};
+enum OP_TYPE {GET_TYPE, ADD_TYPE, UPDATE_TYPE ,DEL_TYPE, UNKNOWN_TYPE};
 
 class RTMScope {
 	RTMProfile* globalprof;
