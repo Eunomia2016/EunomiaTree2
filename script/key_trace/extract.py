@@ -2,7 +2,7 @@
 import re
 
 pattern = r"\[\d+\] ([A-Z]{3}) tableid = \s*(\d+) key = \s*(\d+)"
-file_name = "8_threads"
+file_name = "4_threads"
 GET = 0
 ADD = 1
 UPD = 2
@@ -36,14 +36,29 @@ for line in lines:
 			if op_type == "DEL":
 				table[key][DEL] += 1
 
+total_keys = 0
 for table in table_map:
+	total_keys += len(table)
+print total_keys
+	#key_num = 0
+	#GET_num = 0
+	#ADD_num = 0
+	#UPD_num = 0
+	#DEL_num = 0
+	#for k in table:
+		#GET_num += table[k][GET]
+		#ADD_num += table[k][ADD]
+		#UPD_num += table[k][UPD]
+		#DEL_num += table[k][DEL]
 	#read_only = 0
-	access_once = 0
-	for k in table:
+	#access_once = 0
+	#access_total = 0
+	#for k in table:
 		#if table[k][GET] != 0 and table[k][UPD] == 0 and table[k][ADD] == 0 and table[k][DEL] == 0:
 			#read_only += 1
-		if sum(table[k]) <= 1:
-			access_once += 1
-	print access_once
+		#access_total+=sum(table[k])
+		#if sum(table[k]) == 1:
+			#access_once += 1
+	#print [GET_num, ADD_num, UPD_num, DEL_num]
 
 

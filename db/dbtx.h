@@ -24,7 +24,7 @@
 
 #define DBX_DUMP 0
 #define BILLION 1000000000L
-#define KEY_DUMP 1
+#define KEY_DUMP 0
 
 #define CACHESIM 0
 #define GLOBALOCK 0

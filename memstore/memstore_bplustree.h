@@ -9,6 +9,7 @@
 #include "util/rtm.h"
 #include "util/rtm_arena.h"
 #include "util/mutexlock.h"
+#include "util/numa_util.h"
 #include "port/port_posix.h"
 #include "memstore.h"
 #define M  15
@@ -23,6 +24,7 @@
 #define NODEDUMP 0
 #define KEYDUMP  0
 #define KEYMAP   0
+#define NUMADUMP 1
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -608,7 +610,7 @@ public:
 		}
 
 	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
-		bool newNode = false;
+		bool newKey = true;
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
@@ -629,9 +631,8 @@ public:
 
 		MemNode* val = NULL;
 		if(depth == 0) {
-			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val);
+			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val, &newKey);
 			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
-				newNode = true;
 				InnerNode *inner = new_inner_node();
 				inner->num_keys = 1;
 				inner->keys[0] = new_leaf->keys[0];
@@ -651,13 +652,13 @@ public:
 			for(int i = 0; i <= 64; i += 64)
 				prefetch(reinterpret_cast<char*>(root) + i);
 #endif
-			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val, &newNode);
+			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val, &newKey);
 		}
 		//printf("[%ld] ADD: %lx\n", pthread_self(), root);
-		return {val, newNode};
+		return {val, newKey};
 	}
 
-	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newNode) {
+	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newKey) {
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
@@ -670,10 +671,9 @@ public:
 #endif
 		//inserting at the lowest inner level
 		if(d == 1) {
-			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val);
+			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val, newKey);
 			//a new leaf node is created
 			if(new_leaf != NULL) {
-				*newNode = true;
 				InnerNode *toInsert = inner;
 				//the inner node is full -> split it
 				if(inner->num_keys == N) {
@@ -753,7 +753,7 @@ public:
 		} else { //not inserting at the lowest inner level
 			//recursively insert at the lower levels
 			InnerNode *new_inner =
-				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val,newNode);
+				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val,newKey);
 
 			if(new_inner != NULL) {
 				InnerNode *toInsert = inner;
@@ -849,7 +849,7 @@ public:
 //Insert a key at the leaf level
 //Return: the new node where the new key resides, NULL if no new node is created
 //@val: storing the pointer to new value in val
-	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val) {
+	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
 		//printf("[%ld] ADD: %lx\n", pthread_self(), (LeafNode*)root);
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
@@ -858,12 +858,11 @@ public:
 		}
 		//The key already exists in the children
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
-
+			*newKey = false;
 #if BTPREFETCH
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
 #endif
 			*val = leaf->values[k];
-
 #if NODEMAP
 			{
 				auto node_iter = node_map.find(leaf->signature);
@@ -883,6 +882,7 @@ public:
 			assert(*val != NULL);
 			return NULL;
 		}
+		*newKey = true;
 		//inserting a new key in the children
 		LeafNode *toInsert = leaf;
 		//create a new node to accommodate the new key if the leaf is full
@@ -903,6 +903,10 @@ public:
 
 			new_sibling = new_leaf_node();
 
+#ifdef NUMADUMP
+			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, get_numa_node(new_sibling));
+#endif
+			
 			if(leaf->right == NULL && k == leaf->num_keys) {
 				new_sibling->num_keys = 0;
 				toInsert = new_sibling;
@@ -943,7 +947,6 @@ public:
 				printf("[%ld][ADD] node = %d key = %ld\n", sched_getcpu(), new_sibling->signature, key);
 			}
 #endif
-
 
 #if BTREE_PROF
 			writes++;

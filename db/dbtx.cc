@@ -1103,6 +1103,7 @@ retryGBI:
 }
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
+		bool newNode = false;
 #if NUMA_DUMP
 			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
@@ -1111,9 +1112,6 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 			}
 #endif
 
-#if KEY_DUMP
-	printf("[%d] GET tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
-#endif
 
 #if DBX_DUMP
 	struct timespec time_stamp;
@@ -1128,9 +1126,12 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 		return true;
 	}
 	//step 2.  Read the <k,v> from the in memory store
-retry:
-	Memstore::MemNode* node = NULL;
-	node = txdb_->tables[tableid]->GetForRead(key);
+retry:		
+	Memstore::MemNode* node;
+	Memstore::InsertResult res;
+	res = txdb_->tables[tableid]->GetWithInsert(key);
+	node = res.node;
+	newNode = res.newNode;
 
 	#if BUFFERNODE
 	buffer[tableid].node = node;
@@ -1154,6 +1155,14 @@ retry:
 #if DEBUG_PRINT
 	printf("[%ld] get %ld, node %lx, seq %ld, value %ld\n",
 		   pthread_self(), key, node,  node->seq, (uint64_t)node->value);
+#endif
+
+#if KEY_DUMP
+			if(newNode){
+				printf("[%d] ADD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+			}else{
+				printf("[%d] GET tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+			}
 #endif
 
 	if(ValidateValue(node->value)) {
