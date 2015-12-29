@@ -24,7 +24,7 @@
 #define NODEDUMP 0
 #define KEYDUMP  0
 #define KEYMAP   0
-#define NUMADUMP 1
+#define NUMADUMP 0
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -903,7 +903,7 @@ public:
 
 			new_sibling = new_leaf_node();
 
-#ifdef NUMADUMP
+#if NUMADUMP
 			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, get_numa_node(new_sibling));
 #endif
 			

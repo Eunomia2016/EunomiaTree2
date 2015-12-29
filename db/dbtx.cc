@@ -829,7 +829,7 @@ retry:
 }
 
 //Update a column which has a secondary key
-void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val) {
+void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* new_val) {
 	bool newNode = false;
 
 #if NUMA_DUMP
@@ -902,7 +902,7 @@ retryA:
 	//mw->memnode = node;
 
 	//2. add the record seq number into write set
-	writeset->Add(tableid, key, val, node);
+	writeset->Add(tableid, key, new_val, node);
 
 	//3. add the seq number of the second node and the validation flag address into the write set
 	writeset->Add(seq, mw, node);
