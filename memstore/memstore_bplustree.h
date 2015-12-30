@@ -332,7 +332,7 @@ public:
 		}
 		clock_gettime(CLOCK_MONOTONIC, &end);
 		long elapsed_nsec = get_nanoseconds(begin, end);
-		printf("[%d][GET] node = %10d key = %20ld Time = %10ld\n", sched_getcpu(), leaf->signature, key, elapsed_nsec);
+		printf("[%2d][GET] node = %10d key = %20ld Time = %10ld\n", sched_getcpu(), leaf->signature, key, elapsed_nsec);
 		
 #endif
 
@@ -413,7 +413,7 @@ public:
 			}
 			clock_gettime(CLOCK_MONOTONIC, &end);
 			long elapsed_nsec = get_nanoseconds(begin,end);
-			printf("[%ld][DEL] node = %10d key = %20ld Time = %10ld\n",  
+			printf("[%2d][DEL] node = %10d key = %20ld Time = %10ld\n",  
 				sched_getcpu(), cur->signature, key, elapsed_nsec);
 		}
 #endif
@@ -888,7 +888,7 @@ public:
 				}
 				clock_gettime(CLOCK_MONOTONIC, &end);
 				long elapsed_nsec = get_nanoseconds(begin,end);
-				printf("[%ld][GET] node = %10d key = %20ld Time = %10ld\n", 
+				printf("[%2d][GET] node = %10d key = %20ld Time = %10ld\n", 
 					sched_getcpu(), leaf->signature, key, elapsed_nsec);
 			}
 #endif
@@ -951,7 +951,7 @@ public:
 				clock_gettime(CLOCK_MONOTONIC, &end);
 				long elapsed_nsec = get_nanoseconds(local_begin,end);
 						
-				printf("[%ld][ADD] node = %10d key = %20ld Time = %10ld\n", 
+				printf("[%2d][ADD] node = %10d key = %20ld Time = %10ld\n", 
 					sched_getcpu(), new_sibling->signature, key, elapsed_nsec);
 			}
 #endif
@@ -973,7 +973,7 @@ public:
 						}
 						clock_gettime(CLOCK_MONOTONIC, &end);
 						long elapsed_nsec = get_nanoseconds(begin,end);
-						printf("[%ld][SPT] node = %10d key = %20ld Time = %10ld\n", 
+						printf("[%2d][SPT] node = %10d key = %20ld Time = %10ld\n", 
 							sched_getcpu(), leaf->signature, key, elapsed_nsec);
 					}
 #endif
@@ -1006,7 +1006,7 @@ public:
 			}
 			clock_gettime(CLOCK_MONOTONIC, &end);
 			long elapsed_nsec = get_nanoseconds(begin,end);
-			printf("[%ld][ADD] node = %10d key = %20ld Time = %10ld\n", 
+			printf("[%2d][ADD] node = %10d key = %20ld Time = %10ld\n", 
 				sched_getcpu(), toInsert->signature, key, elapsed_nsec);
 		}
 #endif
