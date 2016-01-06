@@ -185,7 +185,7 @@ bench_worker::run() {
 retry:
 					timer t;
 					const unsigned long old_seed = r.get_seed();
-					const txn_result ret = workload[i].fn(this);
+					const txn_result ret = workload[i].fn(this); //execute the transaction
 
 					if(likely(ret.first)) {
 						++ntxn_commits;
@@ -424,6 +424,7 @@ bench_runner::run() {
 		}
 
 		blue_cerr << "total_abort_num: " << totalabort << blue_endl;
+		blue_cerr << "total_commit_num: " << n_commits << blue_endl;
 		const double agg_abort_rate = double(totalabort) / elapsed_sec;
 		cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
 

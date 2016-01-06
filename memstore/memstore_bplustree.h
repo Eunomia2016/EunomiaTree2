@@ -20,7 +20,7 @@
 #define BTPREFETCH 0
 #define DUMMY 1
 
-#define NODEMAP  1
+#define NODEMAP  0
 #define NODEDUMP 0
 #define KEYDUMP  0
 #define KEYMAP   0
@@ -70,6 +70,7 @@ public:
 	uint64_t remote_access;
 
 	int tableid;
+
 
 	struct LeafNode {
 		LeafNode() : num_keys(0) {
@@ -173,6 +174,7 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
+
 #if BTREE_PROF
 		writes = 0;
 		reads = 0;
@@ -192,6 +194,7 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
+
 #if BTREE_PROF
 		writes = 0;
 		reads = 0;
@@ -674,13 +677,15 @@ public:
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
 		//find the appropriate position of the new key
-		while((k < inner->num_keys) && (key >= inner->keys[k])) k++;
+		while((k < inner->num_keys) && (key >= inner->keys[k])) {
+			k++;
+		}
 		
 		void *child = inner->children[k]; //search the descendent layer
-		
 #if BTPREFETCH
-		for(int i = 0; i <= 64; i += 64)
+		for(int i = 0; i <= 64; i += 64){
 			prefetch(reinterpret_cast<char*>(child) + i);
+		}
 #endif
 		//inserting at the lowest inner level
 		if(d == 1) {

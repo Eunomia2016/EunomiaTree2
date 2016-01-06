@@ -950,13 +950,13 @@ retryA:
 #if PROFILEBUFFERNODE
 		bufferMiss++;
 #endif
-				res = txdb_->tables[tableid]->GetWithInsert(key);
+		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
 		newNode = res.newNode;
 		assert(node != NULL);
 	}
 #else
-			res = txdb_->tables[tableid]->GetWithInsert(key);
+		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
 		newNode = res.newNode;
 	if(node->value == HAVEREMOVED)
