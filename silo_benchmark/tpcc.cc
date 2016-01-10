@@ -1977,209 +1977,6 @@ tpcc_worker::txn_new_order() {
 }
 
 tpcc_worker::txn_result
-tpcc_worker::txn_delivery() {
-	const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
-	const uint o_carrier_id = RandomNumber(r, 1, NumDistrictsPerWarehouse());
-	const uint32_t ts = GetCurrentTimeMillis();
-
-	// worst case txn profile:
-	//   10 times:
-	//     1 new_order scan node
-	//     1 oorder get
-	//     2 order_line scan nodes
-	//     15 order_line puts
-	//     1 new_order remove
-	//     1 oorder put
-	//     1 customer get
-	//     1 customer put
-	//
-	// output from counters:
-	//   max_absent_range_set_size : 0
-	//   max_absent_set_size : 0
-	//   max_node_scan_size : 21
-	//   max_read_set_size : 133
-	//   max_write_set_size : 133
-	//   num_txn_contexts : 4
-#if 0
-	void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_TPCC_DELIVERY);
-#endif
-//  scoped_str_arena s_arena(arena);
-	try {
-		ssize_t ret = 0;
-		tx.Begin();
-		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
-
-			int32_t no_o_id = 1;
-			uint64_t *no_value;
-			int64_t start = makeNewOrderKey(warehouse_id, d, last_no_o_ids[warehouse_id - 1][d - 1]);
-			int64_t end = makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max());
-			int64_t no_key  = -1;
-			DBTX::Iterator iter(&tx, NEWO);
-			iter.Seek(start);
-			if(iter.Valid()) {
-				no_key = iter.Key();
-				if(no_key <= end) {
-//			  no_value = iter.Value();
-					no_o_id = static_cast<int32_t>(no_key << 32 >> 32);
-					tx.Delete(NEWO, no_key);
-				} else no_key = -1;
-			}
-			if(no_key == -1) {
-				printf("NoOrder for district %d!!\n",  d);
-				iter.SeekToFirst();
-				printf("Key %ld\n", iter.Key());
-				continue;
-			}
-#if 0
-#if SHORTKEY
-			const new_order::key k_no_0(makeNewOrderKey(warehouse_id, d, last_no_o_ids[d - 1]));
-			const new_order::key k_no_1(makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max()));
-#else
-			const new_order::key k_no_0(warehouse_id, d, last_no_o_ids[d - 1]);
-			const new_order::key k_no_1(warehouse_id, d, numeric_limits<int32_t>::max());
-#endif
-			new_order_scan_callback new_order_c;
-			{
-				ANON_REGION("DeliverNewOrderScan:", &delivery_probe0_cg);
-				tbl_new_order(warehouse_id)->scan(txn, Encode(obj_key0, k_no_0), &Encode(obj_key1, k_no_1), new_order_c, s_arena.get());
-			}
-
-			const new_order::key *k_no = new_order_c.get_key();
-			if(unlikely(!k_no))
-				continue;
-#if SHORTKEY
-			int32_t no_o_id = static_cast<int32_t>(k_no->no_id << 32 >> 32);
-#else
-			int32_t no_o_id = k_no->no_o_id;
-#endif
-#endif
-			last_no_o_ids[warehouse_id - 1][d - 1] = no_o_id + 1; // XXX: update last seen
-#if 0
-#if SHORTKEY
-			const oorder::key k_oo(makeOrderKey(warehouse_id, d, no_o_id));
-#else
-			const oorder::key k_oo(warehouse_id, d, no_o_id);
-#endif
-			if(unlikely(!tbl_oorder(warehouse_id)->get(txn, Encode(obj_key0, k_oo), obj_v))) {
-				// even if we read the new order entry, there's no guarantee
-				// we will read the oorder entry: in this case the txn will abort,
-				// but we're simply bailing out early
-				db->abort_txn(txn);
-				return txn_result(false, 0);
-			}
-#endif
-			uint64_t o_key = makeOrderKey(warehouse_id, d, no_o_id);
-			uint64_t* o_value;
-			bool found = tx.Get(ORDE, o_key, &o_value);
-			oorder::value *v_oo = (oorder::value *)o_value;
-
-
-			float sum_ol_amount = 0;
-			DBTX::Iterator iter1(&tx, ORLI);
-			start = makeOrderLineKey(warehouse_id, d, no_o_id, 1);
-			iter1.Seek(start);
-			end = makeOrderLineKey(warehouse_id, d, no_o_id, 15);
-
-			while(iter1.Valid()) {
-				int64_t ol_key = iter1.Key();
-				if(ol_key > end) break;
-				uint64_t *ol_value = iter1.Value();
-				order_line::value *v_ol = (order_line::value *)ol_value;
-				sum_ol_amount += v_ol->ol_amount;
-				order_line::value v_ol_new(*v_ol);
-				v_ol_new.ol_delivery_d = ts;
-
-				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new));
-				iter1.Next();
-			}
-#if 0
-			const oorder::value *v_oo = Decode(obj_v, v_oo_temp);
-			checker::SanityCheckOOrder(&k_oo, v_oo);
-
-			static_limit_callback<15> c(s_arena.get(), false); // never more than 15 order_lines per order
-#if SHORTKEY
-			const order_line::key k_oo_0(makeOrderLineKey(warehouse_id, d, no_o_id, 1));
-			const order_line::key k_oo_1(makeOrderLineKey(warehouse_id, d, no_o_id, 15));
-#else
-			const order_line::key k_oo_0(warehouse_id, d, no_o_id, 0);
-			const order_line::key k_oo_1(warehouse_id, d, no_o_id, numeric_limits<int32_t>::max());
-#endif
-			// XXX(stephentu): mutable scans would help here
-			tbl_order_line(warehouse_id)->scan(txn, Encode(obj_key0, k_oo_0), &Encode(obj_key1, k_oo_1), c, s_arena.get());
-
-			float sum = 0.0;
-			for(size_t i = 0; i < c.size(); i++) {
-				order_line::value v_ol_temp;
-				const order_line::value *v_ol = Decode(*c.values[i].second, v_ol_temp);
-
-#ifdef CHECK_INVARIANTS
-				order_line::key k_ol_temp;
-				const order_line::key *k_ol = Decode(*c.values[i].first, k_ol_temp);
-				checker::SanityCheckOrderLine(k_ol, v_ol);
-#endif
-
-				sum += v_ol->ol_amount;
-				order_line::value v_ol_new(*v_ol);
-				v_ol_new.ol_delivery_d = ts;
-				INVARIANT(s_arena.get()->manages(c.values[i].first));
-				tbl_order_line(warehouse_id)->put(txn, *c.values[i].first, Encode(str(), v_ol_new));
-			}
-
-			// delete new order
-			tbl_new_order(warehouse_id)->remove(txn, Encode(str(), *k_no));
-			ret -= 0 /*new_order_c.get_value_size()*/;
-#endif
-			// update oorder
-			oorder::value v_oo_new(*v_oo);
-			v_oo_new.o_carrier_id = o_carrier_id;
-			tx.Add(ORDE, o_key, (uint64_t *)(&v_oo_new), sizeof(v_oo_new));
-#if 0
-			tbl_oorder(warehouse_id)->put(txn, Encode(str(), k_oo), Encode(str(), v_oo_new));
-#endif
-			const uint c_id = v_oo->o_c_id;
-			const float ol_total = sum_ol_amount;
-#if 0
-			const float ol_total = sum;
-
-
-			// update customer
-#if SHORTKEY
-			const customer::key k_c(makeCustomerKey(warehouse_id, d, c_id));
-#else
-			const customer::key k_c(warehouse_id, d, c_id);
-#endif
-			ALWAYS_ASSERT(tbl_customer(warehouse_id)->get(txn, Encode(obj_key0, k_c), obj_v));
-#endif
-			uint64_t c_key = makeCustomerKey(warehouse_id, d, c_id);
-			uint64_t *c_value;
-			tx.Get(CUST, c_key, &c_value);
-			customer::value *v_c = (customer::value *)c_value;
-#if 0
-			const customer::value *v_c = Decode(obj_v, v_c_temp);
-#endif
-			customer::value v_c_new(*v_c);
-			v_c_new.c_balance += ol_total;
-			tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new));
-#if 0
-			tbl_customer(warehouse_id)->put(txn, Encode(str(), k_c), Encode(str(), v_c_new));
-#endif
-		}
-#if 0
-		measure_txn_counters(txn, "txn_delivery");
-		if(likely(db->commit_txn(txn)))
-			return txn_result(true, ret);
-#endif
-
-		return txn_result(tx.End(), ret);
-	} catch(abstract_db::abstract_abort_exception &ex) {
-#if 0
-		db->abort_txn(txn);
-#endif
-	}
-	return txn_result(false, 0);
-}
-
-tpcc_worker::txn_result
 tpcc_worker::txn_payment() {
 	const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
 	const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
@@ -2467,6 +2264,209 @@ tpcc_worker::txn_payment() {
 		if(likely(db->commit_txn(txn)))
 			return txn_result(true, ret);
 #endif
+		return txn_result(tx.End(), ret);
+	} catch(abstract_db::abstract_abort_exception &ex) {
+#if 0
+		db->abort_txn(txn);
+#endif
+	}
+	return txn_result(false, 0);
+}
+
+tpcc_worker::txn_result
+tpcc_worker::txn_delivery() {
+	const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
+	const uint o_carrier_id = RandomNumber(r, 1, NumDistrictsPerWarehouse());
+	const uint32_t ts = GetCurrentTimeMillis();
+
+	// worst case txn profile:
+	//   10 times:
+	//     1 new_order scan node
+	//     1 oorder get
+	//     2 order_line scan nodes
+	//     15 order_line puts
+	//     1 new_order remove
+	//     1 oorder put
+	//     1 customer get
+	//     1 customer put
+	//
+	// output from counters:
+	//   max_absent_range_set_size : 0
+	//   max_absent_set_size : 0
+	//   max_node_scan_size : 21
+	//   max_read_set_size : 133
+	//   max_write_set_size : 133
+	//   num_txn_contexts : 4
+#if 0
+	void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_TPCC_DELIVERY);
+#endif
+//  scoped_str_arena s_arena(arena);
+	try {
+		ssize_t ret = 0;
+		tx.Begin();
+		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
+
+			int32_t no_o_id = 1;
+			uint64_t *no_value;
+			int64_t start = makeNewOrderKey(warehouse_id, d, last_no_o_ids[warehouse_id - 1][d - 1]);
+			int64_t end = makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max());
+			int64_t no_key  = -1;
+			DBTX::Iterator iter(&tx, NEWO);
+			iter.Seek(start);
+			if(iter.Valid()) {
+				no_key = iter.Key();
+				if(no_key <= end) {
+//			  no_value = iter.Value();
+					no_o_id = static_cast<int32_t>(no_key << 32 >> 32);
+					tx.Delete(NEWO, no_key);
+				} else no_key = -1;
+			}
+			if(no_key == -1) {
+				printf("NoOrder for district %d!!\n",  d);
+				iter.SeekToFirst();
+				printf("Key %ld\n", iter.Key());
+				continue;
+			}
+#if 0
+#if SHORTKEY
+			const new_order::key k_no_0(makeNewOrderKey(warehouse_id, d, last_no_o_ids[d - 1]));
+			const new_order::key k_no_1(makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max()));
+#else
+			const new_order::key k_no_0(warehouse_id, d, last_no_o_ids[d - 1]);
+			const new_order::key k_no_1(warehouse_id, d, numeric_limits<int32_t>::max());
+#endif
+			new_order_scan_callback new_order_c;
+			{
+				ANON_REGION("DeliverNewOrderScan:", &delivery_probe0_cg);
+				tbl_new_order(warehouse_id)->scan(txn, Encode(obj_key0, k_no_0), &Encode(obj_key1, k_no_1), new_order_c, s_arena.get());
+			}
+
+			const new_order::key *k_no = new_order_c.get_key();
+			if(unlikely(!k_no))
+				continue;
+#if SHORTKEY
+			int32_t no_o_id = static_cast<int32_t>(k_no->no_id << 32 >> 32);
+#else
+			int32_t no_o_id = k_no->no_o_id;
+#endif
+#endif
+			last_no_o_ids[warehouse_id - 1][d - 1] = no_o_id + 1; // XXX: update last seen
+#if 0
+#if SHORTKEY
+			const oorder::key k_oo(makeOrderKey(warehouse_id, d, no_o_id));
+#else
+			const oorder::key k_oo(warehouse_id, d, no_o_id);
+#endif
+			if(unlikely(!tbl_oorder(warehouse_id)->get(txn, Encode(obj_key0, k_oo), obj_v))) {
+				// even if we read the new order entry, there's no guarantee
+				// we will read the oorder entry: in this case the txn will abort,
+				// but we're simply bailing out early
+				db->abort_txn(txn);
+				return txn_result(false, 0);
+			}
+#endif
+			uint64_t o_key = makeOrderKey(warehouse_id, d, no_o_id);
+			uint64_t* o_value;
+			bool found = tx.Get(ORDE, o_key, &o_value);
+			oorder::value *v_oo = (oorder::value *)o_value;
+
+
+			float sum_ol_amount = 0;
+			DBTX::Iterator iter1(&tx, ORLI);
+			start = makeOrderLineKey(warehouse_id, d, no_o_id, 1);
+			iter1.Seek(start);
+			end = makeOrderLineKey(warehouse_id, d, no_o_id, 15);
+
+			while(iter1.Valid()) {
+				int64_t ol_key = iter1.Key();
+				if(ol_key > end) break;
+				uint64_t *ol_value = iter1.Value();
+				order_line::value *v_ol = (order_line::value *)ol_value;
+				sum_ol_amount += v_ol->ol_amount;
+				order_line::value v_ol_new(*v_ol);
+				v_ol_new.ol_delivery_d = ts;
+
+				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new));
+				iter1.Next();
+			}
+#if 0
+			const oorder::value *v_oo = Decode(obj_v, v_oo_temp);
+			checker::SanityCheckOOrder(&k_oo, v_oo);
+
+			static_limit_callback<15> c(s_arena.get(), false); // never more than 15 order_lines per order
+#if SHORTKEY
+			const order_line::key k_oo_0(makeOrderLineKey(warehouse_id, d, no_o_id, 1));
+			const order_line::key k_oo_1(makeOrderLineKey(warehouse_id, d, no_o_id, 15));
+#else
+			const order_line::key k_oo_0(warehouse_id, d, no_o_id, 0);
+			const order_line::key k_oo_1(warehouse_id, d, no_o_id, numeric_limits<int32_t>::max());
+#endif
+			// XXX(stephentu): mutable scans would help here
+			tbl_order_line(warehouse_id)->scan(txn, Encode(obj_key0, k_oo_0), &Encode(obj_key1, k_oo_1), c, s_arena.get());
+
+			float sum = 0.0;
+			for(size_t i = 0; i < c.size(); i++) {
+				order_line::value v_ol_temp;
+				const order_line::value *v_ol = Decode(*c.values[i].second, v_ol_temp);
+
+#ifdef CHECK_INVARIANTS
+				order_line::key k_ol_temp;
+				const order_line::key *k_ol = Decode(*c.values[i].first, k_ol_temp);
+				checker::SanityCheckOrderLine(k_ol, v_ol);
+#endif
+
+				sum += v_ol->ol_amount;
+				order_line::value v_ol_new(*v_ol);
+				v_ol_new.ol_delivery_d = ts;
+				INVARIANT(s_arena.get()->manages(c.values[i].first));
+				tbl_order_line(warehouse_id)->put(txn, *c.values[i].first, Encode(str(), v_ol_new));
+			}
+
+			// delete new order
+			tbl_new_order(warehouse_id)->remove(txn, Encode(str(), *k_no));
+			ret -= 0 /*new_order_c.get_value_size()*/;
+#endif
+			// update oorder
+			oorder::value v_oo_new(*v_oo);
+			v_oo_new.o_carrier_id = o_carrier_id;
+			tx.Add(ORDE, o_key, (uint64_t *)(&v_oo_new), sizeof(v_oo_new));
+#if 0
+			tbl_oorder(warehouse_id)->put(txn, Encode(str(), k_oo), Encode(str(), v_oo_new));
+#endif
+			const uint c_id = v_oo->o_c_id;
+			const float ol_total = sum_ol_amount;
+#if 0
+			const float ol_total = sum;
+
+
+			// update customer
+#if SHORTKEY
+			const customer::key k_c(makeCustomerKey(warehouse_id, d, c_id));
+#else
+			const customer::key k_c(warehouse_id, d, c_id);
+#endif
+			ALWAYS_ASSERT(tbl_customer(warehouse_id)->get(txn, Encode(obj_key0, k_c), obj_v));
+#endif
+			uint64_t c_key = makeCustomerKey(warehouse_id, d, c_id);
+			uint64_t *c_value;
+			tx.Get(CUST, c_key, &c_value);
+			customer::value *v_c = (customer::value *)c_value;
+#if 0
+			const customer::value *v_c = Decode(obj_v, v_c_temp);
+#endif
+			customer::value v_c_new(*v_c);
+			v_c_new.c_balance += ol_total;
+			tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new));
+#if 0
+			tbl_customer(warehouse_id)->put(txn, Encode(str(), k_c), Encode(str(), v_c_new));
+#endif
+		}
+#if 0
+		measure_txn_counters(txn, "txn_delivery");
+		if(likely(db->commit_txn(txn)))
+			return txn_result(true, ret);
+#endif
+
 		return txn_result(tx.End(), ret);
 	} catch(abstract_db::abstract_abort_exception &ex) {
 #if 0
