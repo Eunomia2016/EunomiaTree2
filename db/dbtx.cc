@@ -703,7 +703,6 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
 			}
 #endif
 
-
 //  SpinLockScope spinlock(&slock);
 retry:
 

@@ -26,6 +26,10 @@
 #define KEYMAP   0
 #define NUMADUMP 0
 
+#define REMOTEACCESS 0 
+
+#define BUFFER_LEN 40
+
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 
@@ -60,14 +64,46 @@ struct key_log {
 static uint32_t leaf_id = 0;
 static uint32_t table_id = 0;
 
+class NUMA_Buffer{
+private:
+	int head;
+	int hits;
+	int accesses;
+	uint64_t keys[BUFFER_LEN];
+public:
+	NUMA_Buffer():head(0),hits(0),accesses(0){
+		memset(keys, 0, BUFFER_LEN*sizeof(uint64_t));
+	}
+	bool get(uint64_t key){
+		//printf("get key = %d, head = %d\n", key, head);
+		accesses ++;
+		for(int i = 0; i < BUFFER_LEN; i++){
+			uint64_t ikey = keys[i];
+			if(ikey == key){
+				hits++;
+				return true;
+			}
+		}
+		int index = __sync_fetch_and_add(&head, 1)%BUFFER_LEN;
+		keys[index] = key;
+		return false;
+	}
+	~NUMA_Buffer(){
+		printf("%d, %d\n", accesses, hits);
+	}
+};
+
 class MemstoreBPlusTree: public Memstore {
 //Test purpose
 public:
 	unordered_map<uint32_t, access_log> node_map;
 	unordered_map<uint64_t, key_log> key_map;
 
+	NUMA_Buffer * buffers = nullptr;
+#if REMOTEACCESS
 	uint64_t local_access;
 	uint64_t remote_access;
+#endif
 
 	int tableid;
 
@@ -168,6 +204,10 @@ public:
 	MemstoreBPlusTree() {
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
+
+		int num_of_nodes = numa_num_configured_nodes();
+		buffers = new NUMA_Buffer[num_of_nodes]();
+		
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
@@ -194,14 +234,20 @@ public:
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
 
+int num_of_nodes = numa_num_configured_nodes();
+printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
+buffers = new NUMA_Buffer[num_of_nodes]();
+
+		
+#if REMOTEACCESS
 		local_access = remote_access = 0;
+#endif
 
 #if BTREE_PROF
 		writes = 0;
 		reads = 0;
 		calls = 0;
 #endif
-
 	}
 
 	~MemstoreBPlusTree() {
@@ -217,8 +263,11 @@ public:
 		//printf("reads %ld\n",reads);
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
+		delete[] buffers;
+#if REMOTEACCESS
 		printf("tableid = %2d, local_access = %10d, remote_access = %10d\n", tableid, local_access, remote_access);
-		
+#endif
+
 #if BTREE_PROF
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes) / (float)calls, (float)(writes) / (float)calls);
 #endif
@@ -324,8 +373,6 @@ public:
 		}
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
-
-//		reads++;
 
 #if NODEMAP
 		auto node_iter = node_map.find(leaf->signature);
@@ -563,6 +610,9 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
+		int current_node = get_current_node();
+		buffers[current_node].get(key);
+		
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if 0
 		auto key_iter = key_map.find(key);
@@ -626,6 +676,7 @@ public:
 	}
 
 	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
+
 		bool newKey = true;
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
@@ -675,11 +726,15 @@ public:
 	}
 
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newKey) {
+
+#if REMOTEACCESS
 		if(get_current_node() == get_numa_node(inner)){
 			local_access++;
 		}else{
 			remote_access++;
 		}
+#endif
+
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
@@ -875,13 +930,13 @@ public:
 //@val: storing the pointer to new value in val
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
 		//printf("[%ld] ADD: %lx\n", pthread_self(), (LeafNode*)root);
-
+#if REMOTEACCESS
 		if(get_current_node() == get_numa_node(leaf)){
 			local_access++;
 		}else{
 			remote_access++;
 		}
-		
+#endif
 		struct timespec begin, end, local_begin;
 		clock_gettime(CLOCK_MONOTONIC, &begin);
 		LeafNode *new_sibling = NULL;

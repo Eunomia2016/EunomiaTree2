@@ -649,7 +649,7 @@ public:
 		obj_key1.reserve(2 * CACHELINE_SIZE);
 		obj_v.reserve(2 * CACHELINE_SIZE);
 	}
-	~tpcc_worker(){printf("[Alex] ~tpcc_worker\n");}
+	~tpcc_worker(){}
 	// XXX(stephentu): tune this
 	static const size_t NMaxCustomerIdxScanElems = 512;
 
