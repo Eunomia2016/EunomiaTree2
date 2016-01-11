@@ -729,7 +729,7 @@ retry:
 	#endif
 		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
-		newNode = res.newNode;
+		newNode = res.hasNewNode;
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
 		assert(node != NULL);
@@ -737,7 +737,7 @@ retry:
 #else
 	res = txdb_->tables[tableid]->GetWithInsert(key);
 	node=res.node;
-	newNode = res.newNode;
+	newNode = res.hasNewNode;
 #endif
 
 	if(node->value == HAVEREMOVED)
@@ -796,7 +796,7 @@ retry:
 //	uint64_t s_start = rdtsc();
 		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
-		newNode = res.newNode;
+		newNode = res.hasNewNode;
 //	treetime += rdtsc() - s_start;
 //	printf("%ld\n",treetime);
 		assert(node != NULL);
@@ -804,7 +804,7 @@ retry:
 #else
 	res = txdb_->tables[tableid]->GetWithInsert(key);
 	node = res.node;
-	newNode = res.newNode;
+	newNode = res.hasNewNode;
 
 #endif
 	if(node->value == HAVEREMOVED)
@@ -872,7 +872,7 @@ retryA:
 #endif
 		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
-		newNode = res.newNode;
+		newNode = res.hasNewNode;
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
 		assert(node != NULL);
@@ -880,7 +880,7 @@ retryA:
 #else
 	res  = txdb_->tables[tableid]->GetWithInsert(key);
 	node = res.node;
-	newNode = res.newNode;
+	newNode = res.hasNewNode;
 
 	if(node->value == HAVEREMOVED)
 		goto retryA;
@@ -951,13 +951,13 @@ retryA:
 #endif
 		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
-		newNode = res.newNode;
+		newNode = res.hasNewNode;
 		assert(node != NULL);
 	}
 #else
 		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
-		newNode = res.newNode;
+		newNode = res.hasNewNode;
 	if(node->value == HAVEREMOVED)
 		goto retryA;
 
@@ -1111,7 +1111,6 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 			}
 #endif
 
-
 #if DBX_DUMP
 	struct timespec time_stamp;
 	clock_gettime(CLOCK_MONOTONIC, &time_stamp);
@@ -1128,10 +1127,11 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 retry:		
 	Memstore::MemNode* node;
 	Memstore::InsertResult res;
-	res = txdb_->tables[tableid]->GetWithInsert(key);
-	node = res.node;
-	newNode = res.newNode;
+	node = txdb_->tables[tableid]->GetForRead(key);
 
+	if(node == NULL){
+		return false;
+	}
 	#if BUFFERNODE
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;

@@ -36,7 +36,7 @@ public:
 
 	struct InsertResult{
 		MemNode* node;
-		bool newNode;
+		bool hasNewNode;
 	};
 
 	class Iterator {

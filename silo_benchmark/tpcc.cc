@@ -39,6 +39,8 @@ using namespace util;
 #define SEC_INDEX 1
 #define BINDWAREHOUSE 1
 
+#define TPCC_DUMP 0
+
 //multiple tables in the database
 #define WARE 0
 #define DIST 1
@@ -1755,6 +1757,11 @@ tpcc_worker::txn_new_order() {
 			uint64_t* i_value;
 //	  slstart = rdtsc();
 			found = tx.Get(ITEM, ol_i_id, &i_value);
+
+#if TPCC_DUMP
+			printf("[GET] coreid = %2d, tableid = %2d, key = %12d\n", sched_getcpu(), ITEM, ol_i_id);
+#endif
+
 //	  memcpy(dummy, i_value, sizeof(item::value));
 //	  secs += (rdtsc() - slstart);
 			item::value *v_i = (item::value *)i_value;
@@ -1772,9 +1779,14 @@ tpcc_worker::txn_new_order() {
 			uint64_t* s_value;
 //	  slstart = rdtsc();
 			found = tx.Get(STOC, s_key, &s_value);
+
+#if TPCC_DUMP
+			printf("[GET] coreid = %2d, tableid = %2d, key = %12d\n", sched_getcpu(), STOC, s_key);
+#endif
+
 //	  memcpy(dummy, s_value, sizeof(stock::value));
 //	  secs += (rdtsc() - slstart);
-			assert(found);
+			//assert(found);
 			stock::value *v_s = (stock::value *)s_value;
 			checker::SanityCheckStock(NULL, v_s);
 #if 0
@@ -1789,6 +1801,12 @@ tpcc_worker::txn_new_order() {
 			v_s_new.s_remote_cnt += (ol_supply_w_id == warehouse_id) ? 0 : 1;
 //	  slstart = rdtsc();
 			tx.Add(STOC, s_key, (uint64_t *)(&v_s_new), sizeof(v_s_new));
+
+#if TPCC_DUMP
+			printf("[ADD] coreid = %2d, tableid = %2d, key = %12d\n", sched_getcpu(), STOC, s_key);
+#endif
+
+
 //	  secs += (rdtsc() - slstart);
 #if 0
 			tbl_stock(ol_supply_w_id)->put(txn, Encode(str(), k_s), Encode(str(), v_s_new));
@@ -1811,6 +1829,11 @@ tpcc_worker::txn_new_order() {
 
 //	  slstart = rdtsc();
 			tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol), sizeof(v_ol));
+
+#if TPCC_DUMP
+			printf("[ADD] coreid = %2d, tableid = %2d, key = %12u\n", sched_getcpu(), ORLI, ol_key);
+#endif
+
 //	  secs += (rdtsc() - slstart);
 #if 0
 			tbl_order_line(warehouse_id)->insert(txn, Encode(str(), k_ol), Encode(str(), v_ol));

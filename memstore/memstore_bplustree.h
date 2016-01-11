@@ -26,7 +26,7 @@
 #define KEYMAP   0
 #define NUMADUMP 0
 
-#define REMOTEACCESS 0 
+#define REMOTEACCESS 1
 
 #define BUFFER_LEN 40
 
@@ -64,48 +64,80 @@ struct key_log {
 static uint32_t leaf_id = 0;
 static uint32_t table_id = 0;
 
-class NUMA_Buffer{
-private:
-	int head;
-	int hits;
-	int accesses;
-	uint64_t keys[BUFFER_LEN];
-public:
-	NUMA_Buffer():head(0),hits(0),accesses(0){
-		memset(keys, 0, BUFFER_LEN*sizeof(uint64_t));
-	}
-	bool get(uint64_t key){
-		//printf("get key = %d, head = %d\n", key, head);
-		accesses ++;
-		for(int i = 0; i < BUFFER_LEN; i++){
-			uint64_t ikey = keys[i];
-			if(ikey == key){
-				hits++;
-				return true;
-			}
-		}
-		int index = __sync_fetch_and_add(&head, 1)%BUFFER_LEN;
-		keys[index] = key;
-		return false;
-	}
-	~NUMA_Buffer(){
-		printf("%d, %d\n", accesses, hits);
-	}
-};
 
 class MemstoreBPlusTree: public Memstore {
 //Test purpose
 public:
+	struct buffer_entry {
+		int valid: 1;
+		uint64_t key;
+		MemNode* val;
+	};
+
+	class NUMA_Buffer {
+	private:
+		int head;
+		int hits;
+		int accesses;
+		buffer_entry entries[BUFFER_LEN];
+	public:
+		NUMA_Buffer(): head(0), hits(0), accesses(0) {
+			for(int i = 0; i < BUFFER_LEN; i++) {
+				entries[i] = {0, 0, NULL};
+			}
+		}
+		MemNode* get(uint64_t key) {
+			//printf("get key = %d, head = %d\n", key, head);
+			accesses ++;
+			for(int i = 0; i < BUFFER_LEN; i++) {
+				buffer_entry entry = entries[i];
+				if(entry.key == key && entry.valid) {
+					hits++;
+					return entry.val;
+				}
+			}
+			//int index = __sync_fetch_and_add(&head, 1) % BUFFER_LEN;
+			//entries[index] = {1, key, NULL};
+			return NULL;
+		}
+
+		void push(uint64_t key, MemNode* val) {
+			int index = __sync_fetch_and_add(&head, 1) % BUFFER_LEN;
+			entries[index] = {1, key, val};
+		}
+
+		void inv(uint64_t key) {
+			int index = -1;
+			for(int i = 0; i < BUFFER_LEN; i++) {
+				buffer_entry entry = entries[i];
+				if(entry.key == key && entry.valid) {
+					index = i;
+					break;
+				}
+			}
+			if(index != -1) {
+				entries[index].valid = 0;
+			}
+		}
+
+		~NUMA_Buffer() {
+			printf("%d, %d\n", accesses, hits);
+		}
+	};
+
 	unordered_map<uint32_t, access_log> node_map;
 	unordered_map<uint64_t, key_log> key_map;
 
 	NUMA_Buffer * buffers = nullptr;
 #if REMOTEACCESS
-	uint64_t local_access;
-	uint64_t remote_access;
+	uint64_t inner_local_access;
+	uint64_t inner_remote_access;
+	uint64_t leaf_local_access;
+	uint64_t leaf_remote_access;
 #endif
 
 	int tableid;
+	int num_of_nodes;
 
 	struct LeafNode {
 		LeafNode() : num_keys(0) {
@@ -207,7 +239,7 @@ public:
 
 		int num_of_nodes = numa_num_configured_nodes();
 		buffers = new NUMA_Buffer[num_of_nodes]();
-		
+
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
@@ -234,13 +266,12 @@ public:
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
 
-int num_of_nodes = numa_num_configured_nodes();
-printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
-buffers = new NUMA_Buffer[num_of_nodes]();
+		num_of_nodes = numa_num_configured_nodes();
+		printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
+		buffers = new NUMA_Buffer[num_of_nodes]();
 
-		
 #if REMOTEACCESS
-		local_access = remote_access = 0;
+		inner_local_access = inner_remote_access = leaf_local_access = leaf_remote_access = 0;
 #endif
 
 #if BTREE_PROF
@@ -265,7 +296,8 @@ buffers = new NUMA_Buffer[num_of_nodes]();
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 		delete[] buffers;
 #if REMOTEACCESS
-		printf("tableid = %2d, local_access = %10d, remote_access = %10d\n", tableid, local_access, remote_access);
+		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d\n", 
+		tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access);
 #endif
 
 #if BTREE_PROF
@@ -611,8 +643,8 @@ buffers = new NUMA_Buffer[num_of_nodes]();
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 		int current_node = get_current_node();
-		buffers[current_node].get(key);
-		
+		buffers[current_node].inv(key);
+
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if 0
 		auto key_iter = key_map.find(key);
@@ -642,11 +674,36 @@ buffers = new NUMA_Buffer[num_of_nodes]();
 			dummyleaf_ = new LeafNode();
 		}
 #endif
+
+		buffers[current_node].push(key, res.node);
+
 		return res;
+	}
+
+	inline MemNode* checkBuffer(uint64_t key) {
+		int current_node = get_current_node();
+		MemNode* res_node = buffers[current_node].get(key);
+		if(res_node != NULL) {
+			return res_node;
+		}
+		for(int i = 0 ; i < num_of_nodes; i++) {
+			if(i == current_node) {
+				continue;
+			}
+			res_node = buffers[i].get(key);
+			if(res_node != NULL) {
+				return res_node;
+			}
+		}
+		return NULL;
 	}
 
 	inline Memstore::MemNode* GetForRead(uint64_t key) {
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
+		MemNode* node = checkBuffer(key);
+		if(node != NULL) {
+			return node;
+		}
 #if 0
 		auto key_iter = key_map.find(key);
 		if(key_iter != key_map.end()) {
@@ -656,12 +713,11 @@ buffers = new NUMA_Buffer[num_of_nodes]();
 		}
 #endif
 		//printf("[END] key = %ld, type = %d\n", key, type);
-
 		ThreadLocalInit();
 		//timespec begin, end;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		//printf("[%ld] BeginTime = %ld\n", pthread_self(), begin.tv_sec * BILLION + begin.tv_nsec);
-		MemNode* value = Insert_rtm(key).node;
+		MemNode* value = Get(key);
 		//clock_gettime(CLOCK_MONOTONIC, &end);
 		//printf("[%ld] EndTime = %ld\n", pthread_self(), end.tv_sec * BILLION + end.tv_nsec);
 #if DUMMY
@@ -672,6 +728,10 @@ buffers = new NUMA_Buffer[num_of_nodes]();
 			dummyleaf_ = new LeafNode();
 		}
 #endif
+
+		int current_node = get_current_node();
+		buffers[current_node].push(key, value);
+
 		return value;
 	}
 
@@ -728,10 +788,10 @@ buffers = new NUMA_Buffer[num_of_nodes]();
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newKey) {
 
 #if REMOTEACCESS
-		if(get_current_node() == get_numa_node(inner)){
-			local_access++;
-		}else{
-			remote_access++;
+		if(get_current_node() == get_numa_node(inner)) {
+			inner_local_access++;
+		} else {
+			inner_remote_access++;
 		}
 #endif
 
@@ -931,10 +991,10 @@ buffers = new NUMA_Buffer[num_of_nodes]();
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
 		//printf("[%ld] ADD: %lx\n", pthread_self(), (LeafNode*)root);
 #if REMOTEACCESS
-		if(get_current_node() == get_numa_node(leaf)){
-			local_access++;
-		}else{
-			remote_access++;
+		if(get_current_node() == get_numa_node(leaf)) {
+			leaf_local_access++;
+		} else {
+			leaf_remote_access++;
 		}
 #endif
 		struct timespec begin, end, local_begin;
