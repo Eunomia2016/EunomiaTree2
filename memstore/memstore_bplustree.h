@@ -28,6 +28,8 @@
 
 #define REMOTEACCESS 1
 
+#define BUFFER_TEST 0
+
 #define BUFFER_LEN 40
 
 //static uint64_t writes = 0;
@@ -265,11 +267,11 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
-
+#if BUFFER_TEST
 		num_of_nodes = numa_num_configured_nodes();
 		printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
 		buffers = new NUMA_Buffer[num_of_nodes]();
-
+#endif
 #if REMOTEACCESS
 		inner_local_access = inner_remote_access = leaf_local_access = leaf_remote_access = 0;
 #endif
@@ -294,7 +296,9 @@ public:
 		//printf("reads %ld\n",reads);
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
+#if BUFFER_TEST
 		delete[] buffers;
+#endif
 #if REMOTEACCESS
 		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d\n", 
 		tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access);
@@ -642,9 +646,10 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
+#if BUFFER_TEST
 		int current_node = get_current_node();
 		buffers[current_node].inv(key);
-
+#endif
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if 0
 		auto key_iter = key_map.find(key);
@@ -674,9 +679,9 @@ public:
 			dummyleaf_ = new LeafNode();
 		}
 #endif
-
+#if BUFFER_TEST
 		buffers[current_node].push(key, res.node);
-
+#endif
 		return res;
 	}
 
@@ -700,10 +705,13 @@ public:
 
 	inline Memstore::MemNode* GetForRead(uint64_t key) {
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
+#if BUFFER_TEST
 		MemNode* node = checkBuffer(key);
+
 		if(node != NULL) {
 			return node;
 		}
+#endif
 #if 0
 		auto key_iter = key_map.find(key);
 		if(key_iter != key_map.end()) {
@@ -729,9 +737,10 @@ public:
 		}
 #endif
 
+#if BUFFER_TEST
 		int current_node = get_current_node();
 		buffers[current_node].push(key, value);
-
+#endif
 		return value;
 	}
 
