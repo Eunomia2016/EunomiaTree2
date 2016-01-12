@@ -80,18 +80,19 @@ public:
 	private:
 		int head;
 		int hits;
-		int accesses;
+		int reads;
+		int writes;
 		int invalids;
 		buffer_entry entries[BUFFER_LEN];
 	public:
-		NUMA_Buffer(): head(0), hits(0), accesses(0), invalids(0) {
+		NUMA_Buffer(): head(0), hits(0), reads(0), writes(0), invalids(0) {
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				entries[i] = {0, 0, NULL};
 			}
 		}
 		MemNode* get(uint64_t key) {
 			//printf("get key = %d, head = %d\n", key, head);
-			accesses ++;
+			reads ++;
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				buffer_entry entry = entries[i];
 				if(entry.key == key && entry.valid) {
@@ -105,12 +106,12 @@ public:
 		}
 
 		void push(uint64_t key, MemNode* val) {
+			writes ++;
 			int index = __sync_fetch_and_add(&head, 1) % BUFFER_LEN;
 			entries[index] = {1, key, val};
 		}
 
 		void inv(uint64_t key) {
-			
 			int index = -1;
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				buffer_entry entry = entries[i];
@@ -126,7 +127,7 @@ public:
 		}
 
 		~NUMA_Buffer() {
-			printf("%d, %d, %d\n", accesses, hits, invalids);
+			printf("%d, %d, %d, %d\n", reads, writes, hits, invalids);
 		}
 	};
 
