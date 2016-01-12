@@ -26,11 +26,11 @@
 #define KEYMAP   0
 #define NUMADUMP 0
 
-#define REMOTEACCESS 1
+#define REMOTEACCESS 0
 
-#define BUFFER_TEST 0
+#define BUFFER_TEST 1
 
-#define BUFFER_LEN 40
+#define BUFFER_LEN 50
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -64,8 +64,8 @@ struct key_log {
 };
 
 static uint32_t leaf_id = 0;
+static int32_t inner_id = 0;
 static uint32_t table_id = 0;
-
 
 class MemstoreBPlusTree: public Memstore {
 //Test purpose
@@ -81,9 +81,10 @@ public:
 		int head;
 		int hits;
 		int accesses;
+		int invalids;
 		buffer_entry entries[BUFFER_LEN];
 	public:
-		NUMA_Buffer(): head(0), hits(0), accesses(0) {
+		NUMA_Buffer(): head(0), hits(0), accesses(0), invalids(0) {
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				entries[i] = {0, 0, NULL};
 			}
@@ -109,6 +110,7 @@ public:
 		}
 
 		void inv(uint64_t key) {
+			
 			int index = -1;
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				buffer_entry entry = entries[i];
@@ -118,12 +120,13 @@ public:
 				}
 			}
 			if(index != -1) {
+				invalids++;
 				entries[index].valid = 0;
 			}
 		}
 
 		~NUMA_Buffer() {
-			printf("%d, %d\n", accesses, hits);
+			printf("%d, %d, %d\n", accesses, hits, invalids);
 		}
 	};
 
@@ -144,7 +147,6 @@ public:
 	struct LeafNode {
 		LeafNode() : num_keys(0) {
 			signature = __sync_fetch_and_add(&leaf_id, 1);
-			//signature = leaf_id;
 		} //, writes(0), reads(0) {}
 //		uint64_t padding[4];
 		unsigned signature;
@@ -160,9 +162,12 @@ public:
 	};
 
 	struct InnerNode {
-		InnerNode() : num_keys(0) {}//, writes(0), reads(0) {}
+		InnerNode() : num_keys(0) {
+			signature = __sync_fetch_and_add(&inner_id, -1);
+		}//, writes(0), reads(0) {}
 //		uint64_t padding[8];
 //		unsigned padding;
+		int signature;
 		unsigned num_keys;
 		uint64_t 	 keys[N];
 		void*	 children[N + 1];
@@ -238,7 +243,6 @@ public:
 	MemstoreBPlusTree() {
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
-
 		int num_of_nodes = numa_num_configured_nodes();
 		buffers = new NUMA_Buffer[num_of_nodes]();
 
@@ -371,15 +375,7 @@ public:
 			node = inner->children[index];
 		}
 
-#if NODEMAP
-		auto node_iter = node_map.find(((LeafNode*)node)->signature);
-		if(node_iter != node_map.end()) {
-			node_iter->second.gets++;
-		} else {
-			access_log new_log = {1, 0, 0};
-			node_map.insert(make_pair(((LeafNode*)node)->signature, new_log));
-		}
-#endif
+
 		return reinterpret_cast<LeafNode*>(node);
 	}
 
@@ -400,6 +396,12 @@ public:
 		while(d-- != 0) {
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
+
+#if NODEMAP
+			printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+				sched_getcpu(), inner->signature, key, d);
+#endif
+			
 //			reads++;
 			while((index < inner->num_keys) && (key >= inner->keys[index])) {
 				++index;
@@ -407,21 +409,14 @@ public:
 			//get down to the corresponding child
 			node = inner->children[index];
 		}
+
+		
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 
 #if NODEMAP
-		auto node_iter = node_map.find(leaf->signature);
-		if(node_iter != node_map.end()) {
-			node_iter->second.gets++;
-		} else {
-			access_log new_log = {1, 0, 0};
-			node_map.insert(make_pair(leaf->signature, new_log));
-		}
-		clock_gettime(CLOCK_MONOTONIC, &end);
-		long elapsed_nsec = get_nanoseconds(begin, end);
-		printf("[%2d][GET] node = %10d key = %20ld Time = %10ld\n", sched_getcpu(), leaf->signature, key, elapsed_nsec);
-
+					printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+						sched_getcpu(), inner->signature, key, 0);
 #endif
 
 		if(leaf->num_keys == 0) return NULL;
@@ -492,17 +487,9 @@ public:
 
 #if NODEMAP
 		{
-			auto node_iter = node_map.find(cur->signature);
-			if(node_iter != node_map.end()) {
-				node_iter->second.writes++;
-			} else {
-				access_log new_log = {0,  1, 0};
-				node_map.insert(make_pair(cur->signature, new_log));
-			}
-			clock_gettime(CLOCK_MONOTONIC, &end);
-			long elapsed_nsec = get_nanoseconds(begin, end);
-			printf("[%2d][DEL] node = %10d key = %20ld Time = %10ld\n",
-				   sched_getcpu(), cur->signature, key, elapsed_nsec);
+
+			printf("[%2d][DEL] node = %10d, key = %20ld, d = %2d\n",
+				   sched_getcpu(), cur->signature, key, 0);
 		}
 #endif
 
@@ -648,7 +635,9 @@ public:
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 #if BUFFER_TEST
 		int current_node = get_current_node();
-		buffers[current_node].inv(key);
+		for(int i = 0; i <num_of_nodes; i++ ){
+			buffers[i].inv(key);
+		}
 #endif
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if 0
@@ -795,7 +784,6 @@ public:
 	}
 
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newKey) {
-
 #if REMOTEACCESS
 		if(get_current_node() == get_numa_node(inner)) {
 			inner_local_access++;
@@ -812,6 +800,11 @@ public:
 			k++;
 		}
 
+#if NODEMAP
+			printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+				sched_getcpu(), inner->signature, key, d);
+#endif
+
 		void *child = inner->children[k]; //search the descendent layer
 #if BTPREFETCH
 		for(int i = 0; i <= 64; i += 64) {
@@ -825,6 +818,11 @@ public:
 				InnerNode *toInsert = inner;
 				//the inner node is full -> split it
 				if(inner->num_keys == N) {
+#if NODEMAP
+				printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+								sched_getcpu(), inner->signature, key, d);
+#endif
+
 					new_sibling = new_inner_node();
 					if(new_leaf->num_keys == 1) {
 						new_sibling->num_keys = 0;
@@ -840,6 +838,11 @@ public:
 							new_sibling->keys[i] = inner->keys[threshold + i];
 							new_sibling->children[i] = inner->children[threshold + i];
 						}
+#if NODEMAP
+				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+								sched_getcpu(), new_sibling->signature, key, d);
+#endif
+
 						//the last child
 						new_sibling->children[new_sibling->num_keys] = inner->children[inner->num_keys];
 						//the num_key of the original node should be below the threshold
@@ -885,6 +888,13 @@ public:
 				}
 
 				toInsert->children[k + 1] = new_leaf;
+
+#if NODEMAP
+				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+							sched_getcpu(), toInsert->signature, key, d);
+#endif
+
+				
 //				checkConflict(inner, 1);
 #if BTREE_PROF
 				writes++;
@@ -911,6 +921,13 @@ public:
 				//the current node is full, creating a new node to hold the inserted key
 				if(inner->num_keys == N) {
 					new_sibling = new_inner_node();
+
+#if NODEMAP
+					printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+							sched_getcpu(), inner->signature, key, d);
+#endif
+
+					
 					if(child_sibling->num_keys == 0) {
 						new_sibling->num_keys = 0;
 						upKey = child_sibling->keys[N - 1];
@@ -924,6 +941,12 @@ public:
 							new_sibling->keys[i] = inner->keys[treshold + i];
 							new_sibling->children[i] = inner->children[treshold + i];
 						}
+
+#if NODEMAP
+					printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+							sched_getcpu(), new_sibling->signature, key, d);
+#endif
+
 						new_sibling->children[new_sibling->num_keys] =
 							inner->children[inner->num_keys];
 
@@ -958,6 +981,13 @@ public:
 					toInsert->keys[k] = reinterpret_cast<InnerNode*>(child_sibling)->keys[N - 1]; //??
 				}
 				toInsert->children[k + 1] = child_sibling;
+
+#if NODEMAP
+					printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+							sched_getcpu(), toInsert->signature, key, d);
+#endif
+
+				
 #if BTREE_PROF
 				writes++;
 #endif
@@ -978,6 +1008,13 @@ public:
 			new_root->keys[0] = upKey;
 			new_root->children[0] = root;
 			new_root->children[1] = new_sibling;
+
+#if NODEMAP
+			printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+				sched_getcpu(), new_root->signature, key, d);
+#endif
+
+			
 			root = new_root;
 			depth++;
 
@@ -1022,17 +1059,9 @@ public:
 			*val = leaf->values[k];
 #if NODEMAP
 			{
-				auto node_iter = node_map.find(leaf->signature);
-				if(node_iter != node_map.end()) {
-					node_iter->second.gets++;
-				} else {
-					access_log new_log = {1, 0, 0};
-					node_map.insert(make_pair(leaf->signature, new_log));
-				}
-				clock_gettime(CLOCK_MONOTONIC, &end);
-				long elapsed_nsec = get_nanoseconds(begin, end);
-				printf("[%2d][GET] node = %10d key = %20ld Time = %10ld\n",
-					   sched_getcpu(), leaf->signature, key, elapsed_nsec);
+
+				printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+					   sched_getcpu(), leaf->signature, key,0);
 			}
 #endif
 
@@ -1084,18 +1113,10 @@ public:
 
 #if NODEMAP
 			{
-				auto node_iter = node_map.find(new_sibling->signature);
-				if(node_iter != node_map.end()) {
-					node_iter->second.writes++;
-				} else {
-					access_log new_log = {0, 1, 0};
-					node_map.insert(make_pair(new_sibling->signature, new_log));
-				}
-				clock_gettime(CLOCK_MONOTONIC, &end);
-				long elapsed_nsec = get_nanoseconds(local_begin, end);
 
-				printf("[%2d][ADD] node = %10d key = %20ld Time = %10ld\n",
-					   sched_getcpu(), new_sibling->signature, key, elapsed_nsec);
+
+				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+					   sched_getcpu(), new_sibling->signature, key, 0);
 			}
 #endif
 
@@ -1107,17 +1128,9 @@ public:
 
 #if NODEMAP
 			{
-				auto node_iter = node_map.find(leaf->signature);
-				if(node_iter != node_map.end()) {
-					node_iter->second.splits++;
-				} else {
-					access_log new_log = {0, 0, 1};
-					node_map.insert(make_pair(leaf->signature, new_log));
-				}
-				clock_gettime(CLOCK_MONOTONIC, &end);
-				long elapsed_nsec = get_nanoseconds(begin, end);
-				printf("[%2d][SPT] node = %10d key = %20ld Time = %10ld\n",
-					   sched_getcpu(), leaf->signature, key, elapsed_nsec);
+
+				printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+					   sched_getcpu(), leaf->signature, key, 0);
 			}
 #endif
 
@@ -1140,17 +1153,8 @@ public:
 
 #if NODEMAP
 		{
-			auto node_iter = node_map.find(toInsert->signature);
-			if(node_iter != node_map.end()) {
-				node_iter->second.writes++;
-			} else {
-				access_log new_log = {0, 1, 0};
-				node_map.insert(make_pair(toInsert->signature, new_log));
-			}
-			clock_gettime(CLOCK_MONOTONIC, &end);
-			long elapsed_nsec = get_nanoseconds(begin, end);
-			printf("[%2d][ADD] node = %10d key = %20ld Time = %10ld\n",
-				   sched_getcpu(), toInsert->signature, key, elapsed_nsec);
+			printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+				   sched_getcpu(), toInsert->signature, key, 0);
 		}
 #endif
 
