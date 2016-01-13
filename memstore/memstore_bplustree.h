@@ -28,9 +28,11 @@
 
 #define REMOTEACCESS 0
 
-#define BUFFER_TEST 1
+#define BUFFER_TEST 0
 
 #define BUFFER_LEN 50
+
+#define CONFLICT_BUFFER_LEN 100
 
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
@@ -144,6 +146,11 @@ public:
 
 	int tableid;
 	int num_of_nodes;
+
+	int num_insert_rtm;
+
+	uint64_t rconflict = 0;
+	uint64_t wconflict = 0;
 
 	struct LeafNode {
 		LeafNode() : num_keys(0) {
@@ -280,12 +287,19 @@ public:
 #if REMOTEACCESS
 		inner_local_access = inner_remote_access = leaf_local_access = leaf_remote_access = 0;
 #endif
+		num_insert_rtm = 0;
 
 #if BTREE_PROF
 		writes = 0;
 		reads = 0;
 		calls = 0;
 #endif
+			for (int i=0; i<4; i++) {
+				windex[i] = 0;
+				rindex[i] = 0;
+			}
+			current_tid = sched_getcpu();
+
 	}
 
 	~MemstoreBPlusTree() {
@@ -328,7 +342,6 @@ public:
 		}
 		printf("Total Keys: %ld\n", key_map.size());
 #endif
-
 		//printTree();
 		//top();
 	}
@@ -375,8 +388,6 @@ public:
 			}
 			node = inner->children[index];
 		}
-
-
 		return reinterpret_cast<LeafNode*>(node);
 	}
 
@@ -400,7 +411,7 @@ public:
 
 #if NODEMAP
 			printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-				sched_getcpu(), inner->signature, key, d);
+				sched_getcpu(), inner->signature, key, d+1);
 #endif
 			
 //			reads++;
@@ -416,8 +427,8 @@ public:
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 
 #if NODEMAP
-					printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-						sched_getcpu(), inner->signature, key, 0);
+		printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+					sched_getcpu(), leaf->signature, key, 0);
 #endif
 
 		if(leaf->num_keys == 0) return NULL;
@@ -487,11 +498,8 @@ public:
 		res->value = removeLeafEntry(cur, slot);
 
 #if NODEMAP
-		{
-
 			printf("[%2d][DEL] node = %10d, key = %20ld, d = %2d\n",
 				   sched_getcpu(), cur->signature, key, 0);
-		}
 #endif
 
 		//step 3. if node is empty, remove the node from the list
@@ -735,7 +743,8 @@ public:
 	}
 
 	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
-
+	//	num_insert_rtm ++;
+		
 		bool newKey = true;
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
@@ -766,8 +775,8 @@ public:
 				inner->children[1] = new_leaf;
 				depth++;
 				root = inner;
-//				checkConflict(inner, 1);
-//				checkConflict(&root, 1);
+//				checkConflict(inner->signature, 1);
+//				checkConflict(reinterpret_cast<LeafNode*>(root)->signature, 1);
 #if BTREE_PROF
 				writes++;
 #endif
@@ -792,7 +801,6 @@ public:
 			inner_remote_access++;
 		}
 #endif
-
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
@@ -802,8 +810,7 @@ public:
 		}
 
 #if NODEMAP
-			printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-				sched_getcpu(), inner->signature, key, d);
+		printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n", sched_getcpu(), inner->signature, key, d);
 #endif
 
 		void *child = inner->children[k]; //search the descendent layer
@@ -823,7 +830,6 @@ public:
 				printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
 								sched_getcpu(), inner->signature, key, d);
 #endif
-
 					new_sibling = new_inner_node();
 					if(new_leaf->num_keys == 1) {
 						new_sibling->num_keys = 0;
@@ -871,7 +877,9 @@ public:
 					}
 					printf("==============\n");
 #endif
-//					checkConflict(new_sibling, 1);
+//					if(d == 0){
+//						checkConflict(new_sibling->signature, 1);
+//					}
 #if BTREE_PROF
 					writes++;
 #endif
@@ -894,9 +902,9 @@ public:
 				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 							sched_getcpu(), toInsert->signature, key, d);
 #endif
-
-				
-//				checkConflict(inner, 1);
+//				if(d == 0){
+//					checkConflict(toInsert->signature, 1);
+//				}
 #if BTREE_PROF
 				writes++;
 #endif
@@ -906,7 +914,9 @@ public:
 				reads++;
 #endif
 //				inner->reads++;
-//				checkConflict(inner, 0);
+//				if(d == 0){
+//					checkConflict(inner->signature, 0);
+//				}
 			}
 //			if (new_sibling!=NULL && new_sibling->num_keys == 0) printf("sibling\n");
 		} else { //not inserting at the lowest inner level
@@ -927,7 +937,6 @@ public:
 					printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
 							sched_getcpu(), inner->signature, key, d);
 #endif
-
 					
 					if(child_sibling->num_keys == 0) {
 						new_sibling->num_keys = 0;
@@ -944,10 +953,12 @@ public:
 						}
 
 #if NODEMAP
-					printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+						printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 							sched_getcpu(), new_sibling->signature, key, d);
 #endif
-
+//						if(d == 0){
+//							checkConflict(new_sibling->signature, 1);
+//						}
 						new_sibling->children[new_sibling->num_keys] =
 							inner->children[inner->num_keys];
 
@@ -970,7 +981,6 @@ public:
 					writes++;
 #endif
 //					new_sibling->writes++;
-//					checkConflict(new_sibling, 1);
 				}
 				//inserting the new key to appropriate position
 				if(k != -1) {
@@ -984,26 +994,31 @@ public:
 				toInsert->children[k + 1] = child_sibling;
 
 #if NODEMAP
-					printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 							sched_getcpu(), toInsert->signature, key, d);
 #endif
-
 				
 #if BTREE_PROF
 				writes++;
 #endif
 //				inner->writes++;
-//				checkConflict(inner, 1);
+//				if(d == 0){
+//					checkConflict(toInsert->signature, 1);
+//				}
 			} else {
 #if BTREE_PROF
 				reads++;
 #endif
 //				inner->reads++;
-//				checkConflict(inner, 0);
+//				if(d == 0){
+//					checkConflict(inner->signature, 0);
+//				}
 			}
 		}
 
 		if(d == depth && new_sibling != NULL) {
+			//printf("tableid = %d, depth = %d, num_insert_rtm = %d\n", tableid, depth, num_insert_rtm);
+
 			InnerNode *new_root = new_inner_node();
 			new_root->num_keys = 1;
 			new_root->keys[0] = upKey;
@@ -1014,19 +1029,24 @@ public:
 			printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 				sched_getcpu(), new_root->signature, key, d);
 #endif
-
 			
 			root = new_root;
 			depth++;
-
+			
 #if BTREE_PROF
 			writes++;
 #endif
 //			new_root->writes++;
-//			checkConflict(new_root, 1);
-//			checkConflict(&root, 1);
+//			if(d == 0){
+//				checkConflict(new_root->signature, 1);
+//				checkConflict(reinterpret_cast<InnerNode*>(root)->signature, 1);
+//			}
 		}
-//		else if (d == depth) checkConflict(&root, 0);
+		else if (d == depth) {
+//			if(d == 0){
+//				checkConflict(reinterpret_cast<InnerNode*>(root)->signature, 0);
+//			}
+		}
 //		if (inner->num_keys == 0) printf("inner\n");
 		//if (new_sibling->num_keys == 0) printf("sibling\n");
 		return new_sibling; //return the newly-created node (if exists)
@@ -1044,8 +1064,6 @@ public:
 			leaf_remote_access++;
 		}
 #endif
-		struct timespec begin, end, local_begin;
-		clock_gettime(CLOCK_MONOTONIC, &begin);
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
@@ -1059,12 +1077,10 @@ public:
 #endif
 			*val = leaf->values[k];
 #if NODEMAP
-			{
-
-				printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+			printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
 					   sched_getcpu(), leaf->signature, key,0);
-			}
 #endif
+//			checkConflict(leaf->signature, 0);
 
 #if BTREE_PROF
 			reads++;
@@ -1078,11 +1094,11 @@ public:
 		//create a new node to accommodate the new key if the leaf is full
 		if(leaf->num_keys == M) {
 			new_sibling = new_leaf_node();
-			clock_gettime(CLOCK_MONOTONIC, &local_begin);
 
 #if NUMADUMP
 			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, get_numa_node(new_sibling));
 #endif
+//			checkConflict(new_sibling->signature, 1);
 
 			if(leaf->right == NULL && k == leaf->num_keys) {
 				new_sibling->num_keys = 0;
@@ -1113,26 +1129,18 @@ public:
 			new_sibling->seq = 0;
 
 #if NODEMAP
-			{
-
-
 				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 					   sched_getcpu(), new_sibling->signature, key, 0);
-			}
 #endif
 
 #if BTREE_PROF
 			writes++;
 #endif
 //			new_sibling->writes++;
-//			checkConflict(new_sibling, 1);
 
 #if NODEMAP
-			{
-
 				printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
 					   sched_getcpu(), leaf->signature, key, 0);
-			}
 #endif
 
 		}
@@ -1153,10 +1161,8 @@ public:
 		toInsert->keys[k] = key;
 
 #if NODEMAP
-		{
 			printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 				   sched_getcpu(), toInsert->signature, key, 0);
-		}
 #endif
 
 #if DUMMY
@@ -1174,7 +1180,9 @@ public:
 		writes++;
 #endif
 //		leaf->writes++;
-//		checkConflict(leaf, 1);
+
+//		checkConflict(leaf->signature, 1);
+
 		//printf("IN LEAF2");
 		//printTree();
 		leaf->seq = leaf->seq + 1;
@@ -1188,6 +1196,7 @@ public:
 	void printInner(InnerNode *n, unsigned depth);
 	void PrintStore();
 	void PrintList();
+	void checkConflict(int sig, int mode) ;
 
 //YCSB TREE COMPARE Test Purpose
 	void TPut(uint64_t key, uint64_t *value) {
@@ -1216,8 +1225,8 @@ public:
 				inner->children[1] = new_leaf;
 				depth++;
 				root = inner;
-				//				checkConflict(inner, 1);
-				//				checkConflict(&root, 1);
+//								checkConflict(inner->signature, 1);
+//								checkConflict(reinterpret_cast<LeafNode*>(root)->signature, 1);
 #if BTREE_PROF
 				writes++;
 #endif
@@ -1276,7 +1285,7 @@ public:
 			writes++;
 #endif
 			//			new_sibling->writes++;
-			//			checkConflict(new_sibling, 1);
+//						checkConflict(new_sibling->signature, 1);
 		}
 
 		//printf("IN LEAF1 %d\n",toInsert->num_keys);
@@ -1428,7 +1437,7 @@ public:
 			root = new_root;
 			depth++;
 		}
-//		else if (d == depth) checkConflict(&root, 0);
+//		else if (d == depth) checkConflict(reinterpret_cast<InnerNode*>(root)->signature, 0);
 //		if (inner->num_keys == 0) printf("inner\n");
 		//if (new_sibling->num_keys == 0) printf("sibling\n");
 		return new_sibling;
@@ -1460,12 +1469,12 @@ public:
 	char padding4[64];
 	SpinLock rtmlock;
 	char padding5[64];
-	/*
-			int current_tid;
-			void *waccess[4][30];
-			void *raccess[4][30];
-			int windex[4];
-			int rindex[4];*/
+	
+	int current_tid;
+	int waccess[4][CONFLICT_BUFFER_LEN];
+	int raccess[4][CONFLICT_BUFFER_LEN];
+	int windex[4];
+	int rindex[4];
 };
 //__thread RTMArena* MemstoreBPlusTree::arena_ = NULL;
 //__thread bool MemstoreBPlusTree::localinit_ = false;

@@ -46,6 +46,8 @@ void MemstoreBPlusTree::PrintStore() {
 //		 printf("Total key num %d\n", total_key);
 }
 
+
+
 void MemstoreBPlusTree::PrintList() {
 	void* min = root;
 	int d = depth;
@@ -83,30 +85,28 @@ void MemstoreBPlusTree::top(){
 	else topInner(reinterpret_cast<InnerNode*>(root), depth);
 	printf("TOTAL NODES %d\n", total_nodes);
 }
-
-void MemstoreBPlusTree::checkConflict(void *node, int mode) {
-	if (mode == 1) {
-		waccess[current_tid][windex[current_tid]] = node;
+*/
+void MemstoreBPlusTree::checkConflict(int sig, int mode) {
+	if(mode == 1) {
+		waccess[current_tid][windex[current_tid] % CONFLICT_BUFFER_LEN] = sig;
 		windex[current_tid]++;
-		for (int i= 0; i<4; i++) {
-			if (i==current_tid) continue;
-			for (int j=0; j<windex[i]; j++)
-				if (node == waccess[i][j]) wconflict++;
-			for (int j=0; j<rindex[i]; j++)
-				if (node == raccess[i][j]) rconflict++;
+		for(int i = 0; i < 4; i++) {
+			if(i == current_tid) continue;
+			for(int j = 0; j < CONFLICT_BUFFER_LEN; j++)
+				if(sig == waccess[i][j]) wconflict++;
+			for(int j = 0; j < CONFLICT_BUFFER_LEN; j++)
+				if(sig == raccess[i][j]) rconflict++;
 		}
-	}
-	else {
-		raccess[current_tid][rindex[current_tid]] = node;
+	} else {
+		raccess[current_tid][rindex[current_tid] % CONFLICT_BUFFER_LEN] = sig;
 		rindex[current_tid]++;
-		for (int i= 0; i<4; i++) {
-			if (i==current_tid) continue;
-			for (int j=0; j<windex[i]; j++)
-				if (node == waccess[i][j]) rconflict++;
+		for(int i = 0; i < 4; i++) {
+			if(i == current_tid) continue;
+			for(int j = 0; j < CONFLICT_BUFFER_LEN; j++)
+				if(sig == waccess[i][j]) rconflict++;
 		}
 	}
-
-}*/
+}
 
 MemstoreBPlusTree::Iterator::Iterator(MemstoreBPlusTree* tree) {
 	tree_ = tree;
