@@ -144,6 +144,7 @@ public:
 	uint64_t inner_remote_access;
 	uint64_t leaf_local_access;
 	uint64_t leaf_remote_access;
+	uint64_t buffer_local_access;
 #endif
 
 	int tableid;
@@ -294,7 +295,8 @@ public:
 #endif
 
 #if REMOTEACCESS
-		inner_local_access = inner_remote_access = leaf_local_access = leaf_remote_access = 0;
+		inner_local_access = inner_remote_access 
+			= leaf_local_access = leaf_remote_access = buffer_local_access = 0;
 #endif
 
 		num_insert_rtm = 0;
@@ -340,12 +342,13 @@ public:
 		delete[] buffers;
 #endif
 #if REMOTEACCESS
-		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d\n", 
-		tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access);
+		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d, buffer_local_access = %10d\n", 
+		tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access, buffer_local_access);
 		table_prof.inner_local_access += inner_local_access;
 		table_prof.inner_remote_access += inner_remote_access;
 		table_prof.leaf_local_access += leaf_local_access;
 		table_prof.leaf_remote_access += leaf_remote_access;
+		table_prof.buffer_local_access += buffer_local_access;
 #endif
 
 #if BTREE_PROF
@@ -735,6 +738,7 @@ public:
 		MemNode* node = checkBuffer(key);
 
 		if(node != NULL) {
+			buffer_local_access++;
 			return node;
 		}
 #endif
