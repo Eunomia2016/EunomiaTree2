@@ -2764,7 +2764,7 @@ tpcc_worker::txn_order_status() {
 				uint64_t *ol_value;
 				bool found = txos.Get(ORLI, ol_key, &ol_value);
 			}
-		} else printf("No order\n");
+		} //else printf("No order\n");
 
 #if 0
 		latest_key_callback c_oorder(str(), (r.next() % 15) + 1);

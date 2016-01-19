@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <unordered_map>
+#include <algorithm>
 #include <utmpx.h>
 #include "util/rtmScope.h"
 #include "util/rtm.h"
@@ -27,9 +28,9 @@
 #define KEYMAP   0
 #define NUMADUMP 0
 
-#define REMOTEACCESS 1
+#define REMOTEACCESS 0
 
-#define BUFFER_TEST 1
+#define BUFFER_TEST 0
 
 #define BUFFER_LEN 20
 
@@ -93,7 +94,7 @@ public:
 				entries[i] = {0, 0, NULL};
 			}
 		}
-		
+
 		MemNode* get(uint64_t key) {
 			//reads ++;
 			for(int i = 0; i < BUFFER_LEN; i++) {
@@ -282,12 +283,12 @@ public:
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
 
-		for(int i = 0; i < 10; i++){
+		for(int i = 0; i < 10; i++) {
 			level_logs[i].gets = 0;
 			level_logs[i].writes = 0;
 			level_logs[i].splits = 0;
 		}
-		
+
 #if BUFFER_TEST
 		num_of_nodes = numa_num_configured_nodes();
 		printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
@@ -295,8 +296,8 @@ public:
 #endif
 
 #if REMOTEACCESS
-		inner_local_access = inner_remote_access 
-			= leaf_local_access = leaf_remote_access = buffer_local_access = 0;
+		inner_local_access = inner_remote_access
+							 = leaf_local_access = leaf_remote_access = buffer_local_access = 0;
 #endif
 
 		num_insert_rtm = 0;
@@ -330,20 +331,20 @@ public:
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 #if NODEMAP
-		
+
 		printf("=========Tableid = %d=========\n", tableid);
 		printf("Insert_rtm = %d\n", num_insert_rtm);
-		for(int i = 0; i < 6; i++){
-			printf("%d: %d, %d, %d\n", i, level_logs[i].gets,level_logs[i].writes,level_logs[i].splits);
+		for(int i = 0; i < 6; i++) {
+			printf("%d: %d, %d, %d\n", i, level_logs[i].gets, level_logs[i].writes, level_logs[i].splits);
 		}
-		
+
 #endif
 #if BUFFER_TEST
 		delete[] buffers;
 #endif
 #if REMOTEACCESS
-		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d, buffer_local_access = %10d\n", 
-		tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access, buffer_local_access);
+		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d, buffer_local_access = %10d\n",
+			   tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access, buffer_local_access);
 		table_prof.inner_local_access += inner_local_access;
 		table_prof.inner_remote_access += inner_remote_access;
 		table_prof.leaf_local_access += leaf_local_access;
@@ -437,19 +438,19 @@ public:
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
 #if REMOTEACCESS
-					if(get_current_node() == get_numa_node(inner)) {
-						inner_local_access++;
-					} else {
-						inner_remote_access++;
-					}
+			if(get_current_node() == get_numa_node(inner)) {
+				inner_local_access++;
+			} else {
+				inner_remote_access++;
+			}
 #endif
 
 #if NODEMAP
 			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
 			//	sched_getcpu(), inner->signature, key, d+1);
-			level_logs[d+1].gets++;
+			level_logs[d + 1].gets++;
 #endif
-			
+
 //			reads++;
 			while((index < inner->num_keys) && (key >= inner->keys[index])) {
 				++index;
@@ -458,16 +459,16 @@ public:
 			node = inner->children[index];
 		}
 
-		
+
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
-		
+
 #if REMOTEACCESS
-							if(get_current_node() == get_numa_node(inner)) {
-								leaf_local_access++;
-							} else {
-								leaf_remote_access++;
-							}
+		if(get_current_node() == get_numa_node(inner)) {
+			leaf_local_access++;
+		} else {
+			leaf_remote_access++;
+		}
 #endif
 
 #if NODEMAP
@@ -478,15 +479,13 @@ public:
 
 		if(leaf->num_keys == 0) return NULL;
 		unsigned k = 0;
-		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
+		while((k < leaf->num_keys)) {
+			if(leaf->keys[k] == key) {
+				return leaf->values[k];
+			}
 			++k;
 		}
-		if(k == leaf->num_keys) return NULL;
-		if(leaf->keys[k] == key) {
-			return leaf->values[k];
-		} else {
-			return NULL;
-		}
+		return NULL;
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
@@ -503,7 +502,7 @@ public:
 
 	inline int slotAtLeaf(uint64_t key, LeafNode* cur) {
 		int slot = 0;
-		while((slot < cur->num_keys) && (cur->keys[slot] < key)) {
+		while((slot < cur->num_keys) && cur->keys[slot] != key) {
 			slot++;
 		}
 		return slot;
@@ -690,7 +689,7 @@ public:
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 #if BUFFER_TEST
 		int current_node = get_current_node();
-		for(int i = 0; i <num_of_nodes; i++ ){
+		for(int i = 0; i < num_of_nodes; i++) {
 			buffers[i].inv(key);
 		}
 #endif
@@ -792,13 +791,13 @@ public:
 	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
 #if NODEMAP
 		num_insert_rtm ++;
-		if(tableid == 8&&num_insert_rtm%10000==0){
+		if(tableid == 8 && num_insert_rtm % 10000 == 0) {
 			printf("Insert_rtm = %d\n", num_insert_rtm);
-			for(int i = 0; i < 6; i++){
-				printf("%d: %d, %d, %d\n", i, level_logs[i].gets,level_logs[i].writes,level_logs[i].splits);
+			for(int i = 0; i < 6; i++) {
+				printf("%d: %d, %d, %d\n", i, level_logs[i].gets, level_logs[i].writes, level_logs[i].splits);
 			}
 		}
-#endif		
+#endif
 		bool newKey = true;
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
@@ -843,7 +842,7 @@ public:
 #endif
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val, &newKey);
 		}
-		//printf("[%ld] ADD: %lx\n", pthread_self(), root);
+		//printf("[%ld] ADD: %lx\n", sched_getcpu(), root);
 		return {val, newKey};
 	}
 
@@ -882,8 +881,8 @@ public:
 				//the inner node is full -> split it
 				if(inner->num_keys == N) {
 #if NODEMAP
-				//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
-				//				sched_getcpu(), inner->signature, key, d);
+					//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+					//				sched_getcpu(), inner->signature, key, d);
 					level_logs[d].splits++;
 #endif
 					new_sibling = new_inner_node();
@@ -902,8 +901,8 @@ public:
 							new_sibling->children[i] = inner->children[threshold + i];
 						}
 #if NODEMAP
-				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-				//				sched_getcpu(), new_sibling->signature, key, d);
+						//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+						//				sched_getcpu(), new_sibling->signature, key, d);
 						level_logs[d].writes++;
 #endif
 
@@ -997,7 +996,7 @@ public:
 					//		sched_getcpu(), inner->signature, key, d);
 					level_logs[d].splits++;
 #endif
-					
+
 					if(child_sibling->num_keys == 0) {
 						new_sibling->num_keys = 0;
 						upKey = child_sibling->keys[N - 1];
@@ -1060,7 +1059,7 @@ public:
 				level_logs[d].writes++;
 
 #endif
-				
+
 #if BTREE_PROF
 				writes++;
 #endif
@@ -1095,10 +1094,10 @@ public:
 			//if(tableid == 8)
 			//	printf("new depth = %d, num_insert_rtm = %d\n", depth+1, num_insert_rtm);
 #endif
-			
+
 			root = new_root;
 			depth++;
-			
+
 #if BTREE_PROF
 			writes++;
 #endif
@@ -1107,8 +1106,7 @@ public:
 //				checkConflict(new_root->signature, 1);
 //				checkConflict(reinterpret_cast<InnerNode*>(root)->signature, 1);
 //			}
-		}
-		else if (d == depth) {
+		} else if(d == depth) {
 //			if(d == 0){
 //				checkConflict(reinterpret_cast<InnerNode*>(root)->signature, 0);
 //			}
@@ -1132,35 +1130,51 @@ public:
 #endif
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
-		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
+		while((k < leaf->num_keys)) {
+			//The key already exists in the children
+			if(leaf->keys[k] == key) {
+				*val = leaf->values[k];
+#if NODEMAP
+				level_logs[0].gets++;
+#endif
+				assert(*val != NULL);
+				return NULL;
+			}
 			++k;
 		}
-		//The key already exists in the children
-		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
+
+		/*if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*newKey = false;
-#if BTPREFETCH
+		#if BTPREFETCH
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
-#endif
+		#endif
 			*val = leaf->values[k];
-#if NODEMAP
+		#if NODEMAP
 			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
 			//		   sched_getcpu(), leaf->signature, key,0);
 			level_logs[0].gets++;
 
-#endif
-//			checkConflict(leaf->signature, 0);
+		#endif
+		//			checkConflict(leaf->signature, 0);
 
-#if BTREE_PROF
+		#if BTREE_PROF
 			reads++;
-#endif
+		#endif
 			assert(*val != NULL);
 			return NULL;
-		}
+		}*/
 		*newKey = true;
 		//inserting a new key in the children
 		LeafNode *toInsert = leaf;
 		//create a new node to accommodate the new key if the leaf is full
 		if(leaf->num_keys == M) {
+			//sort the key list now
+			std::sort(leaf->keys, leaf->keys + leaf->num_keys);
+			k = 0;
+			while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
+				++k;
+			}
+
 			new_sibling = new_leaf_node();
 
 #if NUMADUMP
@@ -1176,6 +1190,7 @@ public:
 				//SPLITTING the current node
 				unsigned threshold = (M + 1) / 2;
 				new_sibling->num_keys = leaf->num_keys - threshold;
+
 				//moving the keys above the threshold to the new sibling
 				for(unsigned j = 0; j < new_sibling->num_keys; ++j) {
 					//move the keys beyond threshold in old leaf to the new leaf
@@ -1197,10 +1212,9 @@ public:
 			new_sibling->seq = 0;
 
 #if NODEMAP
-				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-				//	   sched_getcpu(), new_sibling->signature, key, 0);
-				level_logs[0].writes++;
-
+			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+			//	   sched_getcpu(), new_sibling->signature, key, 0);
+			level_logs[0].writes++;
 #endif
 
 #if BTREE_PROF
@@ -1209,33 +1223,33 @@ public:
 //			new_sibling->writes++;
 
 #if NODEMAP
-				//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
-				//	   sched_getcpu(), leaf->signature, key, 0);
-				level_logs[0].splits++;
-
+			//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+			//	   sched_getcpu(), leaf->signature, key, 0);
+			level_logs[0].splits++;
 #endif
 
 		}
 
-		//printf("IN LEAF1 %d\n",toInsert->num_keys);
-		//printTree();
+		assert(toInsert->num_keys < M);
+		toInsert->keys[toInsert->num_keys] = key;
+		k = toInsert->num_keys;
+		toInsert->num_keys++;
+		/*
+		#if BTPREFETCH
+				prefetch(reinterpret_cast<char*>(dummyval_));
+		#endif
 
-#if BTPREFETCH
-		prefetch(reinterpret_cast<char*>(dummyval_));
-#endif
+				for(int j = toInsert->num_keys; j > k; j--) {
+					toInsert->keys[j] = toInsert->keys[j - 1];
+					toInsert->values[j] = toInsert->values[j - 1];
+				}
 
-		for(int j = toInsert->num_keys; j > k; j--) {
-			toInsert->keys[j] = toInsert->keys[j - 1];
-			toInsert->values[j] = toInsert->values[j - 1];
-		}
-
-		toInsert->num_keys = toInsert->num_keys + 1;
-		toInsert->keys[k] = key;
+				toInsert->num_keys = toInsert->num_keys + 1;
+				toInsert->keys[k] = key;
+		*/
 
 #if NODEMAP
-			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-			//	   sched_getcpu(), toInsert->signature, key, 0);
-			level_logs[0].writes++;
+		level_logs[0].writes++;
 #endif
 
 #if DUMMY
@@ -1542,7 +1556,7 @@ public:
 	char padding4[64];
 	SpinLock rtmlock;
 	char padding5[64];
-	
+
 	int current_tid;
 	int waccess[4][CONFLICT_BUFFER_LEN];
 	int raccess[4][CONFLICT_BUFFER_LEN];
