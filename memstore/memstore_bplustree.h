@@ -436,6 +436,13 @@ public:
 		while(d-- != 0) {
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
+#if REMOTEACCESS
+					if(get_current_node() == get_numa_node(inner)) {
+						inner_local_access++;
+					} else {
+						inner_remote_access++;
+					}
+#endif
 
 #if NODEMAP
 			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
@@ -454,6 +461,14 @@ public:
 		
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
+		
+#if REMOTEACCESS
+							if(get_current_node() == get_numa_node(inner)) {
+								leaf_local_access++;
+							} else {
+								leaf_remote_access++;
+							}
+#endif
 
 #if NODEMAP
 		//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
