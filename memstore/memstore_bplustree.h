@@ -30,7 +30,8 @@
 
 #define BUFFER_TEST 0
 
-#define BUFFER_LEN 50
+
+#define BUFFER_LEN 20
 
 #define CONFLICT_BUFFER_LEN 100
 
@@ -69,6 +70,8 @@ static uint32_t leaf_id = 0;
 static int32_t inner_id = 0;
 static uint32_t table_id = 0;
 
+
+
 class MemstoreBPlusTree: public Memstore {
 //Test purpose
 public:
@@ -92,6 +95,7 @@ public:
 				entries[i] = {0, 0, NULL};
 			}
 		}
+		
 		MemNode* get(uint64_t key) {
 			//printf("get key = %d, head = %d\n", key, head);
 			reads ++;
@@ -136,6 +140,8 @@ public:
 	unordered_map<uint32_t, access_log> node_map;
 	unordered_map<uint64_t, key_log> key_map;
 
+	access_log level_logs[10];
+
 	NUMA_Buffer * buffers = nullptr;
 #if REMOTEACCESS
 	uint64_t inner_local_access;
@@ -146,7 +152,6 @@ public:
 
 	int tableid;
 	int num_of_nodes;
-
 	int num_insert_rtm;
 
 	uint64_t rconflict = 0;
@@ -279,6 +284,13 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
+
+		for(int i = 0; i < 10; i++){
+			level_logs[i].gets = 0;
+			level_logs[i].writes = 0;
+			level_logs[i].splits = 0;
+		}
+		
 #if BUFFER_TEST
 		num_of_nodes = numa_num_configured_nodes();
 		printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
@@ -294,11 +306,13 @@ public:
 		reads = 0;
 		calls = 0;
 #endif
+		/*
 			for (int i=0; i<4; i++) {
 				windex[i] = 0;
 				rindex[i] = 0;
 			}
 			current_tid = sched_getcpu();
+			*/
 
 	}
 
@@ -315,6 +329,15 @@ public:
 		//printf("reads %ld\n",reads);
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
+#if NODEMAP
+		
+		printf("=========Tableid = %d=========\n", tableid);
+		printf("Insert_rtm = %d\n", num_insert_rtm);
+		for(int i = 0; i < 6; i++){
+			printf("%d: %d, %d, %d\n", i, level_logs[i].gets,level_logs[i].writes,level_logs[i].splits);
+		}
+		
+#endif
 #if BUFFER_TEST
 		delete[] buffers;
 #endif
@@ -410,8 +433,9 @@ public:
 			inner = reinterpret_cast<InnerNode*>(node);
 
 #if NODEMAP
-			printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-				sched_getcpu(), inner->signature, key, d+1);
+			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+			//	sched_getcpu(), inner->signature, key, d+1);
+			level_logs[d+1].gets++;
 #endif
 			
 //			reads++;
@@ -427,8 +451,9 @@ public:
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 
 #if NODEMAP
-		printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-					sched_getcpu(), leaf->signature, key, 0);
+		//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+		//			sched_getcpu(), leaf->signature, key, 0);
+		level_logs[0].gets++;
 #endif
 
 		if(leaf->num_keys == 0) return NULL;
@@ -498,8 +523,9 @@ public:
 		res->value = removeLeafEntry(cur, slot);
 
 #if NODEMAP
-			printf("[%2d][DEL] node = %10d, key = %20ld, d = %2d\n",
-				   sched_getcpu(), cur->signature, key, 0);
+		//	printf("[%2d][DEL] node = %10d, key = %20ld, d = %2d\n",
+		//		   sched_getcpu(), cur->signature, key, 0);
+		level_logs[0].writes++;
 #endif
 
 		//step 3. if node is empty, remove the node from the list
@@ -743,8 +769,15 @@ public:
 	}
 
 	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
-	//	num_insert_rtm ++;
-		
+#if NODEMAP
+		num_insert_rtm ++;
+		if(tableid == 8&&num_insert_rtm%10000==0){
+			printf("Insert_rtm = %d\n", num_insert_rtm);
+			for(int i = 0; i < 6; i++){
+				printf("%d: %d, %d, %d\n", i, level_logs[i].gets,level_logs[i].writes,level_logs[i].splits);
+			}
+		}
+#endif		
 		bool newKey = true;
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
@@ -810,7 +843,8 @@ public:
 		}
 
 #if NODEMAP
-		printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n", sched_getcpu(), inner->signature, key, d);
+		//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n", sched_getcpu(), inner->signature, key, d);
+		level_logs[d].gets++;
 #endif
 
 		void *child = inner->children[k]; //search the descendent layer
@@ -827,8 +861,9 @@ public:
 				//the inner node is full -> split it
 				if(inner->num_keys == N) {
 #if NODEMAP
-				printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
-								sched_getcpu(), inner->signature, key, d);
+				//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+				//				sched_getcpu(), inner->signature, key, d);
+					level_logs[d].splits++;
 #endif
 					new_sibling = new_inner_node();
 					if(new_leaf->num_keys == 1) {
@@ -846,8 +881,9 @@ public:
 							new_sibling->children[i] = inner->children[threshold + i];
 						}
 #if NODEMAP
-				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-								sched_getcpu(), new_sibling->signature, key, d);
+				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+				//				sched_getcpu(), new_sibling->signature, key, d);
+						level_logs[d].writes++;
 #endif
 
 						//the last child
@@ -899,8 +935,10 @@ public:
 				toInsert->children[k + 1] = new_leaf;
 
 #if NODEMAP
-				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-							sched_getcpu(), toInsert->signature, key, d);
+				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+				//			sched_getcpu(), toInsert->signature, key, d);
+				level_logs[d].writes++;
+
 #endif
 //				if(d == 0){
 //					checkConflict(toInsert->signature, 1);
@@ -934,8 +972,9 @@ public:
 					new_sibling = new_inner_node();
 
 #if NODEMAP
-					printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
-							sched_getcpu(), inner->signature, key, d);
+					//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+					//		sched_getcpu(), inner->signature, key, d);
+					level_logs[d].splits++;
 #endif
 					
 					if(child_sibling->num_keys == 0) {
@@ -953,8 +992,9 @@ public:
 						}
 
 #if NODEMAP
-						printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-							sched_getcpu(), new_sibling->signature, key, d);
+						//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+						//	sched_getcpu(), new_sibling->signature, key, d);
+						level_logs[d].writes++;
 #endif
 //						if(d == 0){
 //							checkConflict(new_sibling->signature, 1);
@@ -994,8 +1034,10 @@ public:
 				toInsert->children[k + 1] = child_sibling;
 
 #if NODEMAP
-				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-							sched_getcpu(), toInsert->signature, key, d);
+				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+				//			sched_getcpu(), toInsert->signature, key, d);
+				level_logs[d].writes++;
+
 #endif
 				
 #if BTREE_PROF
@@ -1026,8 +1068,11 @@ public:
 			new_root->children[1] = new_sibling;
 
 #if NODEMAP
-			printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-				sched_getcpu(), new_root->signature, key, d);
+			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+			//	sched_getcpu(), new_root->signature, key, d);
+			level_logs[d].writes++;
+			//if(tableid == 8)
+			//	printf("new depth = %d, num_insert_rtm = %d\n", depth+1, num_insert_rtm);
 #endif
 			
 			root = new_root;
@@ -1077,8 +1122,10 @@ public:
 #endif
 			*val = leaf->values[k];
 #if NODEMAP
-			printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-					   sched_getcpu(), leaf->signature, key,0);
+			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
+			//		   sched_getcpu(), leaf->signature, key,0);
+			level_logs[0].gets++;
+
 #endif
 //			checkConflict(leaf->signature, 0);
 
@@ -1129,8 +1176,10 @@ public:
 			new_sibling->seq = 0;
 
 #if NODEMAP
-				printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-					   sched_getcpu(), new_sibling->signature, key, 0);
+				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+				//	   sched_getcpu(), new_sibling->signature, key, 0);
+				level_logs[0].writes++;
+
 #endif
 
 #if BTREE_PROF
@@ -1139,8 +1188,10 @@ public:
 //			new_sibling->writes++;
 
 #if NODEMAP
-				printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
-					   sched_getcpu(), leaf->signature, key, 0);
+				//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
+				//	   sched_getcpu(), leaf->signature, key, 0);
+				level_logs[0].splits++;
+
 #endif
 
 		}
@@ -1161,8 +1212,9 @@ public:
 		toInsert->keys[k] = key;
 
 #if NODEMAP
-			printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-				   sched_getcpu(), toInsert->signature, key, 0);
+			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
+			//	   sched_getcpu(), toInsert->signature, key, 0);
+			level_logs[0].writes++;
 #endif
 
 #if DUMMY

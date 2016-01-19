@@ -46,8 +46,6 @@ void MemstoreBPlusTree::PrintStore() {
 //		 printf("Total key num %d\n", total_key);
 }
 
-
-
 void MemstoreBPlusTree::PrintList() {
 	void* min = root;
 	int d = depth;
