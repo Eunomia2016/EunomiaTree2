@@ -28,7 +28,7 @@
 
 #define REMOTEACCESS 0
 
-#define BUFFER_TEST 0
+#define BUFFER_TEST 1
 
 
 #define BUFFER_LEN 20
