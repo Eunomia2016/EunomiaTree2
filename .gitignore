@@ -4,3 +4,4 @@ db_test
 *.orig
 log*
 memstorebt_test
+*.mk

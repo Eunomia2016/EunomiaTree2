@@ -26,11 +26,11 @@
 #define KEYMAP   0
 #define NUMADUMP 0
 
-#define REMOTEACCESS 0
+#define REMOTEACCESS 1
 
 #define BUFFER_TEST 0
 
-#define BUFFER_LEN 15
+#define BUFFER_LEN 20
 
 #define CONFLICT_BUFFER_LEN 100
 
@@ -94,22 +94,19 @@ public:
 		}
 		
 		MemNode* get(uint64_t key) {
-			//printf("get key = %d, head = %d\n", key, head);
-			reads ++;
+			//reads ++;
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				buffer_entry entry = entries[i];
 				if(entry.key == key && entry.valid) {
-					hits++;
+					//hits++;
 					return entry.val;
 				}
 			}
-			//int index = __sync_fetch_and_add(&head, 1) % BUFFER_LEN;
-			//entries[index] = {1, key, NULL};
 			return NULL;
 		}
 
 		void push(uint64_t key, MemNode* val) {
-			writes ++;
+			//writes ++;
 			int index = __sync_fetch_and_add(&head, 1) % BUFFER_LEN;
 			entries[index] = {1, key, val};
 		}
@@ -124,13 +121,13 @@ public:
 				}
 			}
 			if(index != -1) {
-				invalids++;
+				//invalids++;
 				entries[index].valid = 0;
 			}
 		}
 
 		~NUMA_Buffer() {
-			printf("%d, %d, %d, %d\n", reads, writes, hits, invalids);
+			//printf("%d, %d, %d, %d\n", reads, writes, hits, invalids);
 		}
 	};
 
