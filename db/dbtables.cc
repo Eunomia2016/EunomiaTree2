@@ -122,10 +122,9 @@ DBTables::~DBTables() {
 #endif
 	}
 
-	fprintf(stderr, "%d, %d, %d, %d\n", table_prof.inner_local_access, 
-		table_prof.inner_remote_access, 
-		table_prof.leaf_local_access, 
-		table_prof.leaf_remote_access);
+	fprintf(stderr, "local accesses: %d, remote accesses: %d\n", 
+			table_prof.inner_local_access+table_prof.leaf_local_access, 
+			table_prof.inner_remote_access + table_prof.leaf_remote_access);
 	
 	delete[] tables;
 	delete[] types;
