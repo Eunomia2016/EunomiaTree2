@@ -28,10 +28,9 @@
 
 #define REMOTEACCESS 0
 
-#define BUFFER_TEST 1
+#define BUFFER_TEST 0
 
-
-#define BUFFER_LEN 20
+#define BUFFER_LEN 15
 
 #define CONFLICT_BUFFER_LEN 100
 
@@ -69,8 +68,6 @@ struct key_log {
 static uint32_t leaf_id = 0;
 static int32_t inner_id = 0;
 static uint32_t table_id = 0;
-
-
 
 class MemstoreBPlusTree: public Memstore {
 //Test purpose

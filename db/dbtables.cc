@@ -101,9 +101,9 @@ DBTables::~DBTables() {
 	fprintf(stderr,"%-30s = %15d (%.3lf)\n","Capacity", rtmPara.capacityCounts, (double)rtmPara.capacityCounts/rtmPara.abortCounts);
 	fprintf(stderr,"%-30s = %15d (%.3lf)\n","Conflicts", rtmPara.conflictCounts,(double)rtmPara.conflictCounts/rtmPara.abortCounts);
 	fprintf(stderr,"%-30s = %15d (%.3lf)\n","Zeros", rtmPara.zeroCounts,(double)rtmPara.zeroCounts/rtmPara.abortCounts);
-	fprintf(stderr,"%-30s = %15ld\n", "Total Interval",rtmPara.total_interval);
+	//fprintf(stderr,"%-30s = %15ld\n", "Total Interval",rtmPara.total_interval);
 	fprintf(stderr,"%-30s = %15ld\n", "Winners",rtmPara.winners);
-	fprintf(stderr,"%-30s = %15ld\n", "Total Winner Interval",rtmPara.winner_interval);
+	//fprintf(stderr,"%-30s = %15ld\n", "Total Winner Interval",rtmPara.winner_interval);
 
 	//fprintf(stderr,"%-10s = %ldns\n","Total Runtime", rtmPara.interval);
 	//fprintf(stderr,"%-10s = %ldns\n","Avg Runtime", rtmPara.interval/rtmPara.succCounts);

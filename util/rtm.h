@@ -50,7 +50,7 @@ public:
 	inline RTMScope(RTMProfile* prof, int read = 1, int write = 1,
 					SpinLock* sl = NULL, OP_TYPE _type = UNKNOWN_TYPE) {
 		type = _type;
-		clock_gettime(CLOCK_MONOTONIC, &begin);
+		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		globalprof = prof;
 		retry = 0;
 		conflict = 0;
@@ -160,7 +160,7 @@ public:
 			_xend();
 		//access the global profile info outside the transaction scope
 		//printf("winner\n");
-		clock_gettime(CLOCK_MONOTONIC, &end);
+		//clock_gettime(CLOCK_MONOTONIC, &end);
 #if RTMPROFILE
 		if(globalprof != NULL) {
 			globalprof->totalCounts++;
@@ -168,7 +168,7 @@ public:
 			globalprof->capacityCounts += capacity;
 			globalprof->conflictCounts += conflict;
 			globalprof->zeroCounts += zero;
-			if(winner) {
+			/*if(winner) {
 				globalprof->winners++;
 				uint64_t winner_interval = (end.tv_sec - begin.tv_sec) * BILLION + (end.tv_nsec - begin.tv_nsec);
 				globalprof->winner_interval += winner_interval;
@@ -176,6 +176,7 @@ public:
 			}
 			uint64_t total_interval = (end.tv_sec - begin.tv_sec) * BILLION + (end.tv_nsec - begin.tv_nsec);
 			globalprof->total_interval += total_interval;
+			*/
 		}
 #endif
 	}
