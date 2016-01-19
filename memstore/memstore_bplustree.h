@@ -10,6 +10,7 @@
 #include "util/rtm_arena.h"
 #include "util/mutexlock.h"
 #include "util/numa_util.h"
+#include "util/statistics.h"
 #include "port/port_posix.h"
 #include "memstore.h"
 #define M  15
@@ -26,7 +27,7 @@
 #define KEYMAP   0
 #define NUMADUMP 0
 
-#define REMOTEACCESS 0
+#define REMOTEACCESS 1
 
 #define BUFFER_TEST 0
 
@@ -140,6 +141,7 @@ public:
 	access_log level_logs[10];
 
 	NUMA_Buffer * buffers = nullptr;
+
 #if REMOTEACCESS
 	uint64_t inner_local_access;
 	uint64_t inner_remote_access;
@@ -293,9 +295,11 @@ public:
 		printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
 		buffers = new NUMA_Buffer[num_of_nodes]();
 #endif
+
 #if REMOTEACCESS
 		inner_local_access = inner_remote_access = leaf_local_access = leaf_remote_access = 0;
 #endif
+
 		num_insert_rtm = 0;
 
 #if BTREE_PROF
@@ -341,6 +345,10 @@ public:
 #if REMOTEACCESS
 		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d\n", 
 		tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access);
+		table_prof.inner_local_access += inner_local_access;
+		table_prof.inner_remote_access += inner_remote_access;
+		table_prof.leaf_local_access += leaf_local_access;
+		table_prof.leaf_remote_access += leaf_remote_access;
 #endif
 
 #if BTREE_PROF
