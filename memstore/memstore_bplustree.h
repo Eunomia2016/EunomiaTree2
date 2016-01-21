@@ -478,13 +478,16 @@ public:
 
 		if(leaf->num_keys == 0) return NULL;
 		unsigned k = 0;
-		while((k < leaf->num_keys)) {
-			if(leaf->keys[k] == key) {
-				return leaf->values[k];
-			}
+		while((k < leaf->num_keys)&&(leaf->keys[k]<key)) {
 			++k;
 		}
-		return NULL;
+
+		if(k==leaf->num_keys){return NULL;}
+		if(leaf->keys[k]==key){
+			return leaf->values[k];
+		}else{
+			return NULL;
+		}
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
@@ -1130,20 +1133,11 @@ public:
 #endif
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
-		while((k < leaf->num_keys)) {
-			//The key already exists in the children
-			if(leaf->keys[k] == key) {
-				*val = leaf->values[k];
-#if NODEMAP
-				level_logs[0].gets++;
-#endif
-				assert(*val != NULL);
-				return NULL;
-			}
+		while((k < leaf->num_keys)&&(leaf->keys[k]<key)) {
 			++k;
 		}
 
-		/*if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
+		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*newKey = false;
 		#if BTPREFETCH
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
@@ -1162,21 +1156,13 @@ public:
 		#endif
 			assert(*val != NULL);
 			return NULL;
-		}*/
+		}
 		*newKey = true;
 		//inserting a new key in the children
 		LeafNode *toInsert = leaf;
 		//create a new node to accommodate the new key if the leaf is full
 		if(leaf->num_keys == M) {
-			//sort the key list now
-			std::sort(leaf->keys, leaf->keys + leaf->num_keys);
-			k = 0;
-			while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
-				++k;
-			}
-
 			new_sibling = new_leaf_node();
-
 #if NUMADUMP
 			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, get_numa_node(new_sibling));
 #endif
@@ -1230,11 +1216,8 @@ public:
 
 		}
 
-		assert(toInsert->num_keys < M);
-		toInsert->keys[toInsert->num_keys] = key;
-		k = toInsert->num_keys;
-		toInsert->num_keys++;
-		/*
+
+		
 		#if BTPREFETCH
 				prefetch(reinterpret_cast<char*>(dummyval_));
 		#endif
@@ -1246,7 +1229,7 @@ public:
 
 				toInsert->num_keys = toInsert->num_keys + 1;
 				toInsert->keys[k] = key;
-		*/
+		
 
 #if NODEMAP
 		level_logs[0].writes++;
