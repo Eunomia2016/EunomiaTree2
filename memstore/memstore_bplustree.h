@@ -459,7 +459,6 @@ public:
 			node = inner->children[index];
 		}
 
-
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 
@@ -728,6 +727,7 @@ public:
 		return res;
 	}
 
+#if BUFFER_TEST
 	inline MemNode* checkBuffer(uint64_t key) {
 		int current_node = get_current_node();
 		MemNode* res_node = buffers[current_node].get(key);
@@ -745,6 +745,7 @@ public:
 		}
 		return NULL;
 	}
+#endif
 
 	inline Memstore::MemNode* GetForRead(uint64_t key) {
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
@@ -1080,7 +1081,6 @@ public:
 
 		if(d == depth && new_sibling != NULL) {
 			//printf("tableid = %d, depth = %d, num_insert_rtm = %d\n", tableid, depth, num_insert_rtm);
-
 			InnerNode *new_root = new_inner_node();
 			new_root->num_keys = 1;
 			new_root->keys[0] = upKey;
