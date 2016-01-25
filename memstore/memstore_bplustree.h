@@ -291,7 +291,6 @@ public:
 
 #if BUFFER_TEST
 		num_of_nodes = numa_num_configured_nodes();
-		printf("[ALEX] num_of_nodes = %d\n", num_of_nodes);
 		buffers = new NUMA_Buffer[num_of_nodes]();
 #endif
 
@@ -756,7 +755,7 @@ public:
 		MemNode* node = checkBuffer(key);
 
 		if(node != NULL) {
-			buffer_local_access++;
+			//buffer_local_access++;
 			return node;
 		}
 #endif
