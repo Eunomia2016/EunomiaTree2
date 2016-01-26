@@ -30,9 +30,9 @@
 
 #define REMOTEACCESS 0
 
-#define BUFFER_TEST 0
+#define BUFFER_TEST 1
 
-#define BUFFER_LEN 20
+#define BUFFER_LEN 15
 
 #define CONFLICT_BUFFER_LEN 100
 
@@ -74,12 +74,13 @@ static uint32_t table_id = 0;
 class MemstoreBPlusTree: public Memstore {
 //Test purpose
 public:
+
+#if BUFFER_TEST
 	struct buffer_entry {
 		int valid: 1;
 		uint64_t key;
 		MemNode* val;
 	};
-
 	class NUMA_Buffer {
 	private:
 		int head;
@@ -88,8 +89,9 @@ public:
 		int writes;
 		int invalids;
 		buffer_entry entries[BUFFER_LEN];
+		SpinLock* bf_lock;
 	public:
-		NUMA_Buffer(): head(0), hits(0), reads(0), writes(0), invalids(0) {
+		NUMA_Buffer(SpinLock* _bf_lock): head(0), hits(0), reads(0), writes(0), invalids(0), bf_lock(_bf_lock) {
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				entries[i] = {0, 0, NULL};
 			}
@@ -97,14 +99,18 @@ public:
 
 		MemNode* get(uint64_t key) {
 			//reads ++;
+			MemNode* res = NULL;
+			bf_lock->Lock();
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				buffer_entry entry = entries[i];
 				if(entry.key == key && entry.valid) {
 					//hits++;
-					return entry.val;
+					res =  entry.val;
+					break;
 				}
 			}
-			return NULL;
+			bf_lock->Unlock();
+			return res;
 		}
 
 		void push(uint64_t key, MemNode* val) {
@@ -115,6 +121,7 @@ public:
 
 		void inv(uint64_t key) {
 			int index = -1;
+			bf_lock->Lock();
 			for(int i = 0; i < BUFFER_LEN; i++) {
 				buffer_entry entry = entries[i];
 				if(entry.key == key && entry.valid) {
@@ -122,6 +129,7 @@ public:
 					break;
 				}
 			}
+			bf_lock->Unlock();
 			if(index != -1) {
 				//invalids++;
 				entries[index].valid = 0;
@@ -132,13 +140,15 @@ public:
 			//printf("%d, %d, %d, %d\n", reads, writes, hits, invalids);
 		}
 	};
-
+	NUMA_Buffer** buffers;
+#endif
+	
+/*
 	unordered_map<uint32_t, access_log> node_map;
 	unordered_map<uint64_t, key_log> key_map;
 
 	access_log level_logs[10];
-
-	NUMA_Buffer * buffers = nullptr;
+*/
 
 #if REMOTEACCESS
 	uint64_t inner_local_access;
@@ -252,10 +262,11 @@ public:
 
 public:
 	MemstoreBPlusTree() {
+		printf("MemstoreBPlusTree()\n");
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
-		int num_of_nodes = numa_num_configured_nodes();
-		buffers = new NUMA_Buffer[num_of_nodes]();
+		//int num_of_nodes = numa_num_configured_nodes();
+		//buffers = new NUMA_Buffer[num_of_nodes]();
 
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
@@ -282,16 +293,22 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
-
+/*
 		for(int i = 0; i < 10; i++) {
 			level_logs[i].gets = 0;
 			level_logs[i].writes = 0;
 			level_logs[i].splits = 0;
 		}
-
-#if BUFFER_TEST
+*/
 		num_of_nodes = numa_num_configured_nodes();
-		buffers = new NUMA_Buffer[num_of_nodes]();
+#if BUFFER_TEST
+		buffers = (NUMA_Buffer**)calloc(num_of_nodes, sizeof(NUMA_Buffer*));
+		SpinLock *bf_lock = (SpinLock*)calloc(1, sizeof(SpinLock));
+		for(int i = 0; i < num_of_nodes; i++){
+			NUMA_Buffer* local_buffer = 
+				(NUMA_Buffer*)Numa_alloc_onnode(sizeof(NUMA_Buffer),i);
+			buffers[i] = new (local_buffer) NUMA_Buffer(bf_lock);
+		}
 #endif
 
 #if REMOTEACCESS
@@ -339,7 +356,10 @@ public:
 
 #endif
 #if BUFFER_TEST
-		delete[] buffers;
+		for(int i = 0; i < num_of_nodes; i++){
+			Numa_free(buffers[i], sizeof(NUMA_Buffer));
+		}
+		free(buffers);
 #endif
 #if REMOTEACCESS
 		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d, buffer_local_access = %10d\n",
@@ -691,7 +711,7 @@ public:
 #if BUFFER_TEST
 		int current_node = get_current_node();
 		for(int i = 0; i < num_of_nodes; i++) {
-			buffers[i].inv(key);
+			buffers[i]->inv(key);
 		}
 #endif
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
@@ -724,7 +744,7 @@ public:
 		}
 #endif
 #if BUFFER_TEST
-		buffers[current_node].push(key, res.node);
+		buffers[current_node]->push(key, res.node);
 #endif
 		return res;
 	}
@@ -732,7 +752,7 @@ public:
 #if BUFFER_TEST
 	inline MemNode* checkBuffer(uint64_t key) {
 		int current_node = get_current_node();
-		MemNode* res_node = buffers[current_node].get(key);
+		MemNode* res_node = buffers[current_node]->get(key);
 		if(res_node != NULL) {
 			return res_node;
 		}
@@ -740,7 +760,7 @@ public:
 			if(i == current_node) {
 				continue;
 			}
-			res_node = buffers[i].get(key);
+			res_node = buffers[i]->get(key);
 			if(res_node != NULL) {
 				return res_node;
 			}
@@ -786,7 +806,7 @@ public:
 
 #if BUFFER_TEST
 		int current_node = get_current_node();
-		buffers[current_node].push(key, value);
+		buffers[current_node]->push(key, value);
 #endif
 		return value;
 	}

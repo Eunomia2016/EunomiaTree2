@@ -19,6 +19,16 @@ static int get_current_node() {
 	return node;
 }
 
+static void* Numa_alloc_onnode(size_t size, int node){
+	void * ptr = numa_alloc_onnode(size, node);
+	if(ptr == NULL){
+		fprintf(stderr, "numa_alloc_error\n");
+	}
+	return ptr;
+}
+static void Numa_free(void * start, size_t size){
+	numa_free(start, size);
+}
 static long get_nanoseconds(struct timespec& begin, struct timespec& end) {
 	return (end.tv_sec - begin.tv_sec) * BILLION + (end.tv_nsec - begin.tv_nsec);
 }

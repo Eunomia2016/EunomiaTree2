@@ -125,9 +125,9 @@ bench_worker::run() {
 #if SET_AFFINITY
 	int x = worker_id;
 	int y = x - 8;
-	if(y >= 10) {
+	if(y >= 20) {
 		fprintf(stderr, "[Alex]Number of workers should be < 10\n");
-		y = 0;
+		//y = 0;
 	}
 	/*
 	if (nthreads == 8 || nthreads == 7) {
@@ -151,7 +151,8 @@ bench_worker::run() {
 	*/
 
 	int socket_0[] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
-	int mixed_sockets[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+	int mixed_sockets[] = {0, 1, 2, 3, 4, 5, 6, 7, \ 
+		8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
 	//int core_id = socket_0[y];
 	int core_id = mixed_sockets[y];
 
