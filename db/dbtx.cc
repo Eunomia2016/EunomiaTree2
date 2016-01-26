@@ -696,7 +696,7 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
 	bool newNode = false;  
 
 #if NUMA_DUMP
-			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
 			}else{
 				local_access[tableid]++;
@@ -757,7 +757,7 @@ retry:
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
 	bool newNode = false;
 #if NUMA_DUMP
-		if(get_current_node() != get_numa_node((void*)(txdb_->tables[tableid]))){
+		if(Numa_current_node() != Numa_get_node((void*)(txdb_->tables[tableid]))){
 			remote_access[tableid]++;
 		}else{
 			local_access[tableid]++;
@@ -832,7 +832,7 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 	bool newNode = false;
 
 #if NUMA_DUMP
-			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
 			}else{
 				local_access[tableid]++;
@@ -912,7 +912,7 @@ void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uin
 	bool newNode = false;
 
 #if NUMA_DUMP
-			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
 			}else{
 				local_access[tableid]++;
@@ -991,7 +991,7 @@ retryA:
 
 void DBTX::Delete(int tableid, uint64_t key) {
 #if NUMA_DUMP
-			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
 			}else{
 				local_access[tableid]++;
@@ -1104,7 +1104,7 @@ retryGBI:
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 		bool newNode = false;
 #if NUMA_DUMP
-			if(get_current_node()!=get_numa_node((void*)(txdb_->tables[tableid]))){
+			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
 				remote_access[tableid]++;
 			}else{
 				local_access[tableid]++;

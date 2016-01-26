@@ -12,6 +12,7 @@
 #include "util/mutexlock.h"
 #include "util/numa_util.h"
 #include "util/statistics.h"
+#include "util/bloomfilter.h"
 #include "port/port_posix.h"
 #include "memstore.h"
 #define M  15
@@ -34,7 +35,10 @@
 #define BUFFER_LEN (1<<4)
 #define HASH_MASK (BUFFER_LEN-1)
 #define FLUSH_FREQUENCY 200
-#define ERROR_RATE 0.2
+#define ERROR_RATE 0.1
+#define BM_SIZE 100
+
+#define BM_TEST 1
 
 #define CONFLICT_BUFFER_LEN 100
 
@@ -70,6 +74,10 @@ class MemstoreBPlusTree: public Memstore {
 public:
 
 #if BUFFER_TEST
+#if BM_TEST
+	BloomFilter** bm_filters;
+#endif
+
 	struct buffer_entry {
 		int valid: 1;
 		uint64_t key;
@@ -139,7 +147,6 @@ public:
 	/*
 		unordered_map<uint32_t, access_log> node_map;
 		unordered_map<uint64_t, key_log> key_map;
-
 		access_log level_logs[10];
 	*/
 
@@ -297,6 +304,14 @@ public:
 
 #if BUFFER_TEST
 		buffer = new NUMA_Buffer();
+#if BM_TEST
+		bm_filters = (BloomFilter**)malloc(num_of_nodes*sizeof(BloomFilter*));
+		for(int i = 0; i < num_of_nodes; i++) {
+			bm_filters[i] =
+				bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE, i);
+		}
+#endif
+
 #endif
 
 #if REMOTEACCESS
@@ -442,7 +457,7 @@ public:
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
 #if REMOTEACCESS
-			if(get_current_node() == get_numa_node(inner)) {
+			if(Numa_current_node() == Numa_get_node(inner)) {
 				inner_local_access++;
 			} else {
 				inner_remote_access++;
@@ -467,7 +482,7 @@ public:
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 
 #if REMOTEACCESS
-		if(get_current_node() == get_numa_node(inner)) {
+		if(Numa_current_node() == Numa_get_node(inner)) {
 			leaf_local_access++;
 		} else {
 			leaf_remote_access++;
@@ -695,7 +710,10 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
+
 #if BUFFER_TEST
+		int current_node = Numa_current_node();
+
 		buffer->inv(key);
 #endif
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
@@ -729,20 +747,36 @@ public:
 #endif
 #if BUFFER_TEST
 		buffer->push(key, res.node);
+#if BM_TEST
+		bloom_filter_insert(bm_filters[current_node], &key);
+
+		if(bm_filters[current_node]->size >= FLUSH_FREQUENCY) {
+			bloom_filter_flush(bm_filters[current_node]);
+		}
+#endif
+
 #endif
 		return res;
 	}
 
-
-
 	inline Memstore::MemNode* GetForRead(uint64_t key) {
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if BUFFER_TEST
-		MemNode* node = buffer->get(key);
+		int current_node = Numa_current_node();
+		bool in_cache = true;
 
-		if(node != NULL) {
-			//buffer_local_access++;
-			return node;
+#if BM_TEST
+		if(bloom_filter_contains(bm_filters[current_node], &key) == 0) {
+			in_cache = false;
+		}
+#endif
+		if(in_cache) {
+			MemNode* node = buffer->get(key);
+
+			if(node != NULL) {
+				//buffer_local_access++;
+				return node;
+			}
 		}
 #endif
 #if 0
@@ -772,6 +806,13 @@ public:
 
 #if BUFFER_TEST
 		buffer->push(key, value);
+#if BM_TEST
+		bloom_filter_insert(bm_filters[current_node], &key);
+		if(bm_filters[current_node]->size >= FLUSH_FREQUENCY) {
+			bloom_filter_flush(bm_filters[current_node]);
+		}
+#endif
+
 #endif
 		return value;
 	}
@@ -836,7 +877,7 @@ public:
 
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newKey) {
 #if REMOTEACCESS
-		if(get_current_node() == get_numa_node(inner)) {
+		if(Numa_current_node() == Numa_get_node(inner)) {
 			inner_local_access++;
 		} else {
 			inner_remote_access++;
@@ -1109,7 +1150,7 @@ public:
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
 		//printf("[%ld] ADD: %lx\n", pthread_self(), (LeafNode*)root);
 #if REMOTEACCESS
-		if(get_current_node() == get_numa_node(leaf)) {
+		if(Numa_current_node() == Numa_get_node(leaf)) {
 			leaf_local_access++;
 		} else {
 			leaf_remote_access++;
@@ -1148,7 +1189,7 @@ public:
 		if(leaf->num_keys == M) {
 			new_sibling = new_leaf_node();
 #if NUMADUMP
-			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, get_numa_node(new_sibling));
+			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, Numa_get_node(new_sibling));
 #endif
 //			checkConflict(new_sibling->signature, 1);
 
