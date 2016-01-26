@@ -30,9 +30,11 @@
 
 #define REMOTEACCESS 0
 
-#define BUFFER_TEST 0
-
-#define BUFFER_LEN 15
+#define BUFFER_TEST 1
+#define BUFFER_LEN (1<<4)
+#define HASH_MASK (BUFFER_LEN-1)
+#define FLUSH_FREQUENCY 200
+#define ERROR_RATE 0.2
 
 #define CONFLICT_BUFFER_LEN 100
 
@@ -45,14 +47,6 @@ static uint64_t rconflict = 0;
 static uint64_t wconflict = 0;
 */
 using namespace std;
-
-/*void atomic_inc32(uint32_t *p) {
-	__asm__ __volatile__("lock; incl %0"
-						 : "+m"(*p)
-						 :
-						 : "cc");
-}*/
-
 namespace leveldb {
 
 struct access_log {
@@ -80,75 +74,74 @@ public:
 		int valid: 1;
 		uint64_t key;
 		MemNode* val;
+		SpinLock lock;
 	};
 	class NUMA_Buffer {
 	private:
 		int head;
-		int hits;
-		int reads;
-		int writes;
-		int invalids;
+		uint32_t hits;
+		uint32_t reads;
+		uint32_t writes;
+		uint32_t invalids;
 		buffer_entry entries[BUFFER_LEN];
-		SpinLock* bf_lock;
 	public:
-		NUMA_Buffer(SpinLock* _bf_lock): head(0), hits(0), reads(0), writes(0), invalids(0), bf_lock(_bf_lock) {
+		int hash(uint64_t key) {
+			return key & HASH_MASK;
+		}
+		NUMA_Buffer(): head(0),
+			hits(0), reads(0), writes(0), invalids(0) {
 			for(int i = 0; i < BUFFER_LEN; i++) {
-				entries[i] = {0, 0, NULL};
+				SpinLock lock;
+				entries[i] = {0, 0, NULL, lock};
 			}
 		}
 
 		MemNode* get(uint64_t key) {
-			//reads ++;
+			//atomic_inc32(&reads);
 			MemNode* res = NULL;
-			bf_lock->Lock();
-			for(int i = 0; i < BUFFER_LEN; i++) {
-				buffer_entry entry = entries[i];
-				if(entry.key == key && entry.valid) {
-					//hits++;
-					res =  entry.val;
-					break;
-				}
+			int index = hash(key);
+			entries[index].lock.Lock();
+			if(entries[index].key == key && entries[index].valid) {
+				//atomic_inc32(&hits);
+				res = entries[index].val;
 			}
-			bf_lock->Unlock();
+			entries[index].lock.Unlock();
 			return res;
 		}
 
 		void push(uint64_t key, MemNode* val) {
-			//writes ++;
-			int index = __sync_fetch_and_add(&head, 1) % BUFFER_LEN;
-			entries[index] = {1, key, val};
+			//atomic_inc32(&writes);
+			int index = hash(key);
+			entries[index].lock.Lock();
+			entries[index].valid = 1;
+			entries[index].key = key;
+			entries[index].val = val;
+			entries[index].lock.Unlock();
 		}
 
 		void inv(uint64_t key) {
-			int index = -1;
-			bf_lock->Lock();
-			for(int i = 0; i < BUFFER_LEN; i++) {
-				buffer_entry entry = entries[i];
-				if(entry.key == key && entry.valid) {
-					index = i;
-					break;
-				}
-			}
-			bf_lock->Unlock();
-			if(index != -1) {
-				//invalids++;
+			//atomic_inc32(&invalids);
+			int index = hash(key);
+			entries[index].lock.Lock();
+			if(entries[index].key == key) {
 				entries[index].valid = 0;
 			}
+			entries[index].lock.Unlock();
 		}
 
 		~NUMA_Buffer() {
 			//printf("%d, %d, %d, %d\n", reads, writes, hits, invalids);
 		}
 	};
-	NUMA_Buffer** buffers;
+	NUMA_Buffer* buffer;
 #endif
-	
-/*
-	unordered_map<uint32_t, access_log> node_map;
-	unordered_map<uint64_t, key_log> key_map;
 
-	access_log level_logs[10];
-*/
+	/*
+		unordered_map<uint32_t, access_log> node_map;
+		unordered_map<uint64_t, key_log> key_map;
+
+		access_log level_logs[10];
+	*/
 
 #if REMOTEACCESS
 	uint64_t inner_local_access;
@@ -293,22 +286,17 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
-/*
-		for(int i = 0; i < 10; i++) {
-			level_logs[i].gets = 0;
-			level_logs[i].writes = 0;
-			level_logs[i].splits = 0;
-		}
-*/
+		/*
+				for(int i = 0; i < 10; i++) {
+					level_logs[i].gets = 0;
+					level_logs[i].writes = 0;
+					level_logs[i].splits = 0;
+				}
+		*/
 		num_of_nodes = numa_num_configured_nodes();
+
 #if BUFFER_TEST
-		buffers = (NUMA_Buffer**)calloc(num_of_nodes, sizeof(NUMA_Buffer*));
-		SpinLock *bf_lock = (SpinLock*)calloc(1, sizeof(SpinLock));
-		for(int i = 0; i < num_of_nodes; i++){
-			NUMA_Buffer* local_buffer = 
-				(NUMA_Buffer*)Numa_alloc_onnode(sizeof(NUMA_Buffer),i);
-			buffers[i] = new (local_buffer) NUMA_Buffer(bf_lock);
-		}
+		buffer = new NUMA_Buffer();
 #endif
 
 #if REMOTEACCESS
@@ -347,7 +335,6 @@ public:
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 #if NODEMAP
-
 		printf("=========Tableid = %d=========\n", tableid);
 		printf("Insert_rtm = %d\n", num_insert_rtm);
 		for(int i = 0; i < 6; i++) {
@@ -356,10 +343,7 @@ public:
 
 #endif
 #if BUFFER_TEST
-		for(int i = 0; i < num_of_nodes; i++){
-			Numa_free(buffers[i], sizeof(NUMA_Buffer));
-		}
-		free(buffers);
+		delete buffer;
 #endif
 #if REMOTEACCESS
 		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d, buffer_local_access = %10d\n",
@@ -441,6 +425,7 @@ public:
 
 	inline MemNode* Get(uint64_t key) {
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+
 		struct timespec begin, end;
 		clock_gettime(CLOCK_MONOTONIC, &begin);
 #if BTREE_LOCK
@@ -497,14 +482,16 @@ public:
 
 		if(leaf->num_keys == 0) return NULL;
 		unsigned k = 0;
-		while((k < leaf->num_keys)&&(leaf->keys[k]<key)) {
+		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 			++k;
 		}
 
-		if(k==leaf->num_keys){return NULL;}
-		if(leaf->keys[k]==key){
+		if(k == leaf->num_keys) {
+			return NULL;
+		}
+		if(leaf->keys[k] == key) {
 			return leaf->values[k];
-		}else{
+		} else {
 			return NULL;
 		}
 	}
@@ -709,10 +696,7 @@ public:
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 #if BUFFER_TEST
-		int current_node = get_current_node();
-		for(int i = 0; i < num_of_nodes; i++) {
-			buffers[i]->inv(key);
-		}
+		buffer->inv(key);
 #endif
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if 0
@@ -744,35 +728,17 @@ public:
 		}
 #endif
 #if BUFFER_TEST
-		buffers[current_node]->push(key, res.node);
+		buffer->push(key, res.node);
 #endif
 		return res;
 	}
 
-#if BUFFER_TEST
-	inline MemNode* checkBuffer(uint64_t key) {
-		int current_node = get_current_node();
-		MemNode* res_node = buffers[current_node]->get(key);
-		if(res_node != NULL) {
-			return res_node;
-		}
-		for(int i = 0 ; i < num_of_nodes; i++) {
-			if(i == current_node) {
-				continue;
-			}
-			res_node = buffers[i]->get(key);
-			if(res_node != NULL) {
-				return res_node;
-			}
-		}
-		return NULL;
-	}
-#endif
+
 
 	inline Memstore::MemNode* GetForRead(uint64_t key) {
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
 #if BUFFER_TEST
-		MemNode* node = checkBuffer(key);
+		MemNode* node = buffer->get(key);
 
 		if(node != NULL) {
 			//buffer_local_access++;
@@ -805,8 +771,7 @@ public:
 #endif
 
 #if BUFFER_TEST
-		int current_node = get_current_node();
-		buffers[current_node]->push(key, value);
+		buffer->push(key, value);
 #endif
 		return value;
 	}
@@ -1152,27 +1117,27 @@ public:
 #endif
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
-		while((k < leaf->num_keys)&&(leaf->keys[k]<key)) {
+		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 			++k;
 		}
 
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*newKey = false;
-		#if BTPREFETCH
+#if BTPREFETCH
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
-		#endif
+#endif
 			*val = leaf->values[k];
-		#if NODEMAP
+#if NODEMAP
 			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
 			//		   sched_getcpu(), leaf->signature, key,0);
 			level_logs[0].gets++;
 
-		#endif
-		//			checkConflict(leaf->signature, 0);
+#endif
+			//			checkConflict(leaf->signature, 0);
 
-		#if BTREE_PROF
+#if BTREE_PROF
 			reads++;
-		#endif
+#endif
 			assert(*val != NULL);
 			return NULL;
 		}
@@ -1236,19 +1201,19 @@ public:
 		}
 
 
-		
-		#if BTPREFETCH
-				prefetch(reinterpret_cast<char*>(dummyval_));
-		#endif
 
-				for(int j = toInsert->num_keys; j > k; j--) {
-					toInsert->keys[j] = toInsert->keys[j - 1];
-					toInsert->values[j] = toInsert->values[j - 1];
-				}
+#if BTPREFETCH
+		prefetch(reinterpret_cast<char*>(dummyval_));
+#endif
 
-				toInsert->num_keys = toInsert->num_keys + 1;
-				toInsert->keys[k] = key;
-		
+		for(int j = toInsert->num_keys; j > k; j--) {
+			toInsert->keys[j] = toInsert->keys[j - 1];
+			toInsert->values[j] = toInsert->values[j - 1];
+		}
+
+		toInsert->num_keys = toInsert->num_keys + 1;
+		toInsert->keys[k] = key;
+
 
 #if NODEMAP
 		level_logs[0].writes++;
