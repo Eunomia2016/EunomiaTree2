@@ -42,6 +42,9 @@
 
 #define UNSORTED_INSERT 1
 
+#define CACHE_SUBTREE_TEST 0
+#define CACHED_DEPTH 2
+
 #define CONFLICT_BUFFER_LEN 100
 
 //static uint64_t writes = 0;
@@ -155,6 +158,90 @@ public:
 		unordered_map<uint64_t, key_log> key_map;
 		access_log level_logs[10];
 	*/
+#if CACHE_SUBTREE_TEST
+		struct InnerNodeReplica {
+			int seqno;
+			unsigned num_keys;
+			uint64_t keys[N];
+		};
+	
+		struct InnerNode;
+	
+		//InnerNode ** local_roots = nullptr;
+		class Cached_subtree {
+			int timestamp;
+			InnerNodeReplica* local_replica;
+			InnerNode * local_nodes;
+			int cached_depth;
+			int NUMA_node;
+			int num_cached_nodes;
+			int num_cached_replicas;
+	
+			SpinLock* cached_lock;
+		public:
+			Cached_subtree(int depth, int node, SpinLock* lock): cached_depth(depth), NUMA_node(node), cached_lock(lock) {
+				int num_children = N + 1;
+	
+				//num_cached_replicas = (pow(num_children, depth - 1) - 1) / (num_children - 1);
+				void * local = Numa_alloc_onnode(sizeof(InnerNodeReplica) , NUMA_node);
+				local_replica = new(local) InnerNodeReplica();
+	
+				num_cached_nodes = pow(num_children, depth - 1);
+				void * local_node = Numa_alloc_onnode(sizeof(InnerNode) * num_cached_nodes, node);
+				local_nodes = new(local_node) InnerNode[num_cached_nodes]();
+	
+				timestamp = -1;
+			}
+			int get_timestamp() {
+				cached_lock->Lock();
+				int res = timestamp;
+				cached_lock->Unlock();
+				return res;
+			}
+			int get_cached_depth() {
+				return cached_depth;
+			}
+			void update_subtree(InnerNode* node, unsigned global_timestamp) {
+				cached_lock->Lock();
+				timestamp = global_timestamp;
+				int current_node = Numa_current_node();
+				local_replica->seqno = 0;
+				local_replica->num_keys = node->num_keys;
+				memcpy(local_replica->keys, node->keys, N * sizeof(uint64_t));
+				memset(local_nodes, 0, sizeof(InnerNode) * (N + 1));
+				for(int i = 0; i < node->num_keys +
+						1; i++) {
+					local_nodes[i] = *reinterpret_cast<InnerNode*>(node->children[i]);
+				}
+				cached_lock->Unlock();
+			}
+	
+			InnerNode* search_tree(uint64_t key) {
+				cached_lock->Lock();
+				int k = 0;
+				//search the cached root
+				while((k < local_replica->num_keys) && (key >= local_replica->keys[k])) {
+					k++;
+				}
+				//search the cached InnerNodes
+				InnerNode node = local_nodes[k];
+				k = 0;
+				while((k < node.num_keys) && (key >= node.keys[k])) {
+					k++;
+				}
+				InnerNode* res = reinterpret_cast<InnerNode*>(node.children[k]);
+				cached_lock->Unlock();
+				return res ;
+			}
+		};
+	
+	
+		int global_timestamp;
+		SpinLock* global_tslock;
+		Cached_subtree** cached_subtrees;
+	
+		bool cached_subtree_begin;
+#endif
 
 #if REMOTEACCESS
 	uint64_t inner_local_access;
@@ -326,6 +413,18 @@ public:
 							 = leaf_local_access = leaf_remote_access = buffer_local_access = 0;
 #endif
 
+#if CACHE_SUBTREE_TEST
+		cached_subtrees = (Cached_subtree**)calloc(num_of_nodes, sizeof(Cached_subtree*));
+		for(int i = 0; i < num_of_nodes; i++) {
+			SpinLock* lock = (SpinLock*)Numa_alloc_onnode(sizeof(SpinLock), i);
+			Cached_subtree* local_cached_subtree = (Cached_subtree*)Numa_alloc_onnode(sizeof(Cached_subtree), i);
+			cached_subtrees[i] = new(local_cached_subtree) Cached_subtree(CACHED_DEPTH, i, lock);
+		}
+		global_timestamp = 0;
+		cached_subtree_begin = false;
+		global_tslock = (SpinLock*)calloc(1, sizeof(SpinLock));
+#endif
+
 		num_insert_rtm = 0;
 
 #if BTREE_PROF
@@ -342,6 +441,16 @@ public:
 			*/
 
 	}
+	
+#if CACHE_SUBTREE_TEST
+		int get_global_timestamp() {
+			int res;
+			global_tslock->Lock();
+			res = global_timestamp;
+			global_tslock->Unlock();
+			return res;
+		}
+#endif
 
 	~MemstoreBPlusTree() {
 		//printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
@@ -450,18 +559,61 @@ public:
 	inline MemNode* Get(uint64_t key) {
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
 
-		struct timespec begin, end;
-		clock_gettime(CLOCK_MONOTONIC, &begin);
+		//struct timespec begin, end;
+		//clock_gettime(CLOCK_MONOTONIC, &begin);
+
+		InnerNode* inner;
+		register void* node ;
+		register unsigned d ;
+		unsigned index ;
+		
+#if CACHE_SUBTREE_TEST
+		node = root;
+		d = depth;
+		index = 0;
+		int current_node = Numa_current_node();
+		if(cached_subtree_begin) {
+			Cached_subtree* cached_subtree = cached_subtrees[current_node];
+
+			int global_ts = get_global_timestamp();
+			int local_ts = cached_subtree->get_timestamp();
+			bool cached = false;
+			InnerNode* cached_node = nullptr;
+			if(local_ts == global_ts) {
+				cached = true;
+				cached_node = cached_subtree->search_tree(key);
+				//printf("local_ts = %d\n", local_ts);
+				d -= cached_subtree->get_cached_depth();
+				node = cached_node;
+
+			}
+			/*else{
+				printf("local_ts = %d, global_timestamp = %d\n", local_ts, global_ts);
+			}*/
+
+			global_ts = get_global_timestamp();
+			local_ts = cached_subtree->get_timestamp();
+			if(global_ts != local_ts) {
+				d = depth;
+				node = root;
+			}
+		}
+#endif
+		
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
 		//RTMArenaScope begtx(&rtmlock, &delprof, arena_);
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 #endif
-		InnerNode* inner;
-		register void* node = root;
-		register unsigned d = depth;
-		unsigned index = 0;
+
+
+#if !CACHE_SUBTREE_TEST
+		node = root;
+		d = depth;
+		index = 0;
+#endif
+
 		while(d-- != 0) {
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
@@ -731,9 +883,11 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
-#if BUFFER_TEST
+#if BUFFER_TEST||CACHE_SUBTREE_TEST
 		int current_node = Numa_current_node();
+#endif
 
+#if BUFFER_TEST
 		buffer->inv(key);
 #endif
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
@@ -751,7 +905,29 @@ public:
 		//timespec begin, end;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		//printf("[%ld] BeginTime = %ld\n", pthread_self(), begin.tv_sec * BILLION + begin.tv_nsec);
+#if CACHE_SUBTREE_TEST
+		int depth_one = depth;
+#endif
+
 		InsertResult res = Insert_rtm(key);
+		
+#if CACHE_SUBTREE_TEST
+		InnerNode* root_node = reinterpret_cast<InnerNode*>(root);
+		int depth_two = depth;
+
+		if(depth_one != depth_two && depth_two > 3 && !cached_subtree_begin) {
+			cached_subtree_begin = true;
+		}
+		if(cached_subtree_begin) {
+			int local_ts = cached_subtrees[current_node]->get_timestamp();
+			int global_ts = get_global_timestamp();
+
+			if(local_ts != global_ts) {
+				cached_subtrees[current_node]->update_subtree(root_node, global_timestamp);
+				//printf("tableid = %2d global_ts = %d\n", tableid, global_timestamp);
+			}
+		}
+#endif
 
 		//MemNode* value = res.node;
 		//bool newNode = res.newNode;
@@ -1047,6 +1223,14 @@ public:
 				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val, newKey);
 
 			if(new_inner != NULL) {
+				
+#if CACHE_SUBTREE_TEST
+				if(d == depth - 1 && cached_subtree_begin) {
+					__sync_fetch_and_add(&global_timestamp, 1);
+					//printf("global_timestamp = %d\n", global_timestamp);
+				}
+#endif
+
 				InnerNode *toInsert = inner;
 				InnerNode *child_sibling = new_inner;
 
