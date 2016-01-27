@@ -91,8 +91,8 @@ public:
 		uint32_t reads;
 		uint32_t writes;
 		uint32_t invalids;
-		buffer_entry entries[BUFFER_LEN];
 	public:
+		buffer_entry entries[BUFFER_LEN];
 		int hash(uint64_t key) {
 			return key & HASH_MASK;
 		}
@@ -755,10 +755,16 @@ public:
 #if BUFFER_TEST
 		buffer->push(key, res.node);
 #if BM_TEST
-		bloom_filter_insert(bm_filters[current_node], &key);
+		BloomFilter* bm = bm_filters[current_node];
+		bloom_filter_insert(bm, &key);
 
-		if(bm_filters[current_node]->size >= FLUSH_FREQUENCY) {
-			bloom_filter_flush(bm_filters[current_node]);
+		if(bm->size >= FLUSH_FREQUENCY) {
+			bloom_filter_flush(bm);
+			for(int i = 0; i < BUFFER_LEN; i++){
+				if(buffer->entries[i].valid){
+					bloom_filter_insert(bm, &(buffer->entries[i].key));
+				}
+			}
 		}
 #endif
 
@@ -816,9 +822,16 @@ public:
 #if BUFFER_TEST
 		buffer->push(key, value);
 #if BM_TEST
-		bloom_filter_insert(bm_filters[current_node], &key);
-		if(bm_filters[current_node]->size >= FLUSH_FREQUENCY) {
-			bloom_filter_flush(bm_filters[current_node]);
+		BloomFilter* bm = bm_filters[current_node];
+		bloom_filter_insert(bm, &key);
+
+		if(bm->size >= FLUSH_FREQUENCY) {
+			bloom_filter_flush(bm);
+			for(int i = 0; i < BUFFER_LEN; i++){
+				if(buffer->entries[i].valid){
+					bloom_filter_insert(bm, &(buffer->entries[i].key));
+				}
+			}
 		}
 #endif
 

@@ -4,9 +4,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef bool	(*BloomContains)(void* user, const uint64_t *string, size_t string_length);
-
 //typedef struct BloomFilter BloomFilter;
+
 struct BloomFilter {
 	size_t		m;
 	size_t		k;
