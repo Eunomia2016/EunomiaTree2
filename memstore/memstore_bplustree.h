@@ -32,11 +32,11 @@
 #define REMOTEACCESS 0
 
 #define BUFFER_TEST 0
-#define BUFFER_LEN (1<<4)
+#define BUFFER_LEN (1<<5)
 #define HASH_MASK (BUFFER_LEN-1)
 
 #define BM_TEST 0
-#define FLUSH_FREQUENCY 200
+#define FLUSH_FREQUENCY 100
 #define ERROR_RATE 0.1
 #define BM_SIZE 100
 
@@ -731,7 +731,6 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
-
 #if BUFFER_TEST
 		int current_node = Numa_current_node();
 
@@ -1234,7 +1233,7 @@ public:
 #if UNSORTED_INSERT
 			std::sort(leaf->keys, leaf->keys + leaf->num_keys);
 			k = 0;
-			while((k < leaf->num_keys) && (leaf->num_keys < key)) {
+			while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 				k++;
 			}
 #endif
