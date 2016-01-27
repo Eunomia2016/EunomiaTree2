@@ -142,6 +142,10 @@ public:
 		}
 	};
 	NUMA_Buffer* buffer;
+
+	//uint64_t buffer_reads;
+	//uint64_t filtered_reads;
+	
 #endif
 
 	/*
@@ -303,6 +307,7 @@ public:
 		num_of_nodes = numa_num_configured_nodes();
 
 #if BUFFER_TEST
+		//buffer_reads = filtered_reads = 0;
 		buffer = new NUMA_Buffer();
 #if BM_TEST
 		bm_filters = (BloomFilter**)malloc(num_of_nodes*sizeof(BloomFilter*));
@@ -358,6 +363,8 @@ public:
 
 #endif
 #if BUFFER_TEST
+		//printf("buffer_reads = %d, filtered_reads = %d\n", 
+		//buffer_reads, filtered_reads);
 		delete buffer;
 #endif
 #if REMOTEACCESS
@@ -766,7 +773,9 @@ public:
 		bool in_cache = true;
 
 #if BM_TEST
+		//atomic_inc64(&buffer_reads);
 		if(bloom_filter_contains(bm_filters[current_node], &key) == 0) {
+		//	atomic_inc64(&filtered_reads);
 			in_cache = false;
 		}
 #endif

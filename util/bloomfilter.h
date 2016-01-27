@@ -14,8 +14,6 @@ struct BloomFilter {
 	uint64_t		*bits;
 	size_t		bits_length;
 	size_t 		bits_size;
-	BloomContains	contains;
-	void*	user;
 };
 
 

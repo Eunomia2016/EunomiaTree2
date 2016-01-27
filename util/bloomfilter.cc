@@ -7,10 +7,6 @@
 #include "util/bloomfilter.h"
 #include "util/numa_util.h"
 
-static bool cb_contains_always(void* user, const uint64_t *string, size_t length)
-{
-	return true;
-}
 
 BloomFilter * bloom_filter_new(size_t filter_size, size_t num_hashes, int numa_node)
 {
@@ -26,8 +22,6 @@ BloomFilter * bloom_filter_new(size_t filter_size, size_t num_hashes, int numa_n
 		bf->bits = (uint64_t *) (bf + 1);
 		bf->bits_length = bits_length;
 		bf->bits_size = bits_size;
-		bf->contains =  cb_contains_always;
-		bf->user = NULL;
 		memset(bf->bits, 0, bits_size);
 
 		/*printf("bits_length = %ld\n", bits_length);*/
@@ -82,9 +76,6 @@ void bloom_filter_insert(BloomFilter *bf, const uint64_t* string)
 		const size_t	pos = hash % bf->m;
 		const size_t	slot = pos / (CHAR_BIT * sizeof *bf->bits);
 		const size_t	bit = pos % (CHAR_BIT * sizeof *bf->bits);
-#if defined BLOOM_FILTER_STANDALONE
-		printf("hash(%s,%zu)=%u -> pos=%zu -> slot=%zu, bit=%zu\n", string, i, hash, pos, slot, bit);
-#endif
 		bf->bits[slot] |= 1UL << bit;
 	}
 	bf->size++;
@@ -109,7 +100,7 @@ bool bloom_filter_contains(const BloomFilter *bf, const uint64_t *string)
 			return false;
 	}
 	/* Bit-checking says yes, call user's contains() function to make sure. */
-	return bf->contains(bf->user, string, len);
+	return true;
 }
 
 /* -------------------------------------------------------------------------------------------------------------- */
@@ -140,4 +131,3 @@ int main(void)
 	bloom_filter_destroy(bf);
 }
 #endif
-
