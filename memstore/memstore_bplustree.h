@@ -31,14 +31,16 @@
 
 #define REMOTEACCESS 0
 
-#define BUFFER_TEST 1
+#define BUFFER_TEST 0
 #define BUFFER_LEN (1<<4)
 #define HASH_MASK (BUFFER_LEN-1)
+
+#define BM_TEST 0
 #define FLUSH_FREQUENCY 200
 #define ERROR_RATE 0.1
 #define BM_SIZE 100
 
-#define BM_TEST 1
+#define UNSORTED_INSERT 1
 
 #define CONFLICT_BUFFER_LEN 100
 
@@ -145,7 +147,7 @@ public:
 
 	//uint64_t buffer_reads;
 	//uint64_t filtered_reads;
-	
+
 #endif
 
 	/*
@@ -310,7 +312,7 @@ public:
 		//buffer_reads = filtered_reads = 0;
 		buffer = new NUMA_Buffer();
 #if BM_TEST
-		bm_filters = (BloomFilter**)malloc(num_of_nodes*sizeof(BloomFilter*));
+		bm_filters = (BloomFilter**)malloc(num_of_nodes * sizeof(BloomFilter*));
 		for(int i = 0; i < num_of_nodes; i++) {
 			bm_filters[i] =
 				bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE, i);
@@ -363,7 +365,7 @@ public:
 
 #endif
 #if BUFFER_TEST
-		//printf("buffer_reads = %d, filtered_reads = %d\n", 
+		//printf("buffer_reads = %d, filtered_reads = %d\n",
 		//buffer_reads, filtered_reads);
 		delete buffer;
 #endif
@@ -502,6 +504,17 @@ public:
 		level_logs[0].gets++;
 #endif
 
+#if UNSORTED_INSERT
+		if(leaf->num_keys == 0) return NULL;
+		unsigned k = 0;
+		while(k < leaf->num_keys) {
+			if(leaf->keys[k] == key) {
+				return leaf->values[k];
+			}
+			k++;
+		}
+		return NULL;
+#else
 		if(leaf->num_keys == 0) return NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
@@ -516,6 +529,7 @@ public:
 		} else {
 			return NULL;
 		}
+#endif
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
@@ -760,8 +774,8 @@ public:
 
 		if(bm->size >= FLUSH_FREQUENCY) {
 			bloom_filter_flush(bm);
-			for(int i = 0; i < BUFFER_LEN; i++){
-				if(buffer->entries[i].valid){
+			for(int i = 0; i < BUFFER_LEN; i++) {
+				if(buffer->entries[i].valid) {
 					bloom_filter_insert(bm, &(buffer->entries[i].key));
 				}
 			}
@@ -781,7 +795,7 @@ public:
 #if BM_TEST
 		//atomic_inc64(&buffer_reads);
 		if(bloom_filter_contains(bm_filters[current_node], &key) == 0) {
-		//	atomic_inc64(&filtered_reads);
+			//	atomic_inc64(&filtered_reads);
 			in_cache = false;
 		}
 #endif
@@ -827,8 +841,8 @@ public:
 
 		if(bm->size >= FLUSH_FREQUENCY) {
 			bloom_filter_flush(bm);
-			for(int i = 0; i < BUFFER_LEN; i++){
-				if(buffer->entries[i].valid){
+			for(int i = 0; i < BUFFER_LEN; i++) {
+				if(buffer->entries[i].valid) {
 					bloom_filter_insert(bm, &(buffer->entries[i].key));
 				}
 			}
@@ -1180,35 +1194,50 @@ public:
 #endif
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
+#if UNSORTED_INSERT
+		while(k < leaf->num_keys) {
+			if(leaf->keys[k] == key) {
+				*val = leaf->values[k];
+				return NULL;
+			}
+			k++;
+		}
+#else
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 			++k;
 		}
 
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*newKey = false;
-#if BTPREFETCH
+	#if BTPREFETCH
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
-#endif
+	#endif
 			*val = leaf->values[k];
-#if NODEMAP
-			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-			//		   sched_getcpu(), leaf->signature, key,0);
+	#if NODEMAP
 			level_logs[0].gets++;
 
-#endif
-			//			checkConflict(leaf->signature, 0);
+	#endif
+			//checkConflict(leaf->signature, 0);
 
-#if BTREE_PROF
+	#if BTREE_PROF
 			reads++;
-#endif
+	#endif
 			assert(*val != NULL);
 			return NULL;
 		}
+#endif
 		*newKey = true;
 		//inserting a new key in the children
 		LeafNode *toInsert = leaf;
 		//create a new node to accommodate the new key if the leaf is full
 		if(leaf->num_keys == M) {
+#if UNSORTED_INSERT
+			std::sort(leaf->keys, leaf->keys + leaf->num_keys);
+			k = 0;
+			while((k < leaf->num_keys) && (leaf->num_keys < key)) {
+				k++;
+			}
+#endif
 			new_sibling = new_leaf_node();
 #if NUMADUMP
 			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, Numa_get_node(new_sibling));
@@ -1262,12 +1291,14 @@ public:
 #endif
 
 		}
-
-
-
-#if BTPREFETCH
+#if UNSORTED_INSERT
+		toInsert->keys[toInsert->num_keys] = key;
+		k = toInsert->num_keys;
+		toInsert->num_keys++;
+#else
+	#if BTPREFETCH
 		prefetch(reinterpret_cast<char*>(dummyval_));
-#endif
+	#endif
 
 		for(int j = toInsert->num_keys; j > k; j--) {
 			toInsert->keys[j] = toInsert->keys[j - 1];
@@ -1276,7 +1307,7 @@ public:
 
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
-
+#endif
 
 #if NODEMAP
 		level_logs[0].writes++;
