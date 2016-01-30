@@ -14,6 +14,7 @@
 #include "util.h"
 #include "spinbarrier.h"
 //#include "rcu.h"
+#define MILLION 1000000L
 
 extern void ycsb_do_test(abstract_db *db, int argc, char **argv);
 extern void tpcc_do_test(int argc, char **argv);
@@ -105,6 +106,7 @@ class bench_worker : public ndb_thread {
 public:
 	uint64_t secs;
 	static uint64_t total_ops;
+	uint64_t txn_times[5];
   bench_worker(unsigned int worker_id,
                bool set_core_id,
                unsigned long seed, abstract_db *db,
@@ -113,18 +115,20 @@ public:
       r(seed), db(db), 
       barrier_a(barrier_a), barrier_b(barrier_b),
       // the ntxn_* numbers are per worker
-      ntxn_commits(0), 
       latency_numer_us(0),
       backoff_shifts(0), // spin between [0, 2^backoff_shifts) times before retry
       size_delta(0)
   {
     txn_obj_buf.reserve(2 * CACHELINE_SIZE);
-	for (int i =0 ;i <5; i++) 
+	for (int i =0 ;i < 5; i++) {
+		ntxn_commits[i] = 0;
 		ntxn_aborts[i] = 0;
+	}
  //   txn_obj_buf.resize(db->sizeof_txn_object(txn_flags));
   }
 
   virtual ~bench_worker() {
+	
   	//printf("[Alex] ~bench_worker\n");
   }
   // returns [did_commit?, size_increase_bytes]
@@ -148,7 +152,16 @@ public:
 
   virtual void run();
 
-  inline size_t get_ntxn_commits() const { return ntxn_commits; }
+  inline size_t get_mixed_commits() const { 
+	size_t all_commits = 0;
+	for(int i = 0; i < 5; i++){
+		all_commits += ntxn_commits[i];
+	}
+	return all_commits; 
+  }
+  inline size_t get_new_order_commits() const{
+	return ntxn_commits[0];
+  }
   inline size_t get_ntxn_aborts(int i) const { return ntxn_aborts[i]; }
 
   inline uint64_t get_latency_numer_us() const { return latency_numer_us; }
@@ -156,7 +169,7 @@ public:
   inline double
   get_avg_latency_us() const
   {
-    return double(latency_numer_us) / double(ntxn_commits);
+    return double(latency_numer_us) / double(get_mixed_commits());
   }
 
   std::map<std::string, size_t> get_txn_counts() const;
@@ -188,7 +201,7 @@ protected:
   spin_barrier *const barrier_b;
 
 private:
-  size_t ntxn_commits;
+  size_t ntxn_commits[5];
   size_t ntxn_aborts[5];
   uint64_t latency_numer_us;
   unsigned backoff_shifts;

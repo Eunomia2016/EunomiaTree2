@@ -16,14 +16,16 @@
 #include "util/mutexlock.h"
 #include "db/dbtables.h"
 
+#define SET_TIME 1
 
 namespace leveldb {
-
 
 class DBROTX {
  public:
 
-
+	uint64_t gettime;
+	uint64_t gets;
+	
 	DBROTX (DBTables* store);
 	~DBROTX();
 

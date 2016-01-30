@@ -12,6 +12,7 @@
 
 #include "db/dbformat.h"
 #include "db/dbtx.h"
+#include "silo_benchmark/util.h"
 #include "port/port_posix.h"
 #include "util/txprofile.h"
 #include "util/spinlock.h"
@@ -32,10 +33,7 @@ __thread DELSet* DBTX::deleteset =
 __thread bool DBTX::localinit = false;
 __thread DBTX::BufferNode* DBTX::buffer = NULL;
 
-
 #define MAXSIZE 1024 // the initial read/write set size
-
-uint64_t DBTX::treetime = 0;
 
 void DBTX::ThreadLocalInit() {
 	if(false == localinit) {
@@ -563,8 +561,18 @@ void DBTX::WriteSet::Print() {
 }
 
 DBTX::DBTX(DBTables* store) {
+	//printf("DBTX\n");
 	txdb_ = store;
 	count = 0;
+
+#if SET_TIME
+	begintime=addtime=gettime=endtime=aborttime=iterprevtime=iternexttime=iterseektime=iterseektofirsttime=0;
+	begins=adds=gets=ends=nexts=prevs=seeks=seektofirsts=0;
+#endif
+
+#if TREE_TIME
+	treetime = 0;
+#endif
 
 	abort = false;
 #if PROFILEBUFFERNODE
@@ -581,18 +589,47 @@ DBTX::DBTX(DBTables* store) {
 }
 
 DBTX::~DBTX() {
+	//printf("~DBTX\n");
 #if NUMA_DUMP
 	for(int i = 0; i < TABLE_NUM; i++){
 		printf("Table[%d] local_access: %d remote_access: %d\n",i, local_access[i], 
 			remote_access[i]);
 	}
 #endif
+
+#if TREE_TIME 
+	printf("=====================\n");
+	printf("tree_time = %lf sec\n", (double)treetime/MILLION);
+#endif
+#if SET_TIME
+	printf("total begin_time = %ld(%ld)\n", begintime, begins);
+	printf("total get_time = %ld(%ld)\n", gettime, gets);
+	printf("total add_time = %ld(%ld)\n", addtime, adds);
+	printf("total end_time = %ld(%ld)\n", endtime, ends);
+	printf("total next_time = %ld(%ld)\n", iternexttime, nexts);
+	//printf("total prev_time = %ld(%ld)\n", iterprevtime, prevs);
+	printf("total seek_time = %ld(%ld)\n", iterseektime, seeks);
+	//printf("total seektofirst_time = %ld(%ld)\n", iterseektofirsttime, seektofirsts);
+/*
+	printf("single begin_time = %lf usec\n", (double)begintime/begins);
+	printf("single get_time = %lf usec\n", (double)gettime/gets);
+	printf("single add_time = %lf usec\n", (double)addtime/adds);
+	printf("single end_time = %lf usec\n", (double)endtime/ends);
+*/	
+	//printf("abort_time = %lf sec\n", (double)aborttime/MILLION);
+	printf("=====================\n");
+#endif
+
+
 	//clear all the data
 }
 
 void DBTX::Begin() {
 //reset the local read set and write set
 	//txdb_->ThreadLocalInit();
+#if SET_TIME
+		util::timer t;
+#endif
 
 	ThreadLocalInit();
 	readset->Reset();
@@ -600,6 +637,11 @@ void DBTX::Begin() {
 	deleteset->Reset();
 
 	txdb_->RCUTXBegin();
+
+#if SET_TIME
+	atomic_inc64(&begins);
+	atomic_add64(&begintime, t.lap());
+#endif
 
 #if DEBUG_PRINT
 	printf("[%ld] TX Begin\n", pthread_self());
@@ -615,10 +657,15 @@ bool DBTX::Abort() {
 	abort = false;
 	//Should not call End
 	txdb_->RCUTXEnd();
+
 	return abort;
 }
 
 bool DBTX::End() {
+#if SET_TIME
+	util::timer t;
+#endif
+
 	int dvlen;
 	uint64_t **dvs;
 	int ovlen;
@@ -632,6 +679,7 @@ bool DBTX::End() {
 	//printf("TXEND\n");
 	//Phase 1. Validation & Commit
 	{
+
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
@@ -675,6 +723,10 @@ bool DBTX::End() {
 	printf("[%ld] TX Success\n", pthread_self());
 #endif
 
+#if SET_TIME
+	atomic_inc64(&ends);
+	atomic_add64(&endtime,t.lap());
+#endif
 	return true;
 
 ABORT:
@@ -689,18 +741,26 @@ ABORT:
 #if DEBUG_PRINT
 	printf("[%ld] TX Abort\n", pthread_self());
 #endif
+
+#if SET_TIME
+	atomic_add64(&endtime,t.lap());
+#endif
+
 	return false;
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val) {
+#if SET_TIME
+	util::timer add_time;
+#endif
 	bool newNode = false;  
 
 #if NUMA_DUMP
-			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
-				remote_access[tableid]++;
-			}else{
-				local_access[tableid]++;
-			}
+	if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
+		remote_access[tableid]++;
+	}else{
+		local_access[tableid]++;
+	}
 #endif
 
 //  SpinLockScope spinlock(&slock);
@@ -727,7 +787,14 @@ retry:
 	#if PROFILEBUFFERNODE
 		bufferMiss++;
 	#endif
+
+	#if TREE_TIME
+	util::timer t;	
 		res = txdb_->tables[tableid]->GetWithInsert(key);
+	atomic_add64(&treetime, t.lap());
+	#else
+	res = txdb_->tables[tableid]->GetWithInsert(key);
+	#endif
 		node = res.node;
 		newNode = res.hasNewNode;
 		buffer[tableid].node = node;
@@ -752,16 +819,23 @@ retry:
 #endif
 
 	writeset->Add(tableid, key, val, node);
+#if SET_TIME
+	atomic_inc64(&adds);
+	atomic_add64(&addtime, add_time.lap());
+#endif
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
+#if SET_TIME
+	util::timer add_time;
+#endif
 	bool newNode = false;
 #if NUMA_DUMP
-		if(Numa_current_node() != Numa_get_node((void*)(txdb_->tables[tableid]))){
-			remote_access[tableid]++;
-		}else{
-			local_access[tableid]++;
-		}
+	if(Numa_current_node() != Numa_get_node((void*)(txdb_->tables[tableid]))){
+		remote_access[tableid]++;
+	}else{
+		local_access[tableid]++;
+	}
 #endif
 
 #if DUMP
@@ -784,21 +858,27 @@ retry:
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferHit++;
-#endif
+	#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferMiss++;
-#endif
-//	uint64_t s_start = rdtsc();
+	#endif
+	//uint64_t s_start = rdtsc();
+	#if TREE_TIME
+	util::timer t;
+			res = txdb_->tables[tableid]->GetWithInsert(key);
+	atomic_add64(&treetime, t.lap());
+	#else
 		res = txdb_->tables[tableid]->GetWithInsert(key);
+	#endif
+
 		node = res.node;
 		newNode = res.hasNewNode;
-//	treetime += rdtsc() - s_start;
-//	printf("%ld\n",treetime);
+	//treetime += rdtsc() - s_start;
 		assert(node != NULL);
 	}
 #else
@@ -825,18 +905,25 @@ retry:
 	}
 #endif
 	writeset->Add(tableid, key, (uint64_t *)value, node);
+#if SET_TIME
+	atomic_inc64(&adds);
+	atomic_add64(&addtime, add_time.lap());
+#endif
+
 }
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* new_val) {
+#if SET_TIME
+	util::timer add_time;
+#endif
 	bool newNode = false;
-
 #if NUMA_DUMP
-			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
-				remote_access[tableid]++;
-			}else{
-				local_access[tableid]++;
-			}
+	if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
+		remote_access[tableid]++;
+	}else{
+		local_access[tableid]++;
+	}
 #endif
 
 #if DUMP
@@ -861,16 +948,23 @@ retryA:
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferHit++;
-#endif
+	#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferMiss++;
-#endif
-		res = txdb_->tables[tableid]->GetWithInsert(key);
+	#endif
+	#if TREE_TIME
+				util::timer t;
+					res = txdb_->tables[tableid]->GetWithInsert(key);
+				atomic_add64(&treetime, t.lap());
+	#else
+				res = txdb_->tables[tableid]->GetWithInsert(key);
+	#endif
+
 		node = res.node;
 		newNode = res.hasNewNode;
 		buffer[tableid].node = node;
@@ -900,23 +994,28 @@ retryA:
 		txdb_->secondIndexes[indextableid]->GetWithInsert(seckey, key, &seq);
 	//mw->memnode = node;
 
-	//2. add the record seq number into write set
-	writeset->Add(tableid, key, new_val, node);
-
 	//3. add the seq number of the second node and the validation flag address into the write set
 	writeset->Add(seq, mw, node);
+#if SET_TIME
+	atomic_inc64(&adds);
+	atomic_add64(&addtime, add_time.lap());
+#endif
+
 }
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len) {
+#if SET_TIME
+	util::timer add_time;
+#endif
 	bool newNode = false;
 
 #if NUMA_DUMP
-			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
-				remote_access[tableid]++;
-			}else{
-				local_access[tableid]++;
-			}
+	if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
+		remote_access[tableid]++;
+	}else{
+		local_access[tableid]++;
+	}
 #endif
 
 #if DUMP
@@ -939,17 +1038,24 @@ retryA:
 	//Get the seq addr from the hashtable
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferHit++;
-#endif
+	#endif
 		node = buffer[tableid].node;
 		assert(node != NULL);
 	} else {
 
-#if PROFILEBUFFERNODE
+	#if PROFILEBUFFERNODE
 		bufferMiss++;
-#endif
-		res = txdb_->tables[tableid]->GetWithInsert(key);
+	#endif
+	#if TREE_TIME
+				util::timer t;
+					res = txdb_->tables[tableid]->GetWithInsert(key);
+				atomic_add64(&treetime, t.lap());
+	#else
+				res = txdb_->tables[tableid]->GetWithInsert(key);
+	#endif
+
 		node = res.node;
 		newNode = res.hasNewNode;
 		assert(node != NULL);
@@ -976,7 +1082,11 @@ retryA:
 		value = new char[len];
 
 	memcpy(value, val, len);
-	writeset->Add(tableid, key, (uint64_t *)value, node);
+
+	//3. add the seq number of the second node and the validation flag address into the write set
+		writeset->Add(tableid, key, (uint64_t *)value, node);
+		writeset->Add(seq, mw, node);
+
 #if KEY_DUMP
 		if(newNode){
 			printf("[%d] ADD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
@@ -984,20 +1094,20 @@ retryA:
 			printf("[%d] UPD tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
 		}
 #endif
-
-	//3. add the seq number of the second node and the validation flag address into the write set
-	writeset->Add(seq, mw, node);
+#if SET_TIME
+	atomic_inc64(&adds);
+	atomic_add64(&addtime, add_time.lap());
+#endif
 }
 
 void DBTX::Delete(int tableid, uint64_t key) {
 #if NUMA_DUMP
-			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
-				remote_access[tableid]++;
-			}else{
-				local_access[tableid]++;
-			}
+	if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
+		remote_access[tableid]++;
+	}else{
+		local_access[tableid]++;
+	}
 #endif
-
 
 #if DUMP
 	struct timespec time_stamp;
@@ -1008,7 +1118,7 @@ void DBTX::Delete(int tableid, uint64_t key) {
 
 	uint64_t *val;
 #if KEY_DUMP
-				printf("[%d] DEL tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
+	printf("[%d] DEL tableid = %2d key = %15ld\n", sched_getcpu(), tableid, key);
 #endif
 
 	//Logically delete, set the value pointer to be NULL
@@ -1051,7 +1161,6 @@ int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs) {
 DBTX::KeyValues* DBTX::GetByIndex(int indextableid, uint64_t seckey) {
 	KeyValues* kvs = NULL;
 
-
 	assert(txdb_->secondIndexes[indextableid] != NULL);
 	SecondIndex::SecondNode* sn = txdb_->secondIndexes[indextableid]->Get(seckey);
 	assert(sn != NULL);
@@ -1093,6 +1202,7 @@ retryGBI:
 
 	if(i == 0) {
 		//printf("[%ld] Get tag2 %ld No Entry\n", pthread_self(), seckey);
+		
 		if(kvs != NULL)
 			delete kvs;
 		return NULL;
@@ -1102,6 +1212,9 @@ retryGBI:
 }
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
+#if SET_TIME
+	util::timer get_time;
+#endif
 		bool newNode = false;
 #if NUMA_DUMP
 			if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
@@ -1119,6 +1232,10 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 #endif
 	//step 1. First check if the <k,v> is in the write set
 	if(writeset->Lookup(tableid, key, val)) {
+#if SET_TIME
+		atomic_inc64(&gets);
+		atomic_add64(&gettime, get_time.lap());
+#endif
 		if((*val) == LOGICALDELETE)
 			return false;
 		return true;
@@ -1127,9 +1244,20 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
 retry:		
 	Memstore::MemNode* node;
 	Memstore::InsertResult res;
+
+#if TREE_TIME
+	util::timer t;
 	node = txdb_->tables[tableid]->GetForRead(key);
+	atomic_add64(&treetime,t.lap());
+#else
+	node = txdb_->tables[tableid]->GetForRead(key);
+#endif
 
 	if(node == NULL){
+#if SET_TIME
+		atomic_inc64(&gets);
+		atomic_add64(&gettime, get_time.lap());
+#endif
 		return false;
 	}
 	#if BUFFERNODE
@@ -1148,7 +1276,9 @@ retry:
 	if(node->value == HAVEREMOVED)
 		goto retry;
 //	if(*val != NULL && **val == 1)
-	readset->Add(&node->seq);
+
+		readset->Add(&node->seq);
+
 	//if this node has been removed from the memstore
 
 #if DEBUG_PRINT
@@ -1164,6 +1294,10 @@ retry:
 			}
 #endif
 
+#if SET_TIME
+		atomic_inc64(&gets);
+		atomic_add64(&gettime, get_time.lap());
+#endif
 	if(ValidateValue(node->value)) {
 		*val = node->value;
 		return true;
@@ -1199,6 +1333,9 @@ uint64_t* DBTX::Iterator::Value() {
 }
 
 void DBTX::Iterator::Next() {
+#if SET_TIME
+	util::timer next_time;
+#endif
 	bool r = iter_->Next();
 
 #if AGGRESSIVEDETECT
@@ -1210,11 +1347,8 @@ void DBTX::Iterator::Next() {
 #endif
 
 	while(iter_->Valid()) {
-
 		cur_ = iter_->CurNode();
-
 		{
-
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
@@ -1229,8 +1363,11 @@ void DBTX::Iterator::Next() {
 			tx_->readset->Add(&cur_->seq);
 
 			if(DBTX::ValidateValue(val_)) {
+#if SET_TIME
+		atomic_inc64(&tx_->nexts);
+		atomic_add64(&tx_->iternexttime, next_time.lap());
+#endif
 				return;
-
 			}
 #if 0
 			else
@@ -1241,14 +1378,27 @@ void DBTX::Iterator::Next() {
 	}
 
 	cur_ = NULL;
+#if SET_TIME
+		atomic_inc64(&tx_->nexts);
+		atomic_add64(&tx_->iternexttime, next_time.lap());
+#endif
 
 }
 
 void DBTX::Iterator::Prev() {
+#if SET_TIME
+		util::timer prev_time;
+#endif
+
 	bool b = iter_->Prev();
 	if(!b) {
 		tx_->abort = true;
 		cur_ = NULL;
+#if SET_TIME
+		atomic_inc64(&tx_->prevs);
+		atomic_add64(&tx_->iterprevtime, prev_time.lap());
+#endif
+
 		return;
 	}
 	while(iter_->Valid()) {
@@ -1267,15 +1417,28 @@ void DBTX::Iterator::Prev() {
 			tx_->readset->Add(&cur_->seq);
 
 			if(DBTX::ValidateValue(val_)) {
+#if SET_TIME
+	atomic_inc64(&tx_->prevs);
+	atomic_add64(&tx_->iterprevtime, prev_time.lap());
+#endif
 				return;
 			}
 		}
 		iter_->Prev();
 	}
 	cur_ = NULL;
+#if SET_TIME
+	atomic_inc64(&tx_->prevs);
+	atomic_add64(&tx_->iterprevtime, prev_time.lap());
+#endif
+
 }
 
 void DBTX::Iterator::Seek(uint64_t key) {
+#if SET_TIME
+	util::timer seek_time;
+#endif
+
 	//Should seek from the previous node and put it into the readset
 	iter_->Seek(key);
 	cur_ = iter_->CurNode();
@@ -1292,6 +1455,11 @@ void DBTX::Iterator::Seek(uint64_t key) {
 
 		printf("Not Valid!\n");
 		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
+#if SET_TIME
+		atomic_inc64(&tx_->seeks);
+		atomic_add64(&tx_->iterseektime, seek_time.lap());
+#endif
+
 		return;
 	}
 
@@ -1314,15 +1482,22 @@ void DBTX::Iterator::Seek(uint64_t key) {
 			val_ = cur_->value;
 
 			if(DBTX::ValidateValue(val_)) {
+#if SET_TIME
+		atomic_inc64(&tx_->seeks);
+		atomic_add64(&tx_->iterseektime, seek_time.lap());
+#endif				
 				return;
 			}
 		}
 		iter_->Next();
 		cur_ = iter_->CurNode();
 	}
-
-
 	cur_ = NULL;
+#if SET_TIME
+		atomic_inc64(&tx_->seeks);
+		atomic_add64(&tx_->iterseektime, seek_time.lap());
+#endif
+
 }
 
 void DBTX::Iterator::SeekProfiled(uint64_t key) {
@@ -1389,6 +1564,10 @@ void DBTX::Iterator::SeekProfiled(uint64_t key) {
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.
 void DBTX::Iterator::SeekToFirst() {
+#if SET_TIME
+		util::timer seektofirst_time;
+#endif
+
 	//Put the head into the read set first
 
 	iter_->SeekToFirst();
@@ -1405,7 +1584,10 @@ void DBTX::Iterator::SeekToFirst() {
 		//put the previous node's next field into the readset
 
 		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
-
+#if SET_TIME
+		atomic_inc64(&tx_->seektofirsts);
+		atomic_add64(&tx_->iterseektofirsttime, seektofirst_time.lap());
+#endif
 
 		return;
 	}
@@ -1426,6 +1608,11 @@ void DBTX::Iterator::SeekToFirst() {
 			tx_->readset->Add(&cur_->seq);
 
 			if(DBTX::ValidateValue(val_)) {
+#if SET_TIME
+				atomic_inc64(&tx_->seektofirsts);
+				atomic_add64(&tx_->iterseektofirsttime, seektofirst_time.lap());
+#endif
+
 				return;
 			}
 		}
@@ -1433,6 +1620,10 @@ void DBTX::Iterator::SeekToFirst() {
 		cur_ = iter_->CurNode();
 	}
 	cur_ = NULL;
+#if SET_TIME
+	atomic_inc64(&tx_->seektofirsts);
+	atomic_add64(&tx_->iterseektofirsttime, seektofirst_time.lap());
+#endif
 
 }
 

@@ -14,6 +14,7 @@
 #include "util/txprofile.h"
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
+#include "util/numa_util.h"
 #include "db/dbtables.h"
 #include "db/delset.h"
 
@@ -24,6 +25,7 @@
 
 #define DBX_DUMP 0
 #define BILLION 1000000000L
+#define MILLION 1000000L
 #define KEY_DUMP 0
 
 #define CACHESIM 0
@@ -44,6 +46,9 @@
 
 #define DEBUG_PRINT 0
 
+#define TREE_TIME 0
+#define SET_TIME 1
+
 namespace leveldb {
 
 class DBTX {
@@ -51,13 +56,24 @@ public:
 	uint64_t local_access[TABLE_NUM];
 	uint64_t remote_access[TABLE_NUM];
 	
-	static uint64_t treetime ;
-
+	uint64_t treetime ;
+	uint64_t settime;
+	 
+	uint64_t begintime;
+	uint64_t gettime;
+	uint64_t addtime;
+	uint64_t endtime;
+	uint64_t aborttime;
+	uint64_t iterprevtime;
+	uint64_t iternexttime;
+	uint64_t iterseektime;
+	uint64_t iterseektofirsttime;
+	uint64_t begins, gets, adds, ends, nexts, prevs, seeks, seektofirsts;
+	
 	RTMProfile rtmProf;
 	int count;
 	int worker_id;
 	struct KeyValues {
-
 		int num;
 		uint64_t *keys;
 		uint64_t **values;

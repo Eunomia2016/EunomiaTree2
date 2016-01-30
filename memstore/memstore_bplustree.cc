@@ -130,7 +130,6 @@ bool MemstoreBPlusTree::Iterator::Valid() {
 // REQUIRES: Valid()
 bool MemstoreBPlusTree::Iterator::Next() {
 	//get next different key
-
 	//if (node_->seq != seq_) printf("%d %d\n",node_->seq,seq_);
 	bool b = true;
 
@@ -140,7 +139,7 @@ bool MemstoreBPlusTree::Iterator::Next() {
 	RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
 #endif
 
-	if(node_->seq != seq_) {
+	if(node_->seq != seq_) { //the current LeafNode is modified, search the LeafNode again
 		b = false;
 		while(node_ != NULL) {
 			int k = 0;
@@ -149,21 +148,22 @@ bool MemstoreBPlusTree::Iterator::Next() {
 				++k;
 			}
 			if(k == num) {
-				node_ = node_->right;
+				node_ = node_->right; //not in the current LeafNode
 				if(node_ == NULL) return b;
 			} else {
-				leaf_index = k;
+				leaf_index = k; //index of the key in the keylist of the current LeafNode
 				break;
 			}
 		}
-
-	} else leaf_index++;
+	} else {
+		leaf_index++; //just move to the nexy key
+	}
 	if(leaf_index >= node_->num_keys) {
 		node_ = node_->right;
 		leaf_index = 0;
 		if(node_ != NULL) {
 			link_ = (uint64_t *)(&node_->seq);
-			target_ = node_->seq;
+			target_ = node_->seq; //copy the seqno of the current LeafNode
 		}
 	}
 	if(node_ != NULL) {
@@ -245,13 +245,13 @@ void MemstoreBPlusTree::Iterator::Seek(uint64_t key) {
 	RTMScope begtx(&tree_->prof, tree_->depth, 1, &tree_->rtmlock);
 #endif
 
-	LeafNode *leaf = tree_->FindLeaf(key);
-	link_ = (uint64_t *)(&leaf->seq);
-	target_ = leaf->seq;
+	LeafNode *leaf = tree_->FindLeaf(key); //the the LeafNode storing the key
+	link_ = (uint64_t *)(&leaf->seq); //Pointer to the current LeafNode
+	target_ = leaf->seq;	//copy of the seqno of the current LeafNode
 	int num = leaf->num_keys;
 	assert(num > 0);
 	int k = 0;
-	while((k < num) && (key > leaf->keys[k])) {
+	while((k < num) && (leaf->keys[k] < key)) {
 		++k;
 	}
 	if(k == num) {
@@ -264,7 +264,6 @@ void MemstoreBPlusTree::Iterator::Seek(uint64_t key) {
 	seq_ = node_->seq;
 	key_ = node_->keys[leaf_index];
 	value_ = node_->values[leaf_index];
-
 	//tree_->printLeaf(node_);
 }
 

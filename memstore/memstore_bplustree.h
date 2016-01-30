@@ -30,17 +30,19 @@
 #define NUMADUMP 0
 
 #define REMOTEACCESS 0
+#define LEVEL_LOG 0
 
 #define BUFFER_TEST 0
-#define BUFFER_LEN (1<<5)
+#define BUFFER_LEN (1<<8)
 #define HASH_MASK (BUFFER_LEN-1)
+#define OFFSET_BITS 4
 
 #define BM_TEST 0
 #define FLUSH_FREQUENCY 100
 #define ERROR_RATE 0.1
 #define BM_SIZE 100
 
-#define UNSORTED_INSERT 1
+#define UNSORTED_INSERT 0
 
 #define CACHE_SUBTREE_TEST 0
 #define CACHED_DEPTH 2
@@ -99,7 +101,7 @@ public:
 	public:
 		buffer_entry entries[BUFFER_LEN];
 		int hash(uint64_t key) {
-			return key & HASH_MASK;
+			return (key) & HASH_MASK;
 		}
 		NUMA_Buffer(): head(0),
 			hits(0), reads(0), writes(0), invalids(0) {
@@ -158,6 +160,10 @@ public:
 		unordered_map<uint64_t, key_log> key_map;
 		access_log level_logs[10];
 	*/
+#if LEVEL_LOG
+		access_log level_logs[10];
+#endif
+
 #if CACHE_SUBTREE_TEST
 		struct InnerNodeReplica {
 			int seqno;
@@ -209,8 +215,7 @@ public:
 				local_replica->num_keys = node->num_keys;
 				memcpy(local_replica->keys, node->keys, N * sizeof(uint64_t));
 				memset(local_nodes, 0, sizeof(InnerNode) * (N + 1));
-				for(int i = 0; i < node->num_keys +
-						1; i++) {
+				for(int i = 0; i < node->num_keys + 1; i++) {
 					local_nodes[i] = *reinterpret_cast<InnerNode*>(node->children[i]);
 				}
 				cached_lock->Unlock();
@@ -234,7 +239,6 @@ public:
 				return res ;
 			}
 		};
-	
 	
 		int global_timestamp;
 		SpinLock* global_tslock;
@@ -386,13 +390,15 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
-		/*
+		
+#if LEVEL_LOG
 				for(int i = 0; i < 10; i++) {
 					level_logs[i].gets = 0;
 					level_logs[i].writes = 0;
 					level_logs[i].splits = 0;
 				}
-		*/
+#endif
+
 		num_of_nodes = numa_num_configured_nodes();
 
 #if BUFFER_TEST
@@ -465,10 +471,10 @@ public:
 		//printf("reads %ld\n",reads);
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
-#if NODEMAP
+#if LEVEL_LOG
 		printf("=========Tableid = %d=========\n", tableid);
-		printf("Insert_rtm = %d\n", num_insert_rtm);
-		for(int i = 0; i < 6; i++) {
+		//printf("Insert_rtm = %d\n", num_insert_rtm);
+		for(int i = 0; i < 10; i++) {
 			printf("%d: %d, %d, %d\n", i, level_logs[i].gets, level_logs[i].writes, level_logs[i].splits);
 		}
 
@@ -625,7 +631,7 @@ public:
 			}
 #endif
 
-#if NODEMAP
+#if LEVEL_LOG
 			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
 			//	sched_getcpu(), inner->signature, key, d+1);
 			level_logs[d + 1].gets++;
@@ -643,14 +649,15 @@ public:
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 
 #if REMOTEACCESS
-		if(Numa_current_node() == Numa_get_node(inner)) {
+		if(Numa_current_node() == Numa_get_node(leaf)) {
 			leaf_local_access++;
 		} else {
 			leaf_remote_access++;
 		}
 #endif
 
-#if NODEMAP
+#if LEVEL_LOG
+
 		//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
 		//			sched_getcpu(), leaf->signature, key, 0);
 		level_logs[0].gets++;
@@ -737,7 +744,8 @@ public:
 		//step 2. remove the entry of the key, and get the deleted value
 		res->value = removeLeafEntry(cur, slot);
 
-#if NODEMAP
+#if LEVEL_LOG
+
 		//	printf("[%2d][DEL] node = %10d, key = %20ld, d = %2d\n",
 		//		   sched_getcpu(), cur->signature, key, 0);
 		level_logs[0].writes++;
@@ -1120,7 +1128,8 @@ public:
 				InnerNode *toInsert = inner;
 				//the inner node is full -> split it
 				if(inner->num_keys == N) {
-#if NODEMAP
+#if LEVEL_LOG
+
 					//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
 					//				sched_getcpu(), inner->signature, key, d);
 					level_logs[d].splits++;
@@ -1140,7 +1149,8 @@ public:
 							new_sibling->keys[i] = inner->keys[threshold + i];
 							new_sibling->children[i] = inner->children[threshold + i];
 						}
-#if NODEMAP
+#if LEVEL_LOG
+
 						//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 						//				sched_getcpu(), new_sibling->signature, key, d);
 						level_logs[d].writes++;
@@ -1194,7 +1204,8 @@ public:
 
 				toInsert->children[k + 1] = new_leaf;
 
-#if NODEMAP
+#if LEVEL_LOG
+
 				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 				//			sched_getcpu(), toInsert->signature, key, d);
 				level_logs[d].writes++;
@@ -1239,7 +1250,8 @@ public:
 				if(inner->num_keys == N) {
 					new_sibling = new_inner_node();
 
-#if NODEMAP
+#if LEVEL_LOG
+
 					//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
 					//		sched_getcpu(), inner->signature, key, d);
 					level_logs[d].splits++;
@@ -1259,7 +1271,8 @@ public:
 							new_sibling->children[i] = inner->children[treshold + i];
 						}
 
-#if NODEMAP
+#if LEVEL_LOG
+
 						//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 						//	sched_getcpu(), new_sibling->signature, key, d);
 						level_logs[d].writes++;
@@ -1301,7 +1314,8 @@ public:
 				}
 				toInsert->children[k + 1] = child_sibling;
 
-#if NODEMAP
+#if LEVEL_LOG
+
 				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 				//			sched_getcpu(), toInsert->signature, key, d);
 				level_logs[d].writes++;
@@ -1334,7 +1348,8 @@ public:
 			new_root->children[0] = root;
 			new_root->children[1] = new_sibling;
 
-#if NODEMAP
+#if LEVEL_LOG
+
 			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 			//	sched_getcpu(), new_root->signature, key, d);
 			level_logs[d].writes++;
@@ -1396,7 +1411,8 @@ public:
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
 	#endif
 			*val = leaf->values[k];
-	#if NODEMAP
+	#if LEVEL_LOG
+
 			level_logs[0].gets++;
 
 	#endif
@@ -1456,7 +1472,8 @@ public:
 			leaf->right = new_sibling;
 			new_sibling->seq = 0;
 
-#if NODEMAP
+#if LEVEL_LOG
+
 			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 			//	   sched_getcpu(), new_sibling->signature, key, 0);
 			level_logs[0].writes++;
@@ -1467,7 +1484,8 @@ public:
 #endif
 //			new_sibling->writes++;
 
-#if NODEMAP
+#if LEVEL_LOG
+
 			//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
 			//	   sched_getcpu(), leaf->signature, key, 0);
 			level_logs[0].splits++;
@@ -1492,7 +1510,8 @@ public:
 		toInsert->keys[k] = key;
 #endif
 
-#if NODEMAP
+#if LEVEL_LOG
+
 		level_logs[0].writes++;
 #endif
 

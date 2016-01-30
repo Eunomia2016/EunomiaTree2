@@ -11,6 +11,7 @@
 #include "db/dbtx.h"
 #include "port/port_posix.h"
 #include "port/atomic.h"
+#include "silo_benchmark/util.h"
 
 #include "util/txprofile.h"
 #include "util/spinlock.h"
@@ -19,123 +20,113 @@
 
 namespace leveldb {
 
-DBROTX::DBROTX(DBTables* store)
-{
-  txdb_ = store;
-  oldsnapshot = 0;
- // printf("READONLY TX!!!!\n");
+DBROTX::DBROTX(DBTables* store) {
+	gettime=0;
+	gets=0;
+	txdb_ = store;
+	oldsnapshot = 0;
+// printf("READONLY TX!!!!\n");
 }
 
 DBROTX::~DBROTX()
-
 {
-  //clear all the data
-}	
+	//clear all the data
 
-void DBROTX::Begin()
-{
-//fetch and increase the global snapshot counter 
-  txdb_->RCUTXBegin();
+}
+
+void DBROTX::Begin() {
+//fetch and increase the global snapshot counter
+	txdb_->RCUTXBegin();
 
 #if GLOBALOCK
 	SpinLockScope slock(&DBTX::slock);
 #else
-	RTMScope rtm(NULL); 
+	RTMScope rtm(NULL);
 #endif
 	//oldsnapshot = atomic_fetch_and_add64(&(txdb_->snapshot), 1);
 	oldsnapshot = txdb_->snapshot;
 	txdb_->snapshot++;
-  
-  //printf("snapshot %ld\n", txdb_->snapshot);
+
+	//printf("snapshot %ld\n", txdb_->snapshot);
 }
 
-bool DBROTX::Abort()
-{
-  txdb_->RCUTXEnd();
-  return false;
+bool DBROTX::Abort() {
+	txdb_->RCUTXEnd();
+	return false;
 }
 
-bool DBROTX::End()
-{ 
-  txdb_->GCDeletedNodes();
-  
-  txdb_->RCUTXEnd();
+bool DBROTX::End() {
+	txdb_->GCDeletedNodes();
+
+	txdb_->RCUTXEnd();
 
 #if RCUGC
-  txdb_->GC();
-  txdb_->DelayRemove();
+	txdb_->GC();
+	txdb_->DelayRemove();
 #endif
 
-  return true;
+	return true;
 }
 
-bool DBROTX::ScanMemNode(Memstore::MemNode* n, uint64_t** val)
-{
-	
-  if(n == NULL){
-  	//printf("ScanMemNode: Scan NULL\n");
+bool DBROTX::ScanMemNode(Memstore::MemNode* n, uint64_t** val) {
+
+	if(n == NULL) {
+		//printf("ScanMemNode: Scan NULL\n");
+		return false;
+	}
+	if(n->counter <= oldsnapshot) {
+
+		if(DBTX::ValidateValue(n->value)) {
+			*val = n->value;
+			return true;
+		} else {
+			return false;
+		}
+
+	}
+
+	n = n->oldVersions;
+	while(n != NULL && n->counter > oldsnapshot) {
+		n = n->oldVersions;
+	}
+
+	if(n != NULL && n->counter <= oldsnapshot) {
+		if(DBTX::ValidateValue(n->value)) {
+			*val = n->value;
+			return true;
+		} else {
+			return false;
+		}
+	}
+	//printf("ScanMemNode: No snap \n");
 	return false;
-  }
-  if(n->counter <= oldsnapshot) {
-  	
-	if(DBTX::ValidateValue(n->value)) {
-	  	*val = n->value;
-      	return true;
-	} else {
-		return false;
-	}
-	
-  }
-   
-  n = n->oldVersions;
-  while(n != NULL && n->counter > oldsnapshot) {
-   	n = n->oldVersions;
-  }
-   
-  if(n != NULL && n->counter <= oldsnapshot) {
-    if(DBTX::ValidateValue(n->value)) {
-	  	*val = n->value;
-      	return true;
-	} else {
-		return false;
-	}
-  }	
-  //printf("ScanMemNode: No snap \n");
-  return false;
 }
 
 
 //This function should be executed atomically
-inline bool DBROTX::GetValueOnSnapshot(Memstore::MemNode* n, uint64_t** val)
-{
+inline bool DBROTX::GetValueOnSnapshot(Memstore::MemNode* n, uint64_t** val) {
 
 #if GLOBALOCK
 	SpinLockScope slock(&DBTX::slock);
 #else
 	RTMScope rtm(NULL);
 #endif
-
 	return ScanMemNode(n, val);
-  
 }
 
-
-bool DBROTX::GetValueOnSnapshotByIndex(SecondIndex::SecondNode* sn, KeyValues* kvs)
-{
+bool DBROTX::GetValueOnSnapshotByIndex(SecondIndex::SecondNode* sn, KeyValues* kvs) {
 
 #if GLOBALOCK
 	SpinLockScope slock(&DBTX::slock);
 #else
 	RTMScope rtm(NULL);
 #endif
-
 
 	SecondIndex::MemNodeWrapper* mnw = sn->head;
 	int i = 0;
 	while(mnw != NULL) {
 		uint64_t *val = NULL;
-		if(ScanMemNode(mnw->memnode, &val))
-		{
+		if(ScanMemNode(mnw->memnode, &val)) {
 			kvs->keys[i] = mnw->key;
 			kvs->values[i] = val;
 			i++;
@@ -152,58 +143,50 @@ bool DBROTX::GetValueOnSnapshotByIndex(SecondIndex::SecondNode* sn, KeyValues* k
 
 }
 
-bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val)
-{  
-  Memstore::MemNode* n = txdb_->tables[tableid]->Get(key);
-  return GetValueOnSnapshot(n, val);
-
+bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val) {
+	Memstore::MemNode* n = txdb_->tables[tableid]->Get(key);
+	bool res = GetValueOnSnapshot(n, val);
+	return res;
 }
 
-
-DBROTX::Iterator::Iterator(DBROTX* rotx, int tableid)
-{
+DBROTX::Iterator::Iterator(DBROTX* rotx, int tableid) {
 	rotx_ = rotx;
 	iter_ = rotx->txdb_->tables[tableid]->GetIterator();
 	cur_ = NULL;
 	val_ = NULL;
 }
-	
-bool DBROTX::Iterator::Valid()
-{
+
+bool DBROTX::Iterator::Valid() {
 	return cur_ != NULL;
 }
-	
 
-uint64_t DBROTX::Iterator::Key()
-{
+
+uint64_t DBROTX::Iterator::Key() {
 	return iter_->Key();
 }
 
-uint64_t* DBROTX::Iterator::Value()
-{
+uint64_t* DBROTX::Iterator::Value() {
 	//return cur_->value;
 	return val_;
 }
-	
-void DBROTX::Iterator::Next()
-{
+
+void DBROTX::Iterator::Next() {
 	iter_->Next();
-	
+
 	while(iter_->Valid()) {
-	  //if (iter_->CurNode()->counter > rotx_->oldsnapshot) break;
-	  if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
-		cur_ = iter_->CurNode();
-		return;
-	  }
-	  iter_->Next();
+		//if (iter_->CurNode()->counter > rotx_->oldsnapshot) break;
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
+			cur_ = iter_->CurNode();
+			return;
+		}
+		iter_->Next();
 	}
-	
+
 	cur_ = NULL;
-	
+
 }
 
-void DBROTX::Iterator::Prev()
-{
+void DBROTX::Iterator::Prev() {
 	while(iter_->Valid()) {
 		iter_->Prev();
 		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
@@ -214,181 +197,169 @@ void DBROTX::Iterator::Prev()
 	cur_ = NULL;
 }
 
-void DBROTX::Iterator::Seek(uint64_t key)
-{
+void DBROTX::Iterator::Seek(uint64_t key) {
 	iter_->Seek(key);
-	while(iter_->Valid()) {		
-	  if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
-	    cur_ = iter_->CurNode();
-	    return;
-	  }
-	  iter_->Next();
+	while(iter_->Valid()) {
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
+			cur_ = iter_->CurNode();
+			return;
+		}
+		iter_->Next();
 	}
 }
-	
+
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.
-void DBROTX::Iterator::SeekToFirst()
-{
+void DBROTX::Iterator::SeekToFirst() {
 	iter_->SeekToFirst();
 	while(iter_->Valid()) {
-		
-	  if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
-        cur_ = iter_->CurNode();
-		return;
-	  }
-	  iter_->Next();
+
+		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
+			cur_ = iter_->CurNode();
+			return;
+		}
+		iter_->Next();
 	}
 
 }
-	
+
 // Position at the last entry in list.
 // Final state of iterator is Valid() iff list is not empty.
-void DBROTX::Iterator::SeekToLast()
-{
+void DBROTX::Iterator::SeekToLast() {
 	//TODO
 	assert(0);
 }
 
-DBROTX::SecondaryIndexIterator::SecondaryIndexIterator(DBROTX* rotx, int tableid)
-{
+DBROTX::SecondaryIndexIterator::SecondaryIndexIterator(DBROTX* rotx, int tableid) {
 	rotx_ = rotx;
 	index_ = rotx_->txdb_->secondIndexes[tableid];
 	iter_ = index_->GetIterator();
 	cur_ = NULL;
 	val_ =  NULL;
 }
-	
-bool DBROTX::SecondaryIndexIterator::Valid()
-{
+
+bool DBROTX::SecondaryIndexIterator::Valid() {
 	return cur_ != NULL;
 }
-	
 
-uint64_t DBROTX::SecondaryIndexIterator::Key()
-{
+
+uint64_t DBROTX::SecondaryIndexIterator::Key() {
 	return iter_->Key();
 }
 
-DBROTX::KeyValues* DBROTX::SecondaryIndexIterator::Value()
-{
+DBROTX::KeyValues* DBROTX::SecondaryIndexIterator::Value() {
 	return val_;
 }
-	
-void DBROTX::SecondaryIndexIterator::Next()
-{
+
+void DBROTX::SecondaryIndexIterator::Next() {
 	iter_->Next();
 	while(iter_->Valid()) {
 
-	  uint64_t knum = iter_->CurNode()->seq;
-	
-	  if(knum == 0) {
-		iter_->Next();
-		continue;
-	  }
+		uint64_t knum = iter_->CurNode()->seq;
 
-	  KeyValues* kvs = new KeyValues(knum);
-	  
-	  if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
-		cur_ = iter_->CurNode();
-		val_ = kvs;
-		return;
-	  }
-	  
-	  delete kvs;
-	  iter_->Next();
+		if(knum == 0) {
+			iter_->Next();
+			continue;
+		}
+
+		KeyValues* kvs = new KeyValues(knum);
+
+		if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
+			cur_ = iter_->CurNode();
+			val_ = kvs;
+			return;
+		}
+
+		delete kvs;
+		iter_->Next();
 	}
-	
+
 	cur_ = NULL;
-	
+
 }
 
-void DBROTX::SecondaryIndexIterator::Prev()
-{
+void DBROTX::SecondaryIndexIterator::Prev() {
 	iter_->Prev();
 	while(iter_->Valid()) {
 
-	  uint64_t knum = iter_->CurNode()->seq;
-	
-	  if(knum == 0) {
-		iter_->Next();
-		continue;
-	  }
+		uint64_t knum = iter_->CurNode()->seq;
 
-	  KeyValues* kvs = new KeyValues(knum);
-	  
-	  if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
-		cur_ = iter_->CurNode();
-		val_ = kvs;
-		return;
-	  }
-	  
-	  delete kvs;
-	  iter_->Prev();
+		if(knum == 0) {
+			iter_->Next();
+			continue;
+		}
+
+		KeyValues* kvs = new KeyValues(knum);
+
+		if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
+			cur_ = iter_->CurNode();
+			val_ = kvs;
+			return;
+		}
+
+		delete kvs;
+		iter_->Prev();
 	}
-	
+
 	cur_ = NULL;
-	
+
 }
 
 
-void DBROTX::SecondaryIndexIterator::Seek(uint64_t key)
-{
+void DBROTX::SecondaryIndexIterator::Seek(uint64_t key) {
 	iter_->Seek(key);
 	while(iter_->Valid()) {
 
-	  uint64_t knum = iter_->CurNode()->seq;
-	
-	  if(knum == 0) {
-		iter_->Next();
-		continue;
-	  }
+		uint64_t knum = iter_->CurNode()->seq;
 
-	  KeyValues* kvs = new KeyValues(knum);
-	  
-	  if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
-		cur_ = iter_->CurNode();
-		val_ = kvs;
-		return;
-	  }
-	  
-	  delete kvs;
-	  iter_->Next();
+		if(knum == 0) {
+			iter_->Next();
+			continue;
+		}
+
+		KeyValues* kvs = new KeyValues(knum);
+
+		if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
+			cur_ = iter_->CurNode();
+			val_ = kvs;
+			return;
+		}
+
+		delete kvs;
+		iter_->Next();
 	}
 }
-	
+
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.
-void DBROTX::SecondaryIndexIterator::SeekToFirst()
-{
+void DBROTX::SecondaryIndexIterator::SeekToFirst() {
 	iter_->SeekToFirst();
 	while(iter_->Valid()) {
 
-	  uint64_t knum = iter_->CurNode()->seq;
-	
-	  if(knum == 0) {
-		iter_->Next();
-		continue;
-	  }
+		uint64_t knum = iter_->CurNode()->seq;
 
-	  KeyValues* kvs = new KeyValues(knum);
-	  
-	  if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
-		cur_ = iter_->CurNode();
-		val_ = kvs;
-		return;
-	  }
-	  
-	  delete kvs;
-	  iter_->Next();
+		if(knum == 0) {
+			iter_->Next();
+			continue;
+		}
+
+		KeyValues* kvs = new KeyValues(knum);
+
+		if(rotx_->GetValueOnSnapshotByIndex(iter_->CurNode(), kvs)) {
+			cur_ = iter_->CurNode();
+			val_ = kvs;
+			return;
+		}
+
+		delete kvs;
+		iter_->Next();
 	}
 
 }
-	
+
 // Position at the last entry in list.
 // Final state of iterator is Valid() iff list is not empty.
-void DBROTX::SecondaryIndexIterator::SeekToLast()
-{
+void DBROTX::SecondaryIndexIterator::SeekToLast() {
 	//TODO
 	assert(0);
 }

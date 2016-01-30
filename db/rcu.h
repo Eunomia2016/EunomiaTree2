@@ -10,7 +10,6 @@ class RCU {
 
 	static __thread int tid;
 
-	
 	struct State {
 		
 		//should exclusively occupy a cache line

@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/sysinfo.h>
-
+#include "util/numa_util.h"
 #include "bench.h"
 //#include "base_txn_btree.h"
 //#include "counter.h"
@@ -150,14 +150,15 @@ bench_worker::run() {
 	}
 	*/
 
-	int socket_0[] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
-	int mixed_sockets[] = {0, 1, 2, 3, 4, 5, 6, 7, \ 
-		8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
-	int cross_sockets[] = {0,2,4,6,8,10,12,14,16,18,1,3,5,7,9,11,13,15,17,19};
+	int socket_0[] =      {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
+	int shared_cores[] =  {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
+	int mixed_sockets[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+	int cross_sockets[] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
 	//int core_id = socket_0[y];
 	//int core_id = cross_sockets[y];
 	int core_id = mixed_sockets[y];
-
+	//int core_id = shared_cores[y];
+	
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(core_id , &mask);
@@ -176,22 +177,35 @@ bench_worker::run() {
 	scoped_db_thread_ctx ctx(db, false);
 	const workload_desc_vec workload = get_workload();
 	txn_counts.resize(workload.size());
+	//printf("workload.size() = %d\n", workload.size());
+	//txn_times = (uint64_t*)calloc(workload.size(), sizeof(uint64_t));
+	for(int i = 0; i < 5; i++){
+		txn_times[i]=0;
+	}
 	barrier_a->count_down();
 	barrier_b->wait_for();
+
+	//struct timespec begin, end;
+	//clock_gettime(CLOCK_MONOTONIC, &begin);
+	//uint64_t txn_span = 0;
+	
 	while(running && (run_mode != RUNMODE_OPS || total_ops > 0)) {
 		int64_t oldv = XADD64(&total_ops, -1000);
 		if(oldv <= 0) break;
-		for(int i = 0; i < 1000; i++) {
+		for(int s = 0; s < 1000; s++) {
 			double d = r.next_uniform();
 			for(size_t i = 0; i < workload.size(); i++) {
 				if((i + 1) == workload.size() || d < workload[i].frequency) {
 retry:
-					timer t;
 					const unsigned long old_seed = r.get_seed();
+					timer t;
+					//clock_gettime(CLOCK_MONOTONIC, &begin);
 					const txn_result ret = workload[i].fn(this); //execute the transaction
-
+					atomic_add64(&txn_times[i], t.lap());
+					//clock_gettime(CLOCK_MONOTONIC, &end);
+					//txn_span += get_nanoseconds(begin, end);
 					if(likely(ret.first)) {
-						++ntxn_commits;
+						++ntxn_commits[i]; 
 						//printf("c %d\n",ntxn_commits);
 						latency_numer_us += t.lap();
 						backoff_shifts >>= 1;
@@ -223,7 +237,13 @@ retry:
 			}
 		}
 	}
-	printf("rdtsc %ld\n", secs);
+	//clock_gettime(CLOCK_MONOTONIC, &end);
+	//uint64_t span = get_nanoseconds(begin, end);
+	//printf("workload span = %ld\n", txn_span);
+	/*
+	for(int i = 0; i < 5; i++){
+		printf("txn[%d] time = %lf\n", i, (double)txn_times[i]/MILLION);
+	}*/
 }
 
 
@@ -323,12 +343,15 @@ bench_runner::run() {
 	// because do_txn_finish() potentially
 	// waits a bit
 	size_t n_commits = 0;
+	size_t n_new_order_commits = 0;
 	size_t n_aborts[5];
-	for(size_t i = 0; i < 5; i++)
+	for(size_t i = 0; i < 5; i++){
 		n_aborts[i] = 0;
+	}
 	uint64_t latency_numer_us = 0;
 	for(size_t i = 0; i < nthreads; i++) {
-		n_commits += workers[i]->get_ntxn_commits();
+		n_new_order_commits += workers[i]->get_new_order_commits();
+		n_commits += workers[i]->get_mixed_commits(); //the throughput of all txns 
 		for(size_t j = 0; j < 5; j++)
 			n_aborts[j] += workers[i]->get_ntxn_aborts(j);
 		latency_numer_us += workers[i]->get_latency_numer_us();
@@ -343,6 +366,7 @@ bench_runner::run() {
 
 	const double elapsed_nosync_sec = double(elapsed_nosync) / 1000000.0;
 	const double agg_nosync_throughput = double(n_commits) / elapsed_nosync_sec;
+	const double agg_new_order_throughput = double(n_new_order_commits)/elapsed_nosync_sec;
 	const double avg_nosync_per_core_throughput = agg_nosync_throughput / double(workers.size());
 
 	const double elapsed_sec = double(elapsed) / 1000000.0;
@@ -410,7 +434,8 @@ bench_runner::run() {
 		cerr << "memory delta rate: " << (delta_mb / elapsed_sec)  << " MB/sec" << endl;
 		cerr << "logical memory delta: " << size_delta_mb << " MB" << endl;
 		cerr << "logical memory delta rate: " << (size_delta_mb / elapsed_sec) << " MB/sec" << endl;
-		blue_cerr << "agg_nosync_throughput: " << agg_nosync_throughput << " ops/sec" << blue_endl;
+		blue_cerr << "agg_nosync_mixed_throughput: " << agg_nosync_throughput << " ops/sec" << blue_endl;
+		blue_cerr << "agg_nosync_new_order_throughput: " << agg_new_order_throughput << " ops/sec" << blue_endl;
 		cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
 //    cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
@@ -464,7 +489,7 @@ bench_runner::run() {
 	cout.flush();
 
 	//if(!slow_exit)
-		//return;
+	//return;
 
 	map<string, uint64_t> agg_stats;
 #if 0
