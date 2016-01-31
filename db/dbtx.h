@@ -47,7 +47,21 @@
 #define DEBUG_PRINT 0
 
 #define TREE_TIME 0
-#define SET_TIME 0
+#define RW_TIME_BKD 0
+
+struct time_bkd{
+	uint64_t total_time;
+	uint64_t tree_time;
+	uint64_t set_time;
+	uint64_t ov_time;
+	
+	time_bkd(){
+		total_time = tree_time = set_time = ov_time = 0;
+	}
+	void display(){
+		printf("%d, %d, %d, %d\n", total_time, tree_time, set_time, ov_time);
+	}
+};
 
 namespace leveldb {
 
@@ -69,7 +83,7 @@ public:
 	uint64_t iterseektime;
 	uint64_t iterseektofirsttime;
 	uint64_t begins, gets, adds, ends, nexts, prevs, seeks, seektofirsts;
-	
+	time_bkd add_time, next_time, get_time, end_time;
 	RTMProfile rtmProf;
 	int count;
 	int worker_id;

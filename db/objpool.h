@@ -5,11 +5,8 @@
 #include <stdio.h>
 #include <assert.h>
 
-
 class OBJPool {
-
 public:
-
 	struct Obj {
 		Obj *next;
 		char value[0];
@@ -31,18 +28,13 @@ public:
 		}
 	};
 	
-	
-
-
 private:
-
 
 	Header* gclists_;
 	Header* curlist_;
 	
 	int freenum_;
 	Obj* freelist_;
-
 	
 public:
 
@@ -60,7 +52,6 @@ public:
 			return NULL;
 
 		assert(freenum_ > 0);
-
 		
 		Obj* r = freelist_;
 
@@ -77,10 +68,6 @@ public:
 	
 	void GCList(Header* list);
 	void GC(uint64_t safesn);
-
 	void Print();
-	
 };
-
-
 #endif

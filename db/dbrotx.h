@@ -15,9 +15,10 @@
 #include "util/spinlock.h"
 #include "util/mutexlock.h"
 #include "db/dbtables.h"
+#include "db/dbtx.h"
 
 #define TREE_TIME 0
-#define SET_TIME 0
+#define RO_TIME_BKD 0
 
 namespace leveldb {
 
@@ -26,6 +27,8 @@ class DBROTX {
 	uint64_t treetime;
 	uint64_t begintime, gettime, endtime, nexttime, prevtime, seektime;
 	uint64_t begins, gets, ends, nexts, prevs, seeks;
+
+	time_bkd ronext_time, roget_time;
 	
 	DBROTX (DBTables* store);
 	~DBROTX();

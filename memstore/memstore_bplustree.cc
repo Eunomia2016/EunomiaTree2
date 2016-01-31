@@ -60,7 +60,6 @@ void MemstoreBPlusTree::PrintList() {
 			assert(leaf->right->left == leaf);
 		leaf = leaf->right;
 	}
-
 }
 /*
 
@@ -119,7 +118,6 @@ uint64_t MemstoreBPlusTree::Iterator::GetLinkTarget() {
 	return target_;
 }
 
-
 // Returns true iff the iterator is positioned at a valid node.
 bool MemstoreBPlusTree::Iterator::Valid() {
 	return (node_ != NULL) && (node_->num_keys > 0);
@@ -132,13 +130,11 @@ bool MemstoreBPlusTree::Iterator::Next() {
 	//get next different key
 	//if (node_->seq != seq_) printf("%d %d\n",node_->seq,seq_);
 	bool b = true;
-
 #if BTREE_LOCK
 	MutexSpinLock lock(&tree_->slock);
 #else
 	RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
 #endif
-
 	if(node_->seq != seq_) { //the current LeafNode is modified, search the LeafNode again
 		b = false;
 		while(node_ != NULL) {
