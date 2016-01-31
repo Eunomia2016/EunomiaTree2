@@ -21,8 +21,9 @@
 namespace leveldb {
 
 DBROTX::DBROTX(DBTables* store) {
-	gettime=0;
-	gets=0;
+	treetime=0;
+	begintime=gettime=endtime=nexttime=seektime=0;
+	begins=gets=ends=nexts=seeks=0;
 	txdb_ = store;
 	oldsnapshot = 0;
 // printf("READONLY TX!!!!\n");
@@ -31,10 +32,31 @@ DBROTX::DBROTX(DBTables* store) {
 DBROTX::~DBROTX()
 {
 	//clear all the data
+#if TREE_TIME
+	printf("RO total tree_time = %lf sec\n", (double)treetime/MILLION);
+#endif
 
+#if SET_TIME
+	/*
+	printf("total rotx begin_time = %ld(%ld)\n", begintime, begins);
+	printf("total rotx get_time = %ld(%ld)\n", gettime, gets);
+	printf("total rotx end_time = %ld(%ld)\n", endtime, ends);
+	printf("total rotx next_time = %ld(%ld)\n", nexttime, nexts);
+	printf("total rotx prev_time = %ld(%ld)\n", prevtime, prevs);
+	printf("total rotx seek_time = %ld(%ld)\n", seektime, seeks);
+	*/
+
+	printf("%ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, ", 
+	begintime, gettime, endtime, nexttime, prevtime, seektime,
+	begins, gets, ends, nexts, prevs, seeks);
+
+#endif
 }
 
 void DBROTX::Begin() {
+#if SET_TIME
+	util::timer begin_time;
+#endif
 //fetch and increase the global snapshot counter
 	txdb_->RCUTXBegin();
 
@@ -46,6 +68,10 @@ void DBROTX::Begin() {
 	//oldsnapshot = atomic_fetch_and_add64(&(txdb_->snapshot), 1);
 	oldsnapshot = txdb_->snapshot;
 	txdb_->snapshot++;
+#if SET_TIME
+	atomic_inc64(&begins);
+	atomic_add64(&begintime, begin_time.lap());
+#endif
 
 	//printf("snapshot %ld\n", txdb_->snapshot);
 }
@@ -56,6 +82,10 @@ bool DBROTX::Abort() {
 }
 
 bool DBROTX::End() {
+#if SET_TIME
+		util::timer end_time;
+#endif
+
 	txdb_->GCDeletedNodes();
 
 	txdb_->RCUTXEnd();
@@ -64,30 +94,31 @@ bool DBROTX::End() {
 	txdb_->GC();
 	txdb_->DelayRemove();
 #endif
+#if SET_TIME
+		atomic_inc64(&ends);
+		atomic_add64(&endtime, end_time.lap());
+#endif
 
 	return true;
 }
 
 bool DBROTX::ScanMemNode(Memstore::MemNode* n, uint64_t** val) {
-
 	if(n == NULL) {
 		//printf("ScanMemNode: Scan NULL\n");
 		return false;
 	}
 	if(n->counter <= oldsnapshot) {
-
 		if(DBTX::ValidateValue(n->value)) {
 			*val = n->value;
 			return true;
 		} else {
 			return false;
 		}
-
 	}
 
 	n = n->oldVersions;
 	while(n != NULL && n->counter > oldsnapshot) {
-		n = n->oldVersions;
+		n = n->oldVersions; //get the older version (earlier than the current version)
 	}
 
 	if(n != NULL && n->counter <= oldsnapshot) {
@@ -144,8 +175,25 @@ bool DBROTX::GetValueOnSnapshotByIndex(SecondIndex::SecondNode* sn, KeyValues* k
 }
 
 bool DBROTX::Get(int tableid, uint64_t key, uint64_t** val) {
+#if SET_TIME
+	util::timer get_time;
+#endif
+#if TREE_TIME
+	util::timer tree_time;
+#endif
 	Memstore::MemNode* n = txdb_->tables[tableid]->Get(key);
+#if TREE_TIME
+	atomic_add64(&treetime, tree_time.lap());
+#endif
+
+
 	bool res = GetValueOnSnapshot(n, val);
+	
+#if SET_TIME
+	atomic_inc64(&gets);
+	atomic_add64(&gettime, get_time.lap());
+#endif
+
 	return res;
 }
 
@@ -171,41 +219,118 @@ uint64_t* DBROTX::Iterator::Value() {
 }
 
 void DBROTX::Iterator::Next() {
+#if SET_TIME
+	util::timer next_time;
+#endif
+#if TREE_TIME
+	util::timer tree_time;
+#endif
 	iter_->Next();
+#if TREE_TIME
+		atomic_add64(&rotx_->treetime, tree_time.lap());
+#endif
 
 	while(iter_->Valid()) {
 		//if (iter_->CurNode()->counter > rotx_->oldsnapshot) break;
 		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
 			cur_ = iter_->CurNode();
+#if SET_TIME
+		atomic_inc64(&rotx_->nexts);
+		atomic_add64(&rotx_->nexttime, next_time.lap());
+#endif
 			return;
 		}
+#if TREE_TIME
+		tree_time.lap();
+#endif
+
 		iter_->Next();
+#if TREE_TIME
+		atomic_add64(&rotx_->treetime, tree_time.lap());
+#endif
+
 	}
 
 	cur_ = NULL;
-
+#if SET_TIME
+	atomic_inc64(&rotx_->nexts);
+	atomic_add64(&rotx_->nexttime, next_time.lap());
+#endif
 }
 
 void DBROTX::Iterator::Prev() {
+#if SET_TIME
+	util::timer prev_time;
+#endif
+#if TREE_TIME
+		util::timer tree_time;
+#endif
+
 	while(iter_->Valid()) {
+#if TREE_TIME
+		tree_time.lap();
+#endif
 		iter_->Prev();
+#if TREE_TIME
+		atomic_add64(&rotx_->treetime, tree_time.lap());
+#endif
+
 		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
 			cur_ = iter_->CurNode();
+#if SET_TIME
+			atomic_inc64(&rotx_->prevs);
+			atomic_add64(&rotx_->prevtime, prev_time.lap());
+#endif
+
 			return;
 		}
 	}
 	cur_ = NULL;
+#if SET_TIME
+	atomic_inc64(&rotx_->prevs);
+	atomic_add64(&rotx_->prevtime, prev_time.lap());
+#endif
+
 }
 
 void DBROTX::Iterator::Seek(uint64_t key) {
+#if SET_TIME
+		util::timer seek_time;
+#endif
+#if TREE_TIME
+			util::timer tree_time;
+#endif
+
 	iter_->Seek(key);
+#if TREE_TIME
+			atomic_add64(&rotx_->treetime, tree_time.lap());
+#endif
+
 	while(iter_->Valid()) {
 		if(rotx_->GetValueOnSnapshot(iter_->CurNode(), &val_)) {
 			cur_ = iter_->CurNode();
+#if SET_TIME
+		atomic_inc64(&rotx_->seeks);
+		atomic_add64(&rotx_->seektime, seek_time.lap());
+#endif
+
 			return;
 		}
+#if TREE_TIME
+				tree_time.lap();
+#endif
+
 		iter_->Next();
+#if TREE_TIME
+			atomic_add64(&rotx_->treetime, tree_time.lap());
+#endif
+
 	}
+#if SET_TIME
+		atomic_inc64(&rotx_->seeks);
+		atomic_add64(&rotx_->seektime, seek_time.lap());
+#endif
+
 }
 
 // Position at the first entry in list.

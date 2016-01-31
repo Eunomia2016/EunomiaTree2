@@ -25,8 +25,6 @@ void RCU::RegisterThread(int i)
 	
 void RCU::WaitForGracePeriod()
 {
-
-	
 	uint64_t * cur = GetStatesCopy();
 	
 	for(int i = 0; i < thrs_num; i++) {
@@ -51,7 +49,6 @@ void RCU::WaitForGracePeriod()
 					nanosleep(&t, NULL);
 					w = 0;
 				}
-				
 			}
 		}
 		
@@ -63,12 +60,10 @@ void RCU::BeginTX()
 	states[tid].BeginTX();
 }
 
-
 void RCU::EndTX()
 {
 	states[tid].EndTX();
 }
-
 
 void RCU::Print()
 {
@@ -85,8 +80,4 @@ uint64_t* RCU::GetStatesCopy()
 		cs[i] = states[i].counter & BEGMASK;
 
 	return cs;
-
 }
-
-
-

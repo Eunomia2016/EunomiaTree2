@@ -162,7 +162,7 @@ bool MemstoreBPlusTree::Iterator::Next() {
 		node_ = node_->right;
 		leaf_index = 0;
 		if(node_ != NULL) {
-			link_ = (uint64_t *)(&node_->seq);
+			link_ = (uint64_t *)(&node_->seq); //the addr of the current LeafNode
 			target_ = node_->seq; //copy the seqno of the current LeafNode
 		}
 	}

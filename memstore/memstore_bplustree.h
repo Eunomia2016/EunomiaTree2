@@ -745,7 +745,6 @@ public:
 		res->value = removeLeafEntry(cur, slot);
 
 #if LEVEL_LOG
-
 		//	printf("[%2d][DEL] node = %10d, key = %20ld, d = %2d\n",
 		//		   sched_getcpu(), cur->signature, key, 0);
 		level_logs[0].writes++;

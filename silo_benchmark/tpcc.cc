@@ -656,7 +656,7 @@ public:
 	}
 	~tpcc_worker(){
 #if DBTX_TIME
-		printf("dbtx_time = %lf sec\n", (double)dbtx_time/MILLION);
+		printf("DBTX Time = %lf sec\n", (double)dbtx_time/MILLION);
 #endif
 	}
 	// XXX(stephentu): tune this
@@ -2272,7 +2272,14 @@ tpcc_worker::txn_payment() {
 #else
 			DBTX::Iterator iter(&tx, CUST_INDEX);
 #endif
+#if DBTX_TIME
+			txn_tim.lap();
+#endif
 			iter.Seek(c_start);
+#if DBTX_TIME
+			atomic_add64(&dbtx_time,txn_tim.lap());
+#endif
+
 #if USESECONDINDEX
 			uint64_t *c_values[100];
 #endif
@@ -2281,7 +2288,6 @@ tpcc_worker::txn_payment() {
 			while(iter.Valid()) {
 
 				if(compareCustomerIndex(iter.Key(), c_end)) {
-
 #if USESECONDINDEX
 					DBTX::KeyValues *kvs = iter.Value();
 					int num = kvs->num;
@@ -2822,13 +2828,13 @@ tpcc_worker::txn_order_status() {
 #if 0
 	void *txn = db->new_txn(txn_flags | read_only_mask, arena, txn_buf(), hint);
 #endif
-
+/*
 #if SLDBTX
 	leveldb::DBTX txos(store);
 #else
 	leveldb::DBROTX txos(store);
 #endif
-
+*/
 //  scoped_str_arena s_arena(arena);
 	// NB: since txn_order_status() is a RO txn, we assume that
 	// locking is un-necessary (since we can just read from some old snapshot)
@@ -2836,7 +2842,7 @@ tpcc_worker::txn_order_status() {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		txos.Begin();
+		rotx.Begin();
 #if DBTX_TIME
 		atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -2860,15 +2866,15 @@ tpcc_worker::txn_order_status() {
 #if USESECONDINDEX
 	#if SLDBTX
 
-			DBTX::SecondaryIndexIterator citer(&txos, CUST_INDEX);
+			DBTX::SecondaryIndexIterator citer(&rotx, CUST_INDEX);
 	#else
-			DBROTX::SecondaryIndexIterator citer(&txos, CUST_INDEX);
+			DBROTX::SecondaryIndexIterator citer(&rotx, CUST_INDEX);
 	#endif
 #else
 	#if SLDBTX
-			DBTX::Iterator citer(&txos, CUST_INDEX);
+			DBTX::Iterator citer(&rotx, CUST_INDEX);
 	#else
-			DBROTX::Iterator citer(&txos, CUST_INDEX);
+			DBROTX::Iterator citer(&rotx, CUST_INDEX);
 	#endif
 #endif
 #if DBTX_TIME
@@ -2938,7 +2944,7 @@ tpcc_worker::txn_order_status() {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			txos.Get(CUST, c_key, &c_value);
+			rotx.Get(CUST, c_key, &c_value);
 #if DBTX_TIME
 			atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -2953,7 +2959,7 @@ tpcc_worker::txn_order_status() {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			txos.Get(CUST, c_key, &c_value);
+			rotx.Get(CUST, c_key, &c_value);
 #if DBTX_TIME
 			atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -3051,15 +3057,15 @@ tpcc_worker::txn_order_status() {
 		int o_ol_cnt;
 #if USESECONDINDEX
 #if SLDBTX
-		DBTX::SecondaryIndexIterator iter(&txos, ORDER_INDEX);
+		DBTX::SecondaryIndexIterator iter(&rotx, ORDER_INDEX);
 #else
-		DBROTX::SecondaryIndexIterator iter(&txos, ORDER_INDEX);
+		DBROTX::SecondaryIndexIterator iter(&rotx, ORDER_INDEX);
 #endif
 #else
 #if SLDBTX
-		DBTX::Iterator iter(&txos, ORDER_INDEX);
+		DBTX::Iterator iter(&rotx, ORDER_INDEX);
 #else
-		DBROTX::Iterator iter(&txos, ORDER_INDEX);
+		DBROTX::Iterator iter(&rotx, ORDER_INDEX);
 #endif
 
 #endif
@@ -3108,7 +3114,7 @@ tpcc_worker::txn_order_status() {
 			txn_tim.lap();
 #endif
 
-			txos.Get(ORDE, prikeys[1], &o_value);
+			rotx.Get(ORDE, prikeys[1], &o_value);
 #if DBTX_TIME
 			atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -3130,7 +3136,7 @@ tpcc_worker::txn_order_status() {
 #if DBTX_TIME
 				txn_tim.lap();
 #endif
-				bool found = txos.Get(ORLI, ol_key, &ol_value);
+				bool found = rotx.Get(ORLI, ol_key, &ol_value);
 #if DBTX_TIME
 				atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -3187,7 +3193,7 @@ tpcc_worker::txn_order_status() {
 		txn_tim.lap();
 #endif
 
-		bool res = txos.End();
+		bool res = rotx.End();
 #if DBTX_TIME
 		atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -3220,12 +3226,13 @@ tpcc_worker::txn_stock_level() {
 #if 0
 	void *txn = db->new_txn(txn_flags | read_only_mask, arena, txn_buf(), hint);
 #endif
+/*
 #if SLDBTX
 	leveldb::DBTX txsl(store);
 #else
 	leveldb::DBROTX txsl(store);
 #endif
-
+*/
 //  scoped_str_arena s_arena(arena);
 	// NB: since txn_stock_level() is a RO txn, we assume that
 	// locking is un-necessary (since we can just read from some old snapshot)
@@ -3234,7 +3241,7 @@ tpcc_worker::txn_stock_level() {
 		txn_tim.lap();
 #endif
 
-		txsl.Begin();
+		rotx.Begin();
 #if DBTX_TIME
 		atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -3257,7 +3264,7 @@ tpcc_worker::txn_stock_level() {
 				txn_tim.lap();
 #endif
 
-		txsl.Get(DIST, d_key, &d_value);
+		rotx.Get(DIST, d_key, &d_value);
 #if DBTX_TIME
 				atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -3280,9 +3287,9 @@ tpcc_worker::txn_stock_level() {
 		uint64_t start = makeOrderLineKey(warehouse_id, districtID, lower, 0);
 		uint64_t end = makeOrderLineKey(warehouse_id, districtID, cur_next_o_id, 0);
 #if SLDBTX
-		DBTX::Iterator iter(&txsl, ORLI);
+		DBTX::Iterator iter(&rotx, ORLI);
 #else
-		DBROTX::Iterator iter(&txsl, ORLI);
+		DBROTX::Iterator iter(&rotx, ORLI);
 #endif
 
 #if DBTX_TIME
@@ -3308,7 +3315,7 @@ tpcc_worker::txn_stock_level() {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			bool found = txsl.Get(STOC, s_key, &s_value);
+			bool found = rotx.Get(STOC, s_key, &s_value);
 #if DBTX_TIME
 			atomic_add64(&dbtx_time,txn_tim.lap());
 #endif
@@ -3392,7 +3399,7 @@ tpcc_worker::txn_stock_level() {
 		txn_tim.lap();
 #endif
 
-		bool res = txsl.End();
+		bool res = rotx.End();
 #if DBTX_TIME
 		atomic_add64(&dbtx_time,txn_tim.lap());
 #endif

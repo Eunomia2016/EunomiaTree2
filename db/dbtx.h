@@ -47,7 +47,7 @@
 #define DEBUG_PRINT 0
 
 #define TREE_TIME 0
-#define SET_TIME 1
+#define SET_TIME 0
 
 namespace leveldb {
 

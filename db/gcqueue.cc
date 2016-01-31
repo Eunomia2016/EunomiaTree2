@@ -63,7 +63,6 @@ void GCQueue::GC(Epoch* current)
 	
 }
 
-
 void GCQueue::GC(Epoch* current, NodeBuf* buf)
 {	
 	while(head != tail && queue[head]->epoch->Compare(current) < 0) {
@@ -76,7 +75,6 @@ void GCQueue::GC(Epoch* current, NodeBuf* buf)
 	}
 	
 }
-
 
 void GCQueue::Print()
 {

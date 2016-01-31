@@ -201,12 +201,10 @@ void DBTables::AddDeletedNodes(uint64_t **nodes, int len) {
 	nodeGCQueue->AddGCElement(epoch->getCurrentEpoch(), nodes, len);
 }
 
-
 void DBTables::GCDeletedNodes() {
 	if(nodeGCQueue != NULL)
 		nodeGCQueue->GC(epoch, nodebuffer);
 }
-
 
 void DBTables::AddRemoveNodes(uint64_t **nodes, int len) {
 	assert(nodes != NULL);

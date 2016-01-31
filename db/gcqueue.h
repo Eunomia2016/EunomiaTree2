@@ -13,7 +13,6 @@ struct GCElement {
 	Epoch* epoch;
 	uint64_t** gcarray;
 	int len;
-	
 
 	GCElement(Epoch* e, uint64_t** arr, int l) 
 	{
@@ -31,7 +30,6 @@ struct GCElement {
 		//		printf("Free %lx\n", gcarray[i]);
 				delete gcarray[i];
 			}
-
 		}
 
 		delete[] gcarray;

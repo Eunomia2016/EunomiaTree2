@@ -409,8 +409,8 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter) {
 #endif
 
 			//update the current node
-			kvs[i].node->oldVersions = kvs[i].dummy;
-			kvs[i].node->counter = gcounter;
+			kvs[i].node->oldVersions = kvs[i].dummy; //record the order versions
+			kvs[i].node->counter = gcounter; //update to the current version number
 
 			kvs[i].node->value = kvs[i].val;
 			kvs[i].node->seq++;
@@ -598,26 +598,23 @@ DBTX::~DBTX() {
 #endif
 
 #if TREE_TIME 
-	printf("=====================\n");
-	printf("tree_time = %lf sec\n", (double)treetime/MILLION);
+	printf("RW tree_time = %lf sec\n", (double)treetime/MILLION);
 #endif
 #if SET_TIME
+/*
 	printf("total begin_time = %ld(%ld)\n", begintime, begins);
 	printf("total get_time = %ld(%ld)\n", gettime, gets);
 	printf("total add_time = %ld(%ld)\n", addtime, adds);
 	printf("total end_time = %ld(%ld)\n", endtime, ends);
 	printf("total next_time = %ld(%ld)\n", iternexttime, nexts);
-	//printf("total prev_time = %ld(%ld)\n", iterprevtime, prevs);
+	printf("total prev_time = %ld(%ld)\n", iterprevtime, prevs);
 	printf("total seek_time = %ld(%ld)\n", iterseektime, seeks);
-	//printf("total seektofirst_time = %ld(%ld)\n", iterseektofirsttime, seektofirsts);
-/*
-	printf("single begin_time = %lf usec\n", (double)begintime/begins);
-	printf("single get_time = %lf usec\n", (double)gettime/gets);
-	printf("single add_time = %lf usec\n", (double)addtime/adds);
-	printf("single end_time = %lf usec\n", (double)endtime/ends);
-*/	
-	//printf("abort_time = %lf sec\n", (double)aborttime/MILLION);
-	printf("=====================\n");
+*/
+	printf("%ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld\n", 
+		begintime, gettime, addtime, endtime, iternexttime, iterprevtime, iterseektime,
+		begins, gets, adds, ends, nexts, prevs, seeks);
+
+	//printf("=====================\n");
 #endif
 
 
@@ -1336,7 +1333,17 @@ void DBTX::Iterator::Next() {
 #if SET_TIME
 	util::timer next_time;
 #endif
+#if TREE_TIME
+	util::timer tree_time;
+#endif
+#if TREE_TIME
+	tree_time.lap();
+#endif
+
 	bool r = iter_->Next();
+#if TREE_TIME
+	atomic_add64(&tx_->treetime, tree_time.lap());
+#endif
 
 #if AGGRESSIVEDETECT
 	if(!r) {
@@ -1363,6 +1370,7 @@ void DBTX::Iterator::Next() {
 			tx_->readset->Add(&cur_->seq);
 
 			if(DBTX::ValidateValue(val_)) {
+				
 #if SET_TIME
 		atomic_inc64(&tx_->nexts);
 		atomic_add64(&tx_->iternexttime, next_time.lap());
@@ -1374,7 +1382,14 @@ void DBTX::Iterator::Next() {
 				printf("key %ld val_ %d\n", iter_->Key(), cur_->value);
 #endif
 		}
+#if TREE_TIME
+		tree_time.lap();
+#endif
 		iter_->Next();
+#if TREE_TIME
+		atomic_add64(&tx_->treetime, tree_time.lap());
+#endif
+
 	}
 
 	cur_ = NULL;
@@ -1389,8 +1404,18 @@ void DBTX::Iterator::Prev() {
 #if SET_TIME
 		util::timer prev_time;
 #endif
+#if TREE_TIME
+	util::timer tree_time;
+#endif
+#if TREE_TIME
+	tree_time.lap();
+#endif
 
 	bool b = iter_->Prev();
+#if TREE_TIME
+	atomic_add64(&tx_->treetime, tree_time.lap());
+#endif
+
 	if(!b) {
 		tx_->abort = true;
 		cur_ = NULL;
@@ -1424,7 +1449,14 @@ void DBTX::Iterator::Prev() {
 				return;
 			}
 		}
+#if TREE_TIME
+		tree_time.lap();
+#endif
 		iter_->Prev();
+#if TREE_TIME
+		atomic_add64(&tx_->treetime, tree_time.lap());
+#endif
+
 	}
 	cur_ = NULL;
 #if SET_TIME
@@ -1435,12 +1467,24 @@ void DBTX::Iterator::Prev() {
 }
 
 void DBTX::Iterator::Seek(uint64_t key) {
+	
 #if SET_TIME
 	util::timer seek_time;
 #endif
+#if TREE_TIME
+	util::timer tree_time;
+#endif
 
 	//Should seek from the previous node and put it into the readset
+#if TREE_TIME
+	tree_time.lap();
+#endif
+
 	iter_->Seek(key);
+#if TREE_TIME
+	atomic_add64(&tx_->treetime, tree_time.lap());
+#endif
+
 	cur_ = iter_->CurNode();
 
 	//No keys is equal or larger than key
@@ -1465,7 +1509,6 @@ void DBTX::Iterator::Seek(uint64_t key) {
 
 	//Second, find the first key which value is not NULL
 	while(iter_->Valid()) {
-
 		{
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
@@ -1489,7 +1532,14 @@ void DBTX::Iterator::Seek(uint64_t key) {
 				return;
 			}
 		}
+#if TREE_TIME
+			tree_time.lap();
+#endif
 		iter_->Next();
+#if TREE_TIME
+			atomic_add64(&tx_->treetime, tree_time.lap());
+#endif
+
 		cur_ = iter_->CurNode();
 	}
 	cur_ = NULL;
