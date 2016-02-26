@@ -564,7 +564,6 @@ DBTX::DBTX(DBTables* store) {
 	//printf("DBTX\n");
 	txdb_ = store;
 	count = 0;
-
 #if SET_TIME
 	begintime=addtime=gettime=endtime=aborttime=iterprevtime=iternexttime=iterseektime=iterseektofirsttime=0;
 	begins=adds=gets=ends=nexts=prevs=seeks=seektofirsts=0;
@@ -590,6 +589,7 @@ DBTX::DBTX(DBTables* store) {
 
 DBTX::~DBTX() {
 	//printf("~DBTX\n");
+	
 #if NUMA_DUMP
 	for(int i = 0; i < TABLE_NUM; i++){
 		printf("Table[%d] local_access: %d remote_access: %d\n",i, local_access[i], 
@@ -789,7 +789,6 @@ retry:
 	//Get the seq addr from the hashtable
 #if BUFFERNODE
 
-
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
@@ -803,9 +802,9 @@ retry:
 	#if PROFILEBUFFERNODE
 		bufferMiss++;
 	#endif
-#if RW_TIME_BKD
+	#if RW_TIME_BKD
 				tree_time.lap();
-#endif
+	#endif
 
 		res = txdb_->tables[tableid]->GetWithInsert(key);
 		node = res.node;
@@ -813,9 +812,9 @@ retry:
 
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
-#if RW_TIME_BKD
+	#if RW_TIME_BKD
 		add_time.tree_time+=tree_time.lap();
-#endif
+	#endif
 
 		//assert(node != NULL);
 	}
@@ -842,6 +841,7 @@ retry:
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
+
 #if RW_TIME_BKD
 		util::timer total_time, tree_time, set_time;
 		adds++;
@@ -916,6 +916,7 @@ retry:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* new_val) {
+
 #if RW_TIME_BKD
 	util::timer total_time, tree_time, set_time;
 	adds++;
@@ -997,6 +998,7 @@ retryA:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len) {
+
 #if RW_TIME_BKD
 	util::timer total_time,tree_time, set_time;
 	adds++;
@@ -1244,7 +1246,7 @@ retry:
 
 		if(node->value == HAVEREMOVED){
 #if RW_TIME_BKD
-						get_time.set_time+=set_time.lap();
+			get_time.set_time+=set_time.lap();
 #endif
 
 			goto retry;
@@ -1253,7 +1255,7 @@ retry:
 
 	}
 #if RW_TIME_BKD
-			get_time.set_time+=set_time.lap();
+	get_time.set_time+=set_time.lap();
 #endif
 
 	//if this node has been removed from the memstore
