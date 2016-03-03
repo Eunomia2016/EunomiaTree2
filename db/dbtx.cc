@@ -152,7 +152,6 @@ void DBTX::ReadSet::Print() {
 		printf(
 			"Old Seq %ld Cur Seq %ld Seq Addr 0x%lx ",
 			seqs[i].seq, *seqs[i].seqptr, seqs[i].seqptr);
-
 	}
 }
 
@@ -190,7 +189,6 @@ DBTX::WriteSet::WriteSet() {
 		}
 	}
 #endif
-
 }
 
 DBTX::WriteSet::~WriteSet() {
@@ -198,7 +196,6 @@ DBTX::WriteSet::~WriteSet() {
 }
 
 void DBTX::WriteSet::Resize() {
-
 	printf("Write Set Resize\n");
 	max_length = max_length * 2;
 
@@ -564,6 +561,11 @@ DBTX::DBTX(DBTables* store) {
 	//printf("DBTX\n");
 	txdb_ = store;
 	count = 0;
+
+#if ABORT_REASON
+	read_invalid = write_invalid = other_invalid = 0;
+#endif
+	
 #if SET_TIME
 	begintime=addtime=gettime=endtime=aborttime=iterprevtime=iternexttime=iterseektime=iterseektofirsttime=0;
 	begins=adds=gets=ends=nexts=prevs=seeks=seektofirsts=0;
@@ -589,7 +591,10 @@ DBTX::DBTX(DBTables* store) {
 
 DBTX::~DBTX() {
 	//printf("~DBTX\n");
-	
+
+#if ABORT_REASON
+	printf("Read_invalid = %lu, Write_invalid = %lu, Other_invalid = %lu\n", read_invalid, write_invalid, other_invalid);
+#endif
 #if NUMA_DUMP
 	for(int i = 0; i < TABLE_NUM; i++){
 		printf("Table[%d] local_access: %d remote_access: %d\n",i, local_access[i], 
@@ -672,7 +677,6 @@ bool DBTX::End() {
 		util::timer total_time, tree_time, set_time;
 		ends++;
 #endif
-
 	int dvlen;
 	uint64_t **dvs;
 	int ovlen;
@@ -680,13 +684,11 @@ bool DBTX::End() {
 
 	uint64_t **gcnodes;
 	uint64_t **rmnodes;
-
+	bool read_valid = true;
+	bool write_valid = true;
 	if(abort) goto ABORT;
-
-	//printf("TXEND\n");
 	//Phase 1. Validation & Commit
 	{
-
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
@@ -695,29 +697,26 @@ bool DBTX::End() {
 #if RW_TIME_BKD
 		set_time.lap();
 #endif
-		bool valid = readset->Validate()&&writeset->CheckWriteSet();
+		read_valid = readset->Validate();
+		write_valid = writeset->CheckWriteSet();
+		//bool valid = readset->Validate() && writeset->CheckWriteSet();
 #if RW_TIME_BKD
-		end_time.set_time+=set_time.lap();
+		end_time.set_time += set_time.lap();
 #endif
 
-		if(!valid) {
+		if(!(read_valid&&write_valid)) {
 			goto ABORT;
 		}
-
 #if RW_TIME_BKD
-				set_time.lap();
+		set_time.lap();
 #endif
-
-
 		writeset->SetDBTX(this);
-
 		//step 2. update the the seq set
 		//can't use the iterator because the cur node may be deleted
 		writeset->Write(txdb_->snapshot);//snapshot is the counter for current snapshot
 #if RW_TIME_BKD
-				end_time.set_time+=set_time.lap();
+		end_time.set_time += set_time.lap();
 #endif
-
 		//step 3. update the sencondary index
 #if USESECONDINDEX
 		writeset->UpdateSecondaryIndex();
@@ -725,7 +724,7 @@ bool DBTX::End() {
 //	printf("Thread %ld TX End Successfully\n",pthread_self());
 	}
 #if RW_TIME_BKD
-					set_time.lap();
+	set_time.lap();
 #endif
 
 	//Put the objects into the object pool
@@ -741,15 +740,21 @@ bool DBTX::End() {
 	txdb_->DelayRemove();
 #endif
 #if RW_TIME_BKD
-			end_time.set_time+=set_time.lap();
+	end_time.set_time+=set_time.lap();
 #endif
 #if RW_TIME_BKD
-			end_time.total_time+=total_time.lap();
+	end_time.total_time+=total_time.lap();
 #endif
-
 	return true;
 
 ABORT:
+	if(!read_valid){
+		read_invalid++;
+	}else if(!write_valid){
+		write_invalid++;
+	}else{
+		other_invalid++;
+	}
 #if RW_TIME_BKD
 	set_time.lap();
 #endif
@@ -764,7 +769,7 @@ ABORT:
 	end_time.set_time+=set_time.lap();
 #endif
 #if RW_TIME_BKD
-		end_time.total_time+=total_time.lap();
+	end_time.total_time+=total_time.lap();
 #endif
 
 	return false;
@@ -1182,7 +1187,7 @@ retryGBI:
 
 }
 
-bool DBTX::Get(int tableid, uint64_t key, uint64_t** val) {
+bool DBTX::Get(int tableid, uint64_t key, uint64_t** val, uint64_t label) {
 #if RW_TIME_BKD
 		util::timer total_time, tree_time, set_time;
 		gets++;
@@ -1252,14 +1257,12 @@ retry:
 			goto retry;
 		}
 		readset->Add(&node->seq);
-
 	}
 #if RW_TIME_BKD
 	get_time.set_time+=set_time.lap();
 #endif
 
 	//if this node has been removed from the memstore
-
 #if RW_TIME_BKD
 	get_time.total_time+=total_time.lap();
 #endif

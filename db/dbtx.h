@@ -49,6 +49,8 @@
 #define TREE_TIME 0
 #define RW_TIME_BKD 0
 
+#define ABORT_REASON 0
+
 struct time_bkd{
 	uint64_t total_time;
 	uint64_t tree_time;
@@ -62,8 +64,6 @@ struct time_bkd{
 		printf("%d, %d, %d, %d\n", total_time, tree_time, set_time, ov_time);
 	}
 };
-
-
 
 namespace leveldb {
 
@@ -86,6 +86,7 @@ public:
 	uint64_t iterseektofirsttime;
 	uint64_t begins, gets, adds, ends, nexts, prevs, seeks, seektofirsts;
 	time_bkd add_time, next_time, get_time, end_time;
+	uint64_t read_invalid, write_invalid, other_invalid;
 	RTMProfile rtmProf;
 	int count;
 	int worker_id;
@@ -105,7 +106,6 @@ public:
 	};
 
 	struct BufferNode {
-
 		uint64_t key;
 		Memstore::MemNode* node;
 
@@ -131,7 +131,7 @@ public:
 	void Add(int tableid, uint64_t key, uint64_t* val, int len);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len);
 
-	bool Get( int tableid, uint64_t key, uint64_t** val);
+	bool Get( int tableid, uint64_t key, uint64_t** val, uint64_t label = 0);
 	void Delete(int tableid, uint64_t key);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);
@@ -246,16 +246,11 @@ public:
 		};
 
 	private:
-
 		int max_length;
-
 		RSSeqPair *seqs;
-
 		int rangeElems;
 		RSSuccPair *nexts;
-
 		void Resize();
-
 	public:
 		int elems;
 		ReadSet();
@@ -358,9 +353,7 @@ public:
 
 	bool abort;
 	DBTables *txdb_;
-
 };
-
 }  // namespace leveldb
 
 #endif  // STORAGE_LEVELDB_DB_MEMTABLE_H_

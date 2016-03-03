@@ -184,7 +184,6 @@ bench_worker::run() {
 	}
 	barrier_a->count_down();
 	barrier_b->wait_for();
-
 	//struct timespec begin, end;
 	//clock_gettime(CLOCK_MONOTONIC, &begin);
 	//uint64_t txn_span = 0;
@@ -204,7 +203,7 @@ retry:
 					atomic_add64(&txn_times[i], t.lap());
 					//clock_gettime(CLOCK_MONOTONIC, &end);
 					//txn_span += get_nanoseconds(begin, end);
-					if(likely(ret.first)) {
+					if(likely(ret.first)) { //whether this txn commits successfully
 						++ntxn_commits[i]; 
 						//printf("c %d\n",ntxn_commits);
 						latency_numer_us += t.lap();

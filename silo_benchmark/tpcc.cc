@@ -61,6 +61,13 @@ using namespace util;
 #define ORDER_INDEX 10
 #endif
 
+#define TPCC_TYPES 5
+#define RANDOM_KEY 1
+
+#define NEWO_TXNS 15
+#define PAY_TXNS 10
+
+enum TPCC_TYPE{NEW_ORDER=0,PAYMENT,DELIVERY,ORDER_STATUS,STOCK_LEVEL};
 
 #if 0
 #define TPCC_TABLE_LIST(x) \
@@ -272,8 +279,8 @@ static int g_enable_separate_tree_per_partition = 0;
 static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
-static unsigned g_txn_workload_mix[] = { 45, 43, 4, 4, 4 }; // default TPC-C workload mix
-//static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
+//static unsigned g_txn_workload_mix[] = { 45, 43, 4, 4, 4 }; // default TPC-C workload mix
+static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -637,9 +644,13 @@ class tpcc_worker : public bench_worker, public tpcc_worker_mixin {
 public:
 	DBTX tx;
 	DBROTX rotx;
-	uint64_t dbtx_time;
+	uint64_t dbtx_time[TPCC_TYPES];
+	uint64_t newo_txn_time[NEWO_TXNS];
+	uint64_t payment_txn_time[PAY_TXNS];
 	uint64_t orli_time, item_time, stoc_time, orli_time2;
 	uint64_t orlis,stocs;
+	uint64_t txns[TPCC_TYPES];
+	uint64_t succ_commit, fail_commit, excp_commit;
 	op_prof Op_prof[TABLE_NUM];
 	// resp for [warehouse_id_start, warehouse_id_end)
 	tpcc_worker(unsigned int worker_id,
@@ -656,10 +667,20 @@ public:
 		for(int i = 0; i < TABLE_NUM; i++){
 			Op_prof[i]={0,0,0,0,0,0,0,0,0,0};
 		}
+		for(int i = 0; i < NEWO_TXNS;i++){
+			newo_txn_time[i] = 0;
+		}
+		for(int i = 0; i < PAY_TXNS; i++){
+			payment_txn_time[i] = 0;
+		}
 		tx.worker_id = worker_id;
 		secs = 0;
-		dbtx_time = orli_time=item_time=stoc_time=0;
-		orlis=stocs=0;
+		orli_time = item_time = stoc_time = 0;
+		orlis = stocs = 0;
+		for(int i = 0; i < TPCC_TYPES; i++){
+			txns[i] = 0;
+			dbtx_time[i] = 0;
+		}
 		INVARIANT(warehouse_id_start >= 1);
 		INVARIANT(warehouse_id_start <= NumWarehouses());
 		INVARIANT(warehouse_id_end > warehouse_id_start);
@@ -677,7 +698,22 @@ public:
 	}
 	~tpcc_worker(){
 #if DBTX_TIME
-		printf("DBTX Time = %lf sec\n", (double)dbtx_time/MILLION);
+/*
+		for(int i =0; i <TPCC_TYPES;i++){
+			//printf("DBTX Time[%d] = %lf sec\n",i, (double)(dbtx_time[i])/MILLION);
+			printf("%lf, ",(double)(dbtx_time[i])/MILLION);
+		}
+		printf("\n");
+		for(int i =0; i <TPCC_TYPES;i++){
+			//printf("DBTX Time[%d] = %lf sec\n",i, (double)(dbtx_time[i])/MILLION);
+			printf("%lu, ",txns[i]);
+		}
+		printf("\n");
+*/
+		for(int i = 0; i < NEWO_TXNS; i++){
+			printf("%ld, ", newo_txn_time[i]);
+		}
+		printf("\n");
 		//printf("ORLI Time = %lf sec (%lu)\n", (double)orli_time/MILLION, orlis);
 		//printf("ORLI Time2 = %lf sec\n", (double)orli_time2/MILLION);
 		//printf("ITEM Time = %lf sec\n", (double)item_time/MILLION);
@@ -1573,6 +1609,7 @@ tpcc_worker::txn_new_order() {
 	const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
 	const uint customerID = GetCustomerId(r);
 	const uint numItems = RandomNumber(r, 5, 15);
+	//const uint numItems = 1;
 	uint itemIDs[15], supplierWarehouseIDs[15], orderQuantities[15];
 	bool allLocal = true;
 	for(uint i = 0; i < numItems; i++) {
@@ -1617,21 +1654,21 @@ tpcc_worker::txn_new_order() {
 #if 0
 	void *txn = db->new_txn(txn_flags, arena, txn_buf(), abstract_db::HINT_TPCC_NEW_ORDER);
 #endif
-
 //  scoped_str_arena s_arena(arena);
 //  scoped_multilock<spinlock> mlock;
 //  char dummy[sizeof(customer::value)];
 	try {
 		uint64_t slstart ;
 //  while (true) {
-//	slstart = rdtsc();
+//  slstart = rdtsc();
 #if DBTX_TIME
 		timer txn_tim;
 #endif
 		tx.Begin();
 #if DBTX_TIME
 		elapse = txn_tim.lap();
-		atomic_add64(&dbtx_time,elapse);
+		atomic_inc64(&txns[NEW_ORDER]);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 //	secs += (rdtsc() - slstart);
 		ssize_t ret = 0;
@@ -1649,17 +1686,18 @@ tpcc_worker::txn_new_order() {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		bool found = tx.Get(CUST, c_key, &c_value);
+		bool found = tx.Get(CUST, c_key, &c_value);//Tx.1
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[CUST].gets++;
 #endif
 		elapse = txn_tim.lap();
-		atomic_add64(&dbtx_time,elapse);
+		atomic_add64(&newo_txn_time[0], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
-		//printf("[Alex]worker_id = %2d, numa_node = %2d\n", worker_id, );
+		//printf("[Alex]worker_id = %2d, numa_node = %2d\n", worker_id);
 		//memcpy(dummy,c_value, sizeof(customer::value));
-//	secs += (rdtsc() - slstart);
+		//secs += (rdtsc() - slstart);
 		assert(found);
 		customer::value *v_c = (customer::value *)c_value;
 
@@ -1675,14 +1713,14 @@ tpcc_worker::txn_new_order() {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		found = tx.Get(WARE, warehouse_id, &w_value);
+		found = tx.Get(WARE, warehouse_id, &w_value);//Tx.2
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[WARE].gets++;
 #endif
 		elapse = txn_tim.lap();
-		atomic_add64(&dbtx_time,elapse);
-
+		atomic_add64(&newo_txn_time[1], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 //	memcpy(dummy, w_value, sizeof(warehouse::value));
 //	secs += (rdtsc() - slstart);
@@ -1705,14 +1743,14 @@ tpcc_worker::txn_new_order() {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		found = tx.Get(DIST, d_key, &d_value);
+		found = tx.Get(DIST, d_key, &d_value);//Tx.3
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[DIST].gets++;
 #endif
 		elapse = txn_tim.lap();
-		atomic_add64(&dbtx_time,elapse);
-
+		atomic_add64(&newo_txn_time[2], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 		//memcpy(dummy, d_value, sizeof(district::value));
 //	secs += (rdtsc() - slstart);
@@ -1737,21 +1775,27 @@ tpcc_worker::txn_new_order() {
 		const new_order::key k_no(warehouse_id, districtID, my_next_o_id);
 #endif
 #endif
+
+#if RANDOM_KEY
+		uint64_t no_key = RandomNumber(r, 1, 10000000);
+#else
 		uint64_t no_key = makeNewOrderKey(warehouse_id, districtID, my_next_o_id);
+#endif
+
 		const new_order::value v_no;
 		//const size_t new_order_sz = Size(v_no);
 //	slstart = rdtsc();
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		tx.Add(NEWO, no_key, (uint64_t *)(&v_no), sizeof(v_no));
+		tx.Add(NEWO, no_key, (uint64_t *)(&v_no), sizeof(v_no));//Tx.4
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[NEWO].adds++;
 #endif
 		elapse = txn_tim.lap();
-		atomic_add64(&dbtx_time,elapse);
-
+		atomic_add64(&newo_txn_time[3], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 //	secs += (rdtsc() - slstart);
 #if 0
@@ -1764,15 +1808,16 @@ tpcc_worker::txn_new_order() {
 			v_d_new.d_next_o_id++;
 //	  slstart = rdtsc();
 #if DBTX_TIME
-txn_tim.lap();
+			txn_tim.lap();
 #endif
-			tx.Add(DIST, d_key, (uint64_t *)(&v_d_new), sizeof(v_d_new));
+			tx.Add(DIST, d_key, (uint64_t *)(&v_d_new), sizeof(v_d_new));//Tx.5
 #if DBTX_TIME
 #if DBTX_PROF
-Op_prof[DIST].adds++;
+			Op_prof[DIST].adds++;
 #endif
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
+			elapse = txn_tim.lap();
+			atomic_add64(&newo_txn_time[4], elapse);
+			atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 
 //	  secs += (rdtsc() - slstart);
@@ -1787,7 +1832,13 @@ atomic_add64(&dbtx_time,elapse);
 		const oorder::key k_oo(warehouse_id, districtID, k_no.no_o_id);
 #endif
 #endif
+
+#if RANDOM_KEY
+		uint64_t o_key = RandomNumber(r, 1, 10000000);
+#else
 		uint64_t o_key = makeOrderKey(warehouse_id, districtID, my_next_o_id);
+#endif	
+
 		oorder::value v_oo;
 		v_oo.o_c_id = int32_t(customerID);
 		v_oo.o_carrier_id = 0; // seems to be ignored
@@ -1808,22 +1859,23 @@ atomic_add64(&dbtx_time,elapse);
 #endif
 #endif
 		uint64_t o_sec = makeOrderIndex(warehouse_id, districtID, customerID, my_next_o_id);
+		
 #if SEC_INDEX
 	#if USESECONDINDEX
 		tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, (uint64_t *)(&v_oo), sizeof(v_oo));
 	#else
 //		  slstart = rdtsc();
 #if DBTX_TIME
-txn_tim.lap();
+		txn_tim.lap();
 #endif
-		tx.Add(ORDE, o_key, (uint64_t *)(&v_oo), sizeof(v_oo));
+		tx.Add(ORDE, o_key, (uint64_t *)(&v_oo), sizeof(v_oo));//Tx.6
 #if DBTX_TIME
 #if DBTX_PROF
-Op_prof[ORDE].adds++;
+		Op_prof[ORDE].adds++;
 #endif
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
-
+		elapse = txn_tim.lap();
+		atomic_add64(&newo_txn_time[5], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 //		  secs += (rdtsc() - slstart);
 		uint64_t *value;
@@ -1831,16 +1883,16 @@ atomic_add64(&dbtx_time,elapse);
 #if DBTX_TIME
 txn_tim.lap();
 #endif
-		bool f = tx.Get(ORDER_INDEX, o_sec, &value);
+		bool f = tx.Get(ORDER_INDEX, o_sec, &value);//Tx.7
 #if DBTX_TIME
 #if DBTX_PROF
-Op_prof[ORDER_INDEX].gets++;
+		Op_prof[ORDER_INDEX].gets++;
 #endif
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
-
+		elapse = txn_tim.lap();
+		atomic_add64(&newo_txn_time[6], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
-//		  secs += (rdtsc() - slstart);
+//		secs += (rdtsc() - slstart);
 		if(f) {
 			int num = value[0];
 			uint64_t *prikeys = new uint64_t[num + 2];
@@ -1852,13 +1904,14 @@ atomic_add64(&dbtx_time,elapse);
 #if DBTX_TIME
 txn_tim.lap();
 #endif
-			tx.Add(ORDER_INDEX, o_sec, prikeys, (num + 2) * 8);
+			tx.Add(ORDER_INDEX, o_sec, prikeys, (num + 2) * 8);//Tx.8
 #if DBTX_TIME
 #if DBTX_PROF
-Op_prof[ORDER_INDEX].adds++;
+			Op_prof[ORDER_INDEX].adds++;
 #endif
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
+			elapse = txn_tim.lap();
+			atomic_add64(&newo_txn_time[7], elapse);
+			atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 //			secs += (rdtsc() - slstart);
 		} else {
@@ -1867,18 +1920,16 @@ atomic_add64(&dbtx_time,elapse);
 			array_dummy[1] = o_key;
 //			slstart = rdtsc();
 #if DBTX_TIME
-txn_tim.lap();
+			txn_tim.lap();
 #endif
-			tx.Add(ORDER_INDEX, o_sec, array_dummy, 16);
+			tx.Add(ORDER_INDEX, o_sec, array_dummy, 16);//Tx.9
 #if DBTX_TIME
 #if DBTX_PROF
-
-Op_prof[ORDER_INDEX].adds++;
+			Op_prof[ORDER_INDEX].adds++;
 #endif
-
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
-
+			elapse = txn_tim.lap();
+			atomic_add64(&newo_txn_time[8], elapse);
+			atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 //			secs += (rdtsc() - slstart);
 		}
@@ -1887,17 +1938,15 @@ atomic_add64(&dbtx_time,elapse);
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		tx.Add(ORDE, o_key, (uint64_t *)(&v_oo), oorder_sz);
+		tx.Add(ORDE, o_key, (uint64_t *)(&v_oo), oorder_sz);//Tx.10
 #if DBTX_TIME
 #if DBTX_PROF
-
-Op_prof[ORDE].adds++;
+		Op_prof[ORDE].adds++;
 #endif
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
-
+		elapse = txn_tim.lap();
+		atomic_add64(&newo_txn_time[9], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
-
 #endif
 
 #if 0
@@ -1914,20 +1963,17 @@ atomic_add64(&dbtx_time,elapse);
 			uint64_t* i_value;
 //	  slstart = rdtsc();
 #if DBTX_TIME
-	txn_tim.lap();
+			txn_tim.lap();
 #endif
-			found = tx.Get(ITEM, ol_i_id, &i_value);
+			found = tx.Get(ITEM, ol_i_id, &i_value);//Tx.11
 #if DBTX_TIME
 #if DBTX_PROF
-	Op_prof[ITEM].gets++;
+			Op_prof[ITEM].gets++;
 #endif
-	elapse = txn_tim.lap();
-	atomic_add64(&dbtx_time,elapse);
-	atomic_add64(&item_time,elapse);
-#endif
-
-#if TPCC_DUMP
-			printf("[GET] coreid = %2d, tableid = %2d, key = %12d\n", sched_getcpu(), ITEM, ol_i_id);
+			elapse = txn_tim.lap();
+			atomic_add64(&newo_txn_time[10], elapse);
+			atomic_add64(&dbtx_time[NEW_ORDER], elapse);
+			atomic_add64(&item_time, elapse);
 #endif
 
 //	  memcpy(dummy, i_value, sizeof(item::value));
@@ -1943,24 +1989,24 @@ atomic_add64(&dbtx_time,elapse);
 #endif
 			ALWAYS_ASSERT(tbl_stock(ol_supply_w_id)->get(txn, Encode(obj_key0, k_s), obj_v));
 #endif
-			uint64_t s_key = makeStockKey(ol_supply_w_id, ol_i_id);
-			//printf("[%2d] s_key = %lu, ol_supply_w_id = %u, ol_i_id = %u\n", sched_getcpu(),s_key,ol_supply_w_id,ol_i_id);
 
+			uint64_t s_key = makeStockKey(ol_supply_w_id, ol_i_id);
+
+			//printf("[%2d] s_key = %lu, ol_supply_w_id = %u, ol_i_id = %u\n", sched_getcpu(),s_key,ol_supply_w_id,ol_i_id);
 			uint64_t* s_value;
 //	  slstart = rdtsc();
 #if DBTX_TIME
-txn_tim.lap();
+			txn_tim.lap();
 #endif
-		found = tx.Get(STOC, s_key, &s_value);
+			found = tx.Get(STOC, s_key, &s_value); //Tx.12
 #if DBTX_TIME
 #if DBTX_PROF
-
-Op_prof[STOC].gets++;
+			Op_prof[STOC].gets++;
 #endif
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
-atomic_add64(&stoc_time,elapse);
-
+			elapse = txn_tim.lap();
+			atomic_add64(&newo_txn_time[11], elapse);
+			atomic_add64(&dbtx_time[NEW_ORDER], elapse);
+			atomic_add64(&stoc_time, elapse);
 #endif
 
 #if TPCC_DUMP
@@ -1986,14 +2032,15 @@ atomic_add64(&stoc_time,elapse);
 			txn_tim.lap();
 #endif
 			//printf("s_key = %lu\n", s_key);
-			tx.Add(STOC, s_key, (uint64_t *)(&v_s_new), sizeof(v_s_new));
+			tx.Add(STOC, s_key, (uint64_t *)(&v_s_new), sizeof(v_s_new));//Tx.13
 #if DBTX_TIME
 #if DBTX_PROF
 			Op_prof[STOC].adds++;
 #endif
 			//stocs++;
 			elapse = txn_tim.lap();
-			atomic_add64(&dbtx_time,elapse);
+			atomic_add64(&newo_txn_time[12], elapse);
+			atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 			atomic_add64(&stoc_time,elapse);
 #endif
 
@@ -2010,17 +2057,18 @@ atomic_add64(&stoc_time,elapse);
 			const order_line::key k_ol(warehouse_id, districtID, k_no.no_o_id, ol_number);
 #endif
 #endif
-			//uint64_t ol_key = makeOrderLineKey(warehouse_id, districtID, my_next_o_id, ol_number);
-			//ol_key /= 10;
-			uint64_t ol_key = RandomNumber(r,1,1000000000);
 
+#if RANDOM_KEY
+			uint64_t ol_key = RandomNumber(r, 1, 100000000);
+#else
+			uint64_t ol_key = makeOrderLineKey(warehouse_id, districtID, my_next_o_id, ol_number);
+#endif
 			//printf("[%2d] ol_key = %lu, warehouse_id = %u, districtID = %u, my_next_o_id = %u, ol_number = %u\n", 
 			//	sched_getcpu(),ol_key,warehouse_id,districtID,my_next_o_id,ol_number);
-		
 			order_line::value v_ol;
-			v_ol.ol_i_id = int32_t(ol_i_id);//item ID
-			v_ol.ol_delivery_d = 0; // not delivered yet
-			v_ol.ol_amount = float(ol_quantity) * v_i->i_price;//total price of items
+			v_ol.ol_i_id = int32_t(ol_i_id); //item ID
+			v_ol.ol_delivery_d = 0; //not delivered yet
+			v_ol.ol_amount = float(ol_quantity) * v_i->i_price; //total price of items
 			v_ol.ol_supply_w_id = int32_t(ol_supply_w_id);
 			v_ol.ol_quantity = int8_t(ol_quantity);
 			//  const size_t order_line_sz = Size(v_ol);
@@ -2029,33 +2077,31 @@ atomic_add64(&stoc_time,elapse);
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol), sizeof(v_ol));
+			tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol), sizeof(v_ol));//Tx.14
 #if DBTX_TIME
 #if DBTX_PROF
 			Op_prof[ORLI].adds++;
 #endif
 			//orlis++;
 			elapse = txn_tim.lap();
-			atomic_add64(&dbtx_time, elapse);
+			atomic_add64(&newo_txn_time[13], elapse);
+			atomic_add64(&dbtx_time[NEW_ORDER], elapse);
 			atomic_add64(&orli_time, elapse);
-#endif
-#if TPCC_DUMP
-			printf("[ADD] coreid = %2d, tableid = %2d, key = %12u\n", sched_getcpu(), ORLI, ol_key);
 #endif
 //	  secs += (rdtsc() - slstart);
 #if 0
 			tbl_order_line(warehouse_id)->insert(txn, Encode(str(), k_ol), Encode(str(), v_ol));
 #endif
-			//   ret += order_line_sz;
 		}
 //	slstart = rdtsc();
 #if DBTX_TIME
-txn_tim.lap();
+		txn_tim.lap();
 #endif
 		bool b = tx.End();
 #if DBTX_TIME
-elapse = txn_tim.lap();
-atomic_add64(&dbtx_time,elapse);
+		elapse = txn_tim.lap();
+		atomic_add64(&newo_txn_time[14], elapse);
+		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 //	secs += (rdtsc() - slstart);
 
@@ -2067,7 +2113,6 @@ atomic_add64(&dbtx_time,elapse);
 			return txn_result(true, ret);
 #endif
 		return txn_result(b, ret);
-
 	} catch(abstract_db::abstract_abort_exception &ex) {
 #if 0
 		db->abort_txn(txn);
@@ -2079,6 +2124,7 @@ atomic_add64(&dbtx_time,elapse);
 tpcc_worker::txn_result
 tpcc_worker::txn_payment() {
 	timer txn_tim;
+	uint64_t elapse = 0;
 	const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
 	const uint districtID = RandomNumber(r, 1, NumDistrictsPerWarehouse());
 	uint customerDistrictID, customerWarehouseID;
@@ -2115,7 +2161,7 @@ tpcc_worker::txn_payment() {
 #endif
 		tx.Begin();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[PAYMENT],txn_tim.lap());
 #endif
 
 #if 0
@@ -2128,12 +2174,14 @@ tpcc_worker::txn_payment() {
 		txn_tim.lap();
 #endif
 
-		tx.Get(WARE, warehouse_id, &w_value);
+		tx.Get(WARE, warehouse_id, &w_value);//Tx.1
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[WARE].gets++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		elapse = txn_tim.lap();
+		atomic_add64(&payment_txn_time[0],elapse );
+		atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 
 		warehouse::value *v_w = (warehouse::value *)w_value;
@@ -2148,13 +2196,16 @@ tpcc_worker::txn_payment() {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		tx.Add(WARE, warehouse_id, (uint64_t *)(&v_w_new), sizeof(v_w_new));
+		tx.Add(WARE, warehouse_id, (uint64_t *)(&v_w_new), sizeof(v_w_new));//Tx.2
 #if DBTX_TIME
 #if DBTX_PROF
 
 		Op_prof[WARE].adds++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		elapse = txn_tim.lap();
+		atomic_add64(&payment_txn_time[1], elapse);
+
+		atomic_add64(&dbtx_time[PAYMENT], elapse);
 #endif
 
 #if 0
@@ -2172,13 +2223,17 @@ tpcc_worker::txn_payment() {
 		txn_tim.lap();
 #endif
 
-		tx.Get(DIST, d_key, &d_value);
+		tx.Get(DIST, d_key, &d_value);//Tx.3
 #if DBTX_TIME
 #if DBTX_PROF
 
 		Op_prof[DIST].gets++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		elapse = txn_tim.lap();
+
+		atomic_add64(&payment_txn_time[2], elapse);
+
+		atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 
 		district::value *v_d = (district::value *)d_value;
@@ -2195,13 +2250,15 @@ tpcc_worker::txn_payment() {
 		txn_tim.lap();
 #endif
 
-		tx.Add(DIST, d_key, (uint64_t *)(&v_d_new), sizeof(v_d_new));
+		tx.Add(DIST, d_key, (uint64_t *)(&v_d_new), sizeof(v_d_new));//Tx.4
 #if DBTX_TIME
 #if DBTX_PROF
 
 		Op_prof[DIST].adds++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		elapse = txn_tim.lap();
+		atomic_add64(&payment_txn_time[3], elapse);
+		atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 
 #if 0
@@ -2235,14 +2292,15 @@ tpcc_worker::txn_payment() {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			iter.Seek(c_start);
+			iter.Seek(c_start);//Tx.5
 #if DBTX_TIME
 #if DBTX_PROF
 
 			Op_prof[CUST_INDEX].seeks++;
 #endif
-
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			elapse = txn_tim.lap();
+			atomic_add64(&payment_txn_time[4], elapse);
+			atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 
 #if USESECONDINDEX
@@ -2275,16 +2333,17 @@ tpcc_worker::txn_payment() {
 					}
 				} else break;
 #if DBTX_TIME
-							txn_tim.lap();
+				txn_tim.lap();
 #endif
 
-				iter.Next();
+				iter.Next();//Tx.6
 #if DBTX_TIME
 #if DBTX_PROF
-
-						Op_prof[CUST_INDEX].nexts++;
+				Op_prof[CUST_INDEX].nexts++;
 #endif
-						atomic_add64(&dbtx_time,txn_tim.lap());
+				elapse = txn_tim.lap();
+				atomic_add64(&payment_txn_time[5], elapse);
+				atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 			}
 			j = (j + 1) / 2 - 1;
@@ -2295,15 +2354,17 @@ tpcc_worker::txn_payment() {
 			uint64_t *c_value;
 
 #if DBTX_TIME
-		txn_tim.lap();
+			txn_tim.lap();
 #endif
-			tx.Get(CUST, c_key, &c_value);
+			tx.Get(CUST, c_key, &c_value);//Tx.7
 #if DBTX_TIME
 #if DBTX_PROF
 
-		Op_prof[CUST].gets++;
+			Op_prof[CUST].gets++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+			elapse = txn_tim.lap();
+			atomic_add64(&payment_txn_time[6], elapse);
+			atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 
 #endif
@@ -2361,13 +2422,15 @@ tpcc_worker::txn_payment() {
 			txn_tim.lap();
 #endif
 
-			tx.Get(CUST, c_key, &c_value);
+			tx.Get(CUST, c_key, &c_value);//Tx.8
 #if DBTX_TIME
 #if DBTX_PROF
 
 			Op_prof[CUST].gets++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			elapse = txn_tim.lap();
+			atomic_add64(&payment_txn_time[7], elapse);
+			atomic_add64(&dbtx_time[PAYMENT], elapse);
 #endif
 
 			v_c = *(customer::value *)c_value;
@@ -2425,13 +2488,16 @@ tpcc_worker::txn_payment() {
 #if DBTX_TIME
 					txn_tim.lap();
 #endif
-		tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new));
+		tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new));//Tx.9
 #if DBTX_TIME
 #if DBTX_PROF
 
 		Op_prof[CUST].adds++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		elapse = txn_tim.lap();
+		atomic_add64(&payment_txn_time[8], elapse);
+
+		atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 
 #if 0
@@ -2472,13 +2538,15 @@ tpcc_worker::txn_payment() {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		tx.Add(HIST, h_key, (uint64_t *)(&v_h), sizeof(v_h));
+		tx.Add(HIST, h_key, (uint64_t *)(&v_h), sizeof(v_h));//Tx.10
 #if DBTX_TIME
 #if DBTX_PROF
 
 		Op_prof[HIST].adds++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		elapse = txn_tim.lap();
+		atomic_add64(&payment_txn_time[9], elapse);
+		atomic_add64(&dbtx_time[PAYMENT], elapse);
 #endif
 
 		// ret += history_sz;
@@ -2489,11 +2557,11 @@ tpcc_worker::txn_payment() {
 			return txn_result(true, ret);
 #endif
 #if DBTX_TIME
-				txn_tim.lap();
+		txn_tim.lap();
 #endif
 		bool res = tx.End();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[PAYMENT],txn_tim.lap());
 #endif
 
 		return txn_result(res, ret);
@@ -2542,7 +2610,7 @@ tpcc_worker::txn_delivery() {
 #endif
 		tx.Begin();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
@@ -2562,7 +2630,7 @@ tpcc_worker::txn_delivery() {
 
 			Op_prof[NEWO].seeks++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 			if(valid) {
@@ -2580,7 +2648,7 @@ tpcc_worker::txn_delivery() {
 
 					Op_prof[NEWO].dels++;
 #endif
-					atomic_add64(&dbtx_time,txn_tim.lap());
+					atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 				} else no_key = -1;
@@ -2596,7 +2664,7 @@ tpcc_worker::txn_delivery() {
 
 				Op_prof[NEWO].seeks++;
 #endif
-				atomic_add64(&dbtx_time,txn_tim.lap());
+				atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 				printf("Key %ld\n", iter.Key());
@@ -2651,7 +2719,7 @@ tpcc_worker::txn_delivery() {
 
 		Op_prof[ORDE].gets++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 			oorder::value *v_oo = (oorder::value *)o_value;
@@ -2662,7 +2730,7 @@ tpcc_worker::txn_delivery() {
 #endif
 			DBTX::Iterator iter1(&tx, ORLI);
 #if DBTX_TIME
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 			start = makeOrderLineKey(warehouse_id, d, no_o_id, 1);
@@ -2675,7 +2743,7 @@ tpcc_worker::txn_delivery() {
 
 			Op_prof[ORLI].seeks++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 			end = makeOrderLineKey(warehouse_id, d, no_o_id, 15);
@@ -2707,7 +2775,7 @@ tpcc_worker::txn_delivery() {
 
 				Op_prof[ORLI].nexts++;
 #endif
-				atomic_add64(&dbtx_time, txn_tim.lap());
+				atomic_add64(&dbtx_time[DELIVERY], txn_tim.lap());
 #endif
 			}
 #if 0
@@ -2759,7 +2827,7 @@ tpcc_worker::txn_delivery() {
 
 						Op_prof[ORDE].adds++;
 #endif
-						atomic_add64(&dbtx_time,txn_tim.lap());
+						atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 
@@ -2791,7 +2859,7 @@ tpcc_worker::txn_delivery() {
 
 			Op_prof[CUST].gets++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 			customer::value *v_c = (customer::value *)c_value;
@@ -2810,7 +2878,7 @@ tpcc_worker::txn_delivery() {
 
 			Op_prof[CUST].adds++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 #if 0
@@ -2828,7 +2896,8 @@ tpcc_worker::txn_delivery() {
 #endif
 		bool res = tx.End();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		
+		atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
 
 		return txn_result(res, ret);
@@ -2872,7 +2941,7 @@ tpcc_worker::txn_order_status() {
 #endif
 		rotx.Begin();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 		uint64_t c_key;
@@ -2914,7 +2983,7 @@ tpcc_worker::txn_order_status() {
 
 			Op_prof[CUST_INDEX].roseeks++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 			uint64_t *c_values[100];
@@ -2967,7 +3036,7 @@ tpcc_worker::txn_order_status() {
 
 				Op_prof[CUST_INDEX].ronexts++;
 #endif
-				atomic_add64(&dbtx_time,txn_tim.lap());
+				atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 			}
@@ -2986,7 +3055,7 @@ tpcc_worker::txn_order_status() {
 
 			Op_prof[CUST].rogets++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 #endif
@@ -3005,7 +3074,7 @@ tpcc_worker::txn_order_status() {
 
 			Op_prof[CUST].rogets++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 			v_c = *(customer::value *)c_value;
@@ -3136,7 +3205,7 @@ tpcc_worker::txn_order_status() {
 
 		Op_prof[ORDER_INDEX].roseeks++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 		//printf("okey %lx %d %d %lx\n", iter.Key(),warehouse_id, districtID, static_cast<int32_t>(c_key << 32 >> 32) );
@@ -3157,7 +3226,7 @@ tpcc_worker::txn_order_status() {
 
 			uint64_t *prikeys = iter.Value();
 #if DBTX_TIME
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 //printf("OIDOIDOID      %d    %lx\n", prikeys[0],prikeys[1]);
@@ -3174,7 +3243,7 @@ tpcc_worker::txn_order_status() {
 
 			Op_prof[ORDE].rogets++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 			oorder::value *v_ol = (oorder::value *)o_value;
@@ -3200,7 +3269,7 @@ tpcc_worker::txn_order_status() {
 
 				Op_prof[ORLI].rogets++;
 #endif
-				atomic_add64(&dbtx_time,txn_tim.lap());
+				atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 			}
@@ -3257,7 +3326,7 @@ tpcc_worker::txn_order_status() {
 
 		bool res = rotx.End();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
 #endif
 
 		return txn_result(res, 0);
@@ -3305,7 +3374,7 @@ tpcc_worker::txn_stock_level() {
 
 		rotx.Begin();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[STOCK_LEVEL],txn_tim.lap());
 #endif
 
 		uint64_t d_key = makeDistrictKey(warehouse_id, districtID);
@@ -3332,7 +3401,7 @@ tpcc_worker::txn_stock_level() {
 
 				Op_prof[DIST].rogets++;
 #endif
-				atomic_add64(&dbtx_time,txn_tim.lap());
+				atomic_add64(&dbtx_time[STOCK_LEVEL],txn_tim.lap());
 #endif
 
 		district::value *v_d = (district::value *)d_value;
@@ -3367,7 +3436,7 @@ tpcc_worker::txn_stock_level() {
 
 		Op_prof[ORLI].roseeks++;
 #endif
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[STOCK_LEVEL],txn_tim.lap());
 #endif
 
 		std::vector<int32_t> s_i_ids;
@@ -3391,7 +3460,7 @@ tpcc_worker::txn_stock_level() {
 
 			Op_prof[STOC].rogets++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[STOCK_LEVEL],txn_tim.lap());
 #endif
 
 			stock::value *v_s = (stock::value *)s_value;
@@ -3407,7 +3476,7 @@ tpcc_worker::txn_stock_level() {
 
 			Op_prof[ORLI].ronexts++;
 #endif
-			atomic_add64(&dbtx_time,txn_tim.lap());
+			atomic_add64(&dbtx_time[STOCK_LEVEL],txn_tim.lap());
 #endif
 
 		}
@@ -3479,7 +3548,7 @@ tpcc_worker::txn_stock_level() {
 
 		bool res = rotx.End();
 #if DBTX_TIME
-		atomic_add64(&dbtx_time,txn_tim.lap());
+		atomic_add64(&dbtx_time[STOCK_LEVEL],txn_tim.lap());
 #endif
 		return txn_result(res, 0);
 	} catch(abstract_db::abstract_abort_exception &ex) {
