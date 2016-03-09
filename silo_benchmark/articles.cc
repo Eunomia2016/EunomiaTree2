@@ -80,22 +80,22 @@ public:
 	txn_result txn_get_article();
 	txn_result txn_add_comment();
 	static txn_result
-	TxnUpdateUser(bench_worker *w) {
+	TxnUpdateUser(bench_worker *w, bool first_run) {
 		txn_result r =  static_cast<articles_worker *>(w)->txn_update_user();
 		return r;
 	}
 	static txn_result
-	TxnGetComments(bench_worker *w) {
+	TxnGetComments(bench_worker *w, bool first_run) {
 		txn_result r =  static_cast<articles_worker *>(w)->txn_get_comments();
 		return r;
 	}
 	static txn_result
-	TxnGetArticle(bench_worker *w) {
+	TxnGetArticle(bench_worker *w, bool first_run) {
 		txn_result r =  static_cast<articles_worker *>(w)->txn_get_article();
 		return r;
 	}
 	static txn_result
-	TxnAddComment(bench_worker *w) {
+	TxnAddComment(bench_worker *w, bool first_run) {
 		txn_result r =  static_cast<articles_worker *>(w)->txn_add_comment();
 		return r;
 	}

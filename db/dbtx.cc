@@ -9,6 +9,7 @@
 #include <time.h>
 #include "leveldb/db.h"
 #include "util/rtm.h"
+#include "silo_benchmark/tpcc.h"
 
 #include "db/dbformat.h"
 #include "db/dbtx.h"
@@ -112,7 +113,7 @@ inline void DBTX::ReadSet::AddNext(uint64_t *ptr, uint64_t value) {
 	nexts[cur].nextptr = ptr;
 }
 
-inline void DBTX::ReadSet::Add(uint64_t *ptr) {
+inline void DBTX::ReadSet::Add(uint64_t *ptr, int label) {
 	if(max_length < elems) printf("ELEMS %d MAX %d\n", elems, max_length);
 	assert(elems <= max_length);
 
@@ -124,15 +125,16 @@ inline void DBTX::ReadSet::Add(uint64_t *ptr) {
 
 	seqs[cur].seq = *ptr;
 	seqs[cur].seqptr = ptr;
+	seqs[cur].label = label;
 }
 
-inline bool DBTX::ReadSet::Validate() {
+inline int DBTX::ReadSet::Validate() {
 	//This function should be protected by rtm or mutex
 	//Check if any tuple read has been modified
 	for(int i = 0; i < elems; i++) {
 		assert(seqs[i].seqptr != NULL);
 		if(seqs[i].seq != *seqs[i].seqptr) {
-			return false;
+			return seqs[i].label;
 		}
 	}
 
@@ -140,10 +142,10 @@ inline bool DBTX::ReadSet::Validate() {
 	for(int i = 0; i < rangeElems; i++) {
 		assert(nexts[i].nextptr != NULL);
 		if(nexts[i].next != *nexts[i].nextptr) {
-			return false;
+			return 0;
 		}
 	}
-	return true;
+	return NO_CONFLICT;
 }
 
 void DBTX::ReadSet::Print() {
@@ -417,7 +419,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter) {
 
 			//Fix me: here we set the val in write set to be NULL
 			kvs[i].val = NULL;
-
 		} else {
 			//Error Check: Shouldn't arrive here
 			while(_xtest()) _xend();
@@ -428,7 +429,6 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter) {
 
 //Check if any record in the write set has been remove from the memstore
 inline bool DBTX::WriteSet::CheckWriteSet() {
-
 	for(int i = 0; i < elems; i++) {
 		//the node has been removed from the memstore
 		if(kvs[i].node->value == HAVEREMOVED)
@@ -561,7 +561,11 @@ DBTX::DBTX(DBTables* store) {
 	//printf("DBTX\n");
 	txdb_ = store;
 	count = 0;
-
+#if END_TIME
+	other_time = validate_time = write_time = end_time = 0;
+	ends = end_elems = end_try_times;
+#endif
+	
 #if ABORT_REASON
 	read_invalid = write_invalid = other_invalid = 0;
 #endif
@@ -587,14 +591,25 @@ DBTX::DBTX(DBTables* store) {
 	for(int i = 0; i < TABLE_NUM; i++){
 		local_access[i] = remote_access[i] = 0;
 	}
+	for(int i = 0; i < NEWO_TXNS; i++){
+		abort_reason_txns[i] = 0;
+	}
 }
 
 DBTX::~DBTX() {
 	//printf("~DBTX\n");
-
+//#if END_TIME
+//	printf("end_time = %lu, validate_phase = %lu, write_phase = %lu, other_phase = %lu\n", end_time, validate_time, write_time, other_time);
+//#endif
+	//rtmProf.reportAbortStatus();
 #if ABORT_REASON
-	printf("Read_invalid = %lu, Write_invalid = %lu, Other_invalid = %lu\n", read_invalid, write_invalid, other_invalid);
+	for(int i = 0; i < NEWO_TXNS; i++){
+		if(abort_reason_txns[i]!=0){
+			printf("Abort reason[%d] = %d\n",i,abort_reason_txns[i]);
+		}
+	}
 #endif
+
 #if NUMA_DUMP
 	for(int i = 0; i < TABLE_NUM; i++){
 		printf("Table[%d] local_access: %d remote_access: %d\n",i, local_access[i], 
@@ -628,9 +643,7 @@ DBTX::~DBTX() {
 		begintime, gettime, addtime, endtime, iternexttime, iterprevtime, iterseektime,
 		begins, gets, adds, ends, nexts, prevs, seeks);
 
-	//printf("=====================\n");
 #endif
-
 
 	//clear all the data
 }
@@ -673,10 +686,12 @@ bool DBTX::Abort() {
 }
 
 bool DBTX::End() {
-#if RW_TIME_BKD
-		util::timer total_time, tree_time, set_time;
-		ends++;
+#if END_TIME
+	util::timer t1,t2;
+	uint64_t elapse;
+	int try_times = 0;
 #endif
+	ends++;
 	int dvlen;
 	uint64_t **dvs;
 	int ovlen;
@@ -684,8 +699,8 @@ bool DBTX::End() {
 
 	uint64_t **gcnodes;
 	uint64_t **rmnodes;
-	bool read_valid = true;
-	bool write_valid = true;
+	int read_valid_val = -1;
+	
 	if(abort) goto ABORT;
 	//Phase 1. Validation & Commit
 	{
@@ -694,39 +709,40 @@ bool DBTX::End() {
 #else
 		RTMScope rtm(&rtmProf, readset->elems, writeset->elems);
 #endif
-#if RW_TIME_BKD
-		set_time.lap();
-#endif
-		read_valid = readset->Validate();
-		write_valid = writeset->CheckWriteSet();
-		//bool valid = readset->Validate() && writeset->CheckWriteSet();
-#if RW_TIME_BKD
-		end_time.set_time += set_time.lap();
-#endif
+//#if END_TIME
+//		t1.lap();
+//#endif
+		read_valid_val = readset->Validate();
+		bool read_valid = (read_valid_val == NO_CONFLICT);
+		bool write_valid = writeset->CheckWriteSet();
+//#if END_TIME
+//		elapse = t1.lap();
+//		atomic_add64(&validate_time, elapse);
+//#endif
 
 		if(!(read_valid&&write_valid)) {
 			goto ABORT;
 		}
-#if RW_TIME_BKD
-		set_time.lap();
-#endif
+//#if END_TIME
+//		t1.lap();
+//#endif
 		writeset->SetDBTX(this);
 		//step 2. update the the seq set
 		//can't use the iterator because the cur node may be deleted
 		writeset->Write(txdb_->snapshot);//snapshot is the counter for current snapshot
-#if RW_TIME_BKD
-		end_time.set_time += set_time.lap();
-#endif
+
 		//step 3. update the sencondary index
 #if USESECONDINDEX
 		writeset->UpdateSecondaryIndex();
 #endif
-//	printf("Thread %ld TX End Successfully\n",pthread_self());
+//#if END_TIME
+//		elapse = t1.lap();
+//		atomic_add64(&write_time, elapse);
+//#endif
 	}
-#if RW_TIME_BKD
-	set_time.lap();
-#endif
-
+//#if END_TIME
+//	t1.lap();
+//#endif
 	//Put the objects into the object pool
 	writeset->CollectOldVersions(txdb_);
 	deleteset->GCRMNodes(txdb_);
@@ -739,24 +755,20 @@ bool DBTX::End() {
 	txdb_->GC();
 	txdb_->DelayRemove();
 #endif
-#if RW_TIME_BKD
-	end_time.set_time+=set_time.lap();
-#endif
-#if RW_TIME_BKD
-	end_time.total_time+=total_time.lap();
-#endif
+//#if END_TIME
+//	elapse = t1.lap();
+//	atomic_add64(&other_time, elapse);
+//	atomic_add64(&end_time, t2.lap());
+//#endif
 	return true;
 
 ABORT:
-	if(!read_valid){
-		read_invalid++;
-	}else if(!write_valid){
-		write_invalid++;
-	}else{
-		other_invalid++;
-	}
-#if RW_TIME_BKD
-	set_time.lap();
+	
+//#if END_TIME
+//	t1.lap();
+//#endif	
+#if ABORT_REASON
+	abort_reason_txns[read_valid_val]++;
 #endif
 
 	txdb_->RCUTXEnd();
@@ -765,13 +777,12 @@ ABORT:
 	txdb_->GC();
 	txdb_->DelayRemove();
 #endif
-#if RW_TIME_BKD
-	end_time.set_time+=set_time.lap();
-#endif
-#if RW_TIME_BKD
-	end_time.total_time+=total_time.lap();
-#endif
 
+//#if END_TIME
+//	elapse = t1.lap();
+//	atomic_add64(&other_time, elapse);
+//	atomic_add64(&end_time, t2.lap());
+//#endif
 	return false;
 }
 
@@ -793,7 +804,6 @@ retry:
 	
 	//Get the seq addr from the hashtable
 #if BUFFERNODE
-
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
 
@@ -811,7 +821,7 @@ retry:
 				tree_time.lap();
 	#endif
 
-		res = txdb_->tables[tableid]->GetWithInsert(key);
+		res = txdb_->tables[tableid]->GetWithInsert(key);//insert a new index
 		node = res.node;
 		newNode = res.hasNewNode;
 
@@ -825,7 +835,7 @@ retry:
 	}
 #else
 	res = txdb_->tables[tableid]->GetWithInsert(key);
-	node=res.node;
+	node = res.node;
 	newNode = res.hasNewNode;
 #endif
 
@@ -843,6 +853,58 @@ retry:
 #if RW_TIME_BKD
 		add_time.total_time+=total_time.lap();
 #endif
+}
+
+bool DBTX::Atomic_Fetch(int tableid, uint64_t key, uint64_t** val, uint64_t* orderline_id){
+	bool newNode = false;
+	//step 1. First check if the <k,v> is in the write set
+	bool found = writeset->Lookup(tableid, key, val);
+	if(found) {
+		if((*val) == LOGICALDELETE)
+			return false;
+		return true;
+	}
+	//step 2.  Read the <k,v> from the in memory store
+retry:		
+	Memstore::MemNode* node;
+	Memstore::InsertResult res;
+
+	node = txdb_->tables[tableid]->GetForRead(key);
+
+	if(node == NULL){
+		return false;
+	}
+#if BUFFERNODE
+	buffer[tableid].node = node;
+	buffer[tableid].key = key;
+//	assert(node != NULL);
+#endif
+
+	{
+	//Guarantee
+	#if GLOBALOCK
+		SpinLockScope spinlock(&slock);
+	#else
+		RTMScope rtm(NULL);
+	#endif
+		if(node->value == HAVEREMOVED){
+			goto retry;
+		}
+		//readset->Add(&node->seq, label);
+	}
+//district::value *v_d = (district::value *)d_value;
+//atomic_v_d->d_next_o_id
+
+	//if this node has been removed from the memstore
+	if(ValidateValue(node->value)) {
+		*val = node->value;
+		district::value *v_d = (district::value *)(node->value);
+		*orderline_id = __sync_fetch_and_add(&v_d->d_next_o_id,1);
+		return true;
+	} else {
+		*val = NULL;
+		return false;
+	}
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
@@ -863,7 +925,6 @@ retry:
 
 	//Get the seq addr from the hashtable
 #if BUFFERNODE
-
 
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
@@ -1003,7 +1064,6 @@ retryA:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len) {
-
 #if RW_TIME_BKD
 	util::timer total_time,tree_time, set_time;
 	adds++;
@@ -1153,7 +1213,7 @@ retryGBI:
 #if GLOBALOCK
 	SpinLockScope spinlock(&slock);
 #else
-	RTMScope rtm(&rtmProf);
+	RTMScope rtm(NULL);
 #endif
 
 	//FIXME: the number of node may be changed before the RTM acquired
@@ -1187,7 +1247,7 @@ retryGBI:
 
 }
 
-bool DBTX::Get(int tableid, uint64_t key, uint64_t** val, uint64_t label) {
+bool DBTX::Get(int tableid, uint64_t key, uint64_t** val, int label) {
 #if RW_TIME_BKD
 		util::timer total_time, tree_time, set_time;
 		gets++;
@@ -1238,25 +1298,23 @@ retry:
 //	assert(node != NULL);
 	#endif
 #if RW_TIME_BKD
-			set_time.lap();
+	set_time.lap();
 #endif
-
 	{
 	//Guarantee
 		#if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 		#else
-		RTMScope rtm(&rtmProf);
+		RTMScope rtm(NULL);
 		#endif
 
 		if(node->value == HAVEREMOVED){
 #if RW_TIME_BKD
 			get_time.set_time+=set_time.lap();
 #endif
-
 			goto retry;
 		}
-		readset->Add(&node->seq);
+		readset->Add(&node->seq, label);
 	}
 #if RW_TIME_BKD
 	get_time.set_time+=set_time.lap();
@@ -1333,7 +1391,7 @@ void DBTX::Iterator::Next() {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 			val_ = cur_->value;
 
@@ -1403,7 +1461,7 @@ void DBTX::Iterator::Prev() {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 			val_ = cur_->value;
 
@@ -1463,7 +1521,7 @@ void DBTX::Iterator::Seek(uint64_t key) {
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&tx_->rtmProf);
+		RTMScope rtm(NULL);
 #endif
 		//put the previous node's next field into the readset
 
@@ -1483,7 +1541,7 @@ void DBTX::Iterator::Seek(uint64_t key) {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 //		  printf("before\n");
 			//Avoid concurrently insertion
@@ -1534,7 +1592,7 @@ void DBTX::Iterator::SeekProfiled(uint64_t key) {
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&tx_->rtmProf);
+		RTMScope rtm(NULL);
 #endif
 		//put the previous node's next field into the readset
 
@@ -1551,7 +1609,7 @@ void DBTX::Iterator::SeekProfiled(uint64_t key) {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 //		  printf("before\n");
 			//Avoid concurrently insertion
@@ -1599,7 +1657,7 @@ void DBTX::Iterator::SeekToFirst() {
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&tx_->rtmProf);
+		RTMScope rtm(NULL);
 #endif
 		//put the previous node's next field into the readset
 
@@ -1619,7 +1677,7 @@ void DBTX::Iterator::SeekToFirst() {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 			val_ = cur_->value;
 
@@ -1703,7 +1761,7 @@ void DBTX::SecondaryIndexIterator::Next() {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 
 			//FIXME: the number of node may be changed before the RTM acquired
@@ -1762,7 +1820,7 @@ void DBTX::SecondaryIndexIterator::Prev() {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 
 			//FIXME: the number of node may be changed before the RTM acquired
@@ -1804,7 +1862,7 @@ void DBTX::SecondaryIndexIterator::Seek(uint64_t key) {
 #if GLOBALOCK
 		SpinLockScope spinlock(&slock);
 #else
-		RTMScope rtm(&tx_->rtmProf);
+		RTMScope rtm(NULL);
 #endif
 		//put the previous node's next field into the readset
 		readset->Add(&cur_->seq);
@@ -1830,7 +1888,7 @@ void DBTX::SecondaryIndexIterator::Seek(uint64_t key) {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 
 			//FIXME: the number of node may be changed before the RTM acquired
@@ -1887,7 +1945,7 @@ void DBTX::SecondaryIndexIterator::SeekToFirst() {
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
 #else
-			RTMScope rtm(&tx_->rtmProf);
+			RTMScope rtm(NULL);
 #endif
 
 			//FIXME: the number of node may be changed before the RTM acquired

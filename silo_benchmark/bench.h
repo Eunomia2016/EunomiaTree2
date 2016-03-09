@@ -133,7 +133,7 @@ public:
   }
   // returns [did_commit?, size_increase_bytes]
   typedef std::pair<bool, ssize_t> txn_result;
-  typedef txn_result (*txn_fn_t)(bench_worker *);
+  typedef txn_result (*txn_fn_t)(bench_worker *, bool first_run);
 
   struct workload_desc {
     workload_desc() {}

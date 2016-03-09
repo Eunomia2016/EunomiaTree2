@@ -6,6 +6,8 @@ do
 	./simple_run_fix_workload.sh $thread 1 &> thread.$thread 
 	#./simple_run.sh $thread 1 &> temp.$thread
 	cat thread.$thread | grep "runtime"
+	cat thread.$thread | grep "reason"
+	cat thread.$thread | grep "phase"
 	cat thread.$thread | grep "agg_nosync_mixed_throughput"
 	cat thread.$thread | grep "total_abort_num"
 	cat thread.$thread | grep "DBTX"

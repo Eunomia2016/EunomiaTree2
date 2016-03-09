@@ -51,6 +51,19 @@
 
 #define ABORT_REASON 0
 
+#define NO_CONFLICT -1
+
+#define TPCC_TYPES 5
+
+#define RANDOM_KEY 0
+
+#define NEWO_TXNS 15
+#define PAY_TXNS 10
+
+#define END_TIME 0
+
+#define NEW_INTERFACE 1
+
 struct time_bkd{
 	uint64_t total_time;
 	uint64_t tree_time;
@@ -71,6 +84,8 @@ class DBTX {
 public:
 	uint64_t local_access[TABLE_NUM];
 	uint64_t remote_access[TABLE_NUM];
+
+	uint64_t abort_reason_txns[NEWO_TXNS];
 	
 	uint64_t treetime ;
 	uint64_t settime;
@@ -84,9 +99,10 @@ public:
 	uint64_t iternexttime;
 	uint64_t iterseektime;
 	uint64_t iterseektofirsttime;
-	uint64_t begins, gets, adds, ends, nexts, prevs, seeks, seektofirsts;
-	time_bkd add_time, next_time, get_time, end_time;
+	uint64_t begins, gets, adds,  nexts, prevs, seeks, seektofirsts;
+	time_bkd add_time, next_time, get_time ;
 	uint64_t read_invalid, write_invalid, other_invalid;
+	uint64_t validate_time, write_time, other_time, end_time, ends, end_elems, end_try_times;
 	RTMProfile rtmProf;
 	int count;
 	int worker_id;
@@ -123,15 +139,14 @@ public:
 	bool Abort();
 	bool End();
 	void Cleanup();
-
+	bool Atomic_Fetch(int tableid, uint64_t key, uint64_t** val, uint64_t* orderline_id);
 	void Add(int tableid, uint64_t key, uint64_t* val);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);
-
 	//Copy value
 	void Add(int tableid, uint64_t key, uint64_t* val, int len);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len);
 
-	bool Get( int tableid, uint64_t key, uint64_t** val, uint64_t label = 0);
+	bool Get( int tableid, uint64_t key, uint64_t** val, int label = 0);
 	void Delete(int tableid, uint64_t key);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);
@@ -236,6 +251,7 @@ public:
 		struct RSSeqPair {
 			uint64_t seq; //seq got when read the value
 			uint64_t *seqptr; //pointer to the global memory location
+			int label;
 		};
 
 		//This is used to check the insertion problem in range query
@@ -256,9 +272,9 @@ public:
 		ReadSet();
 		~ReadSet();
 		inline void Reset();
-		inline void Add(uint64_t *ptr);
+		inline void Add(uint64_t *ptr, int label = 0);
 		inline void AddNext(uint64_t *ptr, uint64_t value);
-		inline bool Validate();
+		inline int Validate();
 		void Print();
 	};
 

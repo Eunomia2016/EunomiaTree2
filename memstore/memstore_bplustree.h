@@ -445,7 +445,6 @@ public:
 			}
 			current_tid = sched_getcpu();
 			*/
-
 	}
 	
 #if CACHE_SUBTREE_TEST
@@ -573,38 +572,6 @@ public:
 		register unsigned d ;
 		unsigned index ;
 		
-#if CACHE_SUBTREE_TEST
-		node = root;
-		d = depth;
-		index = 0;
-		int current_node = Numa_current_node();
-		if(cached_subtree_begin) {
-			Cached_subtree* cached_subtree = cached_subtrees[current_node];
-
-			int global_ts = get_global_timestamp();
-			int local_ts = cached_subtree->get_timestamp();
-			bool cached = false;
-			InnerNode* cached_node = nullptr;
-			if(local_ts == global_ts) {
-				cached = true;
-				cached_node = cached_subtree->search_tree(key);
-				//printf("local_ts = %d\n", local_ts);
-				d -= cached_subtree->get_cached_depth();
-				node = cached_node;
-
-			}
-			/*else{
-				printf("local_ts = %d, global_timestamp = %d\n", local_ts, global_ts);
-			}*/
-
-			global_ts = get_global_timestamp();
-			local_ts = cached_subtree->get_timestamp();
-			if(global_ts != local_ts) {
-				d = depth;
-				node = root;
-			}
-		}
-#endif
 		
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
@@ -613,30 +580,19 @@ public:
 		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 #endif
 
-
-#if !CACHE_SUBTREE_TEST
 		node = root;
 		d = depth;
 		index = 0;
-#endif
 
 		while(d-- != 0) {
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
-#if REMOTEACCESS
-			if(Numa_current_node() == Numa_get_node(inner)) {
-				inner_local_access++;
-			} else {
-				inner_remote_access++;
-			}
-#endif
 
 #if LEVEL_LOG
 			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
 			//	sched_getcpu(), inner->signature, key, d+1);
 			level_logs[d + 1].gets++;
 #endif
-
 //			reads++;
 			while((index < inner->num_keys) && (key >= inner->keys[index])) {
 				++index;
@@ -647,15 +603,6 @@ public:
 
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
-
-#if REMOTEACCESS
-		if(Numa_current_node() == Numa_get_node(leaf)) {
-			leaf_local_access++;
-		} else {
-			leaf_remote_access++;
-		}
-#endif
-
 #if LEVEL_LOG
 
 		//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
@@ -663,17 +610,6 @@ public:
 		level_logs[0].gets++;
 #endif
 
-#if UNSORTED_INSERT
-		if(leaf->num_keys == 0) return NULL;
-		unsigned k = 0;
-		while(k < leaf->num_keys) {
-			if(leaf->keys[k] == key) {
-				return leaf->values[k];
-			}
-			k++;
-		}
-		return NULL;
-#else
 		if(leaf->num_keys == 0) return NULL;
 		unsigned k = 0;
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
@@ -688,7 +624,6 @@ public:
 		} else {
 			return NULL;
 		}
-#endif
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
@@ -890,51 +825,16 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
-#if BUFFER_TEST||CACHE_SUBTREE_TEST
-		int current_node = Numa_current_node();
-#endif
-
-#if BUFFER_TEST
-		buffer->inv(key);
-#endif
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
-#if 0
-		auto key_iter = key_map.find(key);
-		if(key_iter != key_map.end()) {
-			key_iter->second++;
-		} else {
-			key_map.insert(make_pair(key, 0));
-		}
-#endif
 		//printf("[END] key = %ld, type = %d\n", key, type);
 
 		ThreadLocalInit();
 		//timespec begin, end;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		//printf("[%ld] BeginTime = %ld\n", pthread_self(), begin.tv_sec * BILLION + begin.tv_nsec);
-#if CACHE_SUBTREE_TEST
-		int depth_one = depth;
-#endif
 
 		InsertResult res = Insert_rtm(key);
 		
-#if CACHE_SUBTREE_TEST
-		InnerNode* root_node = reinterpret_cast<InnerNode*>(root);
-		int depth_two = depth;
-
-		if(depth_one != depth_two && depth_two > 3 && !cached_subtree_begin) {
-			cached_subtree_begin = true;
-		}
-		if(cached_subtree_begin) {
-			int local_ts = cached_subtrees[current_node]->get_timestamp();
-			int global_ts = get_global_timestamp();
-
-			if(local_ts != global_ts) {
-				cached_subtrees[current_node]->update_subtree(root_node, global_timestamp);
-				//printf("tableid = %2d global_ts = %d\n", tableid, global_timestamp);
-			}
-		}
-#endif
 
 		//MemNode* value = res.node;
 		//bool newNode = res.newNode;
@@ -948,48 +848,13 @@ public:
 			dummyleaf_ = new LeafNode();
 		}
 #endif
-#if BUFFER_TEST
-		buffer->push(key, res.node);
-#if BM_TEST
-		BloomFilter* bm = bm_filters[current_node];
-		bloom_filter_insert(bm, &key);
 
-		if(bm->size >= FLUSH_FREQUENCY) {
-			bloom_filter_flush(bm);
-			for(int i = 0; i < BUFFER_LEN; i++) {
-				if(buffer->entries[i].valid) {
-					bloom_filter_insert(bm, &(buffer->entries[i].key));
-				}
-			}
-		}
-#endif
-
-#endif
 		return res;
 	}
 
 	inline Memstore::MemNode* GetForRead(uint64_t key) {
 		//printf("[BEGIN] key = %ld, type = %d\n", key, type);
-#if BUFFER_TEST
-		int current_node = Numa_current_node();
-		bool in_cache = true;
 
-#if BM_TEST
-		//atomic_inc64(&buffer_reads);
-		if(bloom_filter_contains(bm_filters[current_node], &key) == 0) {
-			//	atomic_inc64(&filtered_reads);
-			in_cache = false;
-		}
-#endif
-		if(in_cache) {
-			MemNode* node = buffer->get(key);
-
-			if(node != NULL) {
-				//buffer_local_access++;
-				return node;
-			}
-		}
-#endif
 #if 0
 		auto key_iter = key_map.find(key);
 		if(key_iter != key_map.end()) {
@@ -1015,36 +880,10 @@ public:
 		}
 #endif
 
-#if BUFFER_TEST
-		buffer->push(key, value);
-#if BM_TEST
-		BloomFilter* bm = bm_filters[current_node];
-		bloom_filter_insert(bm, &key);
-
-		if(bm->size >= FLUSH_FREQUENCY) {
-			bloom_filter_flush(bm);
-			for(int i = 0; i < BUFFER_LEN; i++) {
-				if(buffer->entries[i].valid) {
-					bloom_filter_insert(bm, &(buffer->entries[i].key));
-				}
-			}
-		}
-#endif
-
-#endif
 		return value;
 	}
 
 	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
-#if NODEMAP
-		num_insert_rtm ++;
-		if(tableid == 8 && num_insert_rtm % 10000 == 0) {
-			printf("Insert_rtm = %d\n", num_insert_rtm);
-			for(int i = 0; i < 6; i++) {
-				printf("%d: %d, %d, %d\n", i, level_logs[i].gets, level_logs[i].writes, level_logs[i].splits);
-			}
-		}
-#endif
 		bool newKey = true;
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
@@ -1204,7 +1043,6 @@ public:
 				toInsert->children[k + 1] = new_leaf;
 
 #if LEVEL_LOG
-
 				//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 				//			sched_getcpu(), toInsert->signature, key, d);
 				level_logs[d].writes++;
@@ -1233,13 +1071,6 @@ public:
 				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val, newKey);
 
 			if(new_inner != NULL) {
-				
-#if CACHE_SUBTREE_TEST
-				if(d == depth - 1 && cached_subtree_begin) {
-					__sync_fetch_and_add(&global_timestamp, 1);
-					//printf("global_timestamp = %d\n", global_timestamp);
-				}
-#endif
 
 				InnerNode *toInsert = inner;
 				InnerNode *child_sibling = new_inner;
@@ -1382,24 +1213,10 @@ public:
 //@val: storing the pointer to new value in val
 	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
 		//printf("[%ld] ADD: %lx\n", pthread_self(), (LeafNode*)root);
-#if REMOTEACCESS
-		if(Numa_current_node() == Numa_get_node(leaf)) {
-			leaf_local_access++;
-		} else {
-			leaf_remote_access++;
-		}
-#endif
+		
 		LeafNode *new_sibling = NULL;
 		unsigned k = 0;
-#if UNSORTED_INSERT
-		while(k < leaf->num_keys) {
-			if(leaf->keys[k] == key) {
-				*val = leaf->values[k];
-				return NULL;
-			}
-			k++;
-		}
-#else
+
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 			++k;
 		}
@@ -1423,23 +1240,13 @@ public:
 			assert(*val != NULL);
 			return NULL;
 		}
-#endif
+
 		*newKey = true;
 		//inserting a new key in the children
 		LeafNode *toInsert = leaf;
 		//create a new node to accommodate the new key if the leaf is full
 		if(leaf->num_keys == M) {
-#if UNSORTED_INSERT
-			std::sort(leaf->keys, leaf->keys + leaf->num_keys);
-			k = 0;
-			while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
-				k++;
-			}
-#endif
 			new_sibling = new_leaf_node();
-#if NUMADUMP
-			printf("Node = %ld NUMA ZONE = %d\n", new_sibling->signature, Numa_get_node(new_sibling));
-#endif
 //			checkConflict(new_sibling->signature, 1);
 
 			if(leaf->right == NULL && k == leaf->num_keys) {
@@ -1472,7 +1279,6 @@ public:
 			new_sibling->seq = 0;
 
 #if LEVEL_LOG
-
 			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
 			//	   sched_getcpu(), new_sibling->signature, key, 0);
 			level_logs[0].writes++;
@@ -1484,18 +1290,13 @@ public:
 //			new_sibling->writes++;
 
 #if LEVEL_LOG
-
 			//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
 			//	   sched_getcpu(), leaf->signature, key, 0);
 			level_logs[0].splits++;
 #endif
 
 		}
-#if UNSORTED_INSERT
-		toInsert->keys[toInsert->num_keys] = key;
-		k = toInsert->num_keys;
-		toInsert->num_keys++;
-#else
+
 	#if BTPREFETCH
 		prefetch(reinterpret_cast<char*>(dummyval_));
 	#endif
@@ -1507,10 +1308,8 @@ public:
 
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
-#endif
 
 #if LEVEL_LOG
-
 		level_logs[0].writes++;
 #endif
 
@@ -1532,7 +1331,6 @@ public:
 
 //		checkConflict(leaf->signature, 1);
 
-		//printf("IN LEAF2");
 		//printTree();
 		leaf->seq = leaf->seq + 1;
 		return new_sibling;

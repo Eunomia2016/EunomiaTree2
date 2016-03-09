@@ -187,7 +187,6 @@ bench_worker::run() {
 	//struct timespec begin, end;
 	//clock_gettime(CLOCK_MONOTONIC, &begin);
 	//uint64_t txn_span = 0;
-	
 	while(running && (run_mode != RUNMODE_OPS || total_ops > 0)) {
 		int64_t oldv = XADD64(&total_ops, -1000);
 		if(oldv <= 0) break;
@@ -195,20 +194,21 @@ bench_worker::run() {
 			double d = r.next_uniform();
 			for(size_t i = 0; i < workload.size(); i++) {
 				if((i + 1) == workload.size() || d < workload[i].frequency) {
+					bool first_run = true;
 retry:
 					const unsigned long old_seed = r.get_seed();
 					timer t;
 					//clock_gettime(CLOCK_MONOTONIC, &begin);
-					const txn_result ret = workload[i].fn(this); //execute the transaction
+					const txn_result ret = workload[i].fn(this, first_run); //execute the transaction
+					
 					atomic_add64(&txn_times[i], t.lap());
 					//clock_gettime(CLOCK_MONOTONIC, &end);
 					//txn_span += get_nanoseconds(begin, end);
 					if(likely(ret.first)) { //whether this txn commits successfully
 						++ntxn_commits[i]; 
-						//printf("c %d\n",ntxn_commits);
 						latency_numer_us += t.lap();
 						backoff_shifts >>= 1;
-					} else {
+					} else { //this txn aborts
 						++ntxn_aborts[i];
 						if(retry_aborted_transaction && running) {
 							if(backoff_aborted_transaction) {
@@ -223,6 +223,7 @@ retry:
 								}
 							}
 							r.set_seed(old_seed);
+							first_run = false;
 							goto retry;
 						}
 					}
@@ -236,6 +237,7 @@ retry:
 			}
 		}
 	}
+	//printf("------cascading------\n");
 	//clock_gettime(CLOCK_MONOTONIC, &end);
 	//uint64_t span = get_nanoseconds(begin, end);
 	//printf("workload span = %ld\n", txn_span);
