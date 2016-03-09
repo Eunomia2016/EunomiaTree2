@@ -60,200 +60,10 @@ static uint64_t wconflict = 0;
 using namespace std;
 namespace leveldb {
 
-struct access_log {
-	uint64_t gets;
-	uint64_t writes;
-	uint64_t splits;
-};
-
-struct key_log {
-	uint64_t gets;
-	uint64_t writes;
-	uint64_t dels;
-};
-
-static uint32_t leaf_id = 0;
-static int32_t inner_id = 0;
-static uint32_t table_id = 0;
-
 class MemstoreBPlusTree: public Memstore {
 //Test purpose
 public:
 
-#if BUFFER_TEST
-#if BM_TEST
-	BloomFilter** bm_filters;
-#endif
-
-	struct buffer_entry {
-		int valid: 1;
-		uint64_t key;
-		MemNode* val;
-		SpinLock lock;
-	};
-	class NUMA_Buffer {
-	private:
-		int head;
-		uint32_t hits;
-		uint32_t reads;
-		uint32_t writes;
-		uint32_t invalids;
-	public:
-		buffer_entry entries[BUFFER_LEN];
-		int hash(uint64_t key) {
-			return (key) & HASH_MASK;
-		}
-		NUMA_Buffer(): head(0),
-			hits(0), reads(0), writes(0), invalids(0) {
-			for(int i = 0; i < BUFFER_LEN; i++) {
-				SpinLock lock;
-				entries[i] = {0, 0, NULL, lock};
-			}
-		}
-
-		MemNode* get(uint64_t key) {
-			//atomic_inc32(&reads);
-			MemNode* res = NULL;
-			int index = hash(key);
-			entries[index].lock.Lock();
-			if(entries[index].key == key && entries[index].valid) {
-				//atomic_inc32(&hits);
-				res = entries[index].val;
-			}
-			entries[index].lock.Unlock();
-			return res;
-		}
-
-		void push(uint64_t key, MemNode* val) {
-			//atomic_inc32(&writes);
-			int index = hash(key);
-			entries[index].lock.Lock();
-			entries[index].valid = 1;
-			entries[index].key = key;
-			entries[index].val = val;
-			entries[index].lock.Unlock();
-		}
-
-		void inv(uint64_t key) {
-			//atomic_inc32(&invalids);
-			int index = hash(key);
-			entries[index].lock.Lock();
-			if(entries[index].key == key) {
-				entries[index].valid = 0;
-			}
-			entries[index].lock.Unlock();
-		}
-
-		~NUMA_Buffer() {
-			//printf("%d, %d, %d, %d\n", reads, writes, hits, invalids);
-		}
-	};
-	NUMA_Buffer* buffer;
-
-	//uint64_t buffer_reads;
-	//uint64_t filtered_reads;
-
-#endif
-
-	/*
-		unordered_map<uint32_t, access_log> node_map;
-		unordered_map<uint64_t, key_log> key_map;
-		access_log level_logs[10];
-	*/
-#if LEVEL_LOG
-		access_log level_logs[10];
-#endif
-
-#if CACHE_SUBTREE_TEST
-		struct InnerNodeReplica {
-			int seqno;
-			unsigned num_keys;
-			uint64_t keys[N];
-		};
-	
-		struct InnerNode;
-	
-		//InnerNode ** local_roots = nullptr;
-		class Cached_subtree {
-			int timestamp;
-			InnerNodeReplica* local_replica;
-			InnerNode * local_nodes;
-			int cached_depth;
-			int NUMA_node;
-			int num_cached_nodes;
-			int num_cached_replicas;
-	
-			SpinLock* cached_lock;
-		public:
-			Cached_subtree(int depth, int node, SpinLock* lock): cached_depth(depth), NUMA_node(node), cached_lock(lock) {
-				int num_children = N + 1;
-	
-				//num_cached_replicas = (pow(num_children, depth - 1) - 1) / (num_children - 1);
-				void * local = Numa_alloc_onnode(sizeof(InnerNodeReplica) , NUMA_node);
-				local_replica = new(local) InnerNodeReplica();
-	
-				num_cached_nodes = pow(num_children, depth - 1);
-				void * local_node = Numa_alloc_onnode(sizeof(InnerNode) * num_cached_nodes, node);
-				local_nodes = new(local_node) InnerNode[num_cached_nodes]();
-	
-				timestamp = -1;
-			}
-			int get_timestamp() {
-				cached_lock->Lock();
-				int res = timestamp;
-				cached_lock->Unlock();
-				return res;
-			}
-			int get_cached_depth() {
-				return cached_depth;
-			}
-			void update_subtree(InnerNode* node, unsigned global_timestamp) {
-				cached_lock->Lock();
-				timestamp = global_timestamp;
-				int current_node = Numa_current_node();
-				local_replica->seqno = 0;
-				local_replica->num_keys = node->num_keys;
-				memcpy(local_replica->keys, node->keys, N * sizeof(uint64_t));
-				memset(local_nodes, 0, sizeof(InnerNode) * (N + 1));
-				for(int i = 0; i < node->num_keys + 1; i++) {
-					local_nodes[i] = *reinterpret_cast<InnerNode*>(node->children[i]);
-				}
-				cached_lock->Unlock();
-			}
-	
-			InnerNode* search_tree(uint64_t key) {
-				cached_lock->Lock();
-				int k = 0;
-				//search the cached root
-				while((k < local_replica->num_keys) && (key >= local_replica->keys[k])) {
-					k++;
-				}
-				//search the cached InnerNodes
-				InnerNode node = local_nodes[k];
-				k = 0;
-				while((k < node.num_keys) && (key >= node.keys[k])) {
-					k++;
-				}
-				InnerNode* res = reinterpret_cast<InnerNode*>(node.children[k]);
-				cached_lock->Unlock();
-				return res ;
-			}
-		};
-	
-		int global_timestamp;
-		SpinLock* global_tslock;
-		Cached_subtree** cached_subtrees;
-	
-		bool cached_subtree_begin;
-#endif
-
-#if REMOTEACCESS
-	uint64_t inner_local_access;
-	uint64_t inner_remote_access;
-	uint64_t leaf_local_access;
-	uint64_t leaf_remote_access;
-	uint64_t buffer_local_access;
-#endif
 
 	int tableid;
 	int num_of_nodes;
@@ -264,7 +74,7 @@ public:
 
 	struct LeafNode {
 		LeafNode() : num_keys(0) {
-			signature = __sync_fetch_and_add(&leaf_id, 1);
+			//signature = __sync_fetch_and_add(&leaf_id, 1);
 		} //, writes(0), reads(0) {}
 //		uint64_t padding[4];
 		unsigned signature;
@@ -281,7 +91,7 @@ public:
 
 	struct InnerNode {
 		InnerNode() : num_keys(0) {
-			signature = __sync_fetch_and_add(&inner_id, -1);
+			//signature = __sync_fetch_and_add(&inner_id, -1);
 		}//, writes(0), reads(0) {}
 //		uint64_t padding[8];
 //		unsigned padding;

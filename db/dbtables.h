@@ -3,6 +3,7 @@
 
 #include "memstore/memstore_skiplist.h"
 #include "memstore/memstore_bplustree.h"
+#include "memstore/memstore_alextree.h"
 #include "memstore/memstore_cuckoohash.h"
 #include "memstore/memstore_hash.h"
 #include "memstore/secondindex.h"
@@ -35,6 +36,7 @@ class DBTX;
 #define SKIPLIST 3
 #define IBTREE 4
 #define SBTREE 5
+#define ALEX_BTREE 6
 
 //GC when the number of gc objects reach GCThreshold
 //XXX FIXME: this is critical to the performance,

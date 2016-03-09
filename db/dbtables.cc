@@ -114,6 +114,7 @@ DBTables::~DBTables() {
 	for(int i = 0; i < next; i++) {
 		if(types[i] == HASH) delete(MemstoreHashTable *)tables[i];
 		else if(types[i] == BTREE) delete(MemstoreBPlusTree *)tables[i];
+		else if(types[i] == ALEX_BTREE) delete(MemstoreAlexTree *)tables[i];
 		else if(types[i] == SKIPLIST) delete(MemStoreSkipList *)tables[i];
 		else if(types[i] == CUCKOO) delete(MemstoreCuckooHashTable *)tables[i];
 #if !USESECONDINDEX
@@ -433,6 +434,7 @@ int DBTables::AddTable(int tableid, int index_type, int secondary_index_type) {
 	assert(next < number);
 	//printf("[Alex] AddTable %d\n", tableid);
 	if(index_type == BTREE) tables[next] = new MemstoreBPlusTree(next);
+	else if(index_type == ALEX_BTREE) tables[next] = new MemstoreAlexTree(next);
 	else if(index_type == HASH) tables[next] = new MemstoreHashTable();
 	else if(index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
 	else if(index_type == CUCKOO) tables[next] = new MemstoreCuckooHashTable();

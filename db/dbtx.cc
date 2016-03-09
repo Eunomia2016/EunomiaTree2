@@ -982,7 +982,6 @@ retry:
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* new_val) {
-
 #if RW_TIME_BKD
 	util::timer total_time, tree_time, set_time;
 	adds++;

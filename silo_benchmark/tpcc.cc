@@ -40,7 +40,7 @@ using namespace util;
 #define BINDWAREHOUSE 1
 
 #define TPCC_DUMP 0
-#define DBTX_TIME 1
+#define DBTX_TIME 0
 #define DBTX_PROF 0
 
 //multiple tables in the database
@@ -3654,6 +3654,7 @@ public:
 		for(int i = 0; i < 9; i++)
 			if(i == CUST) store->AddTable(i, BTREE, SBTREE);
 			else if(i == ORDE) store->AddTable(i, BTREE, IBTREE);
+			else if(i == ORLI) store->AddTable(i, ALEX_BTREE, NONE);
 			else store->AddTable(i, BTREE, NONE);
 
 #else
