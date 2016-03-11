@@ -19,8 +19,6 @@
 #define wmb() asm volatile("sfence":::"memory")
 #define mb() asm volatile("mfence":::"memory")
 
-
-
 /* Pause instruction to prevent excess processor bus usage */
 #define cpu_relax() asm volatile("pause\n": : :"memory")
 
