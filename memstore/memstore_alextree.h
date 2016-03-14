@@ -61,7 +61,7 @@
 #define EMP_LEN  4
 #define HAL_LEN  2
 
-#define ADAPTIVE_LOCK 0
+#define ADAPTIVE_LOCK 1
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 
@@ -596,23 +596,25 @@ public:
 
 #if ADAPTIVE_LOCK
 	inline bool shouldLockProtect(LeafNode* leaf){
-		/*int idx = -1;
+/*
+		int idx = -1;
 		int seg_len = EMP_LEN;
 		if(leaf->born_key_num==8){
 			seg_len = HAL_LEN;
 		}
+*/		
+/*
 		int full_segs = 0;
 		for(int i = 0; i < SEGS; i++){
 			if(leaf->leaf_segs[i].key_num >= seg_len){
 				full_segs++;
 			}
-		}
-		bool should_protect = full_segs>1;
-		return should_protect;*/
-		bool need_protect = leaf->born_key_num >= 8;
+		}*/
+		bool should_protect = leaf->leaf_segs[0].key_num >= HAL_LEN;
+		return should_protect;
+		//bool need_protect = leaf->born_key_num >= 8;
 		//if(need_protect)should_protect++;
 		//else should_not_protect++;
-		return should_protect;
 	}
 #endif
 	
@@ -621,7 +623,7 @@ public:
 		//int thread_id = sched_getcpu();
 		ThreadLocalInit();
 		LeafNode* leaf = NULL;
-		LeafNode* target_leaf=NULL;
+		LeafNode* target_leaf = NULL;
 		//t1.lap();
 		
 		{
@@ -630,18 +632,24 @@ public:
 		}
 
 		//spec_time+=t1.lap();
-		
+		bool locked = false;
 #if ADAPTIVE_LOCK
 		if(shouldLockProtect(leaf))
+		{
+			locked=true;
 #endif
-		//if(leaf)
-		leaf->mlock.Lock();
-		//t1.lap();
-
+			leaf->mlock.Lock();
+#if ADAPTIVE_LOCK
+		}
+#endif
 		MemNode* res = Insert_rtm(key,&target_leaf);
 
 		//insert_time+=t1.lap();
 		//if(leaf)
+
+#if ADAPTIVE_LOCK
+		if(locked)
+#endif
 		leaf->mlock.Unlock();
 
 		/*
@@ -1093,7 +1101,7 @@ public:
 				}
 				for(int i = 0; i < SEGS; i++){
 					for(int j = 0; j < seg_len; j++){	
-						leaf->keys[initial+i*seg_len+j]=leaf->leaf_segs[i].keys[j];
+						leaf->keys[initial+i*seg_len+j] = leaf->leaf_segs[i].keys[j];
 					}
 				}
 				std::sort(leaf->keys, leaf->keys+LEAF_NUM);
@@ -1147,9 +1155,12 @@ public:
 					//for(int i = 0; i < LEAF_NUM; i++){
 					//	new_sibling->keys[i]=0;
 					//}
-					for(int i = 0; i < SEGS; i++){
-						//printf("new_sibling->leaf_segs[i].key_num = %d\n",new_sibling->leaf_segs[i].key_num);
-						new_sibling->leaf_segs[i].key_num = 0;
+					if(new_sibling->leaf_segs[0].key_num != 0){
+						//printf("new_sibling = %x\n", new_sibling);
+						for(int i = 0; i < SEGS; i++){
+							//printf("new_sibling->leaf_segs[%d].key_num = %d\n",i,new_sibling->leaf_segs[i].key_num);
+							new_sibling->leaf_segs[i].key_num = 0;
+						}
 					}
 					/*
 					for(int i = 0; i < SEGS; i++){
@@ -1216,7 +1227,6 @@ public:
 				new_sibling->right = leaf->right;
 				new_sibling->left = leaf;
 				leaf->right = new_sibling;
-				
 				//*target_leaf = toInsert;
 			}
 		}
@@ -1268,7 +1278,7 @@ public:
 		*/
 			new_sibling = new_leaf_node();
 			if(leaf->right == NULL && k == leaf->num_keys) {//new leafnode at rightmost
-			rightmost++;
+			//rightmost++;
 				new_sibling->num_keys = 0;
 				//new_sibling->born_key_num=0;
 				//for(int i = 0; i < LEAF_NUM; i++){
@@ -1278,7 +1288,7 @@ public:
 				//toInsert_key_num = 0;
 				k = 0;
 			} else { //not at rightmost
-			not_rightmost++;
+			//not_rightmost++;
 				unsigned threshold = (LEAF_NUM + 1) / 2; //8
 				new_sibling->num_keys = leaf->num_keys - threshold;
 				//unsigned new_sibling_num_keys = leaf_key_num - threshold; //8
