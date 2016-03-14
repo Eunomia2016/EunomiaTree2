@@ -1037,11 +1037,7 @@ public:
 			prefetch(reinterpret_cast<char*>(leaf->values[k]));
 	#endif
 			*val = leaf->values[k];
-	#if LEVEL_LOG
 
-			level_logs[0].gets++;
-
-	#endif
 			//checkConflict(leaf->signature, 0);
 
 	#if BTREE_PROF
@@ -1088,22 +1084,12 @@ public:
 			leaf->right = new_sibling;
 			new_sibling->seq = 0;
 
-#if LEVEL_LOG
-			//printf("[%2d][ADD] node = %10d, key = %20ld, d = %2d\n",
-			//	   sched_getcpu(), new_sibling->signature, key, 0);
-			level_logs[0].writes++;
-#endif
 
 #if BTREE_PROF
 			writes++;
 #endif
 //			new_sibling->writes++;
 
-#if LEVEL_LOG
-			//printf("[%2d][SPT] node = %10d, key = %20ld, d = %2d\n",
-			//	   sched_getcpu(), leaf->signature, key, 0);
-			level_logs[0].splits++;
-#endif
 
 		}
 
@@ -1119,9 +1105,6 @@ public:
 		toInsert->num_keys = toInsert->num_keys + 1;
 		toInsert->keys[k] = key;
 
-#if LEVEL_LOG
-		level_logs[0].writes++;
-#endif
 
 #if DUMMY
 		toInsert->values[k] = dummyval_;

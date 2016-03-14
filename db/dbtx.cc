@@ -821,9 +821,9 @@ retry:
 				tree_time.lap();
 	#endif
 
-		res = txdb_->tables[tableid]->GetWithInsert(key);//insert a new index
-		node = res.node;
-		newNode = res.hasNewNode;
+		node = txdb_->tables[tableid]->GetWithInsert(key).node;//insert a new index
+		//node = res.node;
+		//newNode = res.hasNewNode;
 
 		buffer[tableid].node = node;
 		buffer[tableid].key = key;
@@ -834,9 +834,9 @@ retry:
 		//assert(node != NULL);
 	}
 #else
-	res = txdb_->tables[tableid]->GetWithInsert(key);
-	node = res.node;
-	newNode = res.hasNewNode;
+	node = txdb_->tables[tableid]->GetWithInsert(key).node;
+	//node = res.node;
+	//newNode = res.hasNewNode;
 #endif
 
 	if(node->value == HAVEREMOVED){
@@ -918,7 +918,7 @@ void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
 //  SpinLockScope spinlock(&slock);
 retry:
 	Memstore::MemNode* node;
-	Memstore::InsertResult res;
+	//Memstore::InsertResult res;
 #if PROFILEBUFFERNODE
 	bufferGet++;
 #endif
@@ -943,18 +943,18 @@ retry:
 		tree_time.lap();
 #endif
 
-		res = txdb_->tables[tableid]->GetWithInsert(key);
-		node = res.node;
-		newNode = res.hasNewNode;
+		node = txdb_->tables[tableid]->GetWithInsert(key).node;
+		//node = res.node;
+		//newNode = res.hasNewNode;
 	#if RW_TIME_BKD
 		add_time.tree_time+=tree_time.lap();
 	#endif
 
 	}
 #else
-	res = txdb_->tables[tableid]->GetWithInsert(key);
-	node = res.node;
-	newNode = res.hasNewNode;
+	node = txdb_->tables[tableid]->GetWithInsert(key).node;
+	//node = res.node;
+	//newNode = res.hasNewNode;
 #endif
 	if(node->value == HAVEREMOVED){
 		goto retry;
@@ -996,7 +996,7 @@ retryA:
 #endif
 
 	Memstore::MemNode* node;
-	Memstore::InsertResult res;
+	//Memstore::InsertResult res;
 
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
@@ -1015,9 +1015,9 @@ retryA:
 #if RW_TIME_BKD
 		tree_time.lap();
 #endif
-		res = txdb_->tables[tableid]->GetWithInsert(key);
-		node = res.node;
-		newNode = res.hasNewNode;
+		node = txdb_->tables[tableid]->GetWithInsert(key).node;
+		//node = res.node;
+		//newNode = res.hasNewNode;
 #if RW_TIME_BKD
 		add_time.tree_time+=tree_time.lap();
 #endif
@@ -1027,9 +1027,9 @@ retryA:
 		assert(node != NULL);
 	}
 #else
-	res  = txdb_->tables[tableid]->GetWithInsert(key);
-	node = res.node;
-	newNode = res.hasNewNode;
+	node  = txdb_->tables[tableid]->GetWithInsert(key).node;
+	//node = res.node;
+	//newNode = res.hasNewNode;
 
 	if(node->value == HAVEREMOVED)
 		goto retryA;
@@ -1077,7 +1077,7 @@ retryA:
 #endif
 
 	Memstore::MemNode* node;
-	Memstore::InsertResult res;
+	//Memstore::InsertResult res;
 #if BUFFERNODE
 	//Get the seq addr from the hashtable
 	if(buffer[tableid].key == key
@@ -1095,18 +1095,18 @@ retryA:
 	#if RW_TIME_BKD
 		tree_time.lap();
 	#endif
-		res = txdb_->tables[tableid]->GetWithInsert(key);
-		node = res.node;
-		newNode = res.hasNewNode;
+		node = txdb_->tables[tableid]->GetWithInsert(key).node;
+		//node = res.node;
+		//newNode = res.hasNewNode;
 	#if RW_TIME_BKD
 		add_time.tree_time+=tree_time.lap();
 	#endif
 		//assert(node != NULL);
 	}
 #else
-		res = txdb_->tables[tableid]->GetWithInsert(key);
-		node = res.node;
-		newNode = res.hasNewNode;
+		node = txdb_->tables[tableid]->GetWithInsert(key).node;
+		//node = res.node;
+		//newNode = res.hasNewNode;
 	if(node->value == HAVEREMOVED)
 		goto retryA;
 

@@ -37,8 +37,6 @@ class RTMScope {
 	int nested;
 	int zero;
 	SpinLock* slock;
-	bool winner;
-	timespec begin, end;
 	OP_TYPE type;
 #ifdef AVOIDNESTTX
 	int isnest;
@@ -57,7 +55,6 @@ public:
 		capacity = 0;
 		zero = 0;
 		nested = 0;
-		winner = false;
 #ifdef AVOIDNESTTX
 		isnest = _xtest();
 #endif
@@ -91,9 +88,7 @@ public:
 				//Put the global lock into read set
 				if(slock->IsLocked()) {
 					_xabort(0xff);
-				} else if(retry == 0) {
-					winner = true;
-				}
+				} 
 				return;
 			} else {
 				retry++;

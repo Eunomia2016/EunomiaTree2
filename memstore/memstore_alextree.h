@@ -15,7 +15,7 @@
 #include "util/bloomfilter.h"
 #include "port/port_posix.h"
 #include "memstore.h"
-
+#include "silo_benchmark/util.h"
 //#define LEAF_NUM 15
 #define N  15
 
@@ -61,6 +61,7 @@
 #define EMP_LEN  4
 #define HAL_LEN  2
 
+#define ADAPTIVE_LOCK 0
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 
@@ -110,18 +111,31 @@ public:
 	uint64_t half_born;
 	uint64_t empty_born;
 
+	uint64_t should_protect;
+	uint64_t should_not_protect;
+
+	uint64_t rightmost;
+	uint64_t not_rightmost;
+
+	bool first_leaf;
+
+	uint64_t spec_time;
+	uint64_t insert_time;
+	struct LeafNode;
+
+	LeafNode* last_leafs[20];
 #if SHUFFLE_LOG
 	struct Leaf_Seg{
 		uint64_t keys[EMP_LEN];
 		//MemNode* vals[EMP_LEN];
 		unsigned key_num;
-		//uint64_t paddings[8];
+		uint64_t paddings[8];
 	};
 #endif
 
 	struct LeafNode {
 		LeafNode() : num_keys(0), born_key_num(-1){
-			//signature = __sync_fetch_and_add(&leaf_id, 1);
+		//	signature = __sync_fetch_and_add(&leaf_id, 1);
 
 		} //, writes(0), reads(0) {}
 		SpinLock mlock;
@@ -242,12 +256,20 @@ public:
 	MemstoreAlexTree(int _tableid) {
 		tableid = _tableid;
 		root = new LeafNode();
+		first_leaf = true;
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
+		insert_time=spec_time=0;
+		spec_hit=spec_miss=0;
+		for(int i = 0; i < 20 ; i ++){
+			last_leafs[i]=new LeafNode();
+		}
+		
 		//half_born=empty_born=0;
-
+		//should_protect=should_not_protect=0;
+		//rightmost=not_rightmost=0;
 #if BTREE_PROF
 		writes = 0;
 		reads = 0;
@@ -274,8 +296,10 @@ public:
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 		prof.reportAbortStatus();
-
-		//printf("half_born = %d, empty_born = %d\n", half_born, empty_born);
+		//printf("spec_hit = %lu, spec_miss = %lu\n", spec_hit, spec_miss);
+		//printf("spec_time = %lu, insert_time = %lu\n", spec_time, insert_time);
+		//printf("should_protect = %d, should_not_protect = %d\n", should_protect, should_not_protect);
+		printf("rightmost = %d, not_rightmost = %d\n", rightmost, not_rightmost);
 #if BTREE_PROF
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes) / (float)calls, (float)(writes) / (float)calls);
 #endif
@@ -570,20 +594,73 @@ public:
 		return value;
 	}
 
+#if ADAPTIVE_LOCK
+	inline bool shouldLockProtect(LeafNode* leaf){
+		/*int idx = -1;
+		int seg_len = EMP_LEN;
+		if(leaf->born_key_num==8){
+			seg_len = HAL_LEN;
+		}
+		int full_segs = 0;
+		for(int i = 0; i < SEGS; i++){
+			if(leaf->leaf_segs[i].key_num >= seg_len){
+				full_segs++;
+			}
+		}
+		bool should_protect = full_segs>1;
+		return should_protect;*/
+		bool need_protect = leaf->born_key_num >= 8;
+		//if(need_protect)should_protect++;
+		//else should_not_protect++;
+		return should_protect;
+	}
+#endif
+	
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
+		//util::timer t1;
+		//int thread_id = sched_getcpu();
 		ThreadLocalInit();
-		LeafNode* leaf=NULL;
+		LeafNode* leaf = NULL;
+		LeafNode* target_leaf=NULL;
+		//t1.lap();
+		
 		{
 			RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 			leaf = FindLeaf(key);
 		}
-		//if(leaf){
-		leaf->mlock.Lock();
-		//}
-		InsertResult res = Insert_rtm(key);
+
+		//spec_time+=t1.lap();
 		
-		//if(leaf){
+#if ADAPTIVE_LOCK
+		if(shouldLockProtect(leaf))
+#endif
+		//if(leaf)
+		leaf->mlock.Lock();
+		//t1.lap();
+
+		MemNode* res = Insert_rtm(key,&target_leaf);
+
+		//insert_time+=t1.lap();
+		//if(leaf)
 		leaf->mlock.Unlock();
+
+		/*
+		if(target_leaf == last_leafs[thread_id]){
+			spec_hit++;
+		}else{
+			spec_miss++;
+			last_leafs[thread_id]=target_leaf;
+		}
+		*/
+		/*
+		if(target_leaf!=last_leafs[thread_id]){
+			last_leafs[thread_id]=target_leaf;
+		}
+		*/
+		//if(leaf==target_leaf){
+		//	spec_hit++;
+		//}else{
+		//	spec_miss++;
 		//}
 #if DUMMY
 		if(dummyval_ == NULL) {
@@ -594,8 +671,8 @@ public:
 		}
 #endif
 
-		res.node=dummyval_;
-		return res;
+		res = dummyval_;
+		return {res, false};
 	}
 
 	inline Memstore::MemNode* GetForRead(uint64_t key) {
@@ -612,8 +689,7 @@ public:
 		return value;
 	}
 
-	inline Memstore::InsertResult Insert_rtm(uint64_t key) {
-		bool newKey = true;
+	inline Memstore::MemNode* Insert_rtm(uint64_t key, LeafNode** target_leaf) {
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
@@ -636,12 +712,16 @@ public:
 
 		MemNode* val = NULL;
 		if(depth == 0) {
-			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val, &newKey);
+			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val, target_leaf);
 			//printf("root->born_key_num = %d\n", reinterpret_cast<LeafNode*>(root)->born_key_num );
 			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
 				InnerNode *inner = new_inner_node();
+//for(int i = 0; i < LEAF_NUM; i++){
+//	printf("new_leaf->keys[%d] = %lu\n",i,new_leaf->keys[i]);
+//}
 				inner->num_keys = 1;
 				inner->keys[0] = new_leaf->keys[0];
+//				printf("inner->keys[0] = %lu\n", inner->keys[0]);
 				inner->children[0] = root;
 				inner->children[1] = new_leaf;
 				depth++;
@@ -656,12 +736,12 @@ public:
 			for(int i = 0; i <= 64; i += 64)
 				prefetch(reinterpret_cast<char*>(root) + i);
 #endif
-			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val, &newKey);
+			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val, target_leaf);
 		}
-		return {val, newKey};
+		return val;
 	}
 
-	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, bool* newKey) {
+	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, LeafNode** target_leaf) {
 		unsigned k = 0;
 		uint64_t upKey;
 		InnerNode *new_sibling = NULL;
@@ -678,7 +758,7 @@ public:
 #endif
 		//inserting at the lowest inner level
 		if(d == 1) {
-			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val, newKey);
+			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val,target_leaf);
 			if(new_leaf != NULL) {  //if a new leaf node is created
 				InnerNode *toInsert = inner;
 				//the inner node is full -> split it
@@ -751,7 +831,7 @@ public:
 		} else { //not inserting at the lowest inner level
 			//recursively insert at the lower levels
 			InnerNode *new_inner =
-				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val, newKey);
+				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val,target_leaf);
 
 			if(new_inner != NULL) {
 				InnerNode *toInsert = inner;
@@ -842,129 +922,134 @@ public:
 		return new_sibling; //return the newly-created node (if exists)
 	}
 
-	inline LeafNode* UnsortedLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
+	inline LeafNode* UnsortedLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val) {
 		unsigned leaf_key_num;
-				unsigned toInsert_key_num;
-				LeafNode *new_sibling = NULL;
-				int k = 0;	
-		
-				for(k = LEAF_NUM - 1; k >= 0; k--){
-					if(leaf->keys[k] != 0){
-						break;
-					}
-				}
-				leaf_key_num = k+1;
-				if(leaf_key_num < LEAF_NUM){
-					leaf->keys[leaf_key_num] = key;
-					
+		unsigned toInsert_key_num;
+		LeafNode *new_sibling = NULL;
+		int k = 0;	
+
+		for(k = LEAF_NUM - 1; k >= 0; k--){
+			if(leaf->keys[k] != 0){
+				break;
+			}
+		}
+		leaf_key_num = k+1;
+		if(leaf_key_num < LEAF_NUM){
+			leaf->keys[leaf_key_num] = key;
+			
 #if DUMMY
-					//leaf->values[leaf_key_num] = dummyval_;
-					//*val = dummyval_;
+			//leaf->values[leaf_key_num] = dummyval_;
+			//*val = dummyval_;
 #else
-					//leaf->values[leaf_key_num] = GetMemNode();
-					//*val = leaf->values[k];
+			//leaf->values[leaf_key_num] = GetMemNode();
+			//*val = leaf->values[k];
 #endif
-		
-					//printf("NO SPLIT\n");
-					return NULL;
-				}
-				//this LeafNode is FULL
-				//printf("SPLIT Begin\n");
-				std::sort(leaf->keys, leaf->keys+LEAF_NUM);
-				
-				k = 0;
-				while((k < leaf_key_num) && (leaf->keys[k] < key)) {
-					++k;
-				}
-				//inserting a new key in the children
-				LeafNode *toInsert = leaf;
-				toInsert_key_num = leaf_key_num;
-				new_sibling = new_leaf_node();
-				if(leaf->right == NULL && k == leaf_key_num) {
-					//new_sibling->num_keys = 0;
-					for(int i = 0; i < LEAF_NUM; i++){
-						new_sibling->keys[i]=0;
-					}
-					toInsert = new_sibling;
-					toInsert_key_num=0;
-		
-					k = 0;
-				} else {
-					unsigned threshold = (LEAF_NUM + 1) / 2;
-					//new_sibling->num_keys = leaf->num_keys - threshold;
-					
-					unsigned new_sibling_num_keys = leaf_key_num - threshold;
-		
-					//moving the keys above the threshold to the new sibling
-					for(unsigned j = 0; j < new_sibling_num_keys; ++j) {
-						//move the keys beyond threshold in old leaf to the new leaf
-						new_sibling->keys[j] = leaf->keys[threshold + j];
-						leaf->keys[threshold + j] = 0;
-						//new_sibling->values[j] = leaf->values[threshold + j];
-					}
-					//leaf->num_keys = threshold;
-		
-					leaf_key_num = threshold;
-					toInsert_key_num = threshold;
-					if(k >= threshold) {
-						k = k - threshold;
-						toInsert = new_sibling;
-						toInsert_key_num = new_sibling_num_keys;
-					}
-				}
-				
-				//inserting the newsibling at the right of the old leaf node
-		
-				if(leaf->right != NULL) leaf->right->left = new_sibling;
-				new_sibling->right = leaf->right;
-				new_sibling->left = leaf;
-				leaf->right = new_sibling;
-				//new_sibling->seq = 0;
-				
-				//printf("toInsert_key_num = %d\n", toInsert_key_num);
-				toInsert->keys[toInsert_key_num] = key;
-				/*
-				for(int j = toInsert_key_num; j > k; j--) {
-					toInsert->keys[j] = toInsert->keys[j - 1];
-					toInsert->values[j] = toInsert->values[j - 1];
-				}
-				toInsert->keys[k] = key;
-				*/
-				//printf("[%2d] sig = %d, k = %u, key = %llu\n", sched_getcpu(), leaf->signature, k, key);
-		
-	#if DUMMY
-				//toInsert->values[toInsert_key_num] = dummyval_;
-				//*val = dummyval_;
-	#else
-				//toInsert->values[toInsert_key_num] = GetMemNode();
-				//*val = toInsert->values[toInsert_key_num];
-	#endif
-		
-				//dummyval_ = NULL;
-				//leaf->seq = leaf->seq + 1;
-				
-				//printf("SPLIT Here. new_sibling = %lu\n",new_sibling->signature);
-				return new_sibling;
 
+			//printf("NO SPLIT\n");
+			return NULL;
+		}
+		//this LeafNode is FULL
+		//printf("SPLIT Begin\n");
+		std::sort(leaf->keys, leaf->keys+LEAF_NUM);
+		
+		k = 0;
+		while((k < leaf_key_num) && (leaf->keys[k] < key)) {
+			++k;
+		}
+		//inserting a new key in the children
+		LeafNode *toInsert = leaf;
+		toInsert_key_num = leaf_key_num;
+		new_sibling = new_leaf_node();
+		if(leaf->right == NULL && k == leaf_key_num) {
+			//new_sibling->num_keys = 0;
+			for(int i = 0; i < LEAF_NUM; i++){
+				new_sibling->keys[i]=0;
+			}
+			toInsert = new_sibling;
+			toInsert_key_num=0;
 
+			k = 0;
+		} else {
+			unsigned threshold = (LEAF_NUM + 1) / 2;
+			//new_sibling->num_keys = leaf->num_keys - threshold;
+			
+			unsigned new_sibling_num_keys = leaf_key_num - threshold;
+
+			//moving the keys above the threshold to the new sibling
+			for(unsigned j = 0; j < new_sibling_num_keys; ++j) {
+				//move the keys beyond threshold in old leaf to the new leaf
+				new_sibling->keys[j] = leaf->keys[threshold + j];
+				leaf->keys[threshold + j] = 0;
+				//new_sibling->values[j] = leaf->values[threshold + j];
+			}
+			//leaf->num_keys = threshold;
+
+			leaf_key_num = threshold;
+			toInsert_key_num = threshold;
+			if(k >= threshold) {
+				k = k - threshold;
+				toInsert = new_sibling;
+				toInsert_key_num = new_sibling_num_keys;
+			}
+		}
+		
+		//inserting the newsibling at the right of the old leaf node
+
+		if(leaf->right != NULL) leaf->right->left = new_sibling;
+		new_sibling->right = leaf->right;
+		new_sibling->left = leaf;
+		leaf->right = new_sibling;
+		//new_sibling->seq = 0;
+		
+		//printf("toInsert_key_num = %d\n", toInsert_key_num);
+		toInsert->keys[toInsert_key_num] = key;
+		/*
+		for(int j = toInsert_key_num; j > k; j--) {
+			toInsert->keys[j] = toInsert->keys[j - 1];
+			toInsert->values[j] = toInsert->values[j - 1];
+		}
+		toInsert->keys[k] = key;
+		*/
+		//printf("[%2d] sig = %d, k = %u, key = %llu\n", sched_getcpu(), leaf->signature, k, key);
+
+#if DUMMY
+		//toInsert->values[toInsert_key_num] = dummyval_;
+		//*val = dummyval_;
+#else
+		//toInsert->values[toInsert_key_num] = GetMemNode();
+		//*val = toInsert->values[toInsert_key_num];
+#endif
+		//dummyval_ = NULL;
+		//leaf->seq = leaf->seq + 1;
+		//printf("SPLIT Here. new_sibling = %lu\n",new_sibling->signature);
+		return new_sibling;
 	}
-	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
+	
+	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, LeafNode** target_leaf) {
 		//printf("I want to insert key = %d\n",key);
 		LeafNode *new_sibling = NULL;
 		//int idx = -1;
-		int seg_len = EMP_LEN;
-		if(leaf->born_key_num == 8){
-			seg_len = HAL_LEN;
-			//half_born++;
+		int seg_len = leaf->born_key_num == 8? HAL_LEN: EMP_LEN;
+		if(leaf == root){
+			if(first_leaf){//root node needs reinitialization
+				for(int i = 0 ; i < SEGS; i++){
+					for(int j = 0; j < seg_len; j++){
+						leaf->leaf_segs[i].keys[j] = 0;
+					}
+				}
+				//printf("leaf->right = %x\n", leaf->right);
+				first_leaf = false;
+			}
+			//for(int i = 0; i < LEAF_NUM; i++){
+			//	printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
+			//}
 		}
-		
 		//int retries = 0;
 		//bool should_check_all = false;
 		//while(true){
 		//idx = key % SEGS;
 		//if(leaf->leaf_segs[idx].key_num < seg_len){
 				//break;
-		
 		//}else{
 		//	should_check_all=true;
 		//}
@@ -973,11 +1058,13 @@ public:
 				//break;
 			//}
 		//}
-		int idx = key%SEGS;
+		int idx = key % SEGS;
+		//printf("key = %lu, idx = %d\n", key, idx);
 		bool should_check_all = leaf->leaf_segs[idx].key_num >= seg_len;
 		if(!should_check_all){
 			leaf->leaf_segs[idx].keys[leaf->leaf_segs[idx].key_num] = key;
 			leaf->leaf_segs[idx].key_num++;
+			//*target_leaf = leaf;
 			return NULL;
 		} else{//should check if this node is full
 			int idx2;
@@ -985,15 +1072,18 @@ public:
 				if(leaf->leaf_segs[idx2].key_num < seg_len){
 					leaf->leaf_segs[idx2].keys[leaf->leaf_segs[idx2].key_num] = key;
 					leaf->leaf_segs[idx2].key_num++;
+					//*target_leaf = leaf;
 					return NULL;
 				}
 			}
 			if(idx2 == SEGS){//REALLY FULL
 				//printf("[%d] I should split(1)\n", key);
 				/*
-				for(int i = 0 ; i < SEGS; i++){
-					for(int j = 0; j < seg_len; j++){	
-						printf("leaf->leaf_segs[%d].keys[%d] = %d\n",i,j,leaf->leaf_segs[i].keys[j]);
+				if(leaf==root){
+					for(int i = 0 ; i < SEGS; i++){
+						for(int j = 0; j < seg_len; j++){	
+							printf("leaf->leaf_segs[%d].keys[%d] = %lu\n",i,j,leaf->leaf_segs[i].keys[j]);
+						}
 					}
 				}
 				*/
@@ -1007,19 +1097,23 @@ public:
 					}
 				}
 				std::sort(leaf->keys, leaf->keys+LEAF_NUM);
-				/*
-				for(int i = 0 ; i < LEAF_NUM; i++){
-					printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
-
-				}
-				*/
+				
+				//for(int i = 0 ; i < LEAF_NUM; i++){
+				//	printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
+				//}
 				
 				unsigned k = 0;
 				while((k < LEAF_NUM) && (leaf->keys[k] < key)) {
 					++k;
 				}
+				/*
+				for(int i = 0 ; i < LEAF_NUM; i++){
+					printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
+				}
+				printf("inserted key = %lu, k = %u\n", key,k);
+				*/
 				LeafNode *toInsert = leaf;
-
+				
 				//for(int i = 0; i < SEGS ;i++){
 				//	for(int j = 0; j < seg_len; j++){
 				//		leaf->leaf_segs[i].keys[j] = 0;
@@ -1030,34 +1124,59 @@ public:
 				//}
 
 				new_sibling = new_leaf_node();
-				if(leaf->right == NULL && k == LEAF_NUM) {//new leafnode at rightmost
-				//new_sibling->num_keys = 0;
-					new_sibling->born_key_num=0;
-					for(int i = 0; i < LEAF_NUM; i++){
-						new_sibling->keys[i]=0;
+				/*
+				if(first_leaf){
+					for(int i = 0 ; i < SEGS; i++){
+						for(int j = 0; j < seg_len; j++){	
+							printf("new_sibling->leaf_segs[%d].keys[%d] = %lu\n",i,j,new_sibling->leaf_segs[i].keys[j]);
+						}
 					}
+					first_leaf=false;
+				}
+				*/
+				if(leaf->right == NULL && k == LEAF_NUM) {//new leafnode at rightmost
+					//rightmost++;
+					//new_sibling->num_keys = 0;
+					new_sibling->born_key_num = 0;
+					//for(int i = 0; i < LEAF_NUM; i++){
+					//	new_sibling->keys[i]=0;
+					//}
 					toInsert = new_sibling;
-				//toInsert_key_num = 0;
+					//toInsert_key_num = 0;
 					//k = 0;
 					//for(int i = 0; i < LEAF_NUM; i++){
 					//	new_sibling->keys[i]=0;
 					//}
 					for(int i = 0; i < SEGS; i++){
+						//printf("new_sibling->leaf_segs[i].key_num = %d\n",new_sibling->leaf_segs[i].key_num);
 						new_sibling->leaf_segs[i].key_num = 0;
-						//for(int j = 0 ; j < seg_len; j++){
-						//	new_sibling->leaf_segs[i].keys[j]=0;
-						//}
 					}
-					toInsert->leaf_segs[0].key_num=1;
-					toInsert->leaf_segs[0].keys[0]=key;
-
+					/*
+					for(int i = 0; i < SEGS; i++){
+						printf("new_sibling->leaf_segs[i].key_num = %d\n",new_sibling->leaf_segs[i].key_num);
+					}
+					*/
+					toInsert->leaf_segs[0].key_num = 1;
+					toInsert->leaf_segs[0].keys[0] = key;
+					toInsert->keys[0] = key; //keys[0] should be set here
 				} else { //not at rightmost
+					//not_rightmost++;
+					/*
+					if(k==LEAF_NUM){
+						LeafNode* right = leaf->right;
+						printf("right->sig = %ld\n", right->signature);
+						for(int i = 0 ; i < LEAF_NUM; i++){
+							printf("right->keys[%d] = %lu\n",i,right->keys[i]);
+						}
+					}
+					*/
 					unsigned threshold = (LEAF_NUM + 1) / 2; //8
 				//new_sibling->num_keys = leaf->num_keys - threshold;
 					unsigned new_sibling_num_keys = LEAF_NUM - threshold; //8
 				
 				//moving the keys above the threshold to the new sibling
-				/*for(unsigned j = 0; j < new_sibling_num_keys; ++j) {
+				/*
+				for(unsigned j = 0; j < new_sibling_num_keys; ++j) {
 					//move the keys beyond threshold in old leaf to the new leaf
 					new_sibling->keys[j] = leaf->keys[threshold + j];
 					leaf->keys[threshold + j] = 0;
@@ -1088,7 +1207,7 @@ public:
 					}
 					toInsert->leaf_segs[0].key_num=1;
 					toInsert->leaf_segs[0].keys[0]=key;
-
+					//toInsert->keys[0]=
 				}
 				//inserting the newsibling at the right of the old leaf node
 				if(leaf->right != NULL) {
@@ -1097,134 +1216,141 @@ public:
 				new_sibling->right = leaf->right;
 				new_sibling->left = leaf;
 				leaf->right = new_sibling;
+				
+				//*target_leaf = toInsert;
 			}
 		}
 		return new_sibling;
 	}
 	
-	inline LeafNode* SimpleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
-				unsigned leaf_key_num;
-				unsigned toInsert_key_num;
-				LeafNode *new_sibling = NULL;
-				int k = 0;	
+	inline LeafNode* SimpleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val) {
+		//unsigned leaf_key_num;
+		//unsigned toInsert_key_num;
+		LeafNode *new_sibling = NULL;
+		unsigned  k = 0;	
+		/*
+		for(k = LEAF_NUM - 1; k >= 0; k--){
+			if(leaf->keys[k] != 0){
+				break;
+			}
+		}
+		leaf_key_num = k + 1;
+		*/
 		
-				for(k = LEAF_NUM - 1; k >= 0; k--){
-					if(leaf->keys[k] != 0){
-						break;
-					}
-				}
-				leaf_key_num = k + 1;
-				//printf("leaf_key_num = %d, leaf->num_keys = %d\n", leaf_key_num, leaf->num_keys);
+		//printf("leaf_key_num = %d, leaf->num_keys = %d\n", leaf_key_num, leaf->num_keys);
+		//k = 0;
+		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
+			++k;
+		}
+
+		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
+			//*newKey = false;
+#if BTPREFETCH
+			prefetch(reinterpret_cast<char*>(leaf->values[k]));
+#endif
+			*val = leaf->values[k];
+
+			return NULL;
+		}
+
+		//*newKey = true;
+		//inserting a new key in the children
+		LeafNode *toInsert = leaf;
+		//toInsert_key_num = leaf_key_num;
+		//SPLIT THE NODE WHEN FULL
+		if(leaf->num_keys == LEAF_NUM) {
+			//printf("[%d] I should split(2)\n", key);
+		/*	
+		for(int i = 0 ; i < LEAF_NUM; i++){
+			printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
+		}
+		printf("inserted key = %lu, k = %u\n", key,k);
+		*/
+			new_sibling = new_leaf_node();
+			if(leaf->right == NULL && k == leaf->num_keys) {//new leafnode at rightmost
+			rightmost++;
+				new_sibling->num_keys = 0;
+				//new_sibling->born_key_num=0;
+				//for(int i = 0; i < LEAF_NUM; i++){
+				//	new_sibling->keys[i]=0;
+				//}
+				toInsert = new_sibling;
+				//toInsert_key_num = 0;
 				k = 0;
-				while((k < leaf_key_num) && (leaf->keys[k] < key)) {
-					++k;
+			} else { //not at rightmost
+			not_rightmost++;
+				unsigned threshold = (LEAF_NUM + 1) / 2; //8
+				new_sibling->num_keys = leaf->num_keys - threshold;
+				//unsigned new_sibling_num_keys = leaf_key_num - threshold; //8
+
+				//new_sibling->born_key_num = new_sibling_num_keys;
+				//leaf->born_key_num = threshold;
+
+				//moving the keys above the threshold to the new sibling
+				for(unsigned j = 0; j < new_sibling->num_keys; ++j) {
+					//move the keys beyond threshold in old leaf to the new leaf
+					new_sibling->keys[j] = leaf->keys[threshold + j];
+					leaf->keys[threshold + j] = 0;
+					new_sibling->values[j] = leaf->values[threshold + j];
 				}
-		
-				if((k < leaf_key_num) && (leaf->keys[k] == key)) {
-					*newKey = false;
-	#if BTPREFETCH
-					//prefetch(reinterpret_cast<char*>(leaf->values[k]));
-	#endif
-					//*val = leaf->values[k];
-		
-					return NULL;
+
+				leaf->num_keys = threshold;
+
+				//leaf_key_num = threshold;
+				//toInsert_key_num = threshold; 
+				if(k >= threshold) {
+					k = k - threshold;
+					toInsert = new_sibling;
+					//toInsert_key_num = new_sibling_num_keys;
 				}
-		
-				*newKey = true;
-				//inserting a new key in the children
-				LeafNode *toInsert = leaf;
-				toInsert_key_num = leaf_key_num;
-				//SPLIT THE NODE WHEN FULL
-				if(leaf_key_num == LEAF_NUM) {
-					//printf("[%d] I should split(2)\n", key);
-		
-					new_sibling = new_leaf_node();
-					if(leaf->right == NULL && k == leaf_key_num) {//new leafnode at rightmost
-						//new_sibling->num_keys = 0;
-						new_sibling->born_key_num=0;
-						for(int i = 0; i < LEAF_NUM; i++){
-							new_sibling->keys[i]=0;
-						}
-						toInsert = new_sibling;
-						toInsert_key_num = 0;
-						k = 0;
-		
-		
-					} else { //not at rightmost
-						unsigned threshold = (LEAF_NUM + 1) / 2; //8
-						//new_sibling->num_keys = leaf->num_keys - threshold;
-						unsigned new_sibling_num_keys = leaf_key_num - threshold; //8
-		
-						new_sibling->born_key_num = new_sibling_num_keys;
-						leaf->born_key_num = threshold;
-		
-						//moving the keys above the threshold to the new sibling
-						for(unsigned j = 0; j < new_sibling_num_keys; ++j) {
-							//move the keys beyond threshold in old leaf to the new leaf
-							new_sibling->keys[j] = leaf->keys[threshold + j];
-							leaf->keys[threshold + j] = 0;
-							//new_sibling->values[j] = leaf->values[threshold + j];
-						}
-		
-						//leaf->num_keys = threshold;
-		
-						leaf_key_num = threshold;
-						toInsert_key_num = threshold; 
-						if(k >= threshold) {
-							k = k - threshold;
-							toInsert = new_sibling;
-							toInsert_key_num = new_sibling_num_keys;
-						}
-					}
-					//inserting the newsibling at the right of the old leaf node
-					if(leaf->right != NULL) leaf->right->left = new_sibling;
-					new_sibling->right = leaf->right;
-					new_sibling->left = leaf;
-					leaf->right = new_sibling;
-					//new_sibling->seq = 0;
-				}
-		
-		
-	#if BTPREFETCH
-				prefetch(reinterpret_cast<char*>(dummyval_));
-	#endif
-				//printf("toInsert_key_num = %d, toInsert->num_keys = %d\n", toInsert_key_num, toInsert->num_keys);
-				for(int j = toInsert_key_num; j > k; j--) {
-					toInsert->keys[j] = toInsert->keys[j - 1];
-					//toInsert->values[j] = toInsert->values[j - 1];
-				}
-		
-				//toInsert->num_keys = toInsert->num_keys + 1;
-		
-				toInsert->keys[k] = key;
-		
-				//printf("[%2d] sig = %d, k = %u, key = %llu\n", sched_getcpu(), leaf->signature, k, key);
-	#if DUMMY
-				//toInsert->values[k] = dummyval_;
-				//printf("toInsert->values[k] = %x\n",dummyval_);
-				//*val = dummyval_;
-	#else
-				//toInsert->values[k] = GetMemNode();
-				//*val = toInsert->values[k];
-	#endif
-		
-				//assert(*val != NULL);
-				//dummyval_ = NULL;
-		
-				//leaf->seq = leaf->seq + 1;
-				//printf("toInsert = %x\n",toInsert );
-				return new_sibling;
+			}
+			//inserting the newsibling at the right of the old leaf node
+			if(leaf->right != NULL) leaf->right->left = new_sibling;
+			new_sibling->right = leaf->right;
+			new_sibling->left = leaf;
+			leaf->right = new_sibling;
+			new_sibling->seq = 0;
+		}
+
+#if BTPREFETCH
+		prefetch(reinterpret_cast<char*>(dummyval_));
+#endif
+		//printf("toInsert_key_num = %d, toInsert->num_keys = %d\n", toInsert_key_num, toInsert->num_keys);
+		for(int j = toInsert->num_keys; j > k; j--) {
+			toInsert->keys[j] = toInsert->keys[j - 1];
+			toInsert->values[j] = toInsert->values[j - 1];
+		}
+
+		toInsert->num_keys = toInsert->num_keys + 1;
+		toInsert->keys[k] = key;
+
+		//printf("[%2d] sig = %d, k = %u, key = %llu\n", sched_getcpu(), leaf->signature, k, key);
+#if DUMMY
+		toInsert->values[k] = dummyval_;
+		//printf("toInsert->values[k] = %x\n",dummyval_);
+		*val = dummyval_;
+#else
+		toInsert->values[k] = GetMemNode();
+		*val = toInsert->values[k];
+#endif
+
+		assert(*val != NULL);
+		dummyval_ = NULL;
+
+		leaf->seq = leaf->seq + 1;
+		//printf("toInsert = %x\n",toInsert );
+		return new_sibling;
 	}
 
 //Insert a key at the leaf level
 //Return: the new node where the new key resides, NULL if no new node is created
 //@val: storing the pointer to new value in val
-	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, bool * newKey) {
+	inline LeafNode* LeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, LeafNode** target_leaf) {
 		//printf("LeafInsert->born_key_num = %d\n",leaf->born_key_num);
 		//if(leaf->born_key_num == 8||leaf->born_key_num == -1){
-			//return SimpleLeafInsert(key,leaf, val, newKey);
+			//return SimpleLeafInsert(key, leaf, val);
 		//}else{
-			return ShuffleLeafInsert(key,leaf, val,newKey);
+			return ShuffleLeafInsert(key, leaf, val, target_leaf);
 		//}
 	}
 

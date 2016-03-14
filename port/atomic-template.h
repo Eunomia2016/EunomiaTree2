@@ -103,4 +103,3 @@ static __inline__ DATA_TYPE glue(atomic_fetch_and_add, DATA_BITS)(
 #undef DATA_BITS
 #undef DATA_TYPE
 #undef SUFFIX
-
