@@ -10,7 +10,7 @@ class SpinLock  {
 public:
 	//0: free, 1: busy
 	//occupy an exclusive cache line
-	volatile uint8_t padding1[32];
+	volatile uint8_t padding1[30];
 	volatile uint16_t lock;
 	volatile uint8_t padding2[32];
 public:

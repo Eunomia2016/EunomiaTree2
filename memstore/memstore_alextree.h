@@ -25,7 +25,6 @@
 
 #define LEAF_NUM 16
 
-
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
 #define BTPREFETCH 0
@@ -62,6 +61,7 @@
 #define HAL_LEN  2
 
 #define ADAPTIVE_LOCK 1
+
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 
@@ -70,6 +70,7 @@ static int total_nodes = 0;
 static uint64_t rconflict = 0;
 static uint64_t wconflict = 0;
 */
+
 using namespace std;
 namespace leveldb {
 
@@ -105,7 +106,7 @@ public:
 	uint64_t spec_hit;
 	uint64_t spec_miss;
 
-	uint64_t inserts;
+//	uint64_t inserts;
 	uint64_t shifts;
 
 	uint64_t half_born;
@@ -121,36 +122,34 @@ public:
 
 	uint64_t spec_time;
 	uint64_t insert_time;
-	struct LeafNode;
 
-	LeafNode* last_leafs[20];
+	uint64_t insert_times[SEGS+1];
+	uint64_t inserts[SEGS+1];
+
 #if SHUFFLE_LOG
 	struct Leaf_Seg{
 		uint64_t keys[EMP_LEN];
 		//MemNode* vals[EMP_LEN];
 		unsigned key_num;
-		uint64_t paddings[8];
+		uint64_t paddings1[3];
 	};
 #endif
 
 	struct LeafNode {
 		LeafNode() : num_keys(0), born_key_num(-1){
 		//	signature = __sync_fetch_and_add(&leaf_id, 1);
-
 		} //, writes(0), reads(0) {}
-		SpinLock mlock;
-		int born_key_num;
-		unsigned signature;
-		unsigned num_keys;
-		
+		//unsigned signature;
 #if SHUFFLE_LOG
 		Leaf_Seg leaf_segs[SEGS];
 #endif
-
+		int born_key_num;
+		uint64_t paddings[7];//cacheline alignment
+		
 		uint64_t keys[LEAF_NUM];
 		MemNode *values[LEAF_NUM];
-		//uint64_t born_keys[LEAF_NUM];
-		
+		SpinLock mlock;
+		unsigned num_keys;
 		LeafNode *left;
 		LeafNode *right;
 		uint64_t seq;
@@ -160,12 +159,12 @@ public:
 		InnerNode() : num_keys(0) {
 			//signature = __sync_fetch_and_add(&inner_id, -1);
 		}//, writes(0), reads(0) {}
-//		uint64_t padding[8];
-		int signature;
+		//SpinLock mlock;
+		//int signature;
 		unsigned num_keys;
 		uint64_t 	 keys[N];
-		void*	 children[N + 1];
-//		uint64_t padding1[8];
+		void*	 children[N+1];
+		//uint64_t padding1[7];
 	};
 
 	//The result object of the delete function
@@ -254,6 +253,7 @@ public:
 				}*/
 	}
 	MemstoreAlexTree(int _tableid) {
+		//printf("sizeof(SpinLock) = %u\n", sizeof(SpinLock));
 		tableid = _tableid;
 		root = new LeafNode();
 		first_leaf = true;
@@ -263,10 +263,11 @@ public:
 		depth = 0;
 		insert_time=spec_time=0;
 		spec_hit=spec_miss=0;
+/*
 		for(int i = 0; i < 20 ; i ++){
 			last_leafs[i]=new LeafNode();
 		}
-		
+*/		
 		//half_born=empty_born=0;
 		//should_protect=should_not_protect=0;
 		//rightmost=not_rightmost=0;
@@ -296,10 +297,16 @@ public:
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 		prof.reportAbortStatus();
+		/*
+		for(int i = 0; i < SEGS+1; i++){
+			printf("insert_times[%d] = %lu, inserts[%d] = %lu, single_insert_times[%d] = %lf\n", 
+				i,insert_times[i],i,inserts[i],i,(double)insert_times[i]/inserts[i]);
+		}
+		*/
 		//printf("spec_hit = %lu, spec_miss = %lu\n", spec_hit, spec_miss);
 		//printf("spec_time = %lu, insert_time = %lu\n", spec_time, insert_time);
-		//printf("should_protect = %d, should_not_protect = %d\n", should_protect, should_not_protect);
-		printf("rightmost = %d, not_rightmost = %d\n", rightmost, not_rightmost);
+		printf("should_protect = %d, should_not_protect = %d\n", should_protect, should_not_protect);
+		//printf("rightmost = %d, not_rightmost = %d\n", rightmost, not_rightmost);
 #if BTREE_PROF
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes) / (float)calls, (float)(writes) / (float)calls);
 #endif
@@ -353,6 +360,25 @@ public:
 		return reinterpret_cast<LeafNode*>(node);
 	}
 
+	inline InnerNode* SpecInner(uint64_t key){
+		InnerNode* inner;
+		register void* node = root;
+		register unsigned d = depth;
+		unsigned index = 0;
+		if(d == 0){
+			return reinterpret_cast<InnerNode*>(node);
+		}
+		while(d-- != 1) {
+			index = 0;
+			inner = reinterpret_cast<InnerNode*>(node);
+			while((index < inner->num_keys) && (key >= inner->keys[index])) {
+				++index;
+			}
+			node = inner->children[index];
+		}
+		return reinterpret_cast<InnerNode*>(node);
+	}
+	
 	inline MemNode* Get(uint64_t key) {
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
 
@@ -610,19 +636,39 @@ public:
 				full_segs++;
 			}
 		}*/
-		bool should_protect = leaf->leaf_segs[0].key_num >= HAL_LEN;
-		return should_protect;
+		bool need_protect = leaf->leaf_segs[0].key_num >= HAL_LEN;
+		//if(need_protect)should_protect++;
+		//else should_not_protect++;
+		return need_protect;
 		//bool need_protect = leaf->born_key_num >= 8;
 		//if(need_protect)should_protect++;
 		//else should_not_protect++;
 	}
 #endif
-	
+
+	inline int full_seg_num(LeafNode* leaf){
+		int seg_len = EMP_LEN;
+		if(leaf->born_key_num==8){
+			seg_len = HAL_LEN;
+		}
+		int full_segs = 0;
+		for(int i = 0 ; i < SEGS; i ++){
+			if(leaf->leaf_segs[i].key_num >= seg_len){
+				full_segs++;
+			}
+		}
+		//printf("full_segs = %d\n", full_segs);
+		return full_segs;
+	}
+
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
-		//util::timer t1;
+		util::timer t1;
+		uint64_t insert_time;
 		//int thread_id = sched_getcpu();
 		ThreadLocalInit();
 		LeafNode* leaf = NULL;
+		InnerNode* inner = NULL;
+		InnerNode* target_inner = NULL;
 		LeafNode* target_leaf = NULL;
 		//t1.lap();
 		
@@ -636,16 +682,28 @@ public:
 #if ADAPTIVE_LOCK
 		if(shouldLockProtect(leaf))
 		{
-			locked=true;
+			locked = true;
 #endif
 			leaf->mlock.Lock();
 #if ADAPTIVE_LOCK
 		}
 #endif
-		MemNode* res = Insert_rtm(key,&target_leaf);
 
+		//t1.lap();
+
+		MemNode* res = Insert_rtm(key, &target_leaf);
+
+		/*
+		insert_time=t1.lap();
+		if(target_leaf){
+			int full_segs = full_seg_num(target_leaf);
+			//printf("full_segs = %d\n", full_segs);
+			insert_times[full_segs]+=insert_time;
+			inserts[full_segs]+=1;
+		}
+		*/
+		//if(target_inner==inner){spec_hit++;}else{spec_miss++;}
 		//insert_time+=t1.lap();
-		//if(leaf)
 
 #if ADAPTIVE_LOCK
 		if(locked)
@@ -720,7 +778,7 @@ public:
 
 		MemNode* val = NULL;
 		if(depth == 0) {
-			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val, target_leaf);
+			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val,target_leaf);
 			//printf("root->born_key_num = %d\n", reinterpret_cast<LeafNode*>(root)->born_key_num );
 			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
 				InnerNode *inner = new_inner_node();
@@ -732,7 +790,7 @@ public:
 //				printf("inner->keys[0] = %lu\n", inner->keys[0]);
 				inner->children[0] = root;
 				inner->children[1] = new_leaf;
-				depth++;
+				depth++; //depth=1
 				root = inner;
 #if BTREE_PROF
 				writes++;
@@ -766,6 +824,7 @@ public:
 #endif
 		//inserting at the lowest inner level
 		if(d == 1) {
+			//*target_inner = inner;
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(child), val,target_leaf);
 			if(new_leaf != NULL) {  //if a new leaf node is created
 				InnerNode *toInsert = inner;
@@ -839,7 +898,7 @@ public:
 		} else { //not inserting at the lowest inner level
 			//recursively insert at the lower levels
 			InnerNode *new_inner =
-				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val,target_leaf);
+				InnerInsert(key, reinterpret_cast<InnerNode*>(child), d - 1, val, target_leaf);
 
 			if(new_inner != NULL) {
 				InnerNode *toInsert = inner;
@@ -849,7 +908,6 @@ public:
 				//the current node is full, creating a new node to hold the inserted key
 				if(inner->num_keys == N) {
 					new_sibling = new_inner_node();
-
 					if(child_sibling->num_keys == 0) {
 						new_sibling->num_keys = 0;
 						upKey = child_sibling->keys[N - 1];
@@ -920,11 +978,12 @@ public:
 			writes++;
 #endif
 //			new_root->writes++;
-		} else if(d == depth) {
+		} 
+		//else if(d == depth) {
 //			if(d == 0){
 //				checkConflict(reinterpret_cast<InnerNode*>(root)->signature, 0);
 //			}
-		}
+		//}
 //		if (inner->num_keys == 0) printf("inner\n");
 		//if (new_sibling->num_keys == 0) printf("sibling\n");
 		return new_sibling; //return the newly-created node (if exists)
@@ -1037,7 +1096,7 @@ public:
 		//printf("I want to insert key = %d\n",key);
 		LeafNode *new_sibling = NULL;
 		//int idx = -1;
-		int seg_len = leaf->born_key_num == 8? HAL_LEN: EMP_LEN;
+		int seg_len = leaf->born_key_num == 8 ? HAL_LEN : EMP_LEN;
 		if(leaf == root){
 			if(first_leaf){//root node needs reinitialization
 				for(int i = 0 ; i < SEGS; i++){
@@ -1045,12 +1104,8 @@ public:
 						leaf->leaf_segs[i].keys[j] = 0;
 					}
 				}
-				//printf("leaf->right = %x\n", leaf->right);
 				first_leaf = false;
 			}
-			//for(int i = 0; i < LEAF_NUM; i++){
-			//	printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
-			//}
 		}
 		//int retries = 0;
 		//bool should_check_all = false;
@@ -1067,12 +1122,20 @@ public:
 			//}
 		//}
 		int idx = key % SEGS;
+		//printf("leaf = %x, key = %lu, idx = %d\n", leaf, key, idx);
+		bool should_check_all = false;
 		//printf("key = %lu, idx = %d\n", key, idx);
-		bool should_check_all = leaf->leaf_segs[idx].key_num >= seg_len;
+		if(leaf->leaf_segs[idx].key_num >= seg_len){
+			idx = (idx + 1) % SEGS;
+			if(leaf->leaf_segs[idx].key_num >= seg_len){
+				should_check_all = true;
+			}
+		}
+		//bool should_check_all = leaf->leaf_segs[idx].key_num >= seg_len;
 		if(!should_check_all){
 			leaf->leaf_segs[idx].keys[leaf->leaf_segs[idx].key_num] = key;
 			leaf->leaf_segs[idx].key_num++;
-			//*target_leaf = leaf;
+			*target_leaf = leaf;
 			return NULL;
 		} else{//should check if this node is full
 			int idx2;
@@ -1080,7 +1143,7 @@ public:
 				if(leaf->leaf_segs[idx2].key_num < seg_len){
 					leaf->leaf_segs[idx2].keys[leaf->leaf_segs[idx2].key_num] = key;
 					leaf->leaf_segs[idx2].key_num++;
-					//*target_leaf = leaf;
+					*target_leaf = leaf;
 					return NULL;
 				}
 			}
@@ -1101,10 +1164,10 @@ public:
 				}
 				for(int i = 0; i < SEGS; i++){
 					for(int j = 0; j < seg_len; j++){	
-						leaf->keys[initial+i*seg_len+j] = leaf->leaf_segs[i].keys[j];
+						leaf->keys[initial + i * seg_len + j] = leaf->leaf_segs[i].keys[j];
 					}
 				}
-				std::sort(leaf->keys, leaf->keys+LEAF_NUM);
+				std::sort(leaf->keys, leaf->keys + LEAF_NUM);
 				
 				//for(int i = 0 ; i < LEAF_NUM; i++){
 				//	printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
@@ -1158,13 +1221,13 @@ public:
 					if(new_sibling->leaf_segs[0].key_num != 0){
 						//printf("new_sibling = %x\n", new_sibling);
 						for(int i = 0; i < SEGS; i++){
-							//printf("new_sibling->leaf_segs[%d].key_num = %d\n",i,new_sibling->leaf_segs[i].key_num);
+							//printf("new_sibling->leaf_segs[%d].key_num = %d\n", i, new_sibling->leaf_segs[i].key_num);
 							new_sibling->leaf_segs[i].key_num = 0;
 						}
 					}
 					/*
 					for(int i = 0; i < SEGS; i++){
-						printf("new_sibling->leaf_segs[i].key_num = %d\n",new_sibling->leaf_segs[i].key_num);
+						printf("new_sibling->leaf_segs[i].key_num = %d\n", new_sibling->leaf_segs[i].key_num);
 					}
 					*/
 					toInsert->leaf_segs[0].key_num = 1;
@@ -1216,9 +1279,8 @@ public:
 						toInsert = new_sibling;
 						//toInsert_key_num = new_sibling_num_keys;
 					}
-					toInsert->leaf_segs[0].key_num=1;
-					toInsert->leaf_segs[0].keys[0]=key;
-					//toInsert->keys[0]=
+					toInsert->leaf_segs[0].key_num = 1;
+					toInsert->leaf_segs[0].keys[0] = key;
 				}
 				//inserting the newsibling at the right of the old leaf node
 				if(leaf->right != NULL) {
@@ -1227,7 +1289,8 @@ public:
 				new_sibling->right = leaf->right;
 				new_sibling->left = leaf;
 				leaf->right = new_sibling;
-				//*target_leaf = toInsert;
+				
+				*target_leaf = toInsert;
 			}
 		}
 		return new_sibling;
