@@ -77,4 +77,3 @@ static __inline__ uint8_t atomic_cmpxchg8b(uint32_t *memp,
 
 
 #endif /* _ATOMIC_H */
-

@@ -123,6 +123,7 @@ public:
 	for (int i =0 ;i < 5; i++) {
 		ntxn_commits[i] = 0;
 		ntxn_aborts[i] = 0;
+		txn_times[i] = 0;
 	}
  //   txn_obj_buf.resize(db->sizeof_txn_object(txn_flags));
   }

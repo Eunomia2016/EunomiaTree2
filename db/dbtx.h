@@ -64,6 +64,8 @@
 
 #define NEW_INTERFACE 1
 
+#define ORLI_BKD 0
+
 struct time_bkd{
 	uint64_t total_time;
 	uint64_t tree_time;
@@ -103,6 +105,11 @@ public:
 	time_bkd add_time, next_time, get_time ;
 	uint64_t read_invalid, write_invalid, other_invalid;
 	uint64_t validate_time, write_time, other_time, end_time, ends, end_elems, end_try_times;
+
+#if ORLI_BKD
+	uint64_t tree_time, set_time, total_time, buffer_time, orli_inserts;
+#endif
+	
 	RTMProfile rtmProf;
 	int count;
 	int worker_id;
@@ -142,8 +149,10 @@ public:
 	bool Atomic_Fetch(int tableid, uint64_t key, uint64_t** val, uint64_t* orderline_id);
 	void Add(int tableid, uint64_t key, uint64_t* val);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);
+
 	//Copy value
 	void Add(int tableid, uint64_t key, uint64_t* val, int len);
+	void Add_Label(int tableid, uint64_t key, uint64_t* val, int len);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len);
 
 	bool Get( int tableid, uint64_t key, uint64_t** val, int label = 0);

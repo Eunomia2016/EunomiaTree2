@@ -579,6 +579,10 @@ DBTX::DBTX(DBTables* store) {
 	treetime = 0;
 #endif
 
+#if ORLI_BKD
+	tree_time=set_time=total_time=buffer_time=orli_inserts=0;
+#endif
+
 	abort = false;
 #if PROFILEBUFFERNODE
 	bufferGet = 0;
@@ -602,6 +606,10 @@ DBTX::~DBTX() {
 //	printf("end_time = %lu, validate_phase = %lu, write_phase = %lu, other_phase = %lu\n", end_time, validate_time, write_time, other_time);
 //#endif
 	//rtmProf.reportAbortStatus();
+#if ORLI_BKD
+	printf("%lu, %lu, %lu, %lu, %lu\n", tree_time, set_time, buffer_time, total_time, orli_inserts);
+#endif
+	
 #if ABORT_REASON
 	for(int i = 0; i < NEWO_TXNS; i++){
 		if(abort_reason_txns[i]!=0){
@@ -908,13 +916,6 @@ retry:
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
-
-#if RW_TIME_BKD
-		util::timer total_time, tree_time, set_time;
-		adds++;
-#endif
-	bool newNode = false;
-
 //  SpinLockScope spinlock(&slock);
 retry:
 	Memstore::MemNode* node;
@@ -925,6 +926,64 @@ retry:
 
 	//Get the seq addr from the hashtable
 #if BUFFERNODE
+	if(buffer[tableid].key == key
+			&& buffer[tableid].node->value != HAVEREMOVED) {
+
+	#if PROFILEBUFFERNODE
+		bufferHit++;
+	#endif
+		node = buffer[tableid].node;
+		assert(node != NULL);
+	} else {
+	#if PROFILEBUFFERNODE
+		bufferMiss++;
+	#endif
+		//uint64_t s_start = rdtsc();
+		node = txdb_->tables[tableid]->GetWithInsert(key).node;
+		//node = res.node;
+		//newNode = res.hasNewNode;
+	}
+#else
+	node = txdb_->tables[tableid]->GetWithInsert(key).node;
+#endif
+
+	if(node->value == HAVEREMOVED){
+		goto retry;
+	}
+
+	char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
+
+	if(value == NULL) {
+		value = (char *)malloc(sizeof(OBJPool::Obj) + len);
+		value += sizeof(OBJPool::Obj);
+	}
+	memcpy(value, val, len);
+
+	writeset->Add(tableid, key, (uint64_t *)value, node);
+}
+
+void DBTX::Add_Label(int tableid, uint64_t key, uint64_t* val, int len) {
+//  SpinLockScope spinlock(&slock);
+
+#if ORLI_BKD
+	util::timer total_timer, tree_timer, set_timer,buffer_timer;
+	orli_inserts++;
+#endif
+
+retry:
+	Memstore::MemNode* node;
+	//Memstore::InsertResult res;
+#if PROFILEBUFFERNODE
+	bufferGet++;
+#endif
+
+	//Get the seq addr from the hashtable
+
+#if BUFFERNODE
+
+	#if ORLI_BKD
+	buffer_timer.lap();
+	#endif
 
 	if(buffer[tableid].key == key
 			&& buffer[tableid].node->value != HAVEREMOVED) {
@@ -938,29 +997,34 @@ retry:
 	#if PROFILEBUFFERNODE
 		bufferMiss++;
 	#endif
-	//uint64_t s_start = rdtsc();
-#if RW_TIME_BKD
-		tree_time.lap();
-#endif
+		//uint64_t s_start = rdtsc();
 
-		node = txdb_->tables[tableid]->GetWithInsert(key).node;
-		//node = res.node;
-		//newNode = res.hasNewNode;
-	#if RW_TIME_BKD
-		add_time.tree_time+=tree_time.lap();
+	#if ORLI_BKD
+	buffer_time += buffer_timer.lap();
 	#endif
 
+	#if ORLI_BKD
+		tree_timer.lap();
+	#endif
+
+		node = txdb_->tables[tableid]->GetWithInsert(key).node;
+
+	#if ORLI_BKD
+		tree_time+=tree_timer.lap();
+	#endif
+		//node = res.node;
+		//newNode = res.hasNewNode;
 	}
 #else
 	node = txdb_->tables[tableid]->GetWithInsert(key).node;
-	//node = res.node;
-	//newNode = res.hasNewNode;
 #endif
+
 	if(node->value == HAVEREMOVED){
 		goto retry;
 	}
-#if RW_TIME_BKD
-		set_time.lap();
+	
+#if ORLI_BKD
+	set_timer.lap();
 #endif
 
 	char* value = reinterpret_cast<char *>(txdb_->GetEmptyValue(tableid));
@@ -972,13 +1036,17 @@ retry:
 	memcpy(value, val, len);
 
 	writeset->Add(tableid, key, (uint64_t *)value, node);
-#if RW_TIME_BKD
-	add_time.set_time+=set_time.lap();
+	
+#if ORLI_BKD
+	set_time += set_timer.lap();	
 #endif
-#if RW_TIME_BKD
-	add_time.total_time+=total_time.lap();
+
+#if ORLI_BKD
+	total_time += total_timer.lap();
 #endif
+
 }
+
 
 //Update a column which has a secondary key
 void DBTX::Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* new_val) {
@@ -1291,6 +1359,7 @@ retry:
 #endif
 		return false;
 	}
+	
 	#if BUFFERNODE
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;
@@ -1316,7 +1385,7 @@ retry:
 		readset->Add(&node->seq, label);
 	}
 #if RW_TIME_BKD
-	get_time.set_time+=set_time.lap();
+	get_time.set_time += set_time.lap();
 #endif
 
 	//if this node has been removed from the memstore

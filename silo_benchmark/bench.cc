@@ -126,7 +126,7 @@ bench_worker::run() {
 	int x = worker_id;
 	int y = x - 8;
 	if(y >= 20) {
-		fprintf(stderr, "[Alex]Number of workers should be < 10\n");
+		fprintf(stderr, "[Alex]Number of workers should be < 20\n");
 		//y = 0;
 	}
 	/*
@@ -149,7 +149,6 @@ bench_worker::run() {
 	else if (x == 13) y = 5;
 	}
 	*/
-
 	int socket_0[] =      {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
 	int shared_cores[] =  {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
 	int mixed_sockets[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
@@ -163,8 +162,7 @@ bench_worker::run() {
 	CPU_ZERO(&mask);
 	CPU_SET(core_id , &mask);
 	fprintf(stderr, "[Alex]worker_id = %2d core_id = %2d\n", worker_id, core_id);
-	sched_setaffinity(0, sizeof(mask), &mask);
-
+	pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
 #endif
 #if 0
 	if(set_core_id)
@@ -197,16 +195,15 @@ bench_worker::run() {
 					bool first_run = true;
 retry:
 					const unsigned long old_seed = r.get_seed();
-					timer t;
+					//timer t;
 					//clock_gettime(CLOCK_MONOTONIC, &begin);
 					const txn_result ret = workload[i].fn(this, first_run); //execute the transaction
-					
-					atomic_add64(&txn_times[i], t.lap());
+					//atomic_add64(&txn_times[i], t.lap());
 					//clock_gettime(CLOCK_MONOTONIC, &end);
 					//txn_span += get_nanoseconds(begin, end);
 					if(likely(ret.first)) { //whether this txn commits successfully
 						++ntxn_commits[i]; 
-						latency_numer_us += t.lap();
+						//latency_numer_us += t.lap();
 						backoff_shifts >>= 1;
 					} else { //this txn aborts
 						++ntxn_aborts[i];
@@ -244,7 +241,8 @@ retry:
 	/*
 	for(int i = 0; i < 5; i++){
 		printf("txn[%d] time = %lf\n", i, (double)txn_times[i]/MILLION);
-	}*/
+	}
+	*/
 }
 
 

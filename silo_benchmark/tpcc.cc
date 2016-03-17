@@ -62,7 +62,7 @@ using namespace util;
 #define ORDER_INDEX 10
 #endif
 
-enum TPCC_TYPE{NEW_ORDER=0,PAYMENT,DELIVERY,ORDER_STATUS,STOCK_LEVEL};
+enum TPCC_TYPE{NEW_ORDER = 0, PAYMENT, DELIVERY, ORDER_STATUS, STOCK_LEVEL};
 
 #if 0
 #define TPCC_TABLE_LIST(x) \
@@ -2008,12 +2008,13 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 
 			uint64_t s_key = makeStockKey(ol_supply_w_id, ol_i_id);
+			//printf("[%2d] s_key = %lu\n", sched_getcpu(), s_key);
 			uint64_t* s_value;
 //	  slstart = rdtsc();
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			found = tx.Get(STOC, s_key, &s_value,12); //Tx.12
+			found = tx.Get(STOC, s_key, &s_value, 12); //Tx.12
 #if DBTX_TIME
 #if DBTX_PROF
 			Op_prof[STOC].gets++;
@@ -2093,7 +2094,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol), sizeof(v_ol));//Tx.14
+			tx.Add_Label(ORLI, ol_key, (uint64_t *)(&v_ol), sizeof(v_ol));//Tx.14
 #if DBTX_TIME
 #if DBTX_PROF
 			Op_prof[ORLI].adds++;
