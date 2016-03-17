@@ -63,6 +63,8 @@
 #define ADAPTIVE_LOCK 1
 #define SPEC_PROF 0
 
+#define DUP_PROF 0
+
 //static uint64_t writes = 0;
 //static uint64_t reads = 0;
 
@@ -126,11 +128,11 @@ public:
 	uint64_t insert_times[SEGS+1];
 	uint64_t inserts[SEGS+1];
 
-	uint64_t split_ops;
+	//uint64_t split_ops;
 	uint64_t duplicate_keys;
+	uint64_t dup_found, insert_ops, split_ops;
+	
 
-	struct LeafNode;
-	unordered_map<LeafNode*, vector<uint64_t> > leaf_dup_log;
 #if SHUFFLE_INSERT
 	struct Leaf_Seg{
 		uint64_t keys[EMP_LEN];
@@ -278,10 +280,10 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
-		insert_time=spec_time=0;
-		spec_hit=spec_miss=0;
-		split_ops=0;
-		duplicate_keys=0;
+		insert_time = spec_time = 0;
+		spec_hit = spec_miss = 0;
+		duplicate_keys = 0;
+		dup_found = split_ops = insert_ops = 0;
 /*
 		for(int i = 0; i < 20 ; i ++){
 			last_leafs[i] = new LeafNode();
@@ -316,7 +318,9 @@ public:
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 		prof.reportAbortStatus();
-		printf("duplicate_keys = %lu\n", duplicate_keys);
+#if DUP_PROF
+		printf("insert_ops = %lu, dup_found = %lu, split_ops = %lu\n", insert_ops, dup_found, split_ops);
+#endif
 		//printf("split_ops = %lu\n", split_ops);
 		/*
 		printf("one_try = %lu\n", insert_log.one_try);
@@ -335,8 +339,6 @@ public:
 #endif
 		//printf("spec_time = %lu, insert_time = %lu\n", spec_time, insert_time);
 
-		printf("should_protect = %d, should_not_protect = %d\n", should_protect, should_not_protect);
-		printf("rightmost = %d, not_rightmost = %d\n", rightmost, not_rightmost);
 #if BTREE_PROF
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes) / (float)calls, (float)(writes) / (float)calls);
 #endif
@@ -648,7 +650,7 @@ public:
 		return value;
 	}
 
-#if SHUFFLE_INSERT&&ADAPTIVE_LOCK
+#if ADAPTIVE_LOCK
 	inline bool ShouldLockLeaf(LeafNode* leaf){
 /*
 		int idx = -1;
@@ -663,9 +665,9 @@ public:
 			if(leaf->leaf_segs[i].key_num >= leaf->leaf_segs[i].max_room){
 				full_segs++;
 			}
-			if(full_segs == 2) break;
+			if(full_segs == 1) break;
 		}
-		bool need_protect = full_segs == 2;
+		bool need_protect = full_segs == 1;
 		//if(need_protect)should_protect++;
 		//else should_not_protect++;
 		return need_protect;
@@ -702,7 +704,39 @@ public:
 
 		bool locked = false;
 		bool should_move = false;
+		bool found = false;
 		
+		if(spec_leaf != root){
+			spec_leaf->mlock.Lock();
+			for(int i = 0 ; i < LEAF_NUM; i++){
+				//if(spec_leaf->keys[i]==0) break;
+				if(spec_leaf->keys[i]==key){
+					found = true;
+					break;
+				}
+			}
+			if(!found){
+				for(int i = 0; i < SEGS; i++){
+					for(int j = 0 ; j < spec_leaf->leaf_segs[i].key_num; j++){
+						//printf("spec_leaf = %x, root = %x\n", spec_leaf, root);
+						//printf("spec_leaf->leaf_segs[i].key_num = %d\n",spec_leaf->leaf_segs[i].key_num);
+						if(spec_leaf->leaf_segs[i].keys[j] == key){
+							found = true;
+							break;
+						}
+					}
+					if(found) break;
+				}
+			}
+
+			spec_leaf->mlock.Unlock();
+			if(found){
+#if DUP_PROF
+				dup_found++;
+#endif
+				return {dummyval_, false};
+			}
+		}
 		
 #if ADAPTIVE_LOCK
 		//int full_segs = ShouldLockLeaf(spec_leaf);
@@ -1125,6 +1159,9 @@ public:
 
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, LeafNode** target_leaf) {
 		//printf("I want to insert key = %d\n",key);
+#if DUP_PROF
+		insert_ops++;
+#endif
 		LeafNode *new_sibling = NULL;
 		//int idx = -1;
 		//int seg_len = leaf->born_key_num == 8 ? HAL_LEN : EMP_LEN;
@@ -1139,6 +1176,39 @@ public:
 				first_leaf = false;
 			}
 		}
+/*
+		bool found = false;
+		if(leaf!=root){
+			//leaf->mlock.Lock();
+			for(int i = 0 ; i < LEAF_NUM; i++){
+				//if(leaf->keys[i]==0) break;
+				if(leaf->keys[i]==key){
+					found = true;
+					break;
+				}
+			}
+			if(!found){
+				for(int i = 0; i < SEGS; i++){
+					for(int j = 0 ; j < leaf->leaf_segs[i].key_num; j++){
+						//printf("spec_leaf = %x, root = %x\n", spec_leaf, root);
+						//printf("spec_leaf->leaf_segs[i].key_num = %d\n",spec_leaf->leaf_segs[i].key_num);
+						if(leaf->leaf_segs[i].keys[j] == key){
+							found = true;
+							break;
+						}
+					}
+					if(found) break;
+				}
+			}
+
+			//leaf->mlock.Unlock();
+			if(found){
+				dup_found++;
+				//return {dummyval_, false};
+			}
+		}
+*/
+		
 		//int retries = 0;
 		//bool should_check_all = false;
 		//while(true){
@@ -1193,7 +1263,7 @@ public:
 			}
 			*/
 
-			*target_leaf = leaf;
+			//*target_leaf = leaf;
 
 			return NULL;
 		} else{//should check if this node is full
@@ -1205,13 +1275,15 @@ public:
 					leaf->leaf_segs[idx2].key_num++;
 					//insert_log.check_all++;
 
-					*target_leaf = leaf;
+					//*target_leaf = leaf;
 
 					return NULL;
 				}
 			}
 			if(idx2 == SEGS){//REALLY FULL
-				//split_ops++;
+#if DUP_PROF
+				split_ops++;
+#endif
 				//[Case #3] This LeafNode is really full
 				//insert_log.split++;
 
@@ -1372,7 +1444,7 @@ public:
 				new_sibling->left = leaf;
 				leaf->right = new_sibling;
 
-				*target_leaf = toInsert;
+				//*target_leaf = toInsert;
 			}
 		}
 		return new_sibling;
