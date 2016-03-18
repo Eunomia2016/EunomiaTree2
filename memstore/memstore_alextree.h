@@ -153,7 +153,7 @@ public:
 	
 	Insert_Log insert_log;
 #endif
-
+	struct InnerNode;
 	struct LeafNode {
 		LeafNode() : num_keys(0){
 		//	signature = __sync_fetch_and_add(&leaf_id, 1);
@@ -172,6 +172,7 @@ public:
 		unsigned num_keys;
 		LeafNode *left;
 		LeafNode *right;
+		InnerNode* parent;
 		uint64_t seq;
 	};
 
@@ -184,6 +185,7 @@ public:
 		unsigned num_keys;
 		uint64_t 	 keys[N];
 		void*	 children[N+1];
+		InnerNode* parent;
 		//uint64_t padding1[7];
 	};
 
@@ -830,10 +832,13 @@ public:
 		calls++;
 #endif
 		if(root == NULL) {
-			root = new_leaf_node();
-			reinterpret_cast<LeafNode*>(root)->left = NULL;
-			reinterpret_cast<LeafNode*>(root)->right = NULL;
-			reinterpret_cast<LeafNode*>(root)->seq = 0;
+			LeafNode* root_leaf = new_leaf_node();
+			
+			root_leaf->left = NULL;
+			root_leaf->right = NULL;
+			root_leaf->parent = NULL;
+			root_leaf->seq = 0;
+			root = root_leaf;
 			//reinterpret_cast<LeafNode*>(root)->born_key_num = 0;
 			//printf("root->born_key_num = %d\n", reinterpret_cast<LeafNode*>(root)->born_key_num );
 			depth = 0;
@@ -845,16 +850,19 @@ public:
 			//printf("root->born_key_num = %d\n", reinterpret_cast<LeafNode*>(root)->born_key_num );
 			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
 				InnerNode *inner = new_inner_node();
-//for(int i = 0; i < LEAF_NUM; i++){
-//	printf("new_leaf->keys[%d] = %lu\n",i,new_leaf->keys[i]);
-//}
+				//LeafNode *root_leaf = new_leaf_node();
+
 				inner->num_keys = 1;
 				inner->keys[0] = new_leaf->keys[0];
 //				printf("inner->keys[0] = %lu\n", inner->keys[0]);
 				inner->children[0] = root;
 				inner->children[1] = new_leaf;
+				static_cast<LeafNode*>(root)->parent = inner;
+				new_leaf->parent = inner;
 				depth++; //depth=1
+				//printf("new_leaf->parent = %x, root->parent = %x\n", new_leaf->parent, static_cast<LeafNode*>(root)->parent );
 				root = inner;
+				
 #if BTREE_PROF
 				writes++;
 #endif
@@ -1172,6 +1180,7 @@ public:
 						leaf->leaf_segs[i].keys[j] = 0;
 					}
 					leaf->leaf_segs[i].max_room = EMP_LEN;
+					leaf->leaf_segs[i].key_num = 0;
 				}
 				first_leaf = false;
 			}
@@ -1253,9 +1262,14 @@ public:
 		//bool should_check_all = leaf->leaf_segs[idx].key_num >= seg_len;
 		if(!should_check_all){
 			//[Case #1] Shuffle to an empty segment, insert immediately
+			/*
+			if(leaf==root){
+				printf("leaf->leaf_segs[%d].keys[%d] = %lu;\n", 
+				idx, leaf->leaf_segs[idx].key_num, key);
+			}*/
 			leaf->leaf_segs[idx].keys[leaf->leaf_segs[idx].key_num] = key;
 			leaf->leaf_segs[idx].key_num++;
-			
+
 			/*
 			if(idx == key % SEGS){
 				insert_log.one_try++;
@@ -1270,14 +1284,12 @@ public:
 		} else{//should check if this node is full
 			int idx2;
 			for(idx2 = 0; idx2 < SEGS; idx2++){
-				if(leaf->leaf_segs[idx2].key_num < leaf->leaf_segs[idx].max_room){
+				if(leaf->leaf_segs[idx2].key_num < leaf->leaf_segs[idx2].max_room){
 					//[Case #2] Failed shuffle twice, so scan the segments from the beginning
 					leaf->leaf_segs[idx2].keys[leaf->leaf_segs[idx2].key_num] = key;
 					leaf->leaf_segs[idx2].key_num++;
 					//insert_log.check_all++;
-
 					//*target_leaf = leaf;
-
 					return NULL;
 				}
 			}
@@ -1289,24 +1301,19 @@ public:
 				//insert_log.split++;
 
 				//printf("[%d] I should split(1)\n", key);
-				/*
-				if(leaf == root){
-					for(int i = 0 ; i < SEGS; i++){
-						for(int j = 0; j < seg_len; j++){	
-							printf("leaf->leaf_segs[%d].keys[%d] = %lu\n",i,j,leaf->leaf_segs[i].keys[j]);
-						}
-					}
-				}
-				*/
+				
+
+				
 				//int initial = 0;
 				//if(leaf->born_key_num == 8){
 				//	initial = 8;
 				//}
-				int temp_idx = 0;
+				int temp_idx = 1;
 				for(int i = 0; i < SEGS; i++){
 					//printf("leaf->leaf_segs[i].max_room = %u\n", leaf->leaf_segs[i].max_room);
 					for(int j = 0; j < leaf->leaf_segs[i].max_room; j++){	
 						leaf->keys[LEAF_NUM - temp_idx] = leaf->leaf_segs[i].keys[j];
+						
 						temp_idx++;
 					}
 				}
@@ -1318,9 +1325,6 @@ public:
 					}
 				}
 				*/
-				//for(int i = 0 ; i < LEAF_NUM; i++){
-				//	printf("leaf->keys[%d] = %lu\n",i,leaf->keys[i]);
-				//}
 				
 				unsigned k = 0;
 				while((k < LEAF_NUM) && (leaf->keys[k] < key)) {
