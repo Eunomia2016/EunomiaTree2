@@ -1203,8 +1203,9 @@ public:
 
 			//leaf->mlock.Unlock();
 			if(found){
-				dup_found++;
+				//dup_found++;
 				//return {dummyval_, false};
+				return leaf;
 			}
 		}
 */
