@@ -39,8 +39,8 @@
 
 #define BM_TEST 0
 #define FLUSH_FREQUENCY 100
-#define ERROR_RATE 0.1
-#define BM_SIZE 100
+//#define ERROR_RATE 0.1
+//#define BM_SIZE 100
 
 #define UNSORTED_INSERT 0
 

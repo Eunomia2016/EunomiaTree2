@@ -12,7 +12,7 @@ void MemstoreAlexTree::printLeaf(LeafNode *n) {
 		printf(" ");
 	printf("Leaf Addr %lx Key num %d  :", n, n->num_keys);
 	for(int i = 0; i < n->num_keys; i++)
-		printf("key  %ld \t ", n->keys[i]);
+		printf("key  %ld \t ", n->kvs[i].key);
 //			printf("key  %ld value %ld \t ",n->keys[i], n->values[i]->value);
 	printf("\n");
 //		total_key += n->num_keys;
@@ -141,7 +141,7 @@ bool MemstoreAlexTree::Iterator::Next() {
 		while(node_ != NULL) {
 			int k = 0;
 			int num = node_->num_keys;
-			while((k < num) && (key_ >= node_->keys[k])) {
+			while((k < num) && (key_ >= node_->kvs[k].key)) {
 				++k;
 			}
 			if(k == num) {
@@ -164,8 +164,8 @@ bool MemstoreAlexTree::Iterator::Next() {
 		}
 	}
 	if(node_ != NULL) {
-		key_ = node_->keys[leaf_index];
-		value_ = node_->values[leaf_index];
+		key_ = node_->kvs[leaf_index].key;
+		value_ = node_->kvs[leaf_index].value;
 		seq_ = node_->seq;
 	}
 	return b;
@@ -193,7 +193,7 @@ bool MemstoreAlexTree::Iterator::Prev() {
 		while(node_ != NULL) {
 			int k = 0;
 			int num = node_->num_keys;
-			while((k < num) && (key_ > node_->keys[k])) {
+			while((k < num) && (key_ > node_->kvs[k].key)) {
 				++k;
 			}
 			if(k == num) {
@@ -218,8 +218,8 @@ bool MemstoreAlexTree::Iterator::Prev() {
 	}
 
 	if(node_ != NULL) {
-		key_ = node_->keys[leaf_index];
-		value_ = node_->values[leaf_index];
+		key_ = node_->kvs[leaf_index].key;
+		value_ = node_->kvs[leaf_index].value;
 		seq_ = node_->seq;
 	}
 	return b;
@@ -248,7 +248,7 @@ void MemstoreAlexTree::Iterator::Seek(uint64_t key) {
 	int num = leaf->num_keys;
 	assert(num > 0);
 	int k = 0;
-	while((k < num) && (leaf->keys[k] < key)) {
+	while((k < num) && (leaf->kvs[k].key < key)) {
 		++k;
 	}
 	if(k == num) {
@@ -259,8 +259,8 @@ void MemstoreAlexTree::Iterator::Seek(uint64_t key) {
 		node_ = leaf;
 	}
 	seq_ = node_->seq;
-	key_ = node_->keys[leaf_index];
-	value_ = node_->values[leaf_index];
+	key_ = node_->kvs[leaf_index].key;
+	value_ = node_->kvs[leaf_index].value;
 	//tree_->printLeaf(node_);
 }
 
@@ -277,7 +277,7 @@ void MemstoreAlexTree::Iterator::SeekPrev(uint64_t key) {
 
 	int k = 0;
 	int num = leaf->num_keys;
-	while((k < num) && (key > leaf->keys[k])) {
+	while((k < num) && (key > leaf->kvs[k].key)) {
 		++k;
 	}
 	if(k == 0) {
@@ -309,8 +309,8 @@ void MemstoreAlexTree::Iterator::SeekToFirst() {
 #else
 	RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
 #endif
-	key_ = node_->keys[0];
-	value_ = node_->values[0];
+	key_ = node_->kvs[0].key;
+	value_ = node_->kvs[0].value;
 	seq_ = node_->seq;
 }
 

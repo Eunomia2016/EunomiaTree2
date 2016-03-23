@@ -7,14 +7,22 @@
 #include "util/bloomfilter.h"
 #include "util/numa_util.h"
 
+inline void atomic_inc64(size_t *p) {
+	asm volatile(
+		"lock;incq %0"
+		: "+m"(*p)
+		:
+		: "cc");
+}
 
-BloomFilter * bloom_filter_new(size_t filter_size, size_t num_hashes, int numa_node)
+
+BloomFilter * bloom_filter_new(size_t filter_size, size_t num_hashes)
 {
 	BloomFilter	*bf;
 	const size_t	bits_length = (filter_size + (CHAR_BIT * sizeof *bf->bits) - 1) / (CHAR_BIT * sizeof *bf->bits);
 	const size_t	bits_size = bits_length * sizeof *bf->bits;
 
-	if((bf = (BloomFilter*)Numa_alloc_onnode((sizeof *bf + bits_size), numa_node)) != NULL)
+	if((bf = (BloomFilter*)malloc(sizeof *bf + bits_size)) != NULL)
 	{
 		bf->m = filter_size;
 		bf->k = num_hashes;
@@ -35,12 +43,12 @@ void bloom_filter_flush(BloomFilter* bf){
 	memset(bf->bits, 0, bf->bits_size);
 }
 
-BloomFilter * bloom_filter_new_with_probability(float prob, size_t num_elements, int numa_node)
+BloomFilter * bloom_filter_new_with_probability(float prob, size_t num_elements)
 {
 	const float	m = -(num_elements * logf(prob)) / pow(log(2.f), 2.f);
 	const float	k = logf(2.f) * m / num_elements;
 
-	return bloom_filter_new((size_t) (m + .5f), (unsigned int) (k + 0.5f), numa_node);
+	return bloom_filter_new((size_t) (m + .5f), (unsigned int) (k + 0.5f));
 }
 
 void bloom_filter_destroy(BloomFilter *bf)
@@ -63,22 +71,25 @@ size_t bloom_filter_size(const BloomFilter *bf)
 	return bf->size;
 }
 
-void bloom_filter_insert(BloomFilter *bf, const uint64_t* string)
+void bloom_filter_insert(BloomFilter *bf, const uint64_t* num)
 {
-	/*const size_t	len = string_length > 0 ? string_length : sizeof(*string);*/
+	//printf("sizeof(size_t) = %u, sizeof(uint64_t) = %u\n", sizeof(size_t), sizeof(uint64_t));
+	/*const size_t	len = string_length > 0 ? string_length : sizeof(*num);*/
 	const size_t	len =  sizeof(uint64_t);
 	size_t		i;
 
-	/* Repeatedly hash the string, and set bits in the Bloom filter's bit array. */
+	/* Repeatedly hash the num, and set bits in the Bloom filter's bit array. */
 	for(i = 0; i < bf->k; i++)
 	{
-		const uint32_t	hash = murmurhash2(string, len, i);
+		const uint32_t	hash = murmurhash2(num, len, i);
 		const size_t	pos = hash % bf->m;
 		const size_t	slot = pos / (CHAR_BIT * sizeof *bf->bits);
 		const size_t	bit = pos % (CHAR_BIT * sizeof *bf->bits);
 		bf->bits[slot] |= 1UL << bit;
 	}
+	//atomic_inc64(&bf->size);
 	bf->size++;
+	
 }
 
 bool bloom_filter_contains(const BloomFilter *bf, const uint64_t *string)

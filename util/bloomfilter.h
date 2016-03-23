@@ -22,8 +22,8 @@ struct BloomFilter {
 */
 
 
-extern BloomFilter *	bloom_filter_new(size_t filter_size, size_t num_hashes, int numa_node);
-extern BloomFilter *	bloom_filter_new_with_probability(float prob, size_t num_elements, int numa_node);
+extern BloomFilter *	bloom_filter_new(size_t filter_size, size_t num_hashes);
+extern BloomFilter *	bloom_filter_new_with_probability(float prob, size_t num_elements);
 extern size_t		bloom_filter_num_bits(const BloomFilter *bf);
 extern size_t		bloom_filter_num_hashes(const BloomFilter *bf);
 extern size_t		bloom_filter_size(const BloomFilter *bf);

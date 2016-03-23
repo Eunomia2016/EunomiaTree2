@@ -1,8 +1,8 @@
 #!/bin/bash
-for warehouse in 10 5 4 2 1
+for warehouse in 20 10 5 4 2 1
 do
-	echo "Threads = 10 Warehouses = $warehouse"
-	./simple_run.sh 10 $warehouse &> temp.$warehouse
+	echo "Threads = 20 Warehouses = $warehouse"
+	./simple_run.sh 20 $warehouse &> temp.$warehouse
 	cat temp.$warehouse | grep "runtime"
 	cat temp.$warehouse | grep "agg_nosync_mixed_throughput"
 	cat temp.$warehouse | grep "total_abort_num"

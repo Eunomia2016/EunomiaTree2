@@ -5,7 +5,7 @@ if [ $# != 2 ]; then
 fi
 
 num_threads=$1
-total_txns=10000
+total_txns=1000
 op_per_thread=$(expr $total_txns / $num_threads)
 #op_per_thread=100000
 scale_factor=$2
