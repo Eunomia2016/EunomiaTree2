@@ -73,7 +73,7 @@ Date: 2016/03/20
 #define NO_SEQ_NO 0
 
 #define ERROR_RATE 0.05
-#define BM_SIZE 100000
+#define BM_SIZE 20
 
 #define TIME_BKD 0
 //static uint64_t writes = 0;
@@ -128,8 +128,8 @@ public:
 	uint64_t should_protect;
 	uint64_t should_not_protect;
 
-	uint64_t rightmost;
-	uint64_t not_rightmost;
+	uint64_t leaf_rightmost;
+	uint64_t leaf_not_rightmost;
 
 	bool first_leaf;
 
@@ -189,7 +189,7 @@ public:
 	struct InnerNode; //forward declaration
 	
 	struct LeafNode {
-		LeafNode() : num_keys(0){
+		LeafNode() : num_keys(0), bm_filter(NULL), seq(0){
 			//signature = __sync_fetch_and_add(&leaf_id, 1);
 		} //, writes(0), reads(0) {}
 		//unsigned signature;
@@ -200,6 +200,7 @@ public:
 #endif
 
 		KeyValue kvs[LEAF_NUM];//16*16
+		BloomFilter* bm_filter;
 		//MemNode *values[LEAF_NUM];
 
 		//--896 bytes--
@@ -336,7 +337,7 @@ public:
 */		
 		//half_born=empty_born=0;
 		//should_protect=should_not_protect=0;
-		//rightmost=not_rightmost=0;
+		leaf_rightmost=leaf_not_rightmost=0;
 #if BTREE_PROF
 		writes = 0;
 		reads = 0;
@@ -371,7 +372,7 @@ public:
 
 		printf("stage_1_time = %lu, bm_time = %lu, stage_2_time = %lu\n", stage_1_time, bm_time, stage_2_time);
 
-		printf("inner_rightmost = %u inner_not_rightmost = %u\n", inner_rightmost, inner_not_rightmost);
+		printf("leaf_rightmost = %u, leaf_not_rightmost = %u\n", leaf_rightmost, leaf_not_rightmost);
 		//printf("depth = %d\n", depth);
 		//printf("split_ops = %lu\n", split_ops);
 		/*
@@ -799,56 +800,71 @@ public:
 			res = Insert_rtm(key, &target_leaf);
 		}else{
 			//scope_inserts++;
-			InnerNode* innerNode = NULL; 
+			LeafNode* leafNode = NULL; 
 			MemNode* memNode = NULL;
 			int temp_depth;
 			bool bm_found = false;
 			bool need_protect = false;
 			bool locked = false;
 			uint64_t this_key = key;
+			//printf("[%lu] Before ScopeFind\n", key);
 #if TIME_BKD
 			util::timer t;
 #endif
 			{
 				RTMScope begtx(&prof1, depth * 2, 1, &rtmlock, GET_TYPE);
-				temp_depth = ScopeFind(this_key, &innerNode);
+				temp_depth = ScopeFind(this_key, &leafNode);
 			}
+
+			//printf("[%lu] After ScopeFind\n", key);
+
 #if TIME_BKD
 			stage_1_time += t.lap();
 #endif			
-			
-			
-			bm_found = (innerNode->bm_filter != NULL) && (bloom_filter_contains(innerNode->bm_filter, &this_key));
+			//leafNode->mlock.Lock();
+			//printf("[%lu] Before BMFind\n", key);
+			bm_found = (leafNode->bm_filter != NULL) && (bloom_filter_contains(leafNode->bm_filter, &this_key));
+			//printf("[%lu] Inner BMFind 1\n", key);
 			if(!bm_found){
-				if(innerNode->bm_filter == NULL){
+				if(leafNode->bm_filter == NULL){
 					BloomFilter* bm_filter = bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE);
 					//innerNode->mlock.Lock();
 
-					innerNode->bm_filter = bm_filter;
+					leafNode->bm_filter = bm_filter;
 					bloom_filter_insert(bm_filter, &this_key);
 
 					//innerNode->mlock.Unlock();
 				}else{
 					//innerNode->mlock.Lock();
 					
-					BloomFilter* bm_filter = innerNode->bm_filter;
+					BloomFilter* bm_filter = leafNode->bm_filter;
 					bloom_filter_insert(bm_filter, &this_key);
 					
 					//innerNode->mlock.Unlock();
 				}
 			}
+			
+			//printf("[%lu] After BMFind\n", key);
+			//printf("LeafNode = %x\n", leafNode);
+			//leafNode->mlock.Unlock();
 #if TIME_BKD
 			bm_time += t.lap();
 #endif
 			//if(bm_found){bm_found_num++;}else{bm_miss_num++;}
-			innerNode->mlock.Lock();
+			//printf("[%lu] Before ScopeInsert\n", key);
+			if(ShouldLockLeaf(leafNode) || bm_found){
+				locked =true;
+				leafNode->mlock.Lock();
+			}
 			{
 				RTMScope begtx(&prof2, temp_depth * 2, 1, &rtmlock, GET_TYPE);
 				//new_seqno = innerNode->seq;
-				ScopeInsert(innerNode, this_key, &memNode, !bm_found, temp_depth); 
+				ScopeInsert(leafNode, this_key, &memNode, !bm_found, temp_depth); 
 			}
-			innerNode->mlock.Unlock();
-			
+			if(locked){
+				leafNode->mlock.Unlock();
+			}
+			//printf("[%lu] After ScopeInsert\n", key);
 #if TIME_BKD
 			stage_2_time+=t.lap();
 #endif
@@ -867,32 +883,29 @@ public:
 		return {res, false};
 	}
 	
-	inline int ScopeFind(uint64_t key, InnerNode** innerNode){
+	inline int ScopeFind(uint64_t key, LeafNode** leafNode){
 		assert(depth >= 5);
-
+		LeafNode* leaf;
 		InnerNode* inner;
 		register void* node ;
-		register unsigned d ;
 		unsigned index ;
-		
+		register unsigned d;
 		//RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 
 		node = root;
 		index = 0;
+		d = depth;
 
-		unsigned search_depth = 0;
-
-		while(search_depth++ != SPLIT_DEPTH) {
+		while(d-- != 0) {
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
 			while((index < inner->num_keys) && (key >= inner->keys[index])) {
 				++index;
 			}
-			//get down to the corresponding child
 			node = inner->children[index];
 		}
-		inner = reinterpret_cast<InnerNode*>(node);
-		*innerNode = inner;
+		leaf = reinterpret_cast<LeafNode*>(node);
+		*leafNode = leaf;
 		return depth;
 	}
 
@@ -927,15 +940,15 @@ public:
 		return false;
 	}
 		
-	inline void ScopeInsert(InnerNode* inner, uint64_t key, MemNode** val, bool insert_only, int temp_depth){
+	inline void ScopeInsert(LeafNode* leaf, uint64_t key, MemNode** val, bool insert_only, int temp_depth){
+		//printf("Leaf = %x, ScopeInsert begins\n", leaf);
+		
 		assert(depth >= 5);
 		//printf("ScopeInsert\n");
 		unsigned current_depth;
-		register void* node;
 		unsigned index;
 		InnerNode* temp_inner;
 
-		node = inner;
 /*
 		if(old_seqno!=inner->seq){
 			*val = dummyval_;
@@ -943,19 +956,6 @@ public:
 			return;
 		}
 */
-		index = 0;
-
-		current_depth = temp_depth - SPLIT_DEPTH;
-		while(current_depth-- != 0){
-			index = 0;
-			temp_inner = reinterpret_cast<InnerNode*>(node);
-			while((index < temp_inner->num_keys) && (key >= temp_inner->keys[index])) {
-				++index;
-			}
-			node = temp_inner->children[index]; 
-		}
-		
-		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
 		
 		//printf("leaf->signature = %lu\n", leaf->signature);
 		//Ok here
@@ -1227,8 +1227,8 @@ public:
 							printf("[2]new_sibling->keys[%d] = %lu\n",i,new_sibling->keys[i]);
 						}
 						*/
-						new_sibling->children[new_sibling->num_keys] = insert_inner->children[inner->num_keys];
-						reinterpret_cast<InnerNode*>(insert_inner->children[inner->num_keys])->parent = new_sibling;
+						new_sibling->children[new_sibling->num_keys] = insert_inner->children[insert_inner->num_keys];
+						reinterpret_cast<InnerNode*>(insert_inner->children[insert_inner->num_keys])->parent = new_sibling;
 						
 						//XXX: should threshold ???
 						insert_inner->num_keys = threshold - 1;//=>7
@@ -1319,6 +1319,7 @@ public:
 				*/
 			}
 		}
+		//printf("Leaf = %x, ScopeInsert ends\n", leaf);
 	}
 
 	inline InnerNode* InnerInsert(uint64_t key, InnerNode *inner, int d, MemNode** val, LeafNode** target_leaf) {
@@ -1745,7 +1746,7 @@ public:
 				new_sibling = new_leaf_node(); //newly-born leafnode
 
 				if(leaf->right == NULL && k == LEAF_NUM) {//new leafnode at rightmost
-					//rightmost++;
+					//leaf_rightmost++;
 
 					toInsert = new_sibling;
 					if(new_sibling->leaf_segs[0].key_num != 0){
@@ -1769,7 +1770,7 @@ public:
 					toInsert->kvs[0].key = key; //keys[0] should be set here
 					*upKey = key; //the sole new key should be the upkey
 				} else { //not at rightmost
-					//not_rightmost++;
+					//leaf_not_rightmost++;
 
 					unsigned threshold = (LEAF_NUM + 1) / 2; //8
 				//new_sibling->num_keys = leaf->num_keys - threshold;
@@ -1878,7 +1879,7 @@ public:
 				//toInsert_key_num = 0;
 				k = 0;
 			} else { //not at rightmost
-			//not_rightmost++;
+			//leaf_not_rightmost++;
 				unsigned threshold = (LEAF_NUM + 1) / 2; //8
 				new_sibling->num_keys = leaf->num_keys - threshold;
 				//unsigned new_sibling_num_keys = leaf_key_num - threshold; //8
