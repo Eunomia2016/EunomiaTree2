@@ -68,6 +68,7 @@
 
 #define COMPILER_MEMORY_FENCE asm volatile("" ::: "memory")
 
+//#define NDEBUG
 #ifdef NDEBUG
   #define ALWAYS_ASSERT(expr) (likely((expr)) ? (void)0 : abort())
 #else
@@ -78,6 +79,8 @@
 
 #define VERBOSE(expr) ((void)0)
 //#define VERBOSE(expr) (expr)
+
+#define CHECK_INVARIANTS
 
 #ifdef CHECK_INVARIANTS
   #define INVARIANT(expr) ALWAYS_ASSERT(expr)

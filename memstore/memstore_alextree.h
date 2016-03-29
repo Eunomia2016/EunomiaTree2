@@ -52,7 +52,6 @@ Date: 2016/03/20
 #define BM_TEST 0
 #define FLUSH_FREQUENCY 100
 
-
 #define SHUFFLE_KEYS 0
 
 #define ORIGIN_INSERT 0
@@ -65,6 +64,8 @@ Date: 2016/03/20
 #define HAL_LEN  2
 
 #define ADAPTIVE_LOCK 1
+#define BM_FIND 1
+
 #define SPEC_PROF 0
 
 #define DUP_PROF 0
@@ -138,10 +139,10 @@ public:
 	uint64_t insert_times[SEGS+1];
 	uint64_t inserts[SEGS+1];
 
-	//uint64_t split_ops;
+	//uint64_t leaf_splits;
 	uint64_t duplicate_keys;
-	uint64_t dup_found, insert_ops, split_ops;
-	uint64_t inner_splits,  leaf_splits;
+	uint64_t dup_found, leaf_inserts, leaf_splits;
+	//uint64_t inner_splits,  leaf_splits;
 	uint64_t original_inserts, scope_inserts;
 
 	uint64_t stage_1_time, bm_time,  stage_2_time;
@@ -209,12 +210,12 @@ public:
 		LeafNode *right;
 		InnerNode* parent;
 		uint64_t seq;
-		uint64_t paddings1[3];
+		//uint64_t paddings1[3];
 		//unsigned signature;
 	};
 
 	struct InnerNode {
-		InnerNode() : num_keys(0), seq(0), bm_filter(NULL) {
+		InnerNode() : num_keys(0) {
 			//signature = __sync_fetch_and_add(&inner_id, -1);
 		}//, writes(0), reads(0) {}
 		uint64_t 	 keys[N];
@@ -222,10 +223,10 @@ public:
 	
 		unsigned num_keys;
 		InnerNode* parent;
-		uint64_t seq;
-		BloomFilter* bm_filter;
-		SpinLock mlock;
-		uint64_t padding1[5];
+		//uint64_t seq;
+		//BloomFilter* bm_filter;
+		//SpinLock mlock;
+		//uint64_t padding1[5];
 	};
 
 	//The result object of the delete function
@@ -326,8 +327,8 @@ public:
 		insert_time  = 0;
 		spec_hit = spec_miss = 0;
 		duplicate_keys = 0;
-		dup_found = split_ops = insert_ops = 0;
-		inner_splits=leaf_splits=0;
+		dup_found = leaf_splits = leaf_inserts = 0;
+		//inner_splits=leaf_splits=0;
 		original_inserts=scope_inserts=0;
 		stage_1_time = stage_2_time  = bm_time = 0;
 /*
@@ -359,22 +360,20 @@ public:
 		//printf("reads %ld\n",reads);
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
-		printf("Prof1 report:\n");
-		prof1.reportAbortStatus();
-		printf("Prof2 report:\n");
-		prof2.reportAbortStatus();
+		printf("Prof report:\n");
+		prof.reportAbortStatus();
 
 #if DUP_PROF
-		printf("insert_ops = %lu, dup_found = %lu, split_ops = %lu\n", insert_ops, dup_found, split_ops);
+		printf("leaf_inserts = %lu, dup_found = %lu, leaf_splits = %lu\n", leaf_inserts, dup_found, leaf_splits);
 #endif
-		printf("inner_splits = %lu, leaf_splits = %lu\n", inner_splits, leaf_splits);
-		//printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
+		//printf("inner_splits = %lu, leaf_splits = %lu\n", inner_splits, leaf_splits);
+		printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
 
 		printf("stage_1_time = %lu, bm_time = %lu, stage_2_time = %lu\n", stage_1_time, bm_time, stage_2_time);
 
 		printf("leaf_rightmost = %u, leaf_not_rightmost = %u\n", leaf_rightmost, leaf_not_rightmost);
 		//printf("depth = %d\n", depth);
-		//printf("split_ops = %lu\n", split_ops);
+		//printf("leaf_splits = %lu\n", leaf_splits);
 		/*
 		printf("one_try = %lu\n", insert_log.one_try);
 		printf("two_try = %lu\n", insert_log.two_try);
@@ -803,8 +802,7 @@ public:
 			LeafNode* leafNode = NULL; 
 			MemNode* memNode = NULL;
 			int temp_depth;
-			bool bm_found = false;
-			bool need_protect = false;
+			bool bm_found = true;
 			bool locked = false;
 			uint64_t this_key = key;
 			//printf("[%lu] Before ScopeFind\n", key);
@@ -812,7 +810,7 @@ public:
 			util::timer t;
 #endif
 			{
-				RTMScope begtx(&prof1, depth * 2, 1, &rtmlock, GET_TYPE);
+				RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 				temp_depth = ScopeFind(this_key, &leafNode);
 			}
 
@@ -821,49 +819,64 @@ public:
 #if TIME_BKD
 			stage_1_time += t.lap();
 #endif			
-			//leafNode->mlock.Lock();
 			//printf("[%lu] Before BMFind\n", key);
-			bm_found = (leafNode->bm_filter != NULL) && (bloom_filter_contains(leafNode->bm_filter, &this_key));
-			//printf("[%lu] Inner BMFind 1\n", key);
-			if(!bm_found){
-				if(leafNode->bm_filter == NULL){
-					BloomFilter* bm_filter = bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE);
-					//innerNode->mlock.Lock();
+			//bool bm_exist = false;
 
-					leafNode->bm_filter = bm_filter;
-					bloom_filter_insert(bm_filter, &this_key);
-
-					//innerNode->mlock.Unlock();
+#if BM_FIND			
+			if(leafNode->bm_filter == NULL){
+				bm_found = true;
+				BloomFilter* bm_filter = bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE);
+				leafNode->bm_filter = bm_filter;
+				
+				for(int i = 0; i < LEAF_NUM; i++){
+					bloom_filter_insert(bm_filter, &leafNode->kvs[i].key);
+				}
+				
+				for(int i = 0; i < SEGS; i++){
+					for(int j = 0; j < leafNode->leaf_segs[i].key_num; j++){
+						bloom_filter_insert(bm_filter, &leafNode->leaf_segs[i].kvs[j].key);
+					}
+				}
+				
+				bloom_filter_insert(bm_filter, &this_key);
+			}else{
+				//bm_exist = true;
+				if(bloom_filter_contains(leafNode->bm_filter, &this_key)){
+					bm_found = true;
 				}else{
-					//innerNode->mlock.Lock();
-					
 					BloomFilter* bm_filter = leafNode->bm_filter;
 					bloom_filter_insert(bm_filter, &this_key);
-					
-					//innerNode->mlock.Unlock();
 				}
 			}
-			
-			//printf("[%lu] After BMFind\n", key);
-			//printf("LeafNode = %x\n", leafNode);
-			//leafNode->mlock.Unlock();
+#endif		
+/*
+			if(bm_found && bm_exist){
+				bm_found_num++;
+			}else{
+				bm_miss_num++;
+			}
+*/	
+
 #if TIME_BKD
 			bm_time += t.lap();
 #endif
-			//if(bm_found){bm_found_num++;}else{bm_miss_num++;}
-			//printf("[%lu] Before ScopeInsert\n", key);
+
+#if ADAPTIVE_LOCK
 			if(ShouldLockLeaf(leafNode) || bm_found){
-				locked =true;
+				locked = true;
 				leafNode->mlock.Lock();
 			}
+#endif
 			{
-				RTMScope begtx(&prof2, temp_depth * 2, 1, &rtmlock, GET_TYPE);
+				RTMScope begtx(&prof, temp_depth * 2, 1, &rtmlock, GET_TYPE);
 				//new_seqno = innerNode->seq;
 				ScopeInsert(leafNode, this_key, &memNode, !bm_found, temp_depth); 
 			}
+#if ADAPTIVE_LOCK
 			if(locked){
 				leafNode->mlock.Unlock();
 			}
+#endif
 			//printf("[%lu] After ScopeInsert\n", key);
 #if TIME_BKD
 			stage_2_time+=t.lap();
@@ -942,7 +955,6 @@ public:
 		
 	inline void ScopeInsert(LeafNode* leaf, uint64_t key, MemNode** val, bool insert_only, int temp_depth){
 		//printf("Leaf = %x, ScopeInsert begins\n", leaf);
-		
 		assert(depth >= 5);
 		//printf("ScopeInsert\n");
 		unsigned current_depth;
@@ -1013,7 +1025,7 @@ public:
 			if(insert_inner->num_keys == N) {
 
 				//inner_splits++;
-				insert_inner->seq++;
+				//insert_inner->seq++;
 				
 				new_sibling = new_inner_node();
 				new_sibling->parent = insert_inner->parent;
@@ -1056,32 +1068,6 @@ public:
 				new_sibling->keys[N - 1] = inner_upKey; //???
 			}
 			
-			/*
-			if(inner_upKey == 2250164493L){
-				for(int i = 0; i < N; i++){
-					printf("insert_inner = %x, insert_inner->num_keys = %u, insert_inner->keys[%d] = %lu\n",
-						insert_inner, insert_inner->num_keys, i, insert_inner->keys[i]);
-				}
-				for(int i = 0; i < N; i++){
-					printf("new_sibling = %x, new_sibling->num_keys = %u, new_sibling->keys[%d] = %lu\n",
-						new_sibling, new_sibling->num_keys, i, new_sibling->keys[i]);
-				}
-				InnerNode* parent = toInsert->parent;
-
-				for(int i = 0; i < N; i++){
-					printf("parent = %x, parent->num_keys = %u, parent->keys[%d] = %lu\n",
-						parent, parent->num_keys, i, parent->keys[i]);
-				}
-				for(int i = 0 ; i < parent->num_keys +1; i ++){
-					InnerNode* child = reinterpret_cast<InnerNode*>(parent->children[i]);
-					if(child){
-						for(int j = 0; j < N; j++){
-							printf("child[%d] = %x, child->num_keys = %u, child->keys[%d] = %lu\n", i, child, child->num_keys, j, child->keys[j]);
-						}
-					}
-				}
-			}
-			*/
 			//insert the new key at the (k)th slot of the parent node (old or new)
 			if(k != -1) {
 				for(int i = toInsert->num_keys; i > k; i--) { //move afterwards the remaining keys 
@@ -1091,43 +1077,6 @@ public:
 				toInsert->num_keys++; //add a new key
 				toInsert->keys[k] = leaf_upKey;
 			}
-			/*
-			if(InnerContains(insert_inner, 2250047149L)){
-				printf("[INSERT1]\n");
-				for(int i = 0; i < insert_inner->num_keys; i++){
-					printf("insert_inner = %x, insert_inner->num_keys = %u, insert_inner->keys[%d] = %lu\n",
-						insert_inner, insert_inner->num_keys, i, insert_inner->keys[i]);
-				}
-				if(new_sibling!=NULL){
-					for(int i = 0; i < new_sibling->num_keys; i++){
-						printf("new_sibling = %x, new_sibling->num_keys = %u, new_sibling->keys[%d] = %lu\n",
-							new_sibling, new_sibling->num_keys, i, new_sibling->keys[i]);
-					}
-					InnerNode* parent2 = new_sibling->parent;
-					printf("parent2 = %x\n", parent2);
-				}
-				InnerNode* parent = insert_inner->parent;
-				for(int i = 0; i < parent->num_keys; i++){
-					printf("parent = %x, parent->num_keys = %u, parent->keys[%d] = %lu\n",
-						parent, parent->num_keys, i, parent->keys[i]);
-				}
-
-				for(int i = 0; i < parent->num_keys+1; i++){
-					InnerNode* child = reinterpret_cast<InnerNode*>(parent->children[i]);
-					for(int j = 0; j < child->num_keys; j++){
-						printf("child[%d] = %x, child->key[%d] = %lu\n",i, child,j,child->keys[j]);
-					}
-				}
-				
-				for(int i = 0 ; i < parent->num_keys +1; i ++){
-					InnerNode* child = reinterpret_cast<InnerNode*>(parent->children[i]);
-					if(child==insert_inner){
-						printf("index = %d\n", i);
-					}
-				}
-			}
-			*/
-
 			
 			toInsert->children[k + 1] = new_leaf;
 			new_leaf->parent = toInsert;
@@ -1191,7 +1140,7 @@ public:
 				if(insert_inner->num_keys == N) {
 
 					//inner_splits++;
-					insert_inner->seq++;
+					//insert_inner->seq++;
 					/*for(int i = 0; i < insert_inner->num_keys; i++){
 						printf("insert_inner->keys[%d] = %lu\n",i,insert_inner->keys[i]);
 					}*/
@@ -1596,7 +1545,6 @@ public:
 			for(int i = 0; i <= 64; i += 64)
 				prefetch(reinterpret_cast<char*>(root) + i);
 #endif
-			//insert_ops++;
 			InnerInsert(key, reinterpret_cast<InnerNode*>(root), depth, &val, target_leaf);
 		}
 		return val;
@@ -1638,7 +1586,7 @@ public:
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, uint64_t* upKey, bool insert_only) {
 		//printf("I want to insert key = %d\n",key);
 #if DUP_PROF
-		insert_ops++;
+		leaf_inserts++;
 #endif
 		LeafNode *new_sibling = NULL;
 		//int idx = -1;
@@ -1720,7 +1668,7 @@ public:
 			}
 			if(idx2 == SEGS){//REALLY FULL
 #if DUP_PROF
-				split_ops++;
+				leaf_splits++;
 #endif
 				//leaf_splits++;
 
@@ -1864,7 +1812,7 @@ public:
 		//toInsert_key_num = leaf_key_num;
 		//SPLIT THE NODE WHEN FULL
 		if(leaf->num_keys == LEAF_NUM) {
-			//split_ops++;
+			//leaf_splits++;
 			//printf("[%d] I should split(2)\n", key);
 
 			new_sibling = new_leaf_node();

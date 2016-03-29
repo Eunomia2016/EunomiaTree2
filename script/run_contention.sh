@@ -9,5 +9,6 @@ do
 	cat temp.$warehouse | grep "DBTX"
 	cat temp.$warehouse | grep "ORLI"
 	cat temp.$warehouse | grep "STOC"
+	cat temp.$warehouse | grep "Conflict Count"
 	#rm temp.$warehouse
 done

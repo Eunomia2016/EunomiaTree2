@@ -1757,9 +1757,9 @@ tpcc_worker::txn_new_order(bool first_run) {
 		
 		//printf("[%2d] d_key = %lu, warehouse_id = %u, districtID = %u\n", sched_getcpu(), d_key, warehouse_id, districtID);
 #if DBTX_TIME
-#if DBTX_PROF
+	#if DBTX_PROF
 		Op_prof[DIST].gets++;
-#endif
+	#endif
 		elapse = txn_tim.lap();
 		atomic_add64(&newo_txn_time[2], elapse);
 		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
@@ -1805,9 +1805,9 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 		tx.Add(NEWO, no_key, (uint64_t *)(&v_no), sizeof(v_no));//Tx.4
 #if DBTX_TIME
-#if DBTX_PROF
+	#if DBTX_PROF
 		Op_prof[NEWO].adds++;
-#endif
+	#endif
 		elapse = txn_tim.lap();
 		atomic_add64(&newo_txn_time[3], elapse);
 		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
@@ -2050,9 +2050,9 @@ tpcc_worker::txn_new_order(bool first_run) {
 			//printf("s_key = %lu\n", s_key);
 			tx.Add(STOC, s_key, (uint64_t *)(&v_s_new), sizeof(v_s_new));//Tx.13
 #if DBTX_TIME
-#if DBTX_PROF
+	#if DBTX_PROF
 			Op_prof[STOC].adds++;
-#endif
+	#endif
 			//stocs++;
 			elapse = txn_tim.lap();
 			atomic_add64(&newo_txn_time[12], elapse);

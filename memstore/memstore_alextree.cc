@@ -155,7 +155,7 @@ bool MemstoreAlexTree::Iterator::Next() {
 	} else {
 		leaf_index++; //just move to the nexy key
 	}
-	if(leaf_index >= node_->num_keys) {
+	if(leaf_index >= node_->num_keys) {//move to the next sibling leafnode
 		node_ = node_->right;
 		leaf_index = 0;
 		if(node_ != NULL) {

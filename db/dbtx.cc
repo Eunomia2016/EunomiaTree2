@@ -966,7 +966,7 @@ void DBTX::Add_Label(int tableid, uint64_t key, uint64_t* val, int len) {
 //  SpinLockScope spinlock(&slock);
 
 #if ORLI_BKD
-	util::timer total_timer, tree_timer, set_timer,buffer_timer;
+	util::timer total_timer, tree_timer, set_timer, buffer_timer;
 	orli_inserts++;
 #endif
 
