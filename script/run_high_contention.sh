@@ -20,5 +20,6 @@ do
 	cat thread.$thread.csv | grep "should_protect"
 	cat thread.$thread.csv | grep "split_ops"
 	cat thread.$thread.csv | grep "bm_found"
+	cat thread.$thread.csv | grep "bm_time"
 	#rm thread.$thread.csv
 done

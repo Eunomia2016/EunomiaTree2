@@ -64,7 +64,7 @@ Date: 2016/03/20
 #define HAL_LEN  2
 
 #define ADAPTIVE_LOCK 1
-#define BM_FIND 1
+#define BM_QUERY 1
 
 #define SPEC_PROF 0
 
@@ -74,7 +74,7 @@ Date: 2016/03/20
 #define NO_SEQ_NO 0
 
 #define ERROR_RATE 0.05
-#define BM_SIZE 20
+#define BM_SIZE 16
 
 #define TIME_BKD 0
 //static uint64_t writes = 0;
@@ -145,13 +145,13 @@ public:
 	//uint64_t inner_splits,  leaf_splits;
 	uint64_t original_inserts, scope_inserts;
 
-	uint64_t stage_1_time, bm_time,  stage_2_time;
+	uint64_t stage_1_time, bm_time, stage_2_time;
 
 	uint64_t inner_rightmost, inner_not_rightmost;
 	
-	struct InnerNode;
-	unordered_map<InnerNode*, BloomFilter*> key_filter;
 	uint64_t bm_found_num, bm_miss_num;
+
+	//uint64_t bm_time;
 	
 	SpinLock bm_lock;
 	struct KeyValue{
@@ -317,6 +317,7 @@ public:
 		//printf("sizeof(Leaf_Seg) = %u\n", sizeof(Leaf_Seg));
 		//printf("sizeof(LeafNode) = %u\n", sizeof(LeafNode));
 		//printf("sizeof(InnerNode) = %u\n", sizeof(InnerNode));
+		//printf("sizeof(BloomFilter) = %u\n", sizeof(BloomFilter));
 		tableid = _tableid;
 		root = new LeafNode();
 		first_leaf = true;
@@ -328,9 +329,9 @@ public:
 		spec_hit = spec_miss = 0;
 		duplicate_keys = 0;
 		dup_found = leaf_splits = leaf_inserts = 0;
-		//inner_splits=leaf_splits=0;
-		original_inserts=scope_inserts=0;
-		stage_1_time = stage_2_time  = bm_time = 0;
+		//inner_splits = leaf_splits = 0;
+		original_inserts = scope_inserts = 0;
+		stage_1_time = stage_2_time = bm_time = 0;
 /*
 		for(int i = 0; i < 20 ; i ++){
 			last_leafs[i] = new LeafNode();
@@ -461,10 +462,46 @@ public:
 		}
 		return reinterpret_cast<InnerNode*>(node);
 	}
+
+	inline MemNode* FindKeyInLeaf(LeafNode* targetLeaf, uint64_t key){
+		for(int i = 0; i < LEAF_NUM; i++){
+			if(targetLeaf->kvs[i].key == key){
+				return targetLeaf->kvs[i].value;;
+			}
+		}
+		for(int i = 0; i < SEGS; i++){
+			//printf("leaf->leaf_segs[%d].max_room = %lu\n",i,leaf->leaf_segs[i].max_room);
+			for(int j = 0; j < targetLeaf->leaf_segs[i].max_room; j++){
+				if(targetLeaf->leaf_segs[i].kvs[j].key == key){
+					return targetLeaf->leaf_segs[i].kvs[j].value;
+				}
+			}
+		}
+		return NULL;
+	}
 	
 	inline MemNode* Get(uint64_t key) {
-		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		LeafNode* targetLeaf = NULL;
+		{
+			RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
+			ScopeFind(key, &targetLeaf);
+		}
 
+		bool bm_found = queryBMFilter(targetLeaf,key);
+
+		if(!bm_found){
+			return NULL;
+		}
+
+		MemNode* res = NULL;
+
+		{
+			RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
+			res = FindKeyInLeaf(targetLeaf,  key);
+		}
+		return res;
+		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
+		/*
 		InnerNode* inner;
 		register void* node ;
 		register unsigned d ;
@@ -508,6 +545,7 @@ public:
 		} else {
 			return NULL;
 		}
+		*/
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
@@ -732,6 +770,36 @@ public:
 		return full_segs;
 	}
 */
+	inline bool queryBMFilter(LeafNode* leafNode, uint64_t this_key){
+		bool bm_found = false;
+		if(leafNode->bm_filter == NULL){
+			bm_found = true;
+			BloomFilter* bm_filter = bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE);
+			leafNode->bm_filter = bm_filter;
+			
+			for(int i = 0; i < LEAF_NUM; i++){
+				bloom_filter_insert(bm_filter, &leafNode->kvs[i].key);
+			}
+			
+			for(int i = 0; i < SEGS; i++){
+				for(int j = 0; j < leafNode->leaf_segs[i].key_num; j++){
+					bloom_filter_insert(bm_filter, &leafNode->leaf_segs[i].kvs[j].key);
+				}
+			}
+			
+			bloom_filter_insert(bm_filter, &this_key);
+		}else{
+			//bm_exist = true;
+			if(bloom_filter_contains(leafNode->bm_filter, &this_key)){
+				bm_found = true;
+			}else{
+				BloomFilter* bm_filter = leafNode->bm_filter;
+				bloom_filter_insert(bm_filter, &this_key);
+			}
+		}
+		return bm_found;
+	}
+
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
 		//int thread_id = sched_getcpu();
 		ThreadLocalInit();
@@ -802,7 +870,7 @@ public:
 			LeafNode* leafNode = NULL; 
 			MemNode* memNode = NULL;
 			int temp_depth;
-			bool bm_found = true;
+			bool bm_found = false;
 			bool locked = false;
 			uint64_t this_key = key;
 			//printf("[%lu] Before ScopeFind\n", key);
@@ -822,32 +890,8 @@ public:
 			//printf("[%lu] Before BMFind\n", key);
 			//bool bm_exist = false;
 
-#if BM_FIND			
-			if(leafNode->bm_filter == NULL){
-				bm_found = true;
-				BloomFilter* bm_filter = bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE);
-				leafNode->bm_filter = bm_filter;
-				
-				for(int i = 0; i < LEAF_NUM; i++){
-					bloom_filter_insert(bm_filter, &leafNode->kvs[i].key);
-				}
-				
-				for(int i = 0; i < SEGS; i++){
-					for(int j = 0; j < leafNode->leaf_segs[i].key_num; j++){
-						bloom_filter_insert(bm_filter, &leafNode->leaf_segs[i].kvs[j].key);
-					}
-				}
-				
-				bloom_filter_insert(bm_filter, &this_key);
-			}else{
-				//bm_exist = true;
-				if(bloom_filter_contains(leafNode->bm_filter, &this_key)){
-					bm_found = true;
-				}else{
-					BloomFilter* bm_filter = leafNode->bm_filter;
-					bloom_filter_insert(bm_filter, &this_key);
-				}
-			}
+#if BM_QUERY			
+			bm_found = queryBMFilter(leafNode, this_key);
 #endif		
 /*
 			if(bm_found && bm_exist){
@@ -897,7 +941,7 @@ public:
 	}
 	
 	inline int ScopeFind(uint64_t key, LeafNode** leafNode){
-		assert(depth >= 5);
+		//assert(depth >= 5);
 		LeafNode* leaf;
 		InnerNode* inner;
 		register void* node ;
