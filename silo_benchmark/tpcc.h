@@ -5,8 +5,10 @@
 #include "inline_str.h"
 #include "macros.h"
 
-#define SHORTKEY 1
 
+
+
+#define SHORTKEY 1
 
 #define CUSTOMER_KEY_FIELDS(x, y) \
   x(int64_t,c_id)

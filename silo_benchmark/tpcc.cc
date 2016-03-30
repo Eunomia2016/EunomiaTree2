@@ -1278,6 +1278,7 @@ protected:
 
 //			  Memstore::MemNode *node = store->tables[CUST]->Put(key, (uint64_t *)v);
 							store->TupleInsert(CUST, key, (uint64_t *)v, sizeof(customer::value));
+							//printf("TupleInsert[CUST] key = %lu\n", key);
 #if 0
 							tbl_customer(w)->insert(txn, Encode(k), Encode(obj_buf, v));
 #endif
@@ -1686,6 +1687,9 @@ tpcc_worker::txn_new_order(bool first_run) {
 		txn_tim.lap();
 #endif
 		bool found = tx.Get(CUST, c_key, &c_value,1);//Tx.1
+
+		//printf("Get[CUST] key = %lu\n", c_key);
+
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[CUST].gets++;
@@ -3650,13 +3654,14 @@ public:
 		store->AddTable(ITEM, HASH, NONE);
 		store->AddTable(STOC, HASH, NONE);
 #else
+
 #if 1
 		//printf("AddTable\n");
 		for(int i = 0; i < 9; i++)
-			if(i == CUST) store->AddTable(i, BTREE, SBTREE);
-			else if(i == ORDE) store->AddTable(i, BTREE, IBTREE);
+			if(i == CUST) store->AddTable(i, ALEX_BTREE, SBTREE);
+			else if(i == ORDE) store->AddTable(i, ALEX_BTREE, IBTREE);
 			else if(i == ORLI) store->AddTable(i, ALEX_BTREE, NONE);
-			else store->AddTable(i, BTREE, NONE);
+			else store->AddTable(i, ALEX_BTREE, NONE);
 
 #else
 		for(int i = 0; i < 9; i++)

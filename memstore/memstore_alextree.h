@@ -361,18 +361,21 @@ public:
 		//printf("reads %ld\n",reads);
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
-		printf("Prof report:\n");
-		prof.reportAbortStatus();
+
+		if(tableid == 6){//ORLI
+			printf("Prof report:\n");
+			prof.reportAbortStatus();
 
 #if DUP_PROF
-		printf("leaf_inserts = %lu, dup_found = %lu, leaf_splits = %lu\n", leaf_inserts, dup_found, leaf_splits);
+			printf("leaf_inserts = %lu, dup_found = %lu, leaf_splits = %lu\n", leaf_inserts, dup_found, leaf_splits);
 #endif
-		//printf("inner_splits = %lu, leaf_splits = %lu\n", inner_splits, leaf_splits);
-		printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
+			//printf("inner_splits = %lu, leaf_splits = %lu\n", inner_splits, leaf_splits);
+			printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
 
-		printf("stage_1_time = %lu, bm_time = %lu, stage_2_time = %lu\n", stage_1_time, bm_time, stage_2_time);
+			printf("stage_1_time = %lu, bm_time = %lu, stage_2_time = %lu\n", stage_1_time, bm_time, stage_2_time);
 
-		printf("leaf_rightmost = %u, leaf_not_rightmost = %u\n", leaf_rightmost, leaf_not_rightmost);
+			printf("leaf_rightmost = %u, leaf_not_rightmost = %u\n", leaf_rightmost, leaf_not_rightmost);
+		}
 		//printf("depth = %d\n", depth);
 		//printf("leaf_splits = %lu\n", leaf_splits);
 		/*
@@ -550,6 +553,7 @@ public:
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
 		ThreadLocalInit();
+		//printf("Put key = %lu\n", k);
 		MemNode *node = GetWithInsert(k).node;
 		node->value = val;
 #if BTREE_PROF
@@ -597,12 +601,6 @@ public:
 
 		//step 2. remove the entry of the key, and get the deleted value
 		res->value = removeLeafEntry(cur, slot);
-
-#if LEVEL_LOG
-		//	printf("[%2d][DEL] node = %10d, key = %20ld, d = %2d\n",
-		//		   sched_getcpu(), cur->signature, key, 0);
-		level_logs[0].writes++;
-#endif
 
 		//step 3. if node is empty, remove the node from the list
 		if(cur->num_keys == 0) {
@@ -865,6 +863,7 @@ public:
 		if(depth < 5){
 			//original_inserts++;
 			res = Insert_rtm(key, &target_leaf);
+			//printf("original_insert key = %lu\n", key);
 		}else{
 			//scope_inserts++;
 			LeafNode* leafNode = NULL; 
@@ -1497,8 +1496,6 @@ public:
 				}
 				child_sibling->parent = toInsert;
 				toInsert->children[k + 1] = child_sibling;
-
-
 			} 
 		}
 
@@ -1535,7 +1532,7 @@ public:
 	}
 
 	inline Memstore::MemNode* Insert_rtm(uint64_t key, LeafNode** target_leaf) {
-		
+		//printf("Insert_rtm key = %lu\n", key);
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
@@ -1594,17 +1591,21 @@ public:
 		return val;
 	}
 
+	void dump_leaf(LeafNode* leaf){
+		for(int i = 0; i < LEAF_NUM; i++){
+			printf("leaf->kvs[%d].key = %lu\n",i,leaf->kvs[i].key );
+		}
+		for(int i = 0; i < SEGS; i++){
+			for(int j = 0; j < leaf->leaf_segs[i].max_room; j++){
+				printf("leaf->leaf_segs[%d].kvs[%d].key = %lu\n",i,j,leaf->leaf_segs[i].kvs[j].key);
+			}
+		}
+	}
+
 	inline bool FindDuplicate(LeafNode* leaf, uint64_t key, MemNode** val){
 		for(int i = 0; i < LEAF_NUM; i++){
 			if(leaf->kvs[i].key == key){
-				
-#if DUMMY
-				leaf->kvs[i].value = dummyval_;
-				*val = dummyval_;
-#else
-				leaf->kvs[i].value = GetMemNode();
 				*val = leaf->kvs[i].value;
-#endif				
 				return true;
 			}
 		}
@@ -1612,13 +1613,7 @@ public:
 			//printf("leaf->leaf_segs[%d].max_room = %lu\n",i,leaf->leaf_segs[i].max_room);
 			for(int j = 0; j < leaf->leaf_segs[i].max_room; j++){
 				if(leaf->leaf_segs[i].kvs[j].key == key){
-#if DUMMY
-					leaf->leaf_segs[i].kvs[j].value = dummyval_;
-					*val = dummyval_;
-#else
-					leaf->leaf_segs[i].kvs[j].value = GetMemNode();
 					*val = leaf->leaf_segs[i].kvs[j].value;
-#endif
 					return true;
 				}
 			}
@@ -1628,7 +1623,7 @@ public:
 	
 	//upKey should be the least key of the new LeafNode
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, uint64_t* upKey, bool insert_only) {
-		//printf("I want to insert key = %d\n",key);
+		//printf("I want to insert key = %lu, insert_only = %s\n",key,insert_only?"true":"false");
 #if DUP_PROF
 		leaf_inserts++;
 #endif
@@ -1650,7 +1645,11 @@ public:
 
 		if(!insert_only){
 			bool found = FindDuplicate(leaf, key, val);
+			//dump_leaf(leaf);
+
+			
 			if(found){ //duplicate insertion
+			//printf("duplication found\n");
 #if	DUP_PROF
 				dup_found++;
 #endif
@@ -1680,6 +1679,7 @@ public:
 			leaf->leaf_segs[idx].kvs[leaf->leaf_segs[idx].key_num].value = GetMemNode();
 			*val = leaf->leaf_segs[idx].kvs[leaf->leaf_segs[idx].key_num].value ;
 #endif
+			assert(*val != NULL);
 
 			leaf->leaf_segs[idx].key_num++;
 
@@ -1821,6 +1821,7 @@ public:
 				*val = toInsert->leaf_segs[0].kvs[0].value;
 #endif
 
+				assert(*val != NULL);
 				dummyval_ = NULL;
 				
 				//*target_leaf = toInsert;

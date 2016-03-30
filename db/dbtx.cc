@@ -1315,26 +1315,15 @@ retryGBI:
 }
 
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val, int label) {
-#if RW_TIME_BKD
-		util::timer total_time, tree_time, set_time;
-		gets++;
-#endif
-		bool newNode = false;
+
+	bool newNode = false;
 
 	//step 1. First check if the <k,v> is in the write set
-#if RW_TIME_BKD
-		set_time.lap();
-#endif
-		bool found = writeset->Lookup(tableid, key, val);
 
-#if RW_TIME_BKD
-		get_time.set_time+=set_time.lap();
-#endif
-	
+	bool found = writeset->Lookup(tableid, key, val);
+		
 	if(found) {
-#if RW_TIME_BKD
-		get_time.total_time+=total_time.lap();
-#endif
+		
 		if((*val) == LOGICALDELETE)
 			return false;
 		return true;
@@ -1342,32 +1331,23 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val, int label) {
 	//step 2.  Read the <k,v> from the in memory store
 retry:		
 
-#if RW_TIME_BKD
-	tree_time.lap();
-#endif
 	Memstore::MemNode* node;
 	Memstore::InsertResult res;
 
-	node = txdb_->tables[tableid]->GetForRead(key);
-#if RW_TIME_BKD
-	get_time.tree_time+=tree_time.lap();
-#endif
+	node = txdb_->tables[tableid]->GetWithInsert(key).node;
 
 	if(node == NULL){
-#if RW_TIME_BKD
-		get_time.total_time+=total_time.lap();
-#endif
+		
 		return false;
 	}
 	
+	//printf("node != NULL\n");
 	#if BUFFERNODE
 	buffer[tableid].node = node;
 	buffer[tableid].key = key;
 //	assert(node != NULL);
 	#endif
-#if RW_TIME_BKD
-	set_time.lap();
-#endif
+
 	{
 	//Guarantee
 		#if GLOBALOCK
@@ -1377,26 +1357,20 @@ retry:
 		#endif
 
 		if(node->value == HAVEREMOVED){
-#if RW_TIME_BKD
-			get_time.set_time+=set_time.lap();
-#endif
+
 			goto retry;
 		}
 		readset->Add(&node->seq, label);
 	}
-#if RW_TIME_BKD
-	get_time.set_time += set_time.lap();
-#endif
+
 
 	//if this node has been removed from the memstore
-#if RW_TIME_BKD
-	get_time.total_time+=total_time.lap();
-#endif
-
+	//printf("node->value = %x\n", node->value);
 	if(ValidateValue(node->value)) {
 		*val = node->value;
 		return true;
 	} else {
+		//printf("validate failure\n");
 		*val = NULL;
 		return false;
 	}
@@ -1428,18 +1402,7 @@ uint64_t* DBTX::Iterator::Value() {
 }
 
 void DBTX::Iterator::Next() {
-#if RW_TIME_BKD
-	util::timer total_time, tree_time, set_time;
-	tx_->nexts++;
-#endif
-#if RW_TIME_BKD
-	tree_time.lap();
-#endif
 	bool r = iter_->Next();
-
-#if RW_TIME_BKD
-	tx_->next_time.tree_time += tree_time.lap();
-#endif
 
 #if AGGRESSIVEDETECT
 	if(!r) {
@@ -1451,10 +1414,6 @@ void DBTX::Iterator::Next() {
 
 	while(iter_->Valid()) {
 		cur_ = iter_->CurNode();
-#if RW_TIME_BKD
-		set_time.lap();
-#endif
-
 		{
 #if GLOBALOCK
 			SpinLockScope spinlock(&slock);
@@ -1470,30 +1429,14 @@ void DBTX::Iterator::Next() {
 			tx_->readset->Add(&cur_->seq);
 
 			if(DBTX::ValidateValue(val_)) {
-#if RW_TIME_BKD
-			tx_->next_time.set_time+=set_time.lap();
-			tx_->next_time.total_time+=total_time.lap();
-#endif
 				return;
 			}
 		}
-#if RW_TIME_BKD
-				tx_->next_time.set_time+=set_time.lap();
-#endif
 
-#if RW_TIME_BKD
-		tree_time.lap();
-#endif
 		iter_->Next();
-#if RW_TIME_BKD
-		tx_->next_time.tree_time+=tree_time.lap();
-#endif
+
 	}
 	cur_ = NULL;
-#if RW_TIME_BKD
-	tx_->next_time.total_time+=total_time.lap();
-#endif
-
 }
 
 void DBTX::Iterator::Prev() {
@@ -1563,23 +1506,8 @@ void DBTX::Iterator::Prev() {
 }
 
 void DBTX::Iterator::Seek(uint64_t key) {
-	
-#if SET_TIME
-	util::timer seek_time;
-#endif
-#if TREE_TIME
-	util::timer tree_time;
-#endif
-
 	//Should seek from the previous node and put it into the readset
-#if TREE_TIME
-	tree_time.lap();
-#endif
-
 	iter_->Seek(key);
-#if TREE_TIME
-	atomic_add64(&tx_->treetime, tree_time.lap());
-#endif
 
 	cur_ = iter_->CurNode();
 
@@ -1595,10 +1523,6 @@ void DBTX::Iterator::Seek(uint64_t key) {
 
 		printf("Not Valid!\n");
 		tx_->readset->AddNext(iter_->GetLink(), iter_->GetLinkTarget());
-#if SET_TIME
-		atomic_inc64(&tx_->seeks);
-		atomic_add64(&tx_->iterseektime, seek_time.lap());
-#endif
 
 		return;
 	}
@@ -1621,28 +1545,14 @@ void DBTX::Iterator::Seek(uint64_t key) {
 			val_ = cur_->value;
 
 			if(DBTX::ValidateValue(val_)) {
-#if SET_TIME
-		atomic_inc64(&tx_->seeks);
-		atomic_add64(&tx_->iterseektime, seek_time.lap());
-#endif				
 				return;
 			}
 		}
-#if TREE_TIME
-			tree_time.lap();
-#endif
 		iter_->Next();
-#if TREE_TIME
-			atomic_add64(&tx_->treetime, tree_time.lap());
-#endif
 
 		cur_ = iter_->CurNode();
 	}
 	cur_ = NULL;
-#if SET_TIME
-		atomic_inc64(&tx_->seeks);
-		atomic_add64(&tx_->iterseektime, seek_time.lap());
-#endif
 
 }
 

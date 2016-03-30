@@ -646,7 +646,8 @@ public:
 		InsertResult res = Insert_rtm(key);
 		
 
-		//MemNode* value = res.node;
+		//MemNode* node = res.node;
+		//printf("node->value = %x\n", node->value);
 		//bool newNode = res.newNode;
 		//clock_gettime(CLOCK_MONOTONIC, &end);
 		//printf("[%ld] EndTime = %ld\n", pthread_self(), end.tv_sec * BILLION + end.tv_nsec);
@@ -1030,7 +1031,7 @@ public:
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 			++k;
 		}
-
+		//duplicate key
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*newKey = false;
 	#if BTPREFETCH

@@ -28,7 +28,6 @@ class RMQueue;
 class RMPool;
 class DBTX;
 
-
 #define NONE 0
 #define BTREE 1
 #define HASH 2
@@ -45,8 +44,6 @@ class DBTX;
 
 //GC when the number of rm objects reach RMThreshold
 #define RMThreshold 100
-
-
 
 class DBTables {
 	struct TableSchema {
