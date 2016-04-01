@@ -595,9 +595,12 @@ DBTX::DBTX(DBTables* store) {
 	for(int i = 0; i < TABLE_NUM; i++){
 		local_access[i] = remote_access[i] = 0;
 	}
-	for(int i = 0; i < NEWO_TXNS; i++){
+
+#if ABORT_REASON
+	for(int i = 0; i < TOTAL_GETS; i++){
 		abort_reason_txns[i] = 0;
 	}
+#endif
 }
 
 DBTX::~DBTX() {
@@ -611,9 +614,9 @@ DBTX::~DBTX() {
 #endif
 	
 #if ABORT_REASON
-	for(int i = 0; i < NEWO_TXNS; i++){
+	for(int i = 1; i < TOTAL_GETS; i++){
 		if(abort_reason_txns[i]!=0){
-			printf("Abort reason[%d] = %d\n",i,abort_reason_txns[i]);
+			printf("Abort reason[%d] = %d\n", i, abort_reason_txns[i]);
 		}
 	}
 #endif
@@ -1323,7 +1326,6 @@ bool DBTX::Get(int tableid, uint64_t key, uint64_t** val, int label) {
 	bool found = writeset->Lookup(tableid, key, val);
 		
 	if(found) {
-		
 		if((*val) == LOGICALDELETE)
 			return false;
 		return true;
@@ -1357,7 +1359,6 @@ retry:
 		#endif
 
 		if(node->value == HAVEREMOVED){
-
 			goto retry;
 		}
 		readset->Add(&node->seq, label);
@@ -1440,28 +1441,12 @@ void DBTX::Iterator::Next() {
 }
 
 void DBTX::Iterator::Prev() {
-#if SET_TIME
-		util::timer prev_time;
-#endif
-#if TREE_TIME
-	util::timer tree_time;
-#endif
-#if TREE_TIME
-	tree_time.lap();
-#endif
 
 	bool b = iter_->Prev();
-#if TREE_TIME
-	atomic_add64(&tx_->treetime, tree_time.lap());
-#endif
 
 	if(!b) {
 		tx_->abort = true;
 		cur_ = NULL;
-#if SET_TIME
-		atomic_inc64(&tx_->prevs);
-		atomic_add64(&tx_->iterprevtime, prev_time.lap());
-#endif
 
 		return;
 	}
@@ -1481,34 +1466,23 @@ void DBTX::Iterator::Prev() {
 			tx_->readset->Add(&cur_->seq);
 
 			if(DBTX::ValidateValue(val_)) {
-#if SET_TIME
-	atomic_inc64(&tx_->prevs);
-	atomic_add64(&tx_->iterprevtime, prev_time.lap());
-#endif
+
 				return;
 			}
 		}
-#if TREE_TIME
-		tree_time.lap();
-#endif
+
 		iter_->Prev();
-#if TREE_TIME
-		atomic_add64(&tx_->treetime, tree_time.lap());
-#endif
 
 	}
 	cur_ = NULL;
-#if SET_TIME
-	atomic_inc64(&tx_->prevs);
-	atomic_add64(&tx_->iterprevtime, prev_time.lap());
-#endif
 
 }
 
 void DBTX::Iterator::Seek(uint64_t key) {
 	//Should seek from the previous node and put it into the readset
+	//printf("I Seek key = %lu\n", key);
 	iter_->Seek(key);
-
+	
 	cur_ = iter_->CurNode();
 
 	//No keys is equal or larger than key

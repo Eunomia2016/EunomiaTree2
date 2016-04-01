@@ -159,7 +159,7 @@ public:
 
 		if(totalCounts != 0) {
 			printf("Abort Counts %d\n", abortCounts);
-			printf("Total Counts %d\n", totalCounts);
+			printf("Commit Counts %d\n", totalCounts);
 			printf("Capacity Counts %d\n", capacityCounts);
 			printf("Zero Counts %d\n", zeroCounts);
 			printf("Conflict Counts %d\n", conflictCounts);

@@ -235,6 +235,7 @@ Memstore::MemNode* MemstoreBPlusTree::Iterator::CurNode() {
 
 // Advance to the first entry with a key >= target
 void MemstoreBPlusTree::Iterator::Seek(uint64_t key) {
+	//printf("I seek key = %lu\n", key);
 #if BTREE_LOCK
 	MutexSpinLock lock(&tree_->slock);
 #else

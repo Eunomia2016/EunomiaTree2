@@ -64,6 +64,8 @@ using namespace util;
 
 enum TPCC_TYPE{NEW_ORDER = 0, PAYMENT, DELIVERY, ORDER_STATUS, STOCK_LEVEL};
 
+//enum NEWO_TXNS{};
+
 #if 0
 #define TPCC_TABLE_LIST(x) \
   x(customer) \
@@ -274,8 +276,8 @@ static int g_enable_separate_tree_per_partition = 0;
 static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
-//static unsigned g_txn_workload_mix[] = { 45, 43, 4, 4, 4 }; // default TPC-C workload mix
-static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
+static unsigned g_txn_workload_mix[] = { 52,48,0,0,0 }; // default TPC-C workload mix
+//static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -640,8 +642,8 @@ public:
 	DBTX tx;
 	DBROTX rotx;
 	uint64_t dbtx_time[TPCC_TYPES];
-	uint64_t newo_txn_time[NEWO_TXNS];
-	uint64_t payment_txn_time[PAY_TXNS];
+	//uint64_t newo_txn_time[NEWO_TXNS];
+	//uint64_t payment_txn_time[PAY_TXNS];
 	uint64_t orli_time, item_time, stoc_time, orli_time2;
 	uint64_t orlis,stocs;
 	uint64_t txns[TPCC_TYPES];
@@ -666,12 +668,14 @@ public:
 		for(int i = 0; i < TABLE_NUM; i++){
 			Op_prof[i]={0,0,0,0,0,0,0,0,0,0};
 		}
+		/*
 		for(int i = 0; i < NEWO_TXNS;i++){
 			newo_txn_time[i] = 0;
 		}
 		for(int i = 0; i < PAY_TXNS; i++){
 			payment_txn_time[i] = 0;
 		}
+		*/
 		tx.worker_id = worker_id;
 		secs = 0;
 		orli_time = item_time = stoc_time = 0;
@@ -709,11 +713,12 @@ public:
 			printf("%lu, ",txns[i]);
 		}
 		printf("\n");
-*/
+
 		for(int i = 0; i < NEWO_TXNS; i++){
 			printf("%ld, ", newo_txn_time[i]);
 		}
 		printf("\n");
+*/
 		//printf("ORLI Time = %lf sec (%lu)\n", (double)orli_time/MILLION, orlis);
 		//printf("ORLI Time2 = %lf sec\n", (double)orli_time2/MILLION);
 		//printf("ITEM Time = %lf sec\n", (double)item_time/MILLION);
@@ -1686,7 +1691,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		bool found = tx.Get(CUST, c_key, &c_value,1);//Tx.1
+		bool found = tx.Get(CUST, c_key, &c_value, 1);//Tx.1
 
 		//printf("Get[CUST] key = %lu\n", c_key);
 
@@ -1716,7 +1721,11 @@ tpcc_worker::txn_new_order(bool first_run) {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
-		found = tx.Get(WARE, warehouse_id, &w_value,2);//Tx.2
+		found = tx.Get(WARE, warehouse_id, &w_value, 2);//Tx.2
+
+		//printf("warehouse_id = %u\n", warehouse_id);
+		
+		assert(found);
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[WARE].gets++;
@@ -1727,7 +1736,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 //	memcpy(dummy, w_value, sizeof(warehouse::value));
 //	secs += (rdtsc() - slstart);
-		assert(found);
+		
 		warehouse::value *v_w = (warehouse::value *)w_value;
 		checker::SanityCheckWarehouse(NULL, v_w);
 #if 0
@@ -1756,7 +1765,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 			next_order_line_id = last_order_line_id_list[warehouse_id - warehouse_id_start];
 		}
 #else
-		found = tx.Get(DIST, d_key, &d_value, 3);//Tx.3
+		found = tx.Get(DIST, d_key, &d_value,3);//Tx.3
 #endif
 		
 		//printf("[%2d] d_key = %lu, warehouse_id = %u, districtID = %u\n", sched_getcpu(), d_key, warehouse_id, districtID);
@@ -1881,7 +1890,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 		uint64_t o_sec = makeOrderIndex(warehouse_id, districtID, customerID, my_next_o_id);
 		
-#if SEC_INDEX
+#if SEC_INDEX //True
 	#if USESECONDINDEX
 		tx.Add(ORDE, ORDER_INDEX, o_key, o_sec, (uint64_t *)(&v_oo), sizeof(v_oo));
 	#else
@@ -1904,7 +1913,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 		#if DBTX_TIME
 		txn_tim.lap();
 		#endif
-		bool f = tx.Get(ORDER_INDEX, o_sec, &value,7);//Tx.7
+		bool f = tx.Get(ORDER_INDEX, o_sec, &value,4);//Tx.7
 		#if DBTX_TIME
 			#if DBTX_PROF
 		Op_prof[ORDER_INDEX].gets++;
@@ -1986,7 +1995,8 @@ tpcc_worker::txn_new_order(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			found = tx.Get(ITEM, ol_i_id, &i_value, 11);//Tx.11
+			found = tx.Get(ITEM, ol_i_id, &i_value,5);//Tx.11
+			assert(found);
 #if DBTX_TIME
 #if DBTX_PROF
 			Op_prof[ITEM].gets++;
@@ -2018,7 +2028,8 @@ tpcc_worker::txn_new_order(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			found = tx.Get(STOC, s_key, &s_value, 12); //Tx.12
+			found = tx.Get(STOC, s_key, &s_value,6); //Tx.12
+			assert(found);
 #if DBTX_TIME
 #if DBTX_PROF
 			Op_prof[STOC].gets++;
@@ -2195,7 +2206,7 @@ tpcc_worker::txn_payment(bool first_run) {
 		txn_tim.lap();
 #endif
 
-		tx.Get(WARE, warehouse_id, &w_value);//Tx.1
+		tx.Get(WARE, warehouse_id, &w_value,7);//Tx.1
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[WARE].gets++;
@@ -2244,7 +2255,7 @@ tpcc_worker::txn_payment(bool first_run) {
 		txn_tim.lap();
 #endif
 
-		tx.Get(DIST, d_key, &d_value);//Tx.3
+		tx.Get(DIST, d_key, &d_value,8);//Tx.3
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2305,6 +2316,8 @@ tpcc_worker::txn_payment(bool first_run) {
 			clast.assign((const char *) lastname_buf, 16);
 			uint64_t c_start = makeCustomerIndex(customerWarehouseID, customerDistrictID, clast, zeros);
 			uint64_t c_end = makeCustomerIndex(customerWarehouseID, customerDistrictID, clast, ones);
+
+
 #if USESECONDINDEX
 			DBTX::SecondaryIndexIterator iter(&tx, CUST_INDEX);
 #else
@@ -2314,6 +2327,7 @@ tpcc_worker::txn_payment(bool first_run) {
 			txn_tim.lap();
 #endif
 			iter.Seek(c_start);//Tx.5
+			//printf("Seek\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2357,16 +2371,18 @@ tpcc_worker::txn_payment(bool first_run) {
 				txn_tim.lap();
 #endif
 
-				iter.Next();//Tx.6
+				iter.Next(); //Tx.6
 #if DBTX_TIME
 #if DBTX_PROF
 				Op_prof[CUST_INDEX].nexts++;
 #endif
 				elapse = txn_tim.lap();
 				atomic_add64(&payment_txn_time[5], elapse);
-				atomic_add64(&dbtx_time[PAYMENT],elapse);
+				atomic_add64(&dbtx_time[PAYMENT], elapse);
 #endif
 			}
+
+			
 			j = (j + 1) / 2 - 1;
 			c_key = c_keys[j];
 #if USESECONDINDEX
@@ -2377,7 +2393,7 @@ tpcc_worker::txn_payment(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			tx.Get(CUST, c_key, &c_value);//Tx.7
+			tx.Get(CUST, c_key, &c_value,9);//Tx.7
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2443,7 +2459,7 @@ tpcc_worker::txn_payment(bool first_run) {
 			txn_tim.lap();
 #endif
 
-			tx.Get(CUST, c_key, &c_value);//Tx.8
+			tx.Get(CUST, c_key, &c_value,10);//Tx.8
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2517,7 +2533,6 @@ tpcc_worker::txn_payment(bool first_run) {
 #endif
 		elapse = txn_tim.lap();
 		atomic_add64(&payment_txn_time[8], elapse);
-
 		atomic_add64(&dbtx_time[PAYMENT],elapse);
 #endif
 

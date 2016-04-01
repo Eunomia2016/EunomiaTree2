@@ -151,6 +151,7 @@ public:
 	
 	uint64_t bm_found_num, bm_miss_num;
 
+	uint64_t consist, inconsist;
 	//uint64_t bm_time;
 	
 	SpinLock bm_lock;
@@ -332,6 +333,7 @@ public:
 		//inner_splits = leaf_splits = 0;
 		original_inserts = scope_inserts = 0;
 		stage_1_time = stage_2_time = bm_time = 0;
+		consist = inconsist = 0;
 /*
 		for(int i = 0; i < 20 ; i ++){
 			last_leafs[i] = new LeafNode();
@@ -362,6 +364,7 @@ public:
 		//printf("writes %ld\n", writes);
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 
+		//printf("consist = %lu, inconsist = %lu\n", consist, inconsist);
 		if(tableid == 6){//ORLI
 			printf("Prof report:\n");
 			prof.reportAbortStatus();
@@ -876,9 +879,13 @@ public:
 #if TIME_BKD
 			util::timer t;
 #endif
+			uint64_t seqno = 0;
+
+TOP_RETRY:
 			{
 				RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 				temp_depth = ScopeFind(this_key, &leafNode);
+				seqno = leafNode->seq;
 			}
 
 			//printf("[%lu] After ScopeFind\n", key);
@@ -890,7 +897,9 @@ public:
 			//bool bm_exist = false;
 
 #if BM_QUERY			
-			bm_found = queryBMFilter(leafNode, this_key);
+			leafNode->mlock.Lock();
+			bm_found = queryBMFilter(leafNode, this_key); //it should be atomic
+			leafNode->mlock.Unlock();
 #endif		
 /*
 			if(bm_found && bm_exist){
@@ -910,16 +919,29 @@ public:
 				leafNode->mlock.Lock();
 			}
 #endif
+			bool consistent = true;
 			{
 				RTMScope begtx(&prof, temp_depth * 2, 1, &rtmlock, GET_TYPE);
-				//new_seqno = innerNode->seq;
-				ScopeInsert(leafNode, this_key, &memNode, !bm_found, temp_depth); 
+			
+				if(leafNode->seq == seqno){
+					ScopeInsert(leafNode, this_key, &memNode, !bm_found, temp_depth);
+				}else{ //the node has been split -> re-search from the top 
+					consistent = false;
+				}
 			}
+
 #if ADAPTIVE_LOCK
 			if(locked){
 				leafNode->mlock.Unlock();
 			}
 #endif
+			if(!consistent){
+				//inconsist++;
+				goto TOP_RETRY;
+			}else{
+				//consist++;
+			}
+
 			//printf("[%lu] After ScopeInsert\n", key);
 #if TIME_BKD
 			stage_2_time+=t.lap();
@@ -1717,6 +1739,8 @@ public:
 				//leaf_splits++;
 
 				//[Case #3] This LeafNode is really full
+				leaf->seq++;
+
 				int temp_idx = 1;
 				for(int i = 0; i < SEGS; i++){
 					//printf("leaf->leaf_segs[i].max_room = %u\n", leaf->leaf_segs[i].max_room);

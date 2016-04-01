@@ -57,8 +57,10 @@
 
 #define RANDOM_KEY 0
 
-#define NEWO_TXNS 15
-#define PAY_TXNS 10
+//#define NEWO_TXNS 15
+//#define PAY_TXNS 11
+
+#define TOTAL_GETS 11
 
 #define END_TIME 0
 
@@ -87,7 +89,7 @@ public:
 	uint64_t local_access[TABLE_NUM];
 	uint64_t remote_access[TABLE_NUM];
 
-	uint64_t abort_reason_txns[NEWO_TXNS];
+	uint64_t abort_reason_txns[TOTAL_GETS];
 	
 	uint64_t treetime ;
 	uint64_t settime;

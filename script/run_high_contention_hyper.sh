@@ -1,5 +1,5 @@
 #!/bin/bash
-for thread in 1 2 4 8 12 16 20
+for thread in 1 2 4 8 12 16 24 32 40
 do
 	echo "Threads = $thread Warehouses = 1"
 	./simple_run.sh $thread 1 &> thread.$thread.csv
@@ -20,6 +20,5 @@ do
 	cat thread.$thread.csv | grep "should_protect"
 	cat thread.$thread.csv | grep "split_ops"
 	cat thread.$thread.csv | grep "bm_found"
-	cat thread.$thread.csv | grep "bm_time"
 	#rm thread.$thread.csv
 done
