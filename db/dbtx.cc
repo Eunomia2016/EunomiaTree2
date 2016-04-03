@@ -880,7 +880,7 @@ retry:
 	Memstore::MemNode* node;
 	Memstore::InsertResult res;
 
-	node = txdb_->tables[tableid]->GetForRead(key);
+	node = txdb_->tables[tableid]->GetWithInsert(key).node;
 
 	if(node == NULL){
 		return false;
@@ -1337,9 +1337,9 @@ retry:
 	Memstore::InsertResult res;
 
 	node = txdb_->tables[tableid]->GetWithInsert(key).node;
-
+	
+	
 	if(node == NULL){
-		
 		return false;
 	}
 	

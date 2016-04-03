@@ -245,17 +245,17 @@ void MemstoreAlexTree::Iterator::Seek(uint64_t key) {
 
 	leaf->mlock.Lock();
 	int initial = 0;
-	if(leaf->leaf_segs[0].max_room==HAL_LEN){
-		initial = HAL_LEN*SEGS;
+	if(leaf->leaf_segs[0].max_room == HAL_LEN){
+		initial = HAL_LEN * SEGS;
 	}
 	int key_num = initial;
 	for(int i = 0 ; i <SEGS; i++){
-		key_num+=leaf->leaf_segs[i].key_num;
+		key_num += leaf->leaf_segs[i].key_num;
 		for(int j = 0; j < leaf->leaf_segs[i].key_num; j++){
-			leaf->kvs[initial+i*SEGS+j] = leaf->leaf_segs[i].kvs[j];
+			leaf->kvs[initial + i * SEGS + j] = leaf->leaf_segs[i].kvs[j];
 		}
 	}
-	std::sort(leaf->kvs, leaf->kvs+key_num,tree_->KVCompare);
+	std::sort(leaf->kvs, leaf->kvs + key_num, tree_->KVCompare);
 	leaf->num_keys = key_num;
 	
 	leaf->mlock.Unlock();
@@ -266,7 +266,6 @@ void MemstoreAlexTree::Iterator::Seek(uint64_t key) {
 #else
 	RTMScope begtx(&tree_->prof, tree_->depth, 1, &tree_->rtmlock);
 #endif
-
 	
 	link_ = (uint64_t *)(&leaf->seq); //Pointer to the current LeafNode
 	target_ = leaf->seq;	//copy of the seqno of the current LeafNode

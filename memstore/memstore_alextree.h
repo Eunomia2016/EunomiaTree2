@@ -191,7 +191,7 @@ public:
 	struct InnerNode; //forward declaration
 	
 	struct LeafNode {
-		LeafNode() : num_keys(0), bm_filter(NULL), seq(0){
+		LeafNode() : num_keys(0), bm_filter(NULL), seq(0), reserved(NULL){
 			//signature = __sync_fetch_and_add(&leaf_id, 1);
 		} //, writes(0), reads(0) {}
 		//unsigned signature;
@@ -204,7 +204,8 @@ public:
 		KeyValue kvs[LEAF_NUM];//16*16
 		BloomFilter* bm_filter;
 		//MemNode *values[LEAF_NUM];
-
+		KeyValue* reserved;
+		
 		//--896 bytes--
 		unsigned num_keys;
 		LeafNode *left;
@@ -866,7 +867,8 @@ public:
 		if(depth < 5){
 			//original_inserts++;
 			res = Insert_rtm(key, &target_leaf);
-			//printf("original_insert key = %lu\n", key);
+			//if(tableid==0)
+				//printf("original_insert tableid = %d, key = %lu\n",tableid, key);
 		}else{
 			//scope_inserts++;
 			LeafNode* leafNode = NULL; 
@@ -1345,9 +1347,31 @@ TOP_RETRY:
 		while((k < inner->num_keys) && (key >= inner->keys[k])) {
 			k++;
 		}
-
+		/*
+		if(tableid==1&&key==203){
+			printf("innernode\n");
+			dump_inner(inner);
+			for(int i = 0; i <= inner->num_keys; i++){
+				printf("leafnode[%d]\n", i);
+				dump_leaf(reinterpret_cast<LeafNode*>(inner->children[i]));
+			}
+			printf("k = %u\n",k);
+			printf("depth = %d\n",d);
+		}
+		*/
+		/*
+		if(tableid == 0){
+			dump_inner(inner);
+			printf("key = %lu, k = %u\n",key,k);
+		}
+		*/
 		void *child = inner->children[k]; //search the descendent layer
-
+		/*
+		if(tableid==0&&key==17){
+			printf("child\n");
+			dump_leaf(reinterpret_cast<LeafNode*>(child));
+		}
+		*/
 		//inserting at the lowest inner level
 		if(d == 1) {
 			//*target_inner = inner;
@@ -1582,6 +1606,7 @@ TOP_RETRY:
 		if(depth == 0) {
 			uint64_t upKey;
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val, &upKey);
+
 			//printf("root->born_key_num = %d\n", reinterpret_cast<LeafNode*>(root)->born_key_num );
 			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
 				InnerNode *inner = new_inner_node();
@@ -1615,37 +1640,74 @@ TOP_RETRY:
 
 	void dump_leaf(LeafNode* leaf){
 		for(int i = 0; i < LEAF_NUM; i++){
-			printf("leaf->kvs[%d].key = %lu\n",i,leaf->kvs[i].key );
+			printf("leaf->kvs[%d].key = %lu, value = %x\n",i,leaf->kvs[i].key, leaf->kvs[i].value );
 		}
 		for(int i = 0; i < SEGS; i++){
+			printf("leaf->leaf_segs[%d].key_num = %u\n" ,i, leaf->leaf_segs[i].key_num );
 			for(int j = 0; j < leaf->leaf_segs[i].max_room; j++){
-				printf("leaf->leaf_segs[%d].kvs[%d].key = %lu\n",i,j,leaf->leaf_segs[i].kvs[j].key);
+				printf("leaf->leaf_segs[%d].kvs[%d].key = %lu, value = %x\n",i,j,leaf->leaf_segs[i].kvs[j].key,
+					leaf->leaf_segs[i].kvs[j].value);
+				//printf("leaf->leaf_segs[%d].kvs[%d].val = %x\n",i,j,leaf->leaf_segs[i].kvs[j].value);
 			}
+		}
+	}
+	void dump_inner(InnerNode* inner){
+		for(int i =0 ; i < N; i++){
+			printf("inner->keys[%d] = %lu\n",i, inner->keys[i]);
 		}
 	}
 
 	inline bool FindDuplicate(LeafNode* leaf, uint64_t key, MemNode** val){
-		for(int i = 0; i < LEAF_NUM; i++){
-			if(leaf->kvs[i].key == key){
-				*val = leaf->kvs[i].value;
-				return true;
-			}
-		}
 		for(int i = 0; i < SEGS; i++){
-			//printf("leaf->leaf_segs[%d].max_room = %lu\n",i,leaf->leaf_segs[i].max_room);
-			for(int j = 0; j < leaf->leaf_segs[i].max_room; j++){
+			for(int j = 0; j < leaf->leaf_segs[i].key_num; j++){
 				if(leaf->leaf_segs[i].kvs[j].key == key){
 					*val = leaf->leaf_segs[i].kvs[j].value;
 					return true;
 				}
 			}
 		}
+
+		for(int i = 0; i < LEAF_NUM; i++){
+			if(leaf->kvs[i].key == key){
+				*val = leaf->kvs[i].value;
+				return true;
+			}
+		}
+
 		return false;
+	}
+
+	inline void ReorganizeLeafNode(LeafNode* leaf){
+		if(leaf->reserved == NULL){
+			leaf->reserved = (KeyValue*)calloc(LEAF_NUM, sizeof(KeyValue));
+		}
+		int initial = 0;
+		if(leaf->leaf_segs[0].max_room == HAL_LEN){
+			initial = HAL_LEN * SEGS;
+			for(int i = 0 ; i < initial; i++){
+				leaf->reserved[i] = leaf->kvs[i];
+			}
+		}
+		
+		int key_num = initial;
+		for(int i = 0 ; i <SEGS; i++){
+			key_num += leaf->leaf_segs[i].key_num;
+			for(int j = 0; j < leaf->leaf_segs[i].key_num; j++){
+				leaf->reserved[initial + i * SEGS + j] = leaf->leaf_segs[i].kvs[j];
+			}
+		}
+		std::sort(leaf->reserved, leaf->reserved + key_num, KVCompare);
+		leaf->num_keys = key_num;
 	}
 	
 	//upKey should be the least key of the new LeafNode
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, uint64_t* upKey, bool insert_only) {
-		//printf("I want to insert key = %lu, insert_only = %s\n",key,insert_only?"true":"false");
+		/*
+		if(tableid==1&&key==204){
+			printf("I want to insert key = %lu, insert_only = %s\n",key,insert_only?"true":"false");
+			dump_leaf(leaf);
+		}
+		*/
 #if DUP_PROF
 		leaf_inserts++;
 #endif
@@ -1736,8 +1798,20 @@ TOP_RETRY:
 #if DUP_PROF
 				leaf_splits++;
 #endif
-				//leaf_splits++;
 
+				/*
+				if(tableid==1&&key==203){
+					printf("split\n");
+					dump_leaf(leaf);
+				}
+				*/
+				//leaf_splits++;
+				/*
+				ReorganizeLeafNode(leaf);
+				for(int i = 0; i < leaf->num_keys;i++){
+					printf("leaf->reserved[%d].key = %lu\n",i, leaf->reserved[i].key);
+				}
+				*/
 				//[Case #3] This LeafNode is really full
 				leaf->seq++;
 
@@ -1763,7 +1837,12 @@ TOP_RETRY:
 
 				if(leaf->right == NULL && k == LEAF_NUM) {//new leafnode at rightmost
 					//leaf_rightmost++;
-
+					/*
+					if(tableid==1&&key==203){
+						printf("rightmost split\n");
+						dump_leaf(leaf);
+					}
+					*/
 					toInsert = new_sibling;
 					if(new_sibling->leaf_segs[0].key_num != 0){
 						//printf("new_sibling = %x\n", new_sibling);

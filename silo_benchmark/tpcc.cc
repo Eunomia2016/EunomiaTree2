@@ -276,8 +276,8 @@ static int g_enable_separate_tree_per_partition = 0;
 static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
-static unsigned g_txn_workload_mix[] = { 52,48,0,0,0 }; // default TPC-C workload mix
-//static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
+//static unsigned g_txn_workload_mix[] = { 52,48,0,0,0 }; // default TPC-C workload mix
+static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -348,6 +348,8 @@ struct checker {
 		INVARIANT(k->d_w_id >= 1 && static_cast<size_t>(k->d_w_id) <= NumWarehouses());
 		INVARIANT(k->d_id >= 1 && static_cast<size_t>(k->d_id) <= NumDistrictsPerWarehouse());
 #endif
+		//printf("v->d_next_o_id = %d\n",v->d_next_o_id );
+
 		INVARIANT(v->d_next_o_id >= 3001);
 		INVARIANT(v->d_state.size() == 2);
 		INVARIANT(v->d_zip == "123456789");
@@ -1168,6 +1170,7 @@ protected:
 
 					//store->tables[DIST]->Put(key, (uint64_t *)v);
 					store->TupleInsert(DIST, key, (uint64_t *)v, sizeof(district::value));
+					//printf("[DIST] TupleInsert key = %lu\n", key);
 #if 0
 					tbl_district(w)->insert(txn, Encode(k), Encode(obj_buf, v));
 					if(bsize != -1 && !((cnt + 1) % bsize)) {
@@ -1692,6 +1695,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 		txn_tim.lap();
 #endif
 		bool found = tx.Get(CUST, c_key, &c_value, 1);//Tx.1
+		assert(found);
 
 		//printf("Get[CUST] key = %lu\n", c_key);
 
@@ -1705,7 +1709,6 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 		//memcpy(dummy,c_value, sizeof(customer::value));
 		//secs += (rdtsc() - slstart);
-		assert(found);
 
 		customer::value *v_c = (customer::value *)c_value;
 
@@ -1722,10 +1725,9 @@ tpcc_worker::txn_new_order(bool first_run) {
 		txn_tim.lap();
 #endif
 		found = tx.Get(WARE, warehouse_id, &w_value, 2);//Tx.2
-
 		//printf("warehouse_id = %u\n", warehouse_id);
-		
 		assert(found);
+		
 #if DBTX_TIME
 #if DBTX_PROF
 		Op_prof[WARE].gets++;
@@ -1750,6 +1752,9 @@ tpcc_worker::txn_new_order(bool first_run) {
 		ALWAYS_ASSERT(tbl_district(warehouse_id)->get(txn, Encode(obj_key0, k_d), obj_v));
 #endif
 		uint64_t d_key = makeDistrictKey(warehouse_id, districtID);
+
+		//printf("d_key = %lu, warehouse_id = %u, districtID = %u\n", d_key, warehouse_id, districtID);
+
 		uint64_t *d_value;
 //	slstart = rdtsc();
 #if DBTX_TIME
@@ -1765,7 +1770,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 			next_order_line_id = last_order_line_id_list[warehouse_id - warehouse_id_start];
 		}
 #else
-		found = tx.Get(DIST, d_key, &d_value,3);//Tx.3
+		found = tx.Get(DIST, d_key, &d_value, 3);//Tx.3
 #endif
 		
 		//printf("[%2d] d_key = %lu, warehouse_id = %u, districtID = %u\n", sched_getcpu(), d_key, warehouse_id, districtID);
@@ -1779,8 +1784,11 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 		//memcpy(dummy, d_value, sizeof(district::value));
 //	secs += (rdtsc() - slstart);
-		assert(found);
+		assert(found); //should be removed for new interface
 		district::value *v_d = (district::value *)d_value;
+
+		//printf("d_key = %lu, v_d->d_next_o_id = %d\n", d_key, v_d->d_next_o_id);
+
 		checker::SanityCheckDistrict(NULL, v_d);
 #if 0
 		checker::SanityCheckDistrict(&k_d, v_d);
