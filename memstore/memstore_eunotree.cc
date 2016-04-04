@@ -1,13 +1,13 @@
-#include "memstore/memstore_alextree.h"
+#include "memstore/memstore_eunotree.h"
 
 namespace leveldb {
 
-__thread RTMArena* MemstoreAlexTree::arena_ = NULL;
-__thread bool MemstoreAlexTree::localinit_ = false;
-__thread Memstore::MemNode *MemstoreAlexTree::dummyval_ = NULL;
-__thread MemstoreAlexTree::LeafNode *MemstoreAlexTree::dummyleaf_ = NULL;
+__thread RTMArena* MemstoreEunoTree::arena_ = NULL;
+__thread bool MemstoreEunoTree::localinit_ = false;
+__thread Memstore::MemNode *MemstoreEunoTree::dummyval_ = NULL;
+__thread MemstoreEunoTree::LeafNode *MemstoreEunoTree::dummyleaf_ = NULL;
 
-void MemstoreAlexTree::printLeaf(LeafNode *n) {
+void MemstoreEunoTree::printLeaf(LeafNode *n) {
 	for(int i = 0; i < depth; i++)
 		printf(" ");
 	printf("Leaf Addr %lx Key num %d  :", n, n->num_keys);
@@ -19,7 +19,7 @@ void MemstoreAlexTree::printLeaf(LeafNode *n) {
 }
 
 
-void MemstoreAlexTree::printInner(InnerNode *n, unsigned depth) {
+void MemstoreEunoTree::printInner(InnerNode *n, unsigned depth) {
 	for(int i = 0; i < this->depth - depth; i++)
 		printf(" ");
 	printf("Inner %d Key num %d  :", depth, n->num_keys);
@@ -31,7 +31,7 @@ void MemstoreAlexTree::printInner(InnerNode *n, unsigned depth) {
 		else printLeaf(reinterpret_cast<LeafNode*>(n->children[i]));
 }
 
-void MemstoreAlexTree::PrintStore() {
+void MemstoreEunoTree::PrintStore() {
 	printf("===============B+ Tree=========================\n");
 	if(root == NULL) {
 		printf("Empty Tree\n");
@@ -46,7 +46,7 @@ void MemstoreAlexTree::PrintStore() {
 //		 printf("Total key num %d\n", total_key);
 }
 
-void MemstoreAlexTree::PrintList() {
+void MemstoreEunoTree::PrintList() {
 	void* min = root;
 	int d = depth;
 	while(d > 0) {
@@ -63,13 +63,13 @@ void MemstoreAlexTree::PrintList() {
 }
 /*
 
-void MemstoreAlexTree::topLeaf(LeafNode *n) {
+void MemstoreEunoTree::topLeaf(LeafNode *n) {
 	total_nodes++;
 	if (n->writes > 40) printf("Leaf %lx , w %ld , r %ld\n", n, n->writes, n->reads);
 
 }
 
-void MemstoreAlexTree::topInner(InnerNode *n, unsigned depth){
+void MemstoreEunoTree::topInner(InnerNode *n, unsigned depth){
 	total_nodes++;
 	if (n->writes > 40) printf("Inner %lx depth %d , w %ld , r %ld\n", n, depth, n->writes, n->reads);
 	for (int i=0; i<=n->num_keys;i++)
@@ -77,14 +77,14 @@ void MemstoreAlexTree::topInner(InnerNode *n, unsigned depth){
 		else topLeaf(reinterpret_cast<LeafNode*>(n->children[i]));
 }
 
-void MemstoreAlexTree::top(){
+void MemstoreEunoTree::top(){
 	if (depth == 0) topLeaf(reinterpret_cast<LeafNode*>(root));
 	else topInner(reinterpret_cast<InnerNode*>(root), depth);
 	printf("TOTAL NODES %d\n", total_nodes);
 }
 */
 /*
-void MemstoreAlexTree::checkConflict(int sig, int mode) {
+void MemstoreEunoTree::checkConflict(int sig, int mode) {
 	if(mode == 1) {
 		waccess[current_tid][windex[current_tid] % CONFLICT_BUFFER_LEN] = sig;
 		windex[current_tid]++;
@@ -106,28 +106,28 @@ void MemstoreAlexTree::checkConflict(int sig, int mode) {
 	}
 }
 */
-MemstoreAlexTree::Iterator::Iterator(MemstoreAlexTree* tree) {
+MemstoreEunoTree::Iterator::Iterator(MemstoreEunoTree* tree) {
 	tree_ = tree;
 	node_ = NULL;
 }
 
-uint64_t* MemstoreAlexTree::Iterator::GetLink() {
+uint64_t* MemstoreEunoTree::Iterator::GetLink() {
 	return link_;
 }
 
-uint64_t MemstoreAlexTree::Iterator::GetLinkTarget() {
+uint64_t MemstoreEunoTree::Iterator::GetLinkTarget() {
 	return target_;
 }
 
 // Returns true iff the iterator is positioned at a valid node.
-bool MemstoreAlexTree::Iterator::Valid() {
+bool MemstoreEunoTree::Iterator::Valid() {
 	return (node_ != NULL) && (node_->num_keys > 0);
 	//	printf("b %d\n",b);
 }
 
 // Advances to the next position.
 // REQUIRES: Valid()
-bool MemstoreAlexTree::Iterator::Next() {
+bool MemstoreEunoTree::Iterator::Next() {
 	//get next different key
 	//if (node_->seq != seq_) printf("%d %d\n",node_->seq,seq_);
 	bool b = true;
@@ -136,12 +136,16 @@ bool MemstoreAlexTree::Iterator::Next() {
 #else
 	RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
 #endif
+	if(node_->reserved == NULL){
+		tree_->ReorganizeLeafNode(node_);
+	}
 	if(node_->seq != seq_) { //the current LeafNode is modified, search the LeafNode again
+		tree_->ReorganizeLeafNode(node_);
 		b = false;
 		while(node_ != NULL) {
 			int k = 0;
 			int num = node_->num_keys;
-			while((k < num) && (key_ >= node_->kvs[k].key)) {
+			while((k < num) && (key_ >= node_->reserved[k].key)) {
 				++k;
 			}
 			if(k == num) {
@@ -157,23 +161,31 @@ bool MemstoreAlexTree::Iterator::Next() {
 	}
 	if(leaf_index >= node_->num_keys) {//move to the next sibling leafnode
 		node_ = node_->right;
+
 		leaf_index = 0;
 		if(node_ != NULL) {
+			if(node_->reserved == NULL){
+				tree_->ReorganizeLeafNode(node_);
+			}
 			link_ = (uint64_t *)(&node_->seq); //the addr of the current LeafNode
 			target_ = node_->seq; //copy the seqno of the current LeafNode
 		}
 	}
 	if(node_ != NULL) {
-		key_ = node_->kvs[leaf_index].key;
-		value_ = node_->kvs[leaf_index].value;
+		if(node_->reserved == NULL){
+			tree_->ReorganizeLeafNode(node_);
+		}
+		key_ = node_->reserved[leaf_index].key;
+		value_ = node_->reserved[leaf_index].value;
 		seq_ = node_->seq;
+		//printf("leaf_index = %d, key_ = %lu, value_ = %x, seq_ = %u\n", leaf_index, key_, value_, seq_);
 	}
 	return b;
 }
 
 // Advances to the previous position.
 // REQUIRES: Valid()
-bool MemstoreAlexTree::Iterator::Prev() {
+bool MemstoreEunoTree::Iterator::Prev() {
 	// Instead of using explicit "prev" links, we just search for the
 	// last node that falls before key.
 	assert(Valid());
@@ -225,31 +237,57 @@ bool MemstoreAlexTree::Iterator::Prev() {
 	return b;
 }
 
-uint64_t MemstoreAlexTree::Iterator::Key() {
+uint64_t MemstoreEunoTree::Iterator::Key() {
 	return key_;
 }
 
-Memstore::MemNode* MemstoreAlexTree::Iterator::CurNode() {
+Memstore::MemNode* MemstoreEunoTree::Iterator::CurNode() {
 	if(!Valid()) return NULL;
 	return value_;
 }
 
 // Advance to the first entry with a key >= target
-void MemstoreAlexTree::Iterator::Seek(uint64_t key) {
-	//printf("I seek key = %lu\n", key);
-	LeafNode *leaf  = NULL;
+void MemstoreEunoTree::Iterator::Seek(uint64_t key) {
+	//printf("I want to seek key = %lu\n", key);
+
 	{
 		RTMScope begtx(&tree_->prof, tree_->depth, 1, &tree_->rtmlock);
-		leaf = tree_->FindLeaf(key); //the the LeafNode storing the key
-	}
+		LeafNode* leaf = tree_->FindLeaf(key); //the the LeafNode storing the key
 
+		tree_->ReorganizeLeafNode(leaf);
+		//tree_->dump_reserved(leaf);
+		
+		link_ = (uint64_t *)(&leaf->seq); //Pointer to the seqno of the current LeafNode
+		target_ = leaf->seq;	//copy of the seqno of the current LeafNode
+		int num = leaf->num_keys;
+		assert(num > 0);
+		int k = 0;
+		while((k < num) && (leaf->reserved[k].key < key)) {
+			++k;
+		}
+		if(k == num) {
+			node_ = leaf->right;
+			tree_->ReorganizeLeafNode(node_);
+			//tree_->dump_reserved(node_);
+			//printf("k = %d\n", k);
+			//tree_->dump_leaf(node_);
+			leaf_index = 0;
+		} else {
+			leaf_index = k;
+			node_ = leaf;
+		}
+		seq_ = node_->seq;
+		key_ = node_->reserved[leaf_index].key;
+		value_ = node_->reserved[leaf_index].value;
+	}
+/*
 	leaf->mlock.Lock();
 	int initial = 0;
 	if(leaf->leaf_segs[0].max_room == HAL_LEN){
 		initial = HAL_LEN * SEGS;
 	}
 	int key_num = initial;
-	for(int i = 0 ; i <SEGS; i++){
+	for(int i = 0 ; i < SEGS; i++){
 		key_num += leaf->leaf_segs[i].key_num;
 		for(int j = 0; j < leaf->leaf_segs[i].key_num; j++){
 			leaf->kvs[initial + i * SEGS + j] = leaf->leaf_segs[i].kvs[j];
@@ -259,15 +297,18 @@ void MemstoreAlexTree::Iterator::Seek(uint64_t key) {
 	leaf->num_keys = key_num;
 	
 	leaf->mlock.Unlock();
+*/
 
 	//printf("leaf = %x, leaf->num_keys = %u\n", leaf, leaf->num_keys);
+
+/*
 #if BTREE_LOCK
 	MutexSpinLock lock(&tree_->slock);
 #else
 	RTMScope begtx(&tree_->prof, tree_->depth, 1, &tree_->rtmlock);
 #endif
 	
-	link_ = (uint64_t *)(&leaf->seq); //Pointer to the current LeafNode
+	link_ = (uint64_t *)(&leaf->seq); //Pointer to the seqno of the current LeafNode
 	target_ = leaf->seq;	//copy of the seqno of the current LeafNode
 	int num = leaf->num_keys;
 	assert(num > 0);
@@ -286,9 +327,10 @@ void MemstoreAlexTree::Iterator::Seek(uint64_t key) {
 	key_ = node_->kvs[leaf_index].key;
 	value_ = node_->kvs[leaf_index].value;
 	//tree_->printLeaf(node_);
+*/
 }
 
-void MemstoreAlexTree::Iterator::SeekPrev(uint64_t key) {
+void MemstoreEunoTree::Iterator::SeekPrev(uint64_t key) {
 #if BTREE_LOCK
 	MutexSpinLock lock(&tree_->slock);
 #else
@@ -317,7 +359,8 @@ void MemstoreAlexTree::Iterator::SeekPrev(uint64_t key) {
 
 // Position at the first entry in list.
 // Final state of iterator is Valid() iff list is not empty.
-void MemstoreAlexTree::Iterator::SeekToFirst() {
+void MemstoreEunoTree::Iterator::SeekToFirst() {
+	//printf("SeekToFirst\n");
 	void* min = tree_->root;
 	int d = tree_->depth;
 	while(d > 0) {
@@ -333,14 +376,17 @@ void MemstoreAlexTree::Iterator::SeekToFirst() {
 #else
 	RTMScope begtx(&tree_->prof, 1, 1, &tree_->rtmlock);
 #endif
-	key_ = node_->kvs[0].key;
-	value_ = node_->kvs[0].value;
+	tree_->ReorganizeLeafNode(node_);
+	
+	key_ = node_->reserved[0].key;
+	value_ = node_->reserved[0].value;
+	//printf("node_ = %x, key_ = %lu, value_ = %x\n",node_, key_, value_);
 	seq_ = node_->seq;
 }
 
 // Position at the last entry in list.
 // Final state of iterator is Valid() iff list is not empty.
-void MemstoreAlexTree::Iterator::SeekToLast() {
+void MemstoreEunoTree::Iterator::SeekToLast() {
 	//TODO
 	assert(0);
 }

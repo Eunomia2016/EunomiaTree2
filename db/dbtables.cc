@@ -114,7 +114,7 @@ DBTables::~DBTables() {
 	for(int i = 0; i < next; i++) {
 		if(types[i] == HASH) delete(MemstoreHashTable *)tables[i];
 		else if(types[i] == BTREE) delete(MemstoreBPlusTree *)tables[i];
-		else if(types[i] == ALEX_BTREE) delete(MemstoreAlexTree *)tables[i];
+		else if(types[i] == EUNO_BTREE) delete(MemstoreEunoTree *)tables[i];
 		else if(types[i] == SKIPLIST) delete(MemStoreSkipList *)tables[i];
 		else if(types[i] == CUCKOO) delete(MemstoreCuckooHashTable *)tables[i];
 #if !USESECONDINDEX
@@ -254,7 +254,9 @@ uint64_t* DBTables::GetEmptyValue(int tableid) {
 void DBTables::AddDeletedNode(int tableid, uint64_t *node) {
 	gcnum++;
 	//XXX: we set the safe sn of memnode to be 0
+	//printf("pivot1\n");
 	memnodesPool[tableid].AddGCObj((char *)node, 0);
+	//printf("pivot2\n");
 }
 
 void DBTables::AddRemoveNode(int tableid, uint64_t key,
@@ -277,10 +279,13 @@ void DBTables::GC() {
 void DBTables::DelayRemove() {
 	if(rmPool->GCElems() < RMThreshold)
 		return;
-
+	
 	rcu->WaitForGracePeriod();
+	
+	//printf("pivot1\n");
 
 	rmPool->RemoveAll();
+	//printf("pivot2\n");
 }
 
 void DBTables::PBufInit(int thrs) {
@@ -434,7 +439,7 @@ int DBTables::AddTable(int tableid, int index_type, int secondary_index_type) {
 	assert(next < number);
 	//printf("[Alex] AddTable %d\n", tableid);
 	if(index_type == BTREE) tables[next] = new MemstoreBPlusTree(next);
-	else if(index_type == ALEX_BTREE) tables[next] = new MemstoreAlexTree(next);
+	else if(index_type == EUNO_BTREE) tables[next] = new MemstoreEunoTree(next);
 	else if(index_type == HASH) tables[next] = new MemstoreHashTable();
 	else if(index_type == SKIPLIST) tables[next] = new MemStoreSkipList();
 	else if(index_type == CUCKOO) tables[next] = new MemstoreCuckooHashTable();

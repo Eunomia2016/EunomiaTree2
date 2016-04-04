@@ -103,6 +103,7 @@ inline void DBTX::ReadSet::AddNext(uint64_t *ptr, uint64_t value) {
 	assert(rangeElems <= max_length);
 
 	if(rangeElems == max_length) {
+		//printf("AddNext\n");
 		Resize();
 	}
 
@@ -697,12 +698,7 @@ bool DBTX::Abort() {
 }
 
 bool DBTX::End() {
-#if END_TIME
-	util::timer t1,t2;
-	uint64_t elapse;
-	int try_times = 0;
-#endif
-	ends++;
+	//ends++;
 	int dvlen;
 	uint64_t **dvs;
 	int ovlen;
@@ -720,23 +716,15 @@ bool DBTX::End() {
 #else
 		RTMScope rtm(&rtmProf, readset->elems, writeset->elems);
 #endif
-//#if END_TIME
-//		t1.lap();
-//#endif
+
 		read_valid_val = readset->Validate();
 		bool read_valid = (read_valid_val == NO_CONFLICT);
 		bool write_valid = writeset->CheckWriteSet();
-//#if END_TIME
-//		elapse = t1.lap();
-//		atomic_add64(&validate_time, elapse);
-//#endif
 
 		if(!(read_valid&&write_valid)) {
 			goto ABORT;
 		}
-//#if END_TIME
-//		t1.lap();
-//#endif
+
 		writeset->SetDBTX(this);
 		//step 2. update the the seq set
 		//can't use the iterator because the cur node may be deleted
@@ -746,31 +734,23 @@ bool DBTX::End() {
 #if USESECONDINDEX
 		writeset->UpdateSecondaryIndex();
 #endif
-//#if END_TIME
-//		elapse = t1.lap();
-//		atomic_add64(&write_time, elapse);
-//#endif
 	}
-//#if END_TIME
-//	t1.lap();
-//#endif
+	
 	//Put the objects into the object pool
 	writeset->CollectOldVersions(txdb_);
 	deleteset->GCRMNodes(txdb_);
 	txdb_->RCUTXEnd();
+
 #if PERSISTENT
 	txdb_->WriteUpdateRecords();
 #endif
 
 #if RCUGC
 	txdb_->GC();
+
 	txdb_->DelayRemove();
 #endif
-//#if END_TIME
-//	elapse = t1.lap();
-//	atomic_add64(&other_time, elapse);
-//	atomic_add64(&end_time, t2.lap());
-//#endif
+
 	return true;
 
 ABORT:
@@ -789,11 +769,6 @@ ABORT:
 	txdb_->DelayRemove();
 #endif
 
-//#if END_TIME
-//	elapse = t1.lap();
-//	atomic_add64(&other_time, elapse);
-//	atomic_add64(&end_time, t2.lap());
-//#endif
 	return false;
 }
 
@@ -1219,13 +1194,6 @@ retryA:
 }
 
 void DBTX::Delete(int tableid, uint64_t key) {
-#if NUMA_DUMP
-	if(Numa_current_node()!=Numa_get_node((void*)(txdb_->tables[tableid]))){
-		remote_access[tableid]++;
-	}else{
-		local_access[tableid]++;
-	}
-#endif
 	uint64_t *val;
 	//Logically delete, set the value pointer to be NULL
 	Add(tableid, key, (uint64_t *)LOGICALDELETE);
@@ -1338,8 +1306,8 @@ retry:
 
 	node = txdb_->tables[tableid]->GetWithInsert(key).node;
 	
-	
 	if(node == NULL){
+
 		return false;
 	}
 	
@@ -1371,7 +1339,6 @@ retry:
 		*val = node->value;
 		return true;
 	} else {
-		//printf("validate failure\n");
 		*val = NULL;
 		return false;
 	}

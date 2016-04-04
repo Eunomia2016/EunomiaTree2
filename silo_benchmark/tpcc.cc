@@ -276,8 +276,8 @@ static int g_enable_separate_tree_per_partition = 0;
 static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
-//static unsigned g_txn_workload_mix[] = { 52,48,0,0,0 }; // default TPC-C workload mix
-static unsigned g_txn_workload_mix[] = { 100,0,0,0,0};
+//static unsigned g_txn_workload_mix[] = { 50,46,4,0,0 }; // default TPC-C workload mix
+static unsigned g_txn_workload_mix[] = { 100,0,0,0,0 };
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -2220,8 +2220,8 @@ tpcc_worker::txn_payment(bool first_run) {
 		Op_prof[WARE].gets++;
 #endif
 		elapse = txn_tim.lap();
-		atomic_add64(&payment_txn_time[0],elapse );
-		atomic_add64(&dbtx_time[PAYMENT],elapse);
+		atomic_add64(&payment_txn_time[0], elapse);
+		atomic_add64(&dbtx_time[PAYMENT], elapse);
 #endif
 
 		warehouse::value *v_w = (warehouse::value *)w_value;
@@ -2658,38 +2658,43 @@ tpcc_worker::txn_delivery(bool first_run) {
 #endif
 
 		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
+			//printf("d = %u\n", d);
 			int32_t no_o_id = 1;
 			uint64_t *no_value;
 			int64_t start = makeNewOrderKey(warehouse_id, d, last_no_o_ids[warehouse_id - 1][d - 1]);
 			int64_t end = makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max());
 			int64_t no_key  = -1;
 #if DBTX_TIME
-		txn_tim.lap();
+			txn_tim.lap();
 #endif
+			//printf("start = %ld, end = %ld\n",start,end);
+
 			DBTX::Iterator iter(&tx, NEWO);
+			//printf("Before Tx1\n");
 			iter.Seek(start); //Tx.1 
+			
 			bool valid = iter.Valid();
+			//printf("After Tx1\n");
 #if DBTX_TIME
 #if DBTX_PROF
-
 			Op_prof[NEWO].seeks++;
 #endif
 			atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
-
 			if(valid) {
 				no_key = iter.Key();
+				
 				if(no_key <= end) {
 //			  no_value = iter.Value();
 					no_o_id = static_cast<int32_t>(no_key << 32 >> 32);//lower 32 bits
 #if DBTX_TIME
 					txn_tim.lap();
 #endif
-
+					//printf("Before Tx2\n");
 					tx.Delete(NEWO, no_key);//Tx.2
+					//printf("After Tx2\n");
 #if DBTX_TIME
 #if DBTX_PROF
-
 					Op_prof[NEWO].dels++;
 #endif
 					atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
@@ -2701,7 +2706,9 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 				txn_tim.lap();
 #endif
+				//printf("Before Tx3\n");
 				iter.SeekToFirst();//Tx.3
+				//printf("After Tx3\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2713,6 +2720,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 				printf("Key %ld\n", iter.Key());
 				continue;
 			}
+
 #if 0
 #if SHORTKEY
 			const new_order::key k_no_0(makeNewOrderKey(warehouse_id, d, last_no_o_ids[d - 1]));
@@ -2756,7 +2764,11 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
+			//printf("Before Tx4\n");
 			bool found = tx.Get(ORDE, o_key, &o_value);//Tx.4
+			//printf("After Tx4 found = %s\n", found?"true":"false");
+			assert(found);
+			
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2770,7 +2782,9 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
+
 			DBTX::Iterator iter1(&tx, ORLI);
+
 #if DBTX_TIME
 			atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
 #endif
@@ -2778,7 +2792,9 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
+			//printf("Before Tx5\n");
 			iter1.Seek(start);//Tx.5
+			//printf("After Tx5\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2789,9 +2805,22 @@ tpcc_worker::txn_delivery(bool first_run) {
 
 			end = makeOrderLineKey(warehouse_id, d, no_o_id, 15);
 
-			while(iter1.Valid()) {
+			while(true) {
+				//printf("Before valid\n");
+				if(!iter.Valid()){
+					//printf("!!!!!Not Valid!!!!!\n");
+					break;
+				}
+				//printf("After valid\n");
+				//printf("before getkey\n");
 				int64_t ol_key = iter1.Key();
-				if(ol_key > end) break;
+				//printf("after getkey. ol_key = %ld. start = %ld. end = %ld\n", ol_key, start,end);
+				
+				if(ol_key > end){ 
+					//printf("ol_key = %ld, end = %ld, break!\n", ol_key, end);
+					break;
+				}
+
 				uint64_t *ol_value = iter1.Value();
 				order_line::value *v_ol = (order_line::value *)ol_value;
 				sum_ol_amount += v_ol->ol_amount;
@@ -2799,9 +2828,10 @@ tpcc_worker::txn_delivery(bool first_run) {
 				v_ol_new.ol_delivery_d = ts;
 #if DBTX_TIME
 				txn_tim.lap();
-				//orli_tim.lap();
 #endif
-				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new));
+				//printf("Before Tx5\n");
+				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new)); //Tx.5
+				//printf("After Tx5\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2809,7 +2839,9 @@ tpcc_worker::txn_delivery(bool first_run) {
 #endif
 				//atomic_add64(&orli_time2, orli_tim.lap());
 #endif
+				//printf("Before Tx6\n");
 				iter1.Next(); //Tx.6
+				//printf("After Tx6\n");
 
 #if DBTX_TIME
 #if DBTX_PROF
@@ -2856,13 +2888,17 @@ tpcc_worker::txn_delivery(bool first_run) {
 			tbl_new_order(warehouse_id)->remove(txn, Encode(str(), *k_no));
 			ret -= 0 /*new_order_c.get_value_size()*/;
 #endif
+			//printf("I must reach here\n");
 			// update oorder
 			oorder::value v_oo_new(*v_oo);
 			v_oo_new.o_carrier_id = o_carrier_id;
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
+			
+			//printf("Before Tx7\n");
 			tx.Add(ORDE, o_key, (uint64_t *)(&v_oo_new), sizeof(v_oo_new)); //Tx.7
+			//printf("After Tx7\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2879,7 +2915,6 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if 0
 			const float ol_total = sum;
 
-
 			// update customer
 #if SHORTKEY
 			const customer::key k_c(makeCustomerKey(warehouse_id, d, c_id));
@@ -2893,7 +2928,9 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
+			//printf("Before Tx8\n");
 			tx.Get(CUST, c_key, &c_value); //Tx.8
+			//printf("After Tx8\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2912,7 +2949,10 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
+			//printf("Before Tx9\n");
+
 			tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new)); //Tx.9
+			//printf("After Tx9\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2934,7 +2974,9 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
+		//printf("Before End\n");
 		bool res = tx.End();
+		//printf("After End\n");
 #if DBTX_TIME
 		
 		atomic_add64(&dbtx_time[DELIVERY],txn_tim.lap());
@@ -3681,10 +3723,11 @@ public:
 #if 1
 		//printf("AddTable\n");
 		for(int i = 0; i < 9; i++)
-			if(i == CUST) store->AddTable(i, ALEX_BTREE, SBTREE);
-			else if(i == ORDE) store->AddTable(i, ALEX_BTREE, IBTREE);
-			else if(i == ORLI) store->AddTable(i, ALEX_BTREE, NONE);
-			else store->AddTable(i, ALEX_BTREE, NONE);
+			if(i == CUST) store->AddTable(i, EUNO_BTREE, SBTREE);
+			else if(i == ORDE) store->AddTable(i, EUNO_BTREE, IBTREE);
+			else if(i == ORLI) store->AddTable(i, EUNO_BTREE, NONE);
+			else if(i == NEWO) store->AddTable(i, BTREE, NONE);
+			else store->AddTable(i, EUNO_BTREE, NONE);
 
 #else
 		for(int i = 0; i < 9; i++)

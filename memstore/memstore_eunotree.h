@@ -3,8 +3,8 @@ Author: wangxinalex
 Email: wangxinalex@gmail.com
 Date: 2016/03/20
 */
-#ifndef MEMSTOREALEXTREE_H
-#define MEMSTOREALEXTREE_H
+#ifndef MEMSTOREEUNOTREE_H
+#define MEMSTOREEUNOTREE_H
 
 #include <stdlib.h>
 #include <iostream>
@@ -108,7 +108,7 @@ static uint32_t table_id = 0;
 //const int SEG_LENS[] = {4,4,4,3};
 #define CACHE_LINE_SIZE 64
 
-class MemstoreAlexTree: public Memstore {
+class MemstoreEunoTree: public Memstore {
 //Test purpose
 public:
 
@@ -244,7 +244,7 @@ public:
 		// Initialize an iterator over the specified list.
 		// The returned iterator is not valid.
 		Iterator() {};
-		Iterator(MemstoreAlexTree* tree);
+		Iterator(MemstoreEunoTree* tree);
 
 		// Returns true iff the iterator is positioned at a valid node.
 		bool Valid();
@@ -281,7 +281,7 @@ public:
 		uint64_t GetLinkTarget();
 
 	private:
-		MemstoreAlexTree* tree_;
+		MemstoreEunoTree* tree_;
 		LeafNode* node_;
 		uint64_t seq_;
 		int leaf_index;
@@ -294,7 +294,7 @@ public:
 	};
 
 public:
-	MemstoreAlexTree() {
+	MemstoreEunoTree() {
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
 		assert(0);
@@ -315,7 +315,7 @@ public:
 					rindex[i] = 0;
 				}*/
 	}
-	MemstoreAlexTree(int _tableid) {
+	MemstoreEunoTree(int _tableid) {
 		//printf("sizeof(Leaf_Seg) = %u\n", sizeof(Leaf_Seg));
 		//printf("sizeof(LeafNode) = %u\n", sizeof(LeafNode));
 		//printf("sizeof(InnerNode) = %u\n", sizeof(InnerNode));
@@ -351,9 +351,9 @@ public:
 
 	}
 
-	~MemstoreAlexTree() {
-		//printf("[Alex]~MemstoreAlexTree tableid = %d\n", tableid);
-		//printf("[Alex]~MemstoreAlexTree\n");
+	~MemstoreEunoTree() {
+		//printf("[Alex]~MemstoreEunoTree tableid = %d\n", tableid);
+		//printf("[Alex]~MemstoreEunoTree\n");
 		//prof.reportAbortStatus();
 		//delprof.reportAbortStatus();
 		//PrintList();
@@ -446,8 +446,13 @@ public:
 			while((index < inner->num_keys) && (key >= inner->keys[index])) {
 				++index;
 			}
+			//dump_inner(inner);
+			//printf("key = %lu, index = %u\n",key, index);
 			node = inner->children[index];
+			
 		}
+		//printf("LeafNode = \n");
+		//dump_leaf(reinterpret_cast<LeafNode*>(node));
 		return reinterpret_cast<LeafNode*>(node);
 	}
 
@@ -972,6 +977,8 @@ TOP_RETRY:
 		register unsigned d;
 		//RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 
+
+
 		node = root;
 		index = 0;
 		d = depth;
@@ -1019,7 +1026,24 @@ TOP_RETRY:
 		}
 		return false;
 	}
-		
+
+	inline bool LeafContains(LeafNode* leaf, uint64_t target_key){
+		for(int i = 0; i < SEGS; i++){
+			for(int j = 0; j < leaf->leaf_segs[i].key_num; j++){
+				if(leaf->leaf_segs[i].kvs[j].key == target_key){
+					return true;
+				}
+			}
+		}
+		for(int i = 0; i < LEAF_NUM; i++){
+			if(leaf->kvs[i].key == target_key){
+				return true;
+			}
+		}
+
+		return false;
+	}
+	
 	inline void ScopeInsert(LeafNode* leaf, uint64_t key, MemNode** val, bool insert_only, int temp_depth){
 		//printf("Leaf = %x, ScopeInsert begins\n", leaf);
 		assert(depth >= 5);
@@ -1049,6 +1073,7 @@ TOP_RETRY:
 				return ;
 			} 
 		}
+		
 		//no need to find duplicate twice
 		new_leaf = ShuffleLeafInsert(key, leaf, val, &leaf_upKey, true);//leaf_upKey is the key that should be inserted into the parent InnerNode
 		
@@ -1121,7 +1146,6 @@ TOP_RETRY:
 					//upkey should be the delimiter of the old/new node in their common parent
 					uint64_t new_upKey = insert_inner->keys[threshold - 1]; //the largest key of the old innernode
 				
-
 					//the new leaf node could be the child of old/new inner node
 					if(leaf_upKey >= new_upKey) {
 						toInsert = new_sibling;//should insert at the new innernode
@@ -1378,23 +1402,26 @@ TOP_RETRY:
 			//printf("leaf->signature = %lu\n",reinterpret_cast<LeafNode*>(child)->signature);
 			uint64_t temp_upKey;
 			LeafNode *new_leaf = ShuffleLeafInsert(key, reinterpret_cast<LeafNode*>(child), val, &temp_upKey, false);
+					
 			if(new_leaf != NULL) {	//if a new leaf node is created
 				//new_leaf_num++;
 				InnerNode *toInsert = inner;
 				//the inner node is full -> split it
 				if(inner->num_keys == N) {
+
 					new_sibling = new_inner_node();
 					
 					new_sibling->parent = inner->parent;
 
 					if(new_leaf->leaf_segs[0].max_room == EMP_LEN) { //the new LeafNode is at rightmost
-						
+
 						new_sibling->num_keys = 0;
 						upKey = temp_upKey;
 						
 						toInsert = new_sibling;
 						k = -1;
 					} else {
+
 						unsigned threshold = (N + 1) / 2;
 						//num_keys(new inner node) = num_keys(old inner node) - threshold
 						new_sibling->num_keys = inner->num_keys - threshold;
@@ -1411,7 +1438,9 @@ TOP_RETRY:
 						//the num_key of the original node should be below the threshold
 						inner->num_keys = threshold - 1;
 						//upkey should be the delimiter of the old/new node in their common parent
+
 						upKey = inner->keys[threshold - 1];
+						
 						//the new leaf node could be the child of old/new inner node
 						if(temp_upKey >= upKey) {
 							toInsert = new_sibling;
@@ -1419,6 +1448,7 @@ TOP_RETRY:
 							if(k >= threshold) k = k - threshold;
 							else k = 0;
 						}
+
 					}
 //					inner->keys[N-1] = upKey;
 					new_sibling->keys[N - 1] = upKey; //???
@@ -1432,11 +1462,11 @@ TOP_RETRY:
 						toInsert->children[i + 1] = toInsert->children[i];
 					}
 					toInsert->num_keys++; //add a new key
-					toInsert->keys[k] = new_leaf->kvs[0].key;
+					//toInsert->keys[k] = new_leaf->kvs[0].key;
+					toInsert->keys[k] = temp_upKey; //subtle bugs
 				}
 
 				toInsert->children[k + 1] = new_leaf;
-				
 				new_leaf->parent = toInsert;
 
 //				inner->writes++;
@@ -1651,9 +1681,10 @@ TOP_RETRY:
 			}
 		}
 	}
+	
 	void dump_inner(InnerNode* inner){
-		for(int i =0 ; i < N; i++){
-			printf("inner->keys[%d] = %lu\n",i, inner->keys[i]);
+		for(int i =0 ; i < inner->num_keys; i++){
+			printf("inner->keys[%d] = %lu\n", i, inner->keys[i]);
 		}
 	}
 
@@ -1680,6 +1711,8 @@ TOP_RETRY:
 	inline void ReorganizeLeafNode(LeafNode* leaf){
 		if(leaf->reserved == NULL){
 			leaf->reserved = (KeyValue*)calloc(LEAF_NUM, sizeof(KeyValue));
+		}else{
+			memset(leaf->reserved,0,sizeof(KeyValue)*LEAF_NUM);
 		}
 		int initial = 0;
 		if(leaf->leaf_segs[0].max_room == HAL_LEN){
@@ -1690,20 +1723,31 @@ TOP_RETRY:
 		}
 		
 		int key_num = initial;
-		for(int i = 0 ; i <SEGS; i++){
+		int temp = 0;
+		for(int i = 0 ; i < SEGS; i++){
 			key_num += leaf->leaf_segs[i].key_num;
 			for(int j = 0; j < leaf->leaf_segs[i].key_num; j++){
-				leaf->reserved[initial + i * SEGS + j] = leaf->leaf_segs[i].kvs[j];
+				leaf->reserved[initial + temp] = leaf->leaf_segs[i].kvs[j];
+				temp++;
 			}
 		}
 		std::sort(leaf->reserved, leaf->reserved + key_num, KVCompare);
 		leaf->num_keys = key_num;
 	}
+
+	inline void dump_reserved(LeafNode* leaf){
+		printf("reserved[%x] = [", leaf);
+		for(int i = 0; i < leaf->num_keys; i++){
+			printf("%lu, ", leaf->reserved[i].key);
+		}
+		printf("]\n");
+	}
 	
 	//upKey should be the least key of the new LeafNode
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, uint64_t* upKey, bool insert_only) {
+
 		/*
-		if(tableid==1&&key==204){
+		if(tableid==5 && key==47244643257){
 			printf("I want to insert key = %lu, insert_only = %s\n",key,insert_only?"true":"false");
 			dump_leaf(leaf);
 		}
@@ -1799,6 +1843,7 @@ TOP_RETRY:
 				leaf_splits++;
 #endif
 
+
 				/*
 				if(tableid==1&&key==203){
 					printf("split\n");
@@ -1864,8 +1909,12 @@ TOP_RETRY:
 					toInsert->leaf_segs[0].kvs[0].key = key;
 					toInsert->kvs[0].key = key; //keys[0] should be set here
 					*upKey = key; //the sole new key should be the upkey
+
+
+
 				} else { //not at rightmost
 					//leaf_not_rightmost++;
+
 
 					unsigned threshold = (LEAF_NUM + 1) / 2; //8
 				//new_sibling->num_keys = leaf->num_keys - threshold;
@@ -1904,6 +1953,9 @@ TOP_RETRY:
 					}else{
 						*upKey = new_sibling->kvs[0].key;
 					}
+
+
+					
 				}
 				//inserting the newsibling at the right of the old leaf node
 				if(leaf->right != NULL) {
@@ -1926,7 +1978,8 @@ TOP_RETRY:
 
 				assert(*val != NULL);
 				dummyval_ = NULL;
-				
+
+
 				//*target_leaf = toInsert;
 			}
 		}
@@ -2054,7 +2107,7 @@ TOP_RETRY:
 	}
 
 	Memstore::Iterator* GetIterator() {
-		return new MemstoreAlexTree::Iterator(this);
+		return new MemstoreEunoTree::Iterator(this);
 	}
 	void printLeaf(LeafNode *n);
 	void printInner(InnerNode *n, unsigned depth);
@@ -2345,7 +2398,7 @@ public:
 
 
 
-//__thread RTMArena* MemstoreAlexTree::arena_ = NULL;
-//__thread bool MemstoreAlexTree::localinit_ = false;
+//__thread RTMArena* MemstoreEunoTree::arena_ = NULL;
+//__thread bool MemstoreEunoTree::localinit_ = false;
 }
 #endif
