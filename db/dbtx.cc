@@ -1196,6 +1196,7 @@ retryA:
 void DBTX::Delete(int tableid, uint64_t key) {
 	uint64_t *val;
 	//Logically delete, set the value pointer to be NULL
+
 	Add(tableid, key, (uint64_t *)LOGICALDELETE);
 }
 
@@ -1305,9 +1306,8 @@ retry:
 	Memstore::InsertResult res;
 
 	node = txdb_->tables[tableid]->GetWithInsert(key).node;
-	
-	if(node == NULL){
 
+	if(node == NULL){
 		return false;
 	}
 	
@@ -1331,7 +1331,6 @@ retry:
 		}
 		readset->Add(&node->seq, label);
 	}
-
 
 	//if this node has been removed from the memstore
 	//printf("node->value = %x\n", node->value);

@@ -64,7 +64,8 @@ using namespace util;
 
 enum TPCC_TYPE{NEW_ORDER = 0, PAYMENT, DELIVERY, ORDER_STATUS, STOCK_LEVEL};
 
-//enum NEWO_TXNS{};
+#define red_cerr cerr << "\e[41m"
+#define red_endl "\e[0m"<<endl
 
 #if 0
 #define TPCC_TABLE_LIST(x) \
@@ -276,8 +277,8 @@ static int g_enable_separate_tree_per_partition = 0;
 static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
-//static unsigned g_txn_workload_mix[] = { 50,46,4,0,0 }; // default TPC-C workload mix
-static unsigned g_txn_workload_mix[] = { 100,0,0,0,0 };
+static unsigned g_txn_workload_mix[] = { 45,43,4,4,4 }; // default TPC-C workload mix
+//static unsigned g_txn_workload_mix[] = { 100,0,0,0,0 };
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -665,7 +666,7 @@ public:
 		tx(store),
 		rotx(store) {
 
-		last_order_line_id_list = (uint64_t*)calloc(warehouse_id_end-warehouse_id_start, sizeof(uint64_t));
+		last_order_line_id_list = (uint64_t*)calloc(warehouse_id_end - warehouse_id_start, sizeof(uint64_t));
 		
 		for(int i = 0; i < TABLE_NUM; i++){
 			Op_prof[i]={0,0,0,0,0,0,0,0,0,0};
@@ -1756,7 +1757,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 		//printf("d_key = %lu, warehouse_id = %u, districtID = %u\n", d_key, warehouse_id, districtID);
 
 		uint64_t *d_value;
-//	slstart = rdtsc();
+		//slstart = rdtsc();
 #if DBTX_TIME
 		txn_tim.lap();
 #endif
@@ -1783,7 +1784,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 		atomic_add64(&dbtx_time[NEW_ORDER],elapse);
 #endif
 		//memcpy(dummy, d_value, sizeof(district::value));
-//	secs += (rdtsc() - slstart);
+		//secs += (rdtsc() - slstart);
 		assert(found); //should be removed for new interface
 		district::value *v_d = (district::value *)d_value;
 
@@ -1804,7 +1805,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #else
 		const uint64_t my_next_o_id = g_new_order_fast_id_gen ? FastNewOrderIdGen(warehouse_id, districtID) : v_d->d_next_o_id;
 #endif
-		//printf("[%2d] district_id = %d, first_run = %d, oid %ld\n",sched_getcpu(),districtID, first_run, my_next_o_id);
+		//printf("[%2d] district_id = %d, first_run = %d, oid %ld\n", sched_getcpu(), districtID, first_run, my_next_o_id);
 #if 0
 #if SHORTKEY
 		const new_order::key k_no(makeNewOrderKey(warehouse_id, districtID, my_next_o_id));
@@ -1942,7 +1943,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 		#if DBTX_TIME
 			txn_tim.lap();
 		#endif
-			tx.Add(ORDER_INDEX, o_sec, prikeys, (num + 2) * 8);//Tx.8
+			tx.Add(ORDER_INDEX, o_sec, prikeys, (num + 2) * 8);//Tx.8 [mutually exclusive with Tx.9]
 		#if DBTX_TIME
 			#if DBTX_PROF
 			Op_prof[ORDER_INDEX].adds++;
@@ -1960,7 +1961,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 		#if DBTX_TIME
 			txn_tim.lap();
 		#endif
-			tx.Add(ORDER_INDEX, o_sec, array_dummy, 16);//Tx.9
+			tx.Add(ORDER_INDEX, o_sec, array_dummy, 16);//Tx.9 [mutually exclusive with Tx.8]
 		#if DBTX_TIME
 			#if DBTX_PROF
 			Op_prof[ORDER_INDEX].adds++;
@@ -2401,7 +2402,7 @@ tpcc_worker::txn_payment(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			tx.Get(CUST, c_key, &c_value,9);//Tx.7
+			tx.Get(CUST, c_key, &c_value,9);//Tx.7 (mutually exclusive with Tx.8)
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2683,7 +2684,6 @@ tpcc_worker::txn_delivery(bool first_run) {
 #endif
 			if(valid) {
 				no_key = iter.Key();
-				
 				if(no_key <= end) {
 //			  no_value = iter.Value();
 					no_o_id = static_cast<int32_t>(no_key << 32 >> 32);//lower 32 bits
@@ -2765,10 +2765,11 @@ tpcc_worker::txn_delivery(bool first_run) {
 			txn_tim.lap();
 #endif
 			//printf("Before Tx4\n");
-			bool found = tx.Get(ORDE, o_key, &o_value);//Tx.4
-			//printf("After Tx4 found = %s\n", found?"true":"false");
-			assert(found);
-			
+			bool found = tx.Get(ORDE, o_key, &o_value); //Tx.4
+			//printf("After Tx4 found = %s\n", found ? "true":"false");
+			if(!found){
+				return txn_result(false, 0);
+			}
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2808,7 +2809,6 @@ tpcc_worker::txn_delivery(bool first_run) {
 			while(true) {
 				//printf("Before valid\n");
 				if(!iter.Valid()){
-					//printf("!!!!!Not Valid!!!!!\n");
 					break;
 				}
 				//printf("After valid\n");
@@ -3867,8 +3867,6 @@ protected:
 					r.next(), db,
 					&barrier_a, &barrier_b, wstart + 1, wend + 1, store));
 		}
-
-
 #endif
 		return ret;
 	}
@@ -3937,7 +3935,13 @@ tpcc_do_test(int argc, char **argv) {
 		cerr << "WARNING: --new-order-remote-item-pct given with --disable-cross-partition-transactions" << endl;
 		cerr << "  --new-order-remote-item-pct will have no effect" << endl;
 	}
-
+	
+#ifdef CHECK_INVARIANTS
+	red_cerr << "[DEBUG MODE] CHECK_INVARIANTS ON" << red_endl;
+#endif
+#ifndef NDEBUG
+	red_cerr << "[DEBUG MODE] ASSERT ON" << red_endl;
+#endif
 	if(verbose) {
 		cerr << "tpcc settings:" << endl;
 		cerr << "  cross_partition_transactions : " << !g_disable_xpartition_txn << endl;

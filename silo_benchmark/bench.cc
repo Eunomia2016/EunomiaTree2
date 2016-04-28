@@ -22,6 +22,7 @@
 #define blue_cerr cerr << "\e[44m"
 #define blue_endl "\e[0m"<<endl
 
+
 #ifdef USE_JEMALLOC
 //cannot include this header b/c conflicts with malloc.h
 //#include <jemalloc/jemalloc.h>
@@ -192,21 +193,23 @@ bench_worker::run() {
 			double d = r.next_uniform();
 			for(size_t i = 0; i < workload.size(); i++) {
 				if((i + 1) == workload.size() || d < workload[i].frequency) {
+					unsigned workload_index = i;
+					if(i > 2){ workload_index = 0;}
 					bool first_run = true;
 retry:
 					const unsigned long old_seed = r.get_seed();
 					//timer t;
 					//clock_gettime(CLOCK_MONOTONIC, &begin);
-					const txn_result ret = workload[i].fn(this, first_run); //execute the transaction
+					const txn_result ret = workload[workload_index].fn(this, first_run); //execute the transaction
 					//atomic_add64(&txn_times[i], t.lap());
 					//clock_gettime(CLOCK_MONOTONIC, &end);
 					//txn_span += get_nanoseconds(begin, end);
 					if(likely(ret.first)) { //whether this txn commits successfully
-						++ntxn_commits[i]; 
+						++ntxn_commits[workload_index]; 
 						//latency_numer_us += t.lap();
 						backoff_shifts >>= 1;
 					} else { //this txn aborts
-						++ntxn_aborts[i];
+						++ntxn_aborts[workload_index];
 						if(retry_aborted_transaction && running) {
 							if(backoff_aborted_transaction) {
 								if(backoff_shifts < 63)
@@ -225,7 +228,7 @@ retry:
 						}
 					}
 					size_delta += ret.second; // should be zero on abort
-					txn_counts[i]++; // txn_counts aren't used to compute throughput (is
+					txn_counts[workload_index]++; // txn_counts aren't used to compute throughput (is
 					// just an informative number to print to the console
 					// in verbose mode)
 					break;
@@ -434,7 +437,7 @@ bench_runner::run() {
 		cerr << "logical memory delta: " << size_delta_mb << " MB" << endl;
 		cerr << "logical memory delta rate: " << (size_delta_mb / elapsed_sec) << " MB/sec" << endl;
 		blue_cerr << "agg_nosync_mixed_throughput: " << agg_nosync_throughput << " ops/sec" << blue_endl;
-		blue_cerr << "agg_nosync_new_order_throughput: " << agg_new_order_throughput << " ops/sec" << blue_endl;
+		cerr << "agg_nosync_new_order_throughput: " << agg_new_order_throughput << " ops/sec" << endl;
 		cerr << "avg_nosync_per_core_throughput: " << avg_nosync_per_core_throughput << " ops/sec/core" << endl;
 //    cerr << "agg_throughput: " << agg_throughput << " ops/sec" << endl;
 //    cerr << "avg_per_core_throughput: " << avg_per_core_throughput << " ops/sec/core" << endl;
@@ -454,7 +457,6 @@ bench_runner::run() {
 		blue_cerr << "total_commit_num: " << n_commits << blue_endl;
 		const double agg_abort_rate = double(totalabort) / elapsed_sec;
 		cerr << "agg_abort_rate: " << agg_abort_rate << " aborts/sec" << endl;
-
 //    cerr << "avg_per_core_abort_rate: " << avg_per_core_abort_rate << " aborts/sec/core" << endl;
 		cerr << "txn breakdown: " << format_list(agg_txn_counts.begin(), agg_txn_counts.end()) << endl;
 #if 0

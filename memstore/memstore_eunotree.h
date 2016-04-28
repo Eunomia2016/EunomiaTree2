@@ -977,8 +977,6 @@ TOP_RETRY:
 		register unsigned d;
 		//RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 
-
-
 		node = root;
 		index = 0;
 		d = depth;
@@ -1052,14 +1050,6 @@ TOP_RETRY:
 		unsigned index;
 		InnerNode* temp_inner;
 
-/*
-		if(old_seqno!=inner->seq){
-			*val = dummyval_;
-			dummyval_=NULL;
-			return;
-		}
-*/
-		
 		//printf("leaf->signature = %lu\n", leaf->signature);
 		//Ok here
 		LeafNode* new_leaf = NULL;
@@ -1093,26 +1083,6 @@ TOP_RETRY:
 			//uint64_t leaf_upKey = 0;
 
 			uint64_t inner_upKey = 0;
-			/*
-			if(InnerContains(insert_inner, 2250047149L)){
-				printf("\n");
-				for(int i = 0; i < insert_inner->num_keys; i++){
-					printf("insert_inner = %x, insert_inner->num_keys = %u, insert_inner->keys[%d] = %lu\n",
-						insert_inner, insert_inner->num_keys, i, insert_inner->keys[i]);
-				}
-				InnerNode* parent = insert_inner->parent;
-				for(int i = 0; i < parent->num_keys; i++){
-					printf("parent = %x, parent->num_keys = %u, parent->keys[%d] = %lu\n",
-						parent, parent->num_keys, i, parent->keys[i]);
-				}
-				for(int i = 0 ; i < parent->num_keys +1; i ++){
-					InnerNode* child = reinterpret_cast<InnerNode*>(parent->children[i]);
-					if(child==insert_inner){
-						printf("index = %d\n", i);
-					}
-				}
-			}
-			*/
 			//the inner node is full -> split it
 			if(insert_inner->num_keys == N) {
 
@@ -1130,7 +1100,7 @@ TOP_RETRY:
 				} else {
 					unsigned threshold = (N + 1) / 2; //8
 					//num_keys(new inner node) = num_keys(old inner node) - threshold
-					new_sibling->num_keys = insert_inner->num_keys - threshold;//=>7
+					new_sibling->num_keys = insert_inner->num_keys - threshold; //=>7
 					//moving the excessive keys to the new inner node
 					for(unsigned i = 0; i < new_sibling->num_keys; ++i) {
 						new_sibling->keys[i] = insert_inner->keys[threshold + i];
@@ -1142,7 +1112,7 @@ TOP_RETRY:
 					new_sibling->children[new_sibling->num_keys] = insert_inner->children[insert_inner->num_keys];
 					reinterpret_cast<LeafNode*>(insert_inner->children[insert_inner->num_keys])->parent = new_sibling;
 					//the num_key of the original node should be below the threshold
-					insert_inner->num_keys = threshold - 1;//=>7
+					insert_inner->num_keys = threshold - 1; //=>7
 					//upkey should be the delimiter of the old/new node in their common parent
 					uint64_t new_upKey = insert_inner->keys[threshold - 1]; //the largest key of the old innernode
 				
@@ -1371,31 +1341,9 @@ TOP_RETRY:
 		while((k < inner->num_keys) && (key >= inner->keys[k])) {
 			k++;
 		}
-		/*
-		if(tableid==1&&key==203){
-			printf("innernode\n");
-			dump_inner(inner);
-			for(int i = 0; i <= inner->num_keys; i++){
-				printf("leafnode[%d]\n", i);
-				dump_leaf(reinterpret_cast<LeafNode*>(inner->children[i]));
-			}
-			printf("k = %u\n",k);
-			printf("depth = %d\n",d);
-		}
-		*/
-		/*
-		if(tableid == 0){
-			dump_inner(inner);
-			printf("key = %lu, k = %u\n",key,k);
-		}
-		*/
+
 		void *child = inner->children[k]; //search the descendent layer
-		/*
-		if(tableid==0&&key==17){
-			printf("child\n");
-			dump_leaf(reinterpret_cast<LeafNode*>(child));
-		}
-		*/
+
 		//inserting at the lowest inner level
 		if(d == 1) {
 			//*target_inner = inner;
@@ -1543,7 +1491,6 @@ TOP_RETRY:
 					}
 					toInsert->num_keys++;
 					toInsert->keys[k] = child_sibling->keys[N - 1]; //??
-
 
 					/*
 					bool illegal = false;
@@ -1746,12 +1693,6 @@ TOP_RETRY:
 	//upKey should be the least key of the new LeafNode
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, uint64_t* upKey, bool insert_only) {
 
-		/*
-		if(tableid==5 && key==47244643257){
-			printf("I want to insert key = %lu, insert_only = %s\n",key,insert_only?"true":"false");
-			dump_leaf(leaf);
-		}
-		*/
 #if DUP_PROF
 		leaf_inserts++;
 #endif
@@ -1774,8 +1715,6 @@ TOP_RETRY:
 		if(!insert_only){
 			bool found = FindDuplicate(leaf, key, val);
 			//dump_leaf(leaf);
-
-			
 			if(found){ //duplicate insertion
 			//printf("duplication found\n");
 #if	DUP_PROF
@@ -1843,13 +1782,6 @@ TOP_RETRY:
 				leaf_splits++;
 #endif
 
-
-				/*
-				if(tableid==1&&key==203){
-					printf("split\n");
-					dump_leaf(leaf);
-				}
-				*/
 				//leaf_splits++;
 				/*
 				ReorganizeLeafNode(leaf);
@@ -1910,11 +1842,8 @@ TOP_RETRY:
 					toInsert->kvs[0].key = key; //keys[0] should be set here
 					*upKey = key; //the sole new key should be the upkey
 
-
-
 				} else { //not at rightmost
 					//leaf_not_rightmost++;
-
 
 					unsigned threshold = (LEAF_NUM + 1) / 2; //8
 				//new_sibling->num_keys = leaf->num_keys - threshold;
@@ -1954,8 +1883,6 @@ TOP_RETRY:
 						*upKey = new_sibling->kvs[0].key;
 					}
 
-
-					
 				}
 				//inserting the newsibling at the right of the old leaf node
 				if(leaf->right != NULL) {
