@@ -1765,7 +1765,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 
 #if NEW_INTERFACE
 		if(first_run){
-			found = tx.Atomic_Fetch(DIST, d_key, &d_value, &next_order_line_id); //Tx.3
+			found = tx.Atomic_Fetch(DIST, d_key, &d_value, &next_order_line_id); //Tx.3 (atomic fetch version)
 			last_order_line_id_list[warehouse_id - warehouse_id_start] = next_order_line_id;
 		}else{
 			next_order_line_id = last_order_line_id_list[warehouse_id - warehouse_id_start];
@@ -2285,7 +2285,7 @@ tpcc_worker::txn_payment(bool first_run) {
 		checker::SanityCheckDistrict(&k_d, v_d);
 #endif
 		district::value v_d_new(*v_d);
-		v_d_new.d_ytd += paymentAmount;
+		v_d_new.d_ytd += paymentAmount; //source of true conflict
 
 #if DBTX_TIME
 		txn_tim.lap();
@@ -2460,7 +2460,7 @@ tpcc_worker::txn_payment(bool first_run) {
 #endif
 		} else {
 			// cust by ID
-			const uint customerID = GetCustomerId(r);
+			const uint customerID = GetCustomerId(r); //random number in [1,3000]
 			c_key = makeCustomerKey(customerWarehouseID, customerDistrictID, customerID);
 			uint64_t *c_value;
 
@@ -2595,7 +2595,6 @@ tpcc_worker::txn_payment(bool first_run) {
 #endif
 
 		// ret += history_sz;
-
 #if 0
 		measure_txn_counters(txn, "txn_payment");
 		if(likely(db->commit_txn(txn)))
@@ -2671,11 +2670,11 @@ tpcc_worker::txn_delivery(bool first_run) {
 			//printf("start = %ld, end = %ld\n",start,end);
 
 			DBTX::Iterator iter(&tx, NEWO);
-			//printf("Before Tx1\n");
+
 			iter.Seek(start); //Tx.1 
 			
 			bool valid = iter.Valid();
-			//printf("After Tx1\n");
+
 #if DBTX_TIME
 #if DBTX_PROF
 			Op_prof[NEWO].seeks++;
@@ -2829,9 +2828,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 				txn_tim.lap();
 #endif
-				//printf("Before Tx5\n");
-				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new)); //Tx.5
-				//printf("After Tx5\n");
+				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new)); //Tx.6
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2839,9 +2836,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 #endif
 				//atomic_add64(&orli_time2, orli_tim.lap());
 #endif
-				//printf("Before Tx6\n");
-				iter1.Next(); //Tx.6
-				//printf("After Tx6\n");
+				iter1.Next(); //Tx.7
 
 #if DBTX_TIME
 #if DBTX_PROF
@@ -2896,9 +2891,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 			txn_tim.lap();
 #endif
 			
-			//printf("Before Tx7\n");
-			tx.Add(ORDE, o_key, (uint64_t *)(&v_oo_new), sizeof(v_oo_new)); //Tx.7
-			//printf("After Tx7\n");
+			tx.Add(ORDE, o_key, (uint64_t *)(&v_oo_new), sizeof(v_oo_new)); //Tx.8
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2928,9 +2921,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			//printf("Before Tx8\n");
-			tx.Get(CUST, c_key, &c_value); //Tx.8
-			//printf("After Tx8\n");
+			tx.Get(CUST, c_key, &c_value); //Tx.9
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2949,10 +2940,8 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			//printf("Before Tx9\n");
 
-			tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new)); //Tx.9
-			//printf("After Tx9\n");
+			tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new)); //Tx.10
 #if DBTX_TIME
 #if DBTX_PROF
 
@@ -2964,7 +2953,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 #if 0
 			tbl_customer(warehouse_id)->put(txn, Encode(str(), k_c), Encode(str(), v_c_new));
 #endif
-		}
+		}//Loop End
 #if 0
 		measure_txn_counters(txn, "txn_delivery");
 		if(likely(db->commit_txn(txn)))
@@ -3053,7 +3042,7 @@ tpcc_worker::txn_order_status(bool first_run) {
 	#if SLDBTX
 			DBTX::Iterator citer(&rotx, CUST_INDEX);
 	#else
-			DBROTX::Iterator citer(&rotx, CUST_INDEX);
+			DBROTX::Iterator citer(&rotx, CUST_INDEX); //executed
 	#endif
 #endif
 #if DBTX_TIME
@@ -3134,7 +3123,6 @@ tpcc_worker::txn_order_status(bool first_run) {
 			rotx.Get(CUST, c_key, &c_value);//Tx.3
 	#if DBTX_TIME
 		#if DBTX_PROF
-
 			Op_prof[CUST].rogets++;
 		#endif
 			atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
@@ -3260,7 +3248,7 @@ tpcc_worker::txn_order_status(bool first_run) {
 	#if SLDBTX
 		DBTX::Iterator iter(&rotx, ORDER_INDEX);
 	#else
-		DBROTX::Iterator iter(&rotx, ORDER_INDEX);
+		DBROTX::Iterator iter(&rotx, ORDER_INDEX); //executed
 	#endif
 #endif
 
@@ -3292,38 +3280,39 @@ tpcc_worker::txn_order_status(bool first_run) {
 		//printf("okey %lx %d %d %lx\n", iter.Key(),warehouse_id, districtID, static_cast<int32_t>(c_key << 32 >> 32) );
 		if(iter.Valid() && iter.Key() >= end) {
 #if USESECONDINDEX
-#if SLDBTX
+	#if SLDBTX
 			DBTX::KeyValues *kvs = iter.Value();
-#else
+	#else
 			DBROTX::KeyValues *kvs = iter.Value();
-#endif
+	#endif
 			o_id = static_cast<int32_t>(kvs->keys[0] << 32 >> 32);
 			uint64_t *o_value = kvs->values[0];
 #else
+			//executed
 			//std::vector<uint64_t> *prikeys = (std::vector<uint64_t> *)(iter.Value());
-#if DBTX_TIME
+	#if DBTX_TIME
 			txn_tim.lap();
-#endif
+	#endif
 
 			uint64_t *prikeys = iter.Value();
-#if DBTX_TIME
+	#if DBTX_TIME
 			atomic_add64(&dbtx_time[ORDER_STATUS], txn_tim.lap());
-#endif
+	#endif
 			o_id = static_cast<int32_t>(prikeys[1] << 32 >> 32);
 
 			uint64_t *o_value;
-#if DBTX_TIME
+	#if DBTX_TIME
 			txn_tim.lap();
-#endif
+	#endif
 
 			rotx.Get(ORDE, prikeys[1], &o_value);//Tx.7
-#if DBTX_TIME
-#if DBTX_PROF
+	#if DBTX_TIME
+		#if DBTX_PROF
 
 			Op_prof[ORDE].rogets++;
-#endif
+		#endif
 			atomic_add64(&dbtx_time[ORDER_STATUS],txn_tim.lap());
-#endif
+	#endif
 
 			oorder::value *v_ol = (oorder::value *)o_value;
 			o_ol_cnt = v_ol->o_ol_cnt;

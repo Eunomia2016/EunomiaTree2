@@ -162,6 +162,7 @@ bench_worker::run() {
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(core_id , &mask);
+	this->set_cpu_id(core_id);
 	fprintf(stderr, "[Alex]worker_id = %2d core_id = %2d\n", worker_id, core_id);
 	pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
 #endif
@@ -190,14 +191,17 @@ bench_worker::run() {
 		int64_t oldv = XADD64(&total_ops, -1000);
 		if(oldv <= 0) break;
 		for(int s = 0; s < 1000; s++) {
-			double d = r.next_uniform();
+			//a new transaction begins here
+			double d = r.next_uniform(); //generate a new random seed
 			for(size_t i = 0; i < workload.size(); i++) {
 				if((i + 1) == workload.size() || d < workload[i].frequency) {
 					unsigned workload_index = i;
-					if(i > 2){ workload_index = 0;}
+					// TODO: temporarily skip the last two txn types
+					if(i > 2){ workload_index = 0;} 
 					bool first_run = true;
 retry:
-					const unsigned long old_seed = r.get_seed();
+					//reload the stored seed => the retry transaction is consistent with the aborted one
+					const unsigned long old_seed = r.get_seed(); 
 					//timer t;
 					//clock_gettime(CLOCK_MONOTONIC, &begin);
 					const txn_result ret = workload[workload_index].fn(this, first_run); //execute the transaction
@@ -216,13 +220,13 @@ retry:
 									backoff_shifts++;
 								uint64_t spins = 1UL << backoff_shifts;
 								spins *= 100; // XXX: tuned pretty arbitrarily
-//             evt_avg_abort_spins.offer(spins);
+								//evt_avg_abort_spins.offer(spins);
 								while(spins) {
 									nop_pause();
 									spins--;
 								}
 							}
-							r.set_seed(old_seed);
+							r.set_seed(old_seed); //store the old seed for retry
 							first_run = false;
 							goto retry;
 						}

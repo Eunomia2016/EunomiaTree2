@@ -127,6 +127,8 @@ public:
 	}
  //   txn_obj_buf.resize(db->sizeof_txn_object(txn_flags));
   }
+  void set_cpu_id(int cpuid){cpu_id = cpuid;} 
+  int get_cpu_id(){return cpu_id;} 
 
   virtual ~bench_worker() {
 	
@@ -220,6 +222,7 @@ protected:
   ssize_t size_delta; // how many logical bytes (of values) did the worker add to the DB
 
   std::string txn_obj_buf;
+  int cpu_id;
 //  str_arena arena;
 };
 
