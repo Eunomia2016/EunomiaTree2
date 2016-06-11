@@ -80,7 +80,7 @@
 #define VERBOSE(expr) ((void)0)
 //#define VERBOSE(expr) (expr)
 
-#define CHECK_INVARIANTS
+//#define CHECK_INVARIANTS
 
 #ifdef CHECK_INVARIANTS
   #define INVARIANT(expr) ALWAYS_ASSERT(expr)

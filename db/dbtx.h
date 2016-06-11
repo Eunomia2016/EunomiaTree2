@@ -64,6 +64,7 @@
 
 #define END_TIME 0
 
+#define EUNO_TREE 1
 #define NEW_INTERFACE 1
 
 #define ORLI_BKD 0

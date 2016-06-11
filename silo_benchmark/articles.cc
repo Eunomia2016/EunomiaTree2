@@ -69,7 +69,8 @@ public:
 					   barrier_a, barrier_b),
 		articles_worker_mixin(store),
 		tx(store),
-		rotx(store) {
+		rotx(store)
+	{
 		obj_key0.reserve(2 * CACHELINE_SIZE);
 		obj_key1.reserve(2 * CACHELINE_SIZE);
 		obj_v.reserve(2 * CACHELINE_SIZE);

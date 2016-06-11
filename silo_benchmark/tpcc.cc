@@ -277,8 +277,8 @@ static int g_enable_separate_tree_per_partition = 0;
 static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
-static unsigned g_txn_workload_mix[] = { 45,43,4,4,4 }; // default TPC-C workload mix
-//static unsigned g_txn_workload_mix[] = { 100,0,0,0,0 };
+//static unsigned g_txn_workload_mix[] = { 45,43,4,4,4 }; // default TPC-C workload mix
+static unsigned g_txn_workload_mix[] = { 100,0,0,0,0 };
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -3709,7 +3709,7 @@ public:
 		store->AddTable(STOC, HASH, NONE);
 #else
 
-#if 1
+#if EUNO_TREE
 		//printf("AddTable\n");
 		for(int i = 0; i < 9; i++)
 			if(i == CUST) store->AddTable(i, EUNO_BTREE, SBTREE);
@@ -3720,12 +3720,13 @@ public:
 
 #else
 		for(int i = 0; i < 9; i++)
-			if(i == CUST) {
-				int a = store->AddTable(i, CUCKOO, SBTREE);
-				if(a != CUST_INDEX) printf("Customer index Wrong!\n");
-			} else if(i == ORDE) store->AddTable(i, CUCKOO, IBTREE);
-			else store->AddTable(i, CUCKOO, NONE);
+			if(i == CUST) store->AddTable(i, BTREE, SBTREE);
+			else if(i == ORDE) store->AddTable(i, BTREE, IBTREE);
+			else if(i == ORLI) store->AddTable(i, BTREE, NONE);
+			else if(i == NEWO) store->AddTable(i, BTREE, NONE);
+			else store->AddTable(i, BTREE, NONE);
 #endif
+
 #endif
 
 #if !USESECONDINDEX

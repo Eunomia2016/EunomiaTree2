@@ -87,7 +87,7 @@ main(int argc, char **argv)
       {"retry-aborted-transactions" , no_argument       , &retry_aborted_transaction , 1}   ,
       {"backoff-aborted-transactions" , no_argument     , &backoff_aborted_transaction , 1}   ,
       {"bench"                      , required_argument , 0                          , 'b'} , //benchmark type
-      {"scale-factor"               , required_argument , 0                          , 's'} ,
+      {"scale-factor"               , required_argument , 0                          , 's'} , //num of warehouses in tpcc
       {"num-threads"                , required_argument , 0                          , 't'} ,
       {"db-type"                    , required_argument , 0                          , 'd'} ,
       {"basedir"                    , required_argument , 0                          , 'B'} ,
