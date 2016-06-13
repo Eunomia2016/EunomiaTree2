@@ -28,8 +28,6 @@ Date: 2016/03/20
 //#define SEG_LEN 7
 //#define LEAF_NUM (SEG_NUM*SEG_LEN)
 
-#define LEAF_NUM 16
-
 #define BTREE_PROF 0
 #define BTREE_LOCK 0
 #define BTPREFETCH 0
@@ -58,10 +56,12 @@ Date: 2016/03/20
 #define SHUFFLE_INSERT 1
 #define UNSORTED_INSERT 0
 
-#define SEGS 4
-#define SEG_LEN 4
-#define EMP_LEN  4
-#define HAL_LEN  2
+#define SEGS 2
+//#define SEG_LEN 4
+#define EMP_LEN  8
+#define HAL_LEN  (EMP_LEN/2)
+
+#define LEAF_NUM (SEGS*EMP_LEN)
 
 #define ADAPTIVE_LOCK 1
 #define BM_QUERY 1
@@ -1183,7 +1183,6 @@ TOP_RETRY: {
 								}
 				*/
 				k = 0;
-
 				while((k < insert_inner->num_keys) && (key >= insert_inner->keys[k])) {
 					k++;
 				}
@@ -1691,7 +1690,6 @@ TOP_RETRY: {
 
 	//upKey should be the least key of the new LeafNode
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, uint64_t* upKey, bool insert_only) {
-
 #if DUP_PROF
 		leaf_inserts++;
 #endif
@@ -1712,7 +1710,7 @@ TOP_RETRY: {
 		}
 
 		if(!insert_only) {
-			bool found = FindDuplicate(leaf, key, val);
+			bool found = FindDuplicate(leaf, key, val); //if found, val is already set to the retrieved value
 			//dump_leaf(leaf);
 			if(found) { //duplicate insertion
 				//printf("duplication found\n");
@@ -1781,7 +1779,6 @@ TOP_RETRY: {
 				leaf_splits++;
 #endif
 
-				//leaf_splits++;
 				/*
 				ReorganizeLeafNode(leaf);
 				for(int i = 0; i < leaf->num_keys;i++){
@@ -1842,8 +1839,6 @@ TOP_RETRY: {
 					*upKey = key; //the sole new key should be the upkey
 
 				} else { //not at rightmost
-					//leaf_not_rightmost++;
-
 					unsigned threshold = (LEAF_NUM + 1) / 2; //8
 					//new_sibling->num_keys = leaf->num_keys - threshold;
 					unsigned new_sibling_num_keys = LEAF_NUM - threshold; //8
@@ -1904,7 +1899,6 @@ TOP_RETRY: {
 
 				assert(*val != NULL);
 				dummyval_ = NULL;
-
 
 				//*target_leaf = toInsert;
 			}
