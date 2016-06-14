@@ -294,7 +294,7 @@ public:
 	MemstoreEunoTree() {
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
-		assert(0);
+		printf("MemstoreEunoTree()\n");
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
@@ -317,6 +317,7 @@ public:
 		//printf("sizeof(LeafNode) = %u\n", sizeof(LeafNode));
 		//printf("sizeof(InnerNode) = %u\n", sizeof(InnerNode));
 		//printf("sizeof(BloomFilter) = %u\n", sizeof(BloomFilter));
+		printf("MemstoreEunoTree()\n");
 		tableid = _tableid;
 		root = new LeafNode();
 		first_leaf = true;
@@ -560,8 +561,9 @@ public:
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
+		
 		ThreadLocalInit();
-		//printf("Put key = %lu\n", k);
+		
 		MemNode *node = GetWithInsert(k).node;
 		node->value = val;
 #if BTREE_PROF
@@ -887,7 +889,8 @@ public:
 #endif
 			uint64_t seqno = 0;
 
-TOP_RETRY: {
+TOP_RETRY: 
+			{
 				RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 				temp_depth = ScopeFind(this_key, &leafNode);
 				seqno = leafNode->seq;
@@ -1578,10 +1581,10 @@ TOP_RETRY: {
 
 		MemNode* val = NULL;
 		if(depth == 0) {
+			//printf("key = %lu\n",key);
 			uint64_t upKey;
 			LeafNode *new_leaf = LeafInsert(key, reinterpret_cast<LeafNode*>(root), &val, &upKey);
 
-			//printf("root->born_key_num = %d\n", reinterpret_cast<LeafNode*>(root)->born_key_num );
 			if(new_leaf != NULL) { //a new leaf node is created, therefore adding a new inner node to hold
 				InnerNode *inner = new_inner_node();
 				//LeafNode *root_leaf = new_leaf_node();
@@ -1634,6 +1637,7 @@ TOP_RETRY: {
 	}
 
 	inline bool FindDuplicate(LeafNode* leaf, uint64_t key, MemNode** val) {
+		//dump_leaf(leaf);
 		for(int i = 0; i < SEGS; i++) {
 			for(int j = 0; j < leaf->leaf_segs[i].key_num; j++) {
 				if(leaf->leaf_segs[i].kvs[j].key == key) {
@@ -1690,6 +1694,7 @@ TOP_RETRY: {
 
 	//upKey should be the least key of the new LeafNode
 	inline LeafNode* ShuffleLeafInsert(uint64_t key, LeafNode *leaf, MemNode** val, uint64_t* upKey, bool insert_only) {
+		//printf("shuffle insert key = %lu\n", key);
 #if DUP_PROF
 		leaf_inserts++;
 #endif
@@ -1710,6 +1715,7 @@ TOP_RETRY: {
 		}
 
 		if(!insert_only) {
+			//printf("insert key = %lu\n", key);
 			bool found = FindDuplicate(leaf, key, val); //if found, val is already set to the retrieved value
 			//dump_leaf(leaf);
 			if(found) { //duplicate insertion
@@ -1734,6 +1740,7 @@ TOP_RETRY: {
 		//bool should_check_all = leaf->leaf_segs[idx].key_num >= seg_len;
 		if(!should_check_all) {
 			//[Case #1] Shuffle to an empty segment, insert immediately
+			//printf("Case #1\n");
 			leaf->leaf_segs[idx].kvs[leaf->leaf_segs[idx].key_num].key = key;
 
 #if DUMMY

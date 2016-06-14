@@ -23,15 +23,27 @@
 #include "db/dbtables.h"
 static const char* FLAGS_benchmarks = "mix";
 
-static int FLAGS_num = 10000000;
+static int FLAGS_num = 100000;
 static int FLAGS_threads = 1;
-static uint64_t nkeys = 80000000;
+static uint64_t nkeys = 100000000;
+static uint64_t pre_keys = 10000;
+
+uint64_t next_o_id = 0;
+
 #define CHECK 0
 #define YCSBRecordSize 100
 #define GETCOPY 0
 namespace leveldb {
 
 typedef uint64_t Key;
+
+static inline ALWAYS_INLINE int64_t makeKeys(int32_t w_id, int32_t d_id, int32_t o_id, int32_t number) {
+	int32_t upper_id = w_id * 10 + d_id;
+	int64_t oid = static_cast<int64_t>(upper_id) * 10000000 + static_cast<int64_t>(o_id);
+	int64_t olid = oid * 15 + number;
+	int64_t id = static_cast<int64_t>(olid);
+	return id;
+}
 
 class fast_random {
 public:
@@ -102,7 +114,6 @@ private:
 class Benchmark {
 
 private:
-
 	int64_t total_count;
 
 	Memstore *table;
@@ -163,7 +174,6 @@ private:
 		{
 			MutexLock l(&shared->mu);
 
-
 			shared->num_initialized++;
 			if(shared->num_initialized >= shared->total) {
 				shared->cv.SignalAll();
@@ -193,9 +203,18 @@ private:
 		}
 	}
 
+	void bind_cores(int tid){
+		cpu_set_t mask;
+		CPU_ZERO(&mask);
+		CPU_SET(tid , &mask);
+		pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
+	}
 	//Main workload of YCSB
 	void TxMix(ThreadState* thread) {
 		int tid = thread->tid;
+
+		bind_cores(tid);
+
 		store->ThreadLocalInit(tid);
 		int num = thread->count;
 
@@ -212,23 +231,25 @@ private:
 		while(finish < num) {
 			double d = r.next_uniform();
 			if(d < 0.8) {
-				uint64_t key = r.next() % nkeys;
+				//printf("read begins\n");
+				uint64_t key = r.next() % pre_keys;
 				bool b = false;
 				while(!b) {
 					tx.Begin();
 					uint64_t *s;
 					tx.Get(0, key, &s);
-
 #if GETCOPY
 					std::string *p = &v;
 					p->assign((char *)s, YCSBRecordSize);
 #endif
 					b = tx.End();
 				}
+				//printf("read ends\n");
 				finish++;
 			}
 			if(d < 0.2) {
-				uint64_t key = r.next() % nkeys;
+				//printf("write begins\n");
+				uint64_t key = r.next() % pre_keys;
 				bool b = false;
 				while(!b) {
 					tx.Begin();
@@ -245,6 +266,7 @@ private:
 					b = tx.End();
 				}
 				finish++;
+				//printf("write ends\n");
 			}
 		}
 
@@ -257,8 +279,12 @@ private:
 
 	void Mix(ThreadState* thread) {
 		int tid = thread->tid;
+
+		bind_cores(tid);
+
 		int num = thread->count;
 		int finish = 0 ;
+		int next_id = 3000;
 		fast_random r = thread->rnd;
 		double start = leveldb::Env::Default()->NowMicros();
 		std::string v;
@@ -266,35 +292,41 @@ private:
 		while(finish < num) {
 			double d = r.next_uniform();
 			//Read
-			if(d < 0.8) {
-				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = table->GetWithInsert(key);
+			if(d < 0) {
+				uint64_t key = r.next() % pre_keys;
+				Memstore::MemNode * mn = table->Get(key);
 				char *s = (char *)(mn->value);
 #if GETCOPY
 				std::string *p = &v;
 				p->assign(s, YCSBRecordSize);
 #else
-				if(s == NULL)
-					printf("N");
+				//if(s == NULL)
+					//printf("N");
 #endif
 				finish++;
 			}
 			//RMW
-			if(d < 0.2) {
-				uint64_t key = r.next() % nkeys;
-				Memstore::MemNode * mn = table->GetWithInsert(key);
-				char *s = (char *)(mn->value);
+			else{
+				//uint64_t key = r.next() % nkeys;
+				next_id++;
+				for(int idx = 0; idx < 15; idx++){
+					uint64_t key = makeKeys(1,1, next_id, idx);
+					//printf("write key = %lu\n", key);
+					Memstore::MemNode * mn = table->GetWithInsert(key).node;
+					char *s = (char *)(mn->value);
 #if GETCOPY
-				std::string *p = &v;
-				p->assign(s,  YCSBRecordSize);
+					std::string *p = &v;
+					p->assign(s,  YCSBRecordSize);
 #else
-				if(s == NULL)
-					printf("N");
+					//if(s == NULL)
+						//printf("N");
 #endif
-				std::string c(YCSBRecordSize, 'c');
-				memcpy(nv, c.data(), YCSBRecordSize);
-				mn = table->GetWithInsert(key);
-				mn->value = (uint64_t *)(nv);
+					std::string c(YCSBRecordSize, 'c');
+					memcpy(nv, c.data(), YCSBRecordSize);
+					mn = table->GetWithInsert(key).node;
+					mn->value = (uint64_t *)(nv);
+				}
+
 				finish++;
 			}
 		}
@@ -311,10 +343,10 @@ public:
 
 	}
 
-	void RunBenchmark(int n, int num,
+	void RunBenchmark(int thread_num, int num,
 					  void (Benchmark::*method)(ThreadState*)) {
 		SharedState shared;
-		shared.total = n;
+		shared.total = thread_num;
 		shared.num_initialized = 0;
 		shared.start_time = 0;
 		shared.end_time = 0;
@@ -324,8 +356,8 @@ public:
 
 //		double start = leveldb::Env::Default()->NowMicros();
 		fast_random r(8544290);
-		ThreadArg* arg = new ThreadArg[n];
-		for(int i = 0; i < n; i++) {
+		ThreadArg* arg = new ThreadArg[thread_num];
+		for(int i = 0; i < thread_num; i++) {
 			arg[i].bm = this;
 			arg[i].method = method;
 			arg[i].shared = &shared;
@@ -336,7 +368,7 @@ public:
 		}
 
 		shared.mu.Lock();
-		while(shared.num_initialized < n) {
+		while(shared.num_initialized < thread_num) {
 			shared.cv.Wait();
 		}
 
@@ -345,7 +377,7 @@ public:
 		shared.cv.SignalAll();
 //		std::cout << "Startup Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
 
-		while(shared.num_done < n) {
+		while(shared.num_done < thread_num) {
 			shared.cv.Wait();
 		}
 		shared.mu.Unlock();
@@ -353,23 +385,23 @@ public:
 
 		printf("Total Run Time : %lf ms\n", (shared.end_time - shared.start_time) / 1000);
 		/*
-			for (int i = 0; i < n; i++) {
+			for (int i = 0; i < thread_num; i++) {
 			  printf("Thread[%d] Put Throughput %lf ops/s\n", i, num/(arg[i].thread->time1/1000/1000));
 			  printf("Thread[%d] Get Throughput %lf ops/s\n", i, num/(arg[i].thread->time2/1000/1000));
 			}*/
 
-		for(int i = 0; i < n; i++) {
+		for(int i = 0; i < thread_num; i++) {
 			delete arg[i].thread;
 		}
 		delete[] arg;
 	}
 
 	void Run() {
-
 		//table = new leveldb::MemstoreBPlusTree();
+		table = new leveldb::MemstoreEunoTree();
 		//table = new leveldb::LockfreeHashTable();
 		//table = new leveldb::MemstoreHashTable();
-		table = new leveldb::MemStoreSkipList();
+		//table = new leveldb::MemStoreSkipList();
 		//table = new MemstoreCuckooHashTable();
 		store = new DBTables();
 
@@ -379,11 +411,13 @@ public:
 		Slice name = FLAGS_benchmarks;
 
 		if(true) {
-			for(uint64_t i = 0; i < nkeys; i++) {
+			for(uint64_t i = 1; i < pre_keys; i++) {
 				std::string *s = new std::string(YCSBRecordSize, 'a');
-				if(name == "txmix")
+				if(name == "txmix"){
 					store->tables[0]->Put(i, (uint64_t *)s->data());
-				else table->Put(i, (uint64_t *)s->data());
+				}else{ 
+					table->Put(i, (uint64_t *)s->data());
+				}
 			}
 		}
 
@@ -396,6 +430,7 @@ public:
 			method = &Benchmark::Mix;
 		else if(name == "txmix")
 			method = &Benchmark::TxMix;
+		printf("RunBenchmark\n");
 		RunBenchmark(num_threads, num_, method);
 		delete table;
 	}
@@ -405,9 +440,7 @@ public:
 }  // namespace leveldb
 
 int main(int argc, char** argv) {
-
 	for(int i = 1; i < argc; i++) {
-
 		int n;
 		char junk;
 

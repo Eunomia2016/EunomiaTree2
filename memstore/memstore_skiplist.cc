@@ -33,6 +33,7 @@ inline void MemoryBarrier() {
 
 MemStoreSkipList::MemStoreSkipList()
 {
+	printf("MemStoreSkipList\n");
     ThreadLocalInit();
 	max_height_ = 1;
 
