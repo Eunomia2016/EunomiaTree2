@@ -159,6 +159,7 @@ public:
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val, int len);
 
 	bool Get( int tableid, uint64_t key, uint64_t** val, int label = 0);
+	bool ROGet(int tableid, uint64_t key, uint64_t** val, int label = 0);
 	void Delete(int tableid, uint64_t key);
 	int ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs);
 	KeyValues* GetByIndex(int indextableid, uint64_t seckey);

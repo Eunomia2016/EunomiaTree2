@@ -5,3 +5,4 @@ db_test
 log*
 memstorebt_test
 *.mk
+*.stat

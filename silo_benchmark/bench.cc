@@ -338,6 +338,7 @@ bench_runner::run() {
 		running = false;
 	}
 	__sync_synchronize();
+	
 	for(size_t i = 0; i < nthreads; i++)
 		workers[i]->join();
 	const unsigned long elapsed_nosync = t_nosync.lap();

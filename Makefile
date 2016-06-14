@@ -24,8 +24,14 @@ include build_config.mk
 CFLAGS += -I. -I./include $(PLATFORM_CCFLAGS) $(OPT)
 CXXFLAGS += -I. -I./include $(PLATFORM_CXXFLAGS) -std=c++11 $(OPT) 
 
+CFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+CXXFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+
 LDFLAGS += $(PLATFORM_LDFLAGS) -lnuma -L./lib 
 LIBS += $(PLATFORM_LIBS) -lnuma -lbloom
+
+LDFLAGS += -ljemalloc
+LIBS += -ljemalloc
 
 LIBOBJECTS = $(SOURCES:.cc=.o)
 MEMENVOBJECTS = $(MEMENV_SOURCES:.cc=.o)

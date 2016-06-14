@@ -64,9 +64,6 @@ using namespace util;
 
 enum TPCC_TYPE{NEW_ORDER = 0, PAYMENT, DELIVERY, ORDER_STATUS, STOCK_LEVEL};
 
-#define red_cerr cerr << "\e[41m"
-#define red_endl "\e[0m"<<endl
-
 #if 0
 #define TPCC_TABLE_LIST(x) \
   x(customer) \
@@ -2004,7 +2001,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #if DBTX_TIME
 			txn_tim.lap();
 #endif
-			found = tx.Get(ITEM, ol_i_id, &i_value,5);//Tx.11
+			found = tx.ROGet(ITEM, ol_i_id, &i_value,5);//Tx.11
 			assert(found);
 #if DBTX_TIME
 #if DBTX_PROF
@@ -3926,12 +3923,6 @@ tpcc_do_test(int argc, char **argv) {
 		cerr << "  --new-order-remote-item-pct will have no effect" << endl;
 	}
 	
-#ifdef CHECK_INVARIANTS
-	red_cerr << "[DEBUG MODE] CHECK_INVARIANTS ON" << red_endl;
-#endif
-#ifndef NDEBUG
-	red_cerr << "[DEBUG MODE] ASSERT ON" << red_endl;
-#endif
 	if(verbose) {
 		cerr << "tpcc settings:" << endl;
 		cerr << "  cross_partition_transactions : " << !g_disable_xpartition_txn << endl;

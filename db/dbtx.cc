@@ -1286,6 +1286,24 @@ retryGBI:
 
 }
 
+bool DBTX::ROGet(int tableid, uint64_t key, uint64_t** val, int label) {
+	Memstore::MemNode* node;
+
+	node = txdb_->tables[tableid]->GetWithInsert(key).node;
+
+	if(node == NULL) {
+		return false;
+	}
+
+	if(ValidateValue(node->value)) {
+		*val = node->value;
+		return true;
+	} else {
+		*val = NULL;
+		return false;
+	}
+}
+
 bool DBTX::Get(int tableid, uint64_t key, uint64_t** val, int label) {
 
 	bool newNode = false;
