@@ -1,5 +1,5 @@
 #!/bin/bash
-for warehouse in 20 10 5 4 2 1
+for warehouse in 20 10 5 2 1
 do
 	echo "Threads = 20 Warehouses = $warehouse"
 	./simple_run.sh 20 $warehouse &> temp.$warehouse

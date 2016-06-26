@@ -294,7 +294,7 @@ public:
 	MemstoreEunoTree() {
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
-		printf("MemstoreEunoTree()\n");
+		//printf("MemstoreEunoTree()\n");
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
@@ -317,7 +317,7 @@ public:
 		//printf("sizeof(LeafNode) = %u\n", sizeof(LeafNode));
 		//printf("sizeof(InnerNode) = %u\n", sizeof(InnerNode));
 		//printf("sizeof(BloomFilter) = %u\n", sizeof(BloomFilter));
-		printf("MemstoreEunoTree()\n");
+		//printf("MemstoreEunoTree()\n");
 		tableid = _tableid;
 		root = new LeafNode();
 		first_leaf = true;
@@ -783,6 +783,7 @@ public:
 		if(leafNode->bm_filter == NULL) {
 			bm_found = true;
 			BloomFilter* bm_filter = bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE);
+			//printf("sizeof(bm_filter) = %u\n", sizeof(BloomFilter));
 			leafNode->bm_filter = bm_filter;
 
 			for(int i = 0; i < LEAF_NUM; i++) {

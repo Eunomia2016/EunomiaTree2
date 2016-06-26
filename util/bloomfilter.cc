@@ -31,9 +31,9 @@ BloomFilter * bloom_filter_new(size_t filter_size, size_t num_hashes)
 		bf->bits_length = bits_length;
 		bf->bits_size = bits_size;
 		memset(bf->bits, 0, bits_size);
-
-		/*printf("bits_length = %ld\n", bits_length);*/
-		/*printf("bits_size = %ld\n", bits_size);*/
+		//printf("filter_size = %lu\n",filter_size);
+		//printf("bits_length = %ld\n", bits_length);
+		//printf("bits_size = %ld\n", bits_size);
 	}
 	return bf;
 }

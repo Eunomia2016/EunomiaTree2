@@ -169,7 +169,7 @@ public:
 
 public:
 	MemstoreBPlusTree() {
-		printf("MemstoreBPlusTree()\n");
+		//printf("MemstoreBPlusTree()\n");
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
 		//int num_of_nodes = numa_num_configured_nodes();

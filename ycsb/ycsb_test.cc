@@ -27,12 +27,15 @@ static int FLAGS_num = 100000;
 static int FLAGS_threads = 1;
 static uint64_t nkeys = 100000000;
 static uint64_t pre_keys = 10000;
+static double READ_RATIO = 0.5;
+static bool EUNO_USED = false;
 
 uint64_t next_o_id = 0;
 
 #define CHECK 0
 #define YCSBRecordSize 100
 #define GETCOPY 0
+
 namespace leveldb {
 
 typedef uint64_t Key;
@@ -227,10 +230,11 @@ private:
 		tx.ThreadLocalInit();
 
 		double start = leveldb::Env::Default()->NowMicros();
+		int next_id = 3000;
 
 		while(finish < num) {
 			double d = r.next_uniform();
-			if(d < 0.8) {
+			if(d < READ_RATIO) {
 				//printf("read begins\n");
 				uint64_t key = r.next() % pre_keys;
 				bool b = false;
@@ -246,30 +250,33 @@ private:
 				}
 				//printf("read ends\n");
 				finish++;
-			}
-			if(d < 0.2) {
+			} else {
 				//printf("write begins\n");
-				uint64_t key = r.next() % pre_keys;
+				uint64_t key = r.next() % nkeys;
 				bool b = false;
+				
 				while(!b) {
 					tx.Begin();
 					uint64_t *s;
-
+					/*
 					tx.Get(0, key, &s);
-#if GETCOPY
-					std::string *p = &v;
-					p->assign((char *)s, YCSBRecordSize);
-#endif
 					std::string c(YCSBRecordSize, 'c');
+					//printf("[%d] write key = %lu\n", tid, key);
 					tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
-
+					*/
+					next_id++;
+					for(int idx = 0; idx < 15; idx++){
+						uint64_t key = makeKeys(1,1, next_id, idx);
+						//printf("[%d] write key = %lu\n", tid, key);
+						std::string c(YCSBRecordSize, 'c');
+						tx.Add(0,key,(uint64_t *)c.data(), YCSBRecordSize);
+					}
 					b = tx.End();
 				}
-				finish++;
+				finish+=15;
 				//printf("write ends\n");
 			}
 		}
-
 
 		double end = leveldb::Env::Default()->NowMicros();
 		printf("Exe time: %f\n", (end - start) / 1000 / 1000);
@@ -292,17 +299,10 @@ private:
 		while(finish < num) {
 			double d = r.next_uniform();
 			//Read
-			if(d < 0) {
+			if(d < READ_RATIO) {
 				uint64_t key = r.next() % pre_keys;
 				Memstore::MemNode * mn = table->Get(key);
 				char *s = (char *)(mn->value);
-#if GETCOPY
-				std::string *p = &v;
-				p->assign(s, YCSBRecordSize);
-#else
-				//if(s == NULL)
-					//printf("N");
-#endif
 				finish++;
 			}
 			//RMW
@@ -314,20 +314,13 @@ private:
 					//printf("write key = %lu\n", key);
 					Memstore::MemNode * mn = table->GetWithInsert(key).node;
 					char *s = (char *)(mn->value);
-#if GETCOPY
-					std::string *p = &v;
-					p->assign(s,  YCSBRecordSize);
-#else
-					//if(s == NULL)
-						//printf("N");
-#endif
 					std::string c(YCSBRecordSize, 'c');
 					memcpy(nv, c.data(), YCSBRecordSize);
 					mn = table->GetWithInsert(key).node;
 					mn->value = (uint64_t *)(nv);
 				}
 
-				finish++;
+				finish+=15;
 			}
 		}
 
@@ -397,8 +390,15 @@ public:
 	}
 
 	void Run() {
-		//table = new leveldb::MemstoreBPlusTree();
-		table = new leveldb::MemstoreEunoTree();
+		if(EUNO_USED){
+			printf("Eunomia Tree\n");
+			table = new leveldb::MemstoreEunoTree();
+		}else{
+			printf("B+Tree\n");
+			table = new leveldb::MemstoreBPlusTree();
+		}
+		
+		//
 		//table = new leveldb::LockfreeHashTable();
 		//table = new leveldb::MemstoreHashTable();
 		//table = new leveldb::MemStoreSkipList();
@@ -450,6 +450,8 @@ int main(int argc, char** argv) {
 			FLAGS_num = n;
 		} else if(sscanf(argv[i], "--threads=%d%c", &n, &junk) == 1) {
 			FLAGS_threads = n;
+		}else if(sscanf(argv[i], "--euno=%d%c", &n, &junk)==1){
+			EUNO_USED = (n==1);
 		}
 	}
 

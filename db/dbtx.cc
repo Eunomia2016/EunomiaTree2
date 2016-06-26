@@ -894,7 +894,7 @@ retry:
 }
 
 void DBTX::Add(int tableid, uint64_t key, uint64_t* val, int len) {
-//  SpinLockScope spinlock(&slock);
+	//printf("[1]Add key = %lu\n", key);
 retry:
 	Memstore::MemNode* node;
 	//Memstore::InsertResult res;
@@ -938,6 +938,7 @@ retry:
 	memcpy(value, val, len);
 
 	writeset->Add(tableid, key, (uint64_t *)value, node);
+	//printf("[2]Add key = %lu\n", key);
 }
 
 void DBTX::Add_Label(int tableid, uint64_t key, uint64_t* val, int len) {

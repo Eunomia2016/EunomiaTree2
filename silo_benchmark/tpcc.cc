@@ -275,7 +275,7 @@ static int g_new_order_remote_item_pct = 1;
 static int g_new_order_fast_id_gen = 0;
 static int g_uniform_item_dist = 0;
 //static unsigned g_txn_workload_mix[] = { 45,43,4,4,4 }; // default TPC-C workload mix
-static unsigned g_txn_workload_mix[] = { 100,0,0,0,0 };
+static unsigned g_txn_workload_mix[] = {45,43,4,4,4};
 
 //static aligned_padded_elem<spinlock> *g_partition_locks = nullptr;
 static aligned_padded_elem<atomic<uint64_t>> *g_district_ids = nullptr;
@@ -992,6 +992,7 @@ public:
 protected:
 	virtual void
 	load() {
+		printf("warehouse_id = %ld\n", warehouse_id);
 		string obj_buf, obj_buf1;
 
 		uint64_t stock_total_sz = 0, n_stocks = 0;
@@ -3818,7 +3819,7 @@ protected:
 //     coreid::allocate_contiguous_aligned_block(nthreads, alignment);
 //   ALWAYS_ASSERT(blockstart >= 0);
 //   ALWAYS_ASSERT((blockstart % alignment) == 0);
-		const int blockstart = 8;
+		const int blockstart = TOTAL_CPUS_ONLINE;
 		fast_random r(23984543);
 		vector<bench_worker *> ret;
 #if BINDWAREHOUSE

@@ -15,6 +15,7 @@
 #include "spinbarrier.h"
 //#include "rcu.h"
 #define MILLION 1000000L
+#define TOTAL_CPUS_ONLINE 20
 
 extern void ycsb_do_test(abstract_db *db, int argc, char **argv);
 extern void tpcc_do_test(int argc, char **argv);

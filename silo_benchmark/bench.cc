@@ -125,10 +125,9 @@ bench_worker::run() {
 
 #if SET_AFFINITY
 	int x = worker_id;
-	int y = x - 8;
-	if(y >= 20) {
-		fprintf(stderr, "[Alex]Number of workers should be < 20\n");
-		//y = 0;
+	int y = x - TOTAL_CPUS_ONLINE;
+	if(y >= TOTAL_CPUS_ONLINE) {
+		fprintf(stderr, "[Alex]Number of workers should be < %d\n",TOTAL_CPUS_ONLINE);
 	}
 	/*
 	if (nthreads == 8 || nthreads == 7) {
