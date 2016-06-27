@@ -121,7 +121,7 @@ void OBJPool::Print() {
 	while(cur  != NULL) {
 		cur = cur->next;
 		i++;
-		printf("Header [%d] cur %lx elems %d sn %ld\n",
+		printf("Header [%d] cur %p elems %d sn %lu\n",
 			   i, cur, cur->gcnum, cur->sn);
 	}
 	/*

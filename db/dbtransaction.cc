@@ -97,7 +97,7 @@ void  DBTransaction::ReadSet::Resize() {
 	for(int i = 0; i < elems; i++) {
 		printf("Key[%d] ", i);
 		if(seqs[i].seq != NULL) {
-			printf("Old Seq %ld Cur Seq %ld Seq Addr 0x%lx ", 
+			printf("Old Seq %lu Cur Seq %lu Seq Addr 0x%p ", 
 				seqs[i].oldseq, *seqs[i].seq, seqs[i].seq);
 		}
 	}
@@ -223,7 +223,7 @@ void  DBTransaction::WriteSet::Resize() {
 	 	count++;
 	 	printf("Cache Set [%d] Conflict type %d\n", index ,type );
 		for(int i = 0; i < 8; i++) { 
-			printf("[%d][%lx] ", cachetypes[index][i], cacheaddr[index][i]);
+			printf("[%lu][%lu] ", cachetypes[index][i], cacheaddr[index][i]);
 		}
 		printf(" %d \n", count);
 	 }
@@ -412,7 +412,7 @@ void  DBTransaction::WriteSet::Resize() {
 
 		count++;
 		if (count > 1000) {
-			printf("Not found seq %ld  key %s \n",seq, key);
+			printf("Not found seq %lu  key %s \n", seq, key.data());
 			TXSkiplist* sl = (TXSkiplist*)txdb_;
 //			sl->DumpTXSkiplist();
 			return false;

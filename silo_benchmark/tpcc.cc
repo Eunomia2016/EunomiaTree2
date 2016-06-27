@@ -804,7 +804,7 @@ public:
 protected:
 	virtual void
 	on_run_setup() OVERRIDE {
-		printf("%ld wid %d\n", pthread_self(), worker_id);
+		//printf("%ld wid %d\n", pthread_self(), worker_id);
 		store->ThreadLocalInit(worker_id - 8);
 
 		if(!pin_cpus)
@@ -1794,7 +1794,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 		if((uint64_t)v_d == 0x7f3938373635) {
 			DBTables::DEBUGGC();
-			printf("txn_new_order key %lx v_d %lx\n", d_key, v_d);
+			printf("txn_new_order key %lu v_d %p\n", d_key, v_d);
 			fflush(stdout);
 		}
 		
@@ -1870,11 +1870,7 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 #endif
 
-#if RANDOM_KEY
-		uint64_t o_key = RandomNumber(r, 1, 10000000);
-#else
 		uint64_t o_key = makeOrderKey(warehouse_id, districtID, my_next_o_id);
-#endif	
 
 		oorder::value v_oo;
 		v_oo.o_c_id = int32_t(customerID);
@@ -2123,7 +2119,6 @@ tpcc_worker::txn_new_order(bool first_run) {
 #endif
 			//orlis++;
 			elapse = txn_tim.lap();
-			atomic_add64(&newo_txn_time[13], elapse);
 			atomic_add64(&dbtx_time[NEW_ORDER], elapse);
 			atomic_add64(&orli_time, elapse);
 #endif

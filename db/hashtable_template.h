@@ -120,7 +120,7 @@ HashTable<Key, HashFunction, Comparator>::HashTable(HashFunction hf, Comparator 
       
 	Resize();
 	ThreadLocalInit();
-	printf("size of Node %d\n", sizeof(Node));
+	printf("size of Node %lu\n", sizeof(Node));
 	
 }
 

@@ -304,7 +304,7 @@ void MemstoreCuckooHashTable::PrintStore() {
 			if(table_[i].elems[j].key != -1 || table_[i].elems[j].hash1 != 0) {
 //				printf(" [%d] %ld hash1 [%lx] hash2 [%lx]\t",
 				//				j, table_[i].elems[j].key, table_[i].elems[j].hash1, table_[i].elems[j].hash2);
-				printf(" [%d] Key %ld H1 %d H2 %d\t",
+				printf(" [%d] Key %lu H1 %lu H2 %lu\t",
 					   j, table_[i].elems[j].key,
 					   table_[i].elems[j].hash1 % size_ , table_[i].elems[j].hash2 % size_);
 

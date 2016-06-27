@@ -126,8 +126,8 @@ bench_worker::run() {
 #if SET_AFFINITY
 	int x = worker_id;
 	int y = x - TOTAL_CPUS_ONLINE;
-	if(y >= TOTAL_CPUS_ONLINE) {
-		fprintf(stderr, "[Alex]Number of workers should be < %d\n",TOTAL_CPUS_ONLINE);
+	if(y >= 20) {
+		fprintf(stderr, "[Alex]Number of workers should be < %d\n", 20);
 	}
 	/*
 	if (nthreads == 8 || nthreads == 7) {
@@ -186,6 +186,7 @@ bench_worker::run() {
 	//struct timespec begin, end;
 	//clock_gettime(CLOCK_MONOTONIC, &begin);
 	//uint64_t txn_span = 0;
+	//printf("[Alex]running begins\n");
 	while(running && (run_mode != RUNMODE_OPS || total_ops > 0)) {
 		int64_t oldv = XADD64(&total_ops, -1000);
 		if(oldv <= 0) break;

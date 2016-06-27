@@ -198,7 +198,7 @@ public:
 					n = n->next;
 					total++;
 				}
-				if(count > 10) printf(" %ld\n" , count);
+				if(count > 10) printf(" %d\n" , count);
 				//printf("\n");
 			}
 		}

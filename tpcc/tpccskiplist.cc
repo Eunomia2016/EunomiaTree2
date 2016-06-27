@@ -492,9 +492,9 @@ namespace leveldb {
   	//printf("rdtsc %ld\n",secs);
   	delete store;
 	
-	printf("#Abort : %d\n", abort);
-	printf("#Conflict : %d\n", conflict);
-	printf("#Capacity: %d\n", capacity);
+	printf("#Abort : %lu\n", abort);
+	printf("#Conflict : %lu\n", conflict);
+	printf("#Capacity: %lu\n", capacity);
 
 #if ABORTPRO
 	printf("Neworder Run: %ld   Abort: %ld\n", newordernum, neworderabort);
@@ -1641,7 +1641,7 @@ namespace leveldb {
 	  assert(found);
 	  //printf("2.1\n");
 	  if(*d_value == 0)
-	  	printf("d_value %lx\n", d_value);
+	  	printf("d_value %p\n", d_value);
 	  assert(*d_value != 0);
 	  District *d = reinterpret_cast<District *>(d_value);		
 	  //District *newd = new District();

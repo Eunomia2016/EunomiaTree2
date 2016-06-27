@@ -153,7 +153,7 @@ void DBTX::ReadSet::Print() {
 	for(int i = 0; i < elems; i++) {
 		printf("Key[%d] ", i);
 		printf(
-			"Old Seq %ld Cur Seq %ld Seq Addr 0x%lx ",
+			"Old Seq %lu Cur Seq %lu Seq Addr 0x%p ",
 			seqs[i].seq, *seqs[i].seqptr, seqs[i].seqptr);
 	}
 }
@@ -267,7 +267,7 @@ void DBTX::WriteSet::TouchAddr(uint64_t addr, int type) {
 		count++;
 		printf("Cache Set [%d] Conflict type %d\n", index , type);
 		for(int i = 0; i < 8; i++) {
-			printf("[%d][%lx] ", cachetypes[index][i], cacheaddr[index][i]);
+			printf("[%lu][%lu] ", cachetypes[index][i], cacheaddr[index][i]);
 		}
 		printf(" %d \n", count);
 	}
@@ -943,7 +943,11 @@ retry:
 
 void DBTX::Add_Label(int tableid, uint64_t key, uint64_t* val, int len) {
 //  SpinLockScope spinlock(&slock);
-
+/*
+	if(tableid==6){
+		printf("[%2d] insert key = %lu\n", sched_getcpu(), key);
+	}
+*/
 #if ORLI_BKD
 	util::timer total_timer, tree_timer, set_timer, buffer_timer;
 	orli_inserts++;
@@ -1203,7 +1207,7 @@ void DBTX::Delete(int tableid, uint64_t key) {
 
 void DBTX::PrintKVS(KeyValues* kvs) {
 	for(int i = 0; i < kvs->num; i++) {
-		printf("KV[%d]: key %lx, value %lx \n", i, kvs->keys[i], kvs->values[i]);
+		printf("KV[%d]: key %lu, value %p \n", i, kvs->keys[i], kvs->values[i]);
 	}
 }
 int DBTX::ScanSecondNode(SecondIndex::SecondNode* sn, KeyValues* kvs) {

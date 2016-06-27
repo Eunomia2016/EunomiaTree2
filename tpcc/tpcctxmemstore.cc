@@ -258,9 +258,9 @@ namespace leveldb {
   TPCCTxMemStore::~TPCCTxMemStore() {
   	delete store;
 	delete seqs;
-	printf("#Abort : %d\n", abort);
-	printf("#Conflict : %d\n", conflict);
-	printf("#Capacity: %d\n", capacity);
+	printf("#Abort : %lu\n", abort);
+	printf("#Conflict : %lu\n", conflict);
+	printf("#Capacity: %lu\n", capacity);
   }
   
   void TPCCTxMemStore::insertWarehouse(const Warehouse & warehouse) {

@@ -23,10 +23,10 @@
 #include "db/dbtables.h"
 static const char* FLAGS_benchmarks = "mix";
 
-static int FLAGS_num = 100000;
+static int FLAGS_num = 1000000;
 static int FLAGS_threads = 1;
 static uint64_t nkeys = 100000000;
-static uint64_t pre_keys = 10000;
+static uint64_t pre_keys = 100000;
 static double READ_RATIO = 0.5;
 static bool EUNO_USED = false;
 
@@ -206,7 +206,7 @@ private:
 		}
 	}
 
-	void bind_cores(int tid){
+	void bind_cores(int tid) {
 		cpu_set_t mask;
 		CPU_ZERO(&mask);
 		CPU_SET(tid , &mask);
@@ -254,7 +254,7 @@ private:
 				//printf("write begins\n");
 				uint64_t key = r.next() % nkeys;
 				bool b = false;
-				
+
 				while(!b) {
 					tx.Begin();
 					uint64_t *s;
@@ -265,15 +265,15 @@ private:
 					tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
 					*/
 					next_id++;
-					for(int idx = 0; idx < 15; idx++){
-						uint64_t key = makeKeys(1,1, next_id, idx);
+					for(int idx = 0; idx < 15; idx++) {
+						uint64_t key = makeKeys(1, 1, next_id, idx);
 						//printf("[%d] write key = %lu\n", tid, key);
 						std::string c(YCSBRecordSize, 'c');
-						tx.Add(0,key,(uint64_t *)c.data(), YCSBRecordSize);
+						tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
 					}
 					b = tx.End();
 				}
-				finish+=15;
+				finish += 15;
 				//printf("write ends\n");
 			}
 		}
@@ -296,6 +296,7 @@ private:
 		double start = leveldb::Env::Default()->NowMicros();
 		std::string v;
 		char nv[YCSBRecordSize];
+		//printf("READ_RATIO = %lf\n", READ_RATIO);
 		while(finish < num) {
 			double d = r.next_uniform();
 			//Read
@@ -306,11 +307,27 @@ private:
 				finish++;
 			}
 			//RMW
-			else{
+			else {
 				//uint64_t key = r.next() % nkeys;
 				next_id++;
-				for(int idx = 0; idx < 15; idx++){
-					uint64_t key = makeKeys(1,1, next_id, idx);
+				uint64_t rkeys[15];
+				for(int idx = 0; idx < 15;idx++){
+					rkeys[idx] = idx;//r.next()%15;
+				}
+				//sort(rkeys,rkeys+15);
+				/*
+				swap(rkeys[0],rkeys[9]);
+				swap(rkeys[4],rkeys[11]);
+				swap(rkeys[3],rkeys[8]);
+				swap(rkeys[0],rkeys[7]);
+				swap(rkeys[12],rkeys[2]);
+				swap(rkeys[1],rkeys[10]);
+				*/
+				for(int idx = 0; idx < 15; idx++) {
+					//uint64_t rkey = r.next()%15;
+					//printf("write rkeys[%d] = %lu\n",idx, rkeys[idx]);
+					uint64_t key = rkeys[idx] + makeKeys(1, 1, next_id, 1);
+					//uint64_t key = makeKeys(1,1, next_id, idx);
 					//printf("write key = %lu\n", key);
 					Memstore::MemNode * mn = table->GetWithInsert(key).node;
 					char *s = (char *)(mn->value);
@@ -320,7 +337,7 @@ private:
 					mn->value = (uint64_t *)(nv);
 				}
 
-				finish+=15;
+				finish += 15;
 			}
 		}
 
@@ -390,14 +407,14 @@ public:
 	}
 
 	void Run() {
-		if(EUNO_USED){
+		if(EUNO_USED) {
 			printf("Eunomia Tree\n");
 			table = new leveldb::MemstoreEunoTree();
-		}else{
+		} else {
 			printf("B+Tree\n");
 			table = new leveldb::MemstoreBPlusTree();
 		}
-		
+
 		//
 		//table = new leveldb::LockfreeHashTable();
 		//table = new leveldb::MemstoreHashTable();
@@ -413,9 +430,9 @@ public:
 		if(true) {
 			for(uint64_t i = 1; i < pre_keys; i++) {
 				std::string *s = new std::string(YCSBRecordSize, 'a');
-				if(name == "txmix"){
+				if(name == "txmix") {
 					store->tables[0]->Put(i, (uint64_t *)s->data());
-				}else{ 
+				} else {
 					table->Put(i, (uint64_t *)s->data());
 				}
 			}
@@ -443,17 +460,21 @@ int main(int argc, char** argv) {
 	for(int i = 1; i < argc; i++) {
 		int n;
 		char junk;
-
+		double read_rate;
 		if(leveldb::Slice(argv[i]).starts_with("--benchmark=")) {
 			FLAGS_benchmarks = argv[i] + strlen("--benchmark=");
 		} else if(sscanf(argv[i], "--num=%d%c", &n, &junk) == 1) {
 			FLAGS_num = n;
 		} else if(sscanf(argv[i], "--threads=%d%c", &n, &junk) == 1) {
 			FLAGS_threads = n;
-		}else if(sscanf(argv[i], "--euno=%d%c", &n, &junk)==1){
-			EUNO_USED = (n==1);
+		} else if(sscanf(argv[i], "--euno=%d%c", &n, &junk) == 1) {
+			EUNO_USED = (n == 1);
+		} else if(sscanf(argv[i], "--read-rate=%lf%c", &read_rate, &junk) == 1) {
+			READ_RATIO = read_rate;
 		}
+
 	}
+	printf("threads = %d, read_rate = %lf\n", FLAGS_threads, READ_RATIO);
 
 	leveldb::Benchmark benchmark;
 	benchmark.Run();

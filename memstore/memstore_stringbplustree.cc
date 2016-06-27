@@ -9,7 +9,7 @@ namespace leveldb {
 	void MemstoreStringBPlusTree::printLeaf(LeafNode *n) {
 			printf("Leaf Key num %d\n", n->num_keys);
 			for (int i=0; i<n->num_keys;i++)
-				printf("key  %s value %lx \t ",n->keys[i], n->values[i]);
+				printf("key  %s value %p \t ",n->keys[i], n->values[i]);
 				printf("\n");
 		}
 	
@@ -17,7 +17,7 @@ namespace leveldb {
 	void MemstoreStringBPlusTree::printInner(InnerNode *n, unsigned depth) {
 		printf("Inner %d Key num %d\n", depth, n->num_keys);
 		for (int i=0; i<n->num_keys;i++)
-			 printf("\t%lx	",n->keys[i]);
+			 printf("\t%p	",n->keys[i]);
 		 printf("\n");
 		for (int i=0; i<=n->num_keys; i++)
 			if (depth>1) printInner(reinterpret_cast<InnerNode*>(n->children[i]), depth-1);

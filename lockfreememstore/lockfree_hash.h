@@ -115,7 +115,7 @@ retry:
 		for (int i=0; i<length; i++) {
 			
 			if (lists[i].h != NULL)  {
-				printf("Hash %ld :\t", i);
+				printf("Hash %d :\t", i);
 				HashNode *n = lists[i].h;
 				while (n!= NULL) {
 					count++;
@@ -126,7 +126,7 @@ retry:
 			printf("\n");
 		}
 		
-		printf("Total %ld\n" , count);
+		printf("Total %d\n" , count);
 		
 	}
 

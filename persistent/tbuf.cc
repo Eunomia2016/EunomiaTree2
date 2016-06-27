@@ -199,7 +199,7 @@ int TBuf::Writer()
 		bytes += writev(logf->fd, &iovs[0], idx);
 		if(bytes == -1) {
 			for(int i = 0; i < idx; i++)
-				printf("LOG ERROR: Write Bufer %lx %d \n", iovs[i].iov_base, iovs[i].iov_len);
+				printf("LOG ERROR: Write Bufer %p %lu \n", iovs[i].iov_base, iovs[i].iov_len);
 			printf("MAX %d cur %d", IOV_MAX, idx);
 			perror("");
 			exit(1);

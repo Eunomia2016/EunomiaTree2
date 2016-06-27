@@ -10,7 +10,7 @@ __thread MemstoreEunoTree::LeafNode *MemstoreEunoTree::dummyleaf_ = NULL;
 void MemstoreEunoTree::printLeaf(LeafNode *n) {
 	for(int i = 0; i < depth; i++)
 		printf(" ");
-	printf("Leaf Addr %lx Key num %d  :", n, n->num_keys);
+	printf("Leaf Addr %p Key num %u  :", n, n->num_keys);
 	for(int i = 0; i < n->num_keys; i++)
 		printf("key  %ld \t ", n->kvs[i].key);
 //			printf("key  %ld value %ld \t ",n->keys[i], n->values[i]->value);

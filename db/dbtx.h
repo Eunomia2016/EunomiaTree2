@@ -79,7 +79,7 @@ struct time_bkd{
 		total_time = tree_time = set_time = ov_time = 0;
 	}
 	void display(){
-		printf("%d, %d, %d, %d\n", total_time, tree_time, set_time, ov_time);
+		printf("%lu, %lu, %lu, %lu\n", total_time, tree_time, set_time, ov_time);
 	}
 };
 

@@ -105,7 +105,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
 	//  key bytes    : char[internal_key.size()]
 	//  value_size   : varint32 of value.size()
 	//  value bytes  : char[value.size()]
-	printf("MemTable Add key %s\n", key);
+	printf("MemTable Add key %s\n", key.data());
 	size_t key_size = key.size();
 	size_t val_size = value.size();
 	size_t internal_key_size = key_size + 8;
@@ -174,9 +174,9 @@ void MemTable::DumpMemtable() {
 		uint64_t seq = tag >> 8;
 		Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
 
-		printf("Key %s ", k);
+		printf("Key %s ", k.data());
 		printf("Seq %ld ", seq);
-		printf("Value %s \n", v);
+		printf("Value %s \n", v.data());
 
 		iter.Next();
 	}

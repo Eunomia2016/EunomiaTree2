@@ -627,7 +627,7 @@ void MemStoreSkipList::PrintStore(){
 		//Key prev = cur->key;
 		cur = cur->next_[0];
 		if(cur != NULL) {
-			printf("key %ld value addr %lx\n", 	cur->key, cur->memVal);
+			printf("key %lu value addr %p\n", 	cur->key, &cur->memVal);
 
 		}
 	}

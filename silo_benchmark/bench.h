@@ -15,7 +15,7 @@
 #include "spinbarrier.h"
 //#include "rcu.h"
 #define MILLION 1000000L
-#define TOTAL_CPUS_ONLINE 20
+#define TOTAL_CPUS_ONLINE 8
 
 extern void ycsb_do_test(abstract_db *db, int argc, char **argv);
 extern void tpcc_do_test(int argc, char **argv);
@@ -121,7 +121,7 @@ public:
       size_delta(0)
   {
     txn_obj_buf.reserve(2 * CACHELINE_SIZE);
-	for (int i =0 ;i < 5; i++) {
+	for (int i = 0 ;i < 5; i++) {
 		ntxn_commits[i] = 0;
 		ntxn_aborts[i] = 0;
 		txn_times[i] = 0;

@@ -300,7 +300,7 @@ void DBTables::DEBUGGC() {
 	if(bugnode == NULL)
 		printf("Bug Node is NULL\n");
 	else
-		printf("Bug Node Addr %lx Value Addr %lx\n", bugnode, bugnode->value);
+		printf("Bug Node Addr %p Value Addr %p\n", bugnode, bugnode->value);
 }
 
 void* DBTables::PersistentInfoThread(void *arg) {

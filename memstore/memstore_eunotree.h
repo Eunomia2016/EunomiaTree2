@@ -56,10 +56,12 @@ Date: 2016/03/20
 #define SHUFFLE_INSERT 1
 #define UNSORTED_INSERT 0
 
-#define SEGS 4
+#define SEGS     4
 #define EMP_LEN  4
 #define HAL_LEN  (EMP_LEN/2)
 #define LEAF_NUM (SEGS*EMP_LEN)
+
+#define CONTENTION_LEVEL 5
 
 #define ADAPTIVE_LOCK 1
 #define BM_QUERY 1
@@ -111,6 +113,7 @@ class MemstoreEunoTree: public Memstore {
 public:
 
 	int tableid;
+	uint64_t insert_seq;
 
 	uint64_t rconflict = 0;
 	uint64_t wconflict = 0;
@@ -151,6 +154,10 @@ public:
 
 	uint64_t consist, inconsist;
 	//uint64_t bm_time;
+	uint64_t node_difference;
+	uint64_t node_inserts;
+
+	bool contention_mode;
 
 	SpinLock bm_lock;
 	struct KeyValue {
@@ -209,6 +216,7 @@ public:
 		LeafNode *right;
 		InnerNode* parent;
 		uint64_t seq;
+		unsigned last_thread_id;
 		//uint64_t paddings1[3];
 		//unsigned signature;
 	};
@@ -295,6 +303,7 @@ public:
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
 		//printf("MemstoreEunoTree()\n");
+		insert_seq = 0;
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
@@ -318,13 +327,17 @@ public:
 		//printf("sizeof(InnerNode) = %u\n", sizeof(InnerNode));
 		//printf("sizeof(BloomFilter) = %u\n", sizeof(BloomFilter));
 		//printf("MemstoreEunoTree()\n");
-		tableid = _tableid;
+		//MemstoreEunoTree();
+
+		insert_seq = 0;
 		root = new LeafNode();
 		first_leaf = true;
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
+
+		tableid = _tableid;
 		insert_time = 0;
 		spec_hit = spec_miss = 0;
 		duplicate_keys = 0;
@@ -333,10 +346,13 @@ public:
 		original_inserts = scope_inserts = 0;
 		stage_1_time = stage_2_time = bm_time = 0;
 		consist = inconsist = 0;
+		node_difference = 0;
+		node_inserts = 0;
+		contention_mode = true;
 		/*
-				for(int i = 0; i < 20 ; i ++){
-					last_leafs[i] = new LeafNode();
-				}
+		for(int i = 0; i < 20 ; i ++){
+			last_leafs[i] = new LeafNode();
+		}
 		*/
 		//half_born=empty_born=0;
 		//should_protect=should_not_protect=0;
@@ -350,6 +366,9 @@ public:
 	}
 
 	~MemstoreEunoTree() {
+		if(tableid == 6) {
+			printf("[Alex] node_inserts = %lu, node_difference = %lu\n", node_inserts, node_difference);
+		}
 		//printf("[Alex]~MemstoreEunoTree tableid = %d\n", tableid);
 		//printf("[Alex]~MemstoreEunoTree\n");
 		//prof.reportAbortStatus();
@@ -364,22 +383,22 @@ public:
 		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
 
 		//printf("consist = %lu, inconsist = %lu\n", consist, inconsist);
-/*
-		if(tableid == 6) { //ORLI
-			printf("Prof report:\n");
-			prof.reportAbortStatus();
+		/*
+				if(tableid == 6) { //ORLI
+					printf("Prof report:\n");
+					prof.reportAbortStatus();
 
-#if DUP_PROF
-			printf("leaf_inserts = %lu, dup_found = %lu, leaf_splits = %lu\n", leaf_inserts, dup_found, leaf_splits);
-#endif
-			//printf("inner_splits = %lu, leaf_splits = %lu\n", inner_splits, leaf_splits);
-			printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
+		#if DUP_PROF
+					printf("leaf_inserts = %lu, dup_found = %lu, leaf_splits = %lu\n", leaf_inserts, dup_found, leaf_splits);
+		#endif
+					//printf("inner_splits = %lu, leaf_splits = %lu\n", inner_splits, leaf_splits);
+					printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
 
-			//printf("stage_1_time = %lu, bm_time = %lu, stage_2_time = %lu\n", stage_1_time, bm_time, stage_2_time);
+					//printf("stage_1_time = %lu, bm_time = %lu, stage_2_time = %lu\n", stage_1_time, bm_time, stage_2_time);
 
-			//printf("leaf_rightmost = %u, leaf_not_rightmost = %u\n", leaf_rightmost, leaf_not_rightmost);
-		}
-*/
+					//printf("leaf_rightmost = %u, leaf_not_rightmost = %u\n", leaf_rightmost, leaf_not_rightmost);
+				}
+		*/
 		//printf("depth = %d\n", depth);
 		//printf("leaf_splits = %lu\n", leaf_splits);
 		/*
@@ -561,9 +580,9 @@ public:
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
-		
+
 		ThreadLocalInit();
-		
+
 		MemNode *node = GetWithInsert(k).node;
 		node->value = val;
 #if BTREE_PROF
@@ -756,7 +775,7 @@ public:
 			}
 			if(full_segs == 1) break;
 		}
-		bool need_protect = full_segs == 1;
+		bool need_protect = (full_segs >= 1);
 		//if(need_protect)should_protect++;
 		//else should_not_protect++;
 		return need_protect;
@@ -810,78 +829,23 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
-		//int thread_id = sched_getcpu();
+		int cpu_id = sched_getcpu();
 		ThreadLocalInit();
 		//LeafNode* spec_leaf = NULL;
 		LeafNode* target_leaf = NULL;
 		//InnerNode* inner = NULL;
 		//InnerNode* target_inner = NULL;
-		/*
-				{
-					RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
-					spec_leaf = FindLeaf(key);
-				}
 
-				bool locked = false;
-				bool should_move = false;
-				bool found = false;
-
-				if(spec_leaf != root){
-					spec_leaf->mlock.Lock();
-					for(int i = 0 ; i < LEAF_NUM; i++){
-						//if(spec_leaf->keys[i]==0) break;
-						if(spec_leaf->kvs[i].key == key){
-							found = true;
-							break;
-						}
-					}
-					if(!found){
-						for(int i = 0; i < SEGS; i++){
-							for(int j = 0 ; j < spec_leaf->leaf_segs[i].key_num; j++){
-								//printf("spec_leaf = %x, root = %x\n", spec_leaf, root);
-								//printf("spec_leaf->leaf_segs[i].key_num = %d\n",spec_leaf->leaf_segs[i].key_num);
-								if(spec_leaf->leaf_segs[i].kvs[j].key == key){
-									found = true;
-									break;
-								}
-							}
-							if(found) break;
-						}
-					}
-
-					spec_leaf->mlock.Unlock();
-					if(found){
-		#if DUP_PROF
-						dup_found++;
-		#endif
-						return {dummyval_, false};
-					}
-				}
-
-		#if ADAPTIVE_LOCK
-				//int full_segs = ShouldLockLeaf(spec_leaf);
-				// should_move = full_segs == 2;
-				if(ShouldLockLeaf(spec_leaf))
-				{
-					locked = true;
-		#endif
-					spec_leaf->mlock.Lock();
-		#if ADAPTIVE_LOCK
-				}
-		#endif
-		*/
 		MemNode* res = NULL;
-		if(depth < 5) {
+		if(depth < CONTENTION_LEVEL ) {
 			//original_inserts++;
 			res = Insert_rtm(key, &target_leaf);
-			//if(tableid==0)
-			//printf("original_insert tableid = %d, key = %lu\n",tableid, key);
 		} else {
 			//scope_inserts++;
 			LeafNode* leafNode = NULL;
 			MemNode* memNode = NULL;
 			int temp_depth;
-			bool bm_found = false;
+			bool bm_found = true;
 			bool locked = false;
 			uint64_t this_key = key;
 			//printf("[%lu] Before ScopeFind\n", key);
@@ -890,15 +854,31 @@ public:
 #endif
 			uint64_t seqno = 0;
 
-TOP_RETRY: 
-			{
+TOP_RETRY:  {
 				RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 				temp_depth = ScopeFind(this_key, &leafNode);
 				seqno = leafNode->seq;
 			}
-
-			//printf("[%lu] After ScopeFind\n", key);
-
+			/*
+			if(tableid == 6 || tableid == 8) {
+				if(node_inserts <= 20000) {
+					node_inserts ++;
+					if(leafNode->last_thread_id != cpu_id) {
+						node_difference++;
+						leafNode->last_thread_id = cpu_id;
+					}
+				}
+				if(node_inserts == 20000) {
+					double contention_thr = (double)node_difference / node_inserts;
+					if(contention_thr < 0.3) {
+						contention_mode = false;
+						printf("contention_mode = false\n");
+					}
+					printf("[%d] node_inserts = %lu, node_difference = %lu, ratio = %lf\n",
+						   tableid, node_inserts, node_difference, (double)node_difference / node_inserts);
+				}
+			}
+*/
 #if TIME_BKD
 			stage_1_time += t.lap();
 #endif
@@ -911,11 +891,11 @@ TOP_RETRY:
 			leafNode->mlock.Unlock();
 #endif
 			/*
-						if(bm_found && bm_exist){
-							bm_found_num++;
-						}else{
-							bm_miss_num++;
-						}
+			if(bm_found && bm_exist){
+				bm_found_num++;
+			}else{
+				bm_miss_num++;
+			}
 			*/
 
 #if TIME_BKD
@@ -1181,11 +1161,6 @@ TOP_RETRY:
 				}
 
 				new_sibling = NULL;
-				/*
-								for(int i = 0 ; i < reinterpret_cast<InnerNode*>(root)->num_keys; i++){
-									printf("root->keys[%d] = %lu\n", i,reinterpret_cast<InnerNode*>(root)->keys[i]);
-								}
-				*/
 				k = 0;
 				while((k < insert_inner->num_keys) && (key >= insert_inner->keys[k])) {
 					k++;
@@ -1271,63 +1246,11 @@ TOP_RETRY:
 					toInsert->num_keys++;
 					toInsert->keys[k] = child_sibling->keys[N - 1];
 
-					/*
-					bool illegal = false;
-					if(toInsert != NULL && toInsert->num_keys > 0){
-						for(int i = 0 ; i < toInsert->num_keys-1; i++){
-							if(toInsert->keys[i]>=toInsert->keys[i+1]){
-								illegal = true;
-								break;
-							}
-						}
-					}
-
-					if(illegal){
-						printf("\n[2]ILLEGAL\n");
-
-						printf("k = %d, key = %lu, child_sibling->keys[N - 1] = %lu\n",k,key,child_sibling->keys[N - 1]);
-						for(int i = 0 ; i < toInsert->num_keys; i++){
-							printf("toInsert = %x, toInsert->keys[%d] = %lu\n", toInsert, i, toInsert->keys[i]);
-						}
-						for(int i = 0; i < N; i++){
-							printf("child_sibling = %x, child_sibling->keys[%d] = %lu\n", child_sibling, i, child_sibling->keys[i]);
-						}
-
-						for(int i = 0 ; i < toInsert->num_keys +1; i ++){
-							InnerNode* child = reinterpret_cast<InnerNode*>(toInsert->children[i]);
-							if(child){
-								for(int j = 0; j < N; j++){
-									printf("child[%d] = %x, child->num_keys = %u, child->keys[%d] = %lu\n", i, child, child->num_keys, j, child->keys[j]);
-								}
-							}
-						}
-					}
-					*/
 
 					//printf("child_sibling->keys[N-1] = %lu",child_sibling->keys[N-1]);
 				}
 				toInsert->children[k + 1] = child_sibling;
 				child_sibling->parent = toInsert;
-				/*
-				if(insert_inner&&InnerContains(insert_inner,2250046561L)){
-					printf("[INSERT2]\n");
-					for(int i = 0; i < insert_inner->num_keys; i++){
-						printf("insert_inner = %x, insert_inner->num_keys = %u, insert_inner->keys[%d] = %lu\n",
-							insert_inner, insert_inner->num_keys, i, insert_inner->keys[i]);
-					}
-					for(int i = 0; i < child_sibling->num_keys; i++){
-						printf("child_sibling = %x, child_sibling->num_keys = %u, child_sibling->keys[%d] = %lu\n",
-							child_sibling, child_sibling->num_keys, i, child_sibling->keys[i]);
-					}
-					for(int i = 0 ; i < insert_inner->num_keys+1; i++){
-						if(insert_inner->children[i]==child_sibling){
-							printf("index = %d\n", i);
-							break;
-						}
-					}
-					printf("new_sibling = %x\n", new_sibling);
-				}
-				*/
 			}
 		}
 		//printf("Leaf = %x, ScopeInsert ends\n", leaf);
@@ -1686,7 +1609,7 @@ TOP_RETRY:
 	}
 
 	inline void dump_reserved(LeafNode* leaf) {
-		printf("reserved[%x] = [", leaf);
+		printf("reserved[%p] = [", leaf);
 		for(int i = 0; i < leaf->num_keys; i++) {
 			printf("%lu, ", leaf->reserved[i].key);
 		}
@@ -1818,12 +1741,6 @@ TOP_RETRY:
 
 				if(leaf->right == NULL && k == LEAF_NUM) {//new leafnode at rightmost
 					//leaf_rightmost++;
-					/*
-					if(tableid==1&&key==203){
-						printf("rightmost split\n");
-						dump_leaf(leaf);
-					}
-					*/
 					toInsert = new_sibling;
 					if(new_sibling->leaf_segs[0].key_num != 0) {
 						//printf("new_sibling = %x\n", new_sibling);

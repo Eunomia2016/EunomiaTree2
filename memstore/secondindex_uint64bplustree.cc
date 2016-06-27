@@ -8,13 +8,13 @@ namespace leveldb {
 	__thread SecondIndex::MemNodeWrapper* SecondIndexUint64BPlusTree::dummywrapper_ = NULL;
 
 	void SecondIndexUint64BPlusTree::printLeaf(LeafNode *n) {
-			printf("Leaf Key num %d\n", n->num_keys);
+			printf("Leaf Key num %u\n", n->num_keys);
 			for (int i=0; i<n->num_keys;i++){
-				printf("key  %ld value %lx \n",n->keys[i], n->values[i]);
+				printf("key  %ld value %p \n",n->keys[i], n->values[i]);
 				SecondIndex::SecondNode *sn = n->values[i];
 				MemNodeWrapper *w = sn->head;
 				while (w!=NULL) {
-					printf("%ld %d %lx\t ",w->key, w->valid, w->memnode->value);
+					printf("%lu %d %p\t ",w->key, w->valid, w->memnode->value);
 					w = w->next;
 				}
 				printf("\n");
