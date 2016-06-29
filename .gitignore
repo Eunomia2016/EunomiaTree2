@@ -6,3 +6,6 @@ log*
 memstorebt_test
 *.mk
 *.stat
+ycsb_test
+*.csv
+*.log

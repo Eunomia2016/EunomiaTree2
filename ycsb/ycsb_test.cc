@@ -21,14 +21,17 @@
 
 #include "db/dbtx.h"
 #include "db/dbtables.h"
+#include <random>
+
 static const char* FLAGS_benchmarks = "mix";
 
-static int FLAGS_num = 1000000;
+static int FLAGS_num = 4000000;
 static int FLAGS_threads = 1;
 static uint64_t nkeys = 100000000;
 static uint64_t pre_keys = 100000;
 static double READ_RATIO = 0.5;
 static bool EUNO_USED = false;
+static int CONT_SIZE = 100;
 
 uint64_t next_o_id = 0;
 
@@ -36,17 +39,13 @@ uint64_t next_o_id = 0;
 #define YCSBRecordSize 100
 #define GETCOPY 0
 
+enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY};
+
+static dist_func FUNC_TYPE = SEQT;
+
 namespace leveldb {
 
 typedef uint64_t Key;
-
-static inline ALWAYS_INLINE int64_t makeKeys(int32_t w_id, int32_t d_id, int32_t o_id, int32_t number) {
-	int32_t upper_id = w_id * 10 + d_id;
-	int64_t oid = static_cast<int64_t>(upper_id) * 10000000 + static_cast<int64_t>(o_id);
-	int64_t olid = oid * 15 + number;
-	int64_t id = static_cast<int64_t>(olid);
-	return id;
-}
 
 class fast_random {
 public:
@@ -114,7 +113,72 @@ private:
 	unsigned long seed;
 };
 
+static inline ALWAYS_INLINE uint64_t* SequentialKeys(int32_t start_id) {
+	fast_random r(8544290);
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	uint32_t upper_id = 1 * 10 + 1;
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
+	for(int i = 0; i < CONT_SIZE; i++) {
+		uint64_t id = oid * CONT_SIZE + i ;
+		//printf("[%d]id = %lu\n",i, id);
+		cont_window[i] = id;
+	}
+	return cont_window;
+}
+
+static inline ALWAYS_INLINE uint64_t* UniformKeys(int32_t start_id) {
+	fast_random r(8544290);
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	uint32_t upper_id = 1 * 10 + 1;
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
+	for(int i = 0; i < CONT_SIZE; i++) {
+		uint64_t id = oid * CONT_SIZE + static_cast<int>(r.next()) % CONT_SIZE ;
+		//printf("[%d]id = %lu\n",i, id);
+		cont_window[i] = id;
+	}
+	return cont_window;
+}
+
+static inline ALWAYS_INLINE uint64_t* NormalKeys(int32_t start_id) {
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+
+	std::default_random_engine generator;
+	std::normal_distribution<double> distribution(CONT_SIZE / 2, 5.0);
+
+	uint32_t upper_id =  1;
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
+
+	for(int i = 0; i < CONT_SIZE; i++) {
+		uint64_t id = oid * CONT_SIZE + static_cast<int>(distribution(generator)) % CONT_SIZE;
+		cont_window[i] = id;
+		//printf("[%d]id = %lu\n", i, id);
+		//uint64_t id = oid * CONT_SIZE + i;
+		//cont_window[i] = id;
+	}
+	return cont_window;
+}
+
+static inline ALWAYS_INLINE uint64_t* CauchyKeys(int32_t start_id) {
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+
+	std::default_random_engine generator;
+	std::cauchy_distribution<double> distribution(CONT_SIZE / 2, 5.0);
+
+	uint32_t upper_id =  1;
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
+
+	for(int i = 0; i < CONT_SIZE; i++) {
+		uint64_t id = oid * CONT_SIZE + static_cast<int>(distribution(generator)) % CONT_SIZE;
+		cont_window[i] = id;
+		//printf("[%d]id = %lu\n",i, id);
+		//uint64_t id = oid * CONT_SIZE + i;
+		//cont_window[i] = id;
+	}
+	return cont_window;
+}
+
 class Benchmark {
+	typedef uint64_t* (*Key_Generator)(int32_t);
 
 private:
 	int64_t total_count;
@@ -126,6 +190,7 @@ private:
 	Random ramdon;
 
 	DBTables *store;
+	Key_Generator key_generator;
 
 private:
 
@@ -264,10 +329,11 @@ private:
 					//printf("[%d] write key = %lu\n", tid, key);
 					tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
 					*/
+					uint64_t * cont_keys = UniformKeys(next_id);
 					next_id++;
-					for(int idx = 0; idx < 15; idx++) {
-						uint64_t key = makeKeys(1, 1, next_id, idx);
-						//printf("[%d] write key = %lu\n", tid, key);
+					for(int idx = 0; idx < CONT_SIZE; idx++) {
+						uint64_t key = cont_keys[idx];
+						printf("[%d] write key = %lu\n", tid, key);
 						std::string c(YCSBRecordSize, 'c');
 						tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
 					}
@@ -296,39 +362,28 @@ private:
 		double start = leveldb::Env::Default()->NowMicros();
 		std::string v;
 		char nv[YCSBRecordSize];
+
 		//printf("READ_RATIO = %lf\n", READ_RATIO);
 		while(finish < num) {
 			double d = r.next_uniform();
 			//Read
 			if(d < READ_RATIO) {
 				uint64_t key = r.next() % pre_keys;
-				Memstore::MemNode * mn = table->Get(key);
-				char *s = (char *)(mn->value);
-				finish++;
+				table->Get(key);
+				finish += 1;
 			}
-			//RMW
+			//Write
 			else {
-				//uint64_t key = r.next() % nkeys;
+				uint64_t * cont_keys = key_generator(next_id);
 				next_id++;
-				uint64_t rkeys[15];
-				for(int idx = 0; idx < 15;idx++){
-					rkeys[idx] = idx;//r.next()%15;
-				}
-				//sort(rkeys,rkeys+15);
 				/*
-				swap(rkeys[0],rkeys[9]);
-				swap(rkeys[4],rkeys[11]);
-				swap(rkeys[3],rkeys[8]);
-				swap(rkeys[0],rkeys[7]);
-				swap(rkeys[12],rkeys[2]);
-				swap(rkeys[1],rkeys[10]);
+				for(int idx = 0; idx < CONT_SIZE; idx++){
+					printf("[%d]write key = %lu\n",idx, cont_keys[idx]);
+				}
 				*/
-				for(int idx = 0; idx < 15; idx++) {
-					//uint64_t rkey = r.next()%15;
-					//printf("write rkeys[%d] = %lu\n",idx, rkeys[idx]);
-					uint64_t key = rkeys[idx] + makeKeys(1, 1, next_id, 1);
-					//uint64_t key = makeKeys(1,1, next_id, idx);
-					//printf("write key = %lu\n", key);
+				for(int idx = 0; idx < CONT_SIZE; idx++) {
+					uint64_t key = cont_keys[idx];
+
 					Memstore::MemNode * mn = table->GetWithInsert(key).node;
 					char *s = (char *)(mn->value);
 					std::string c(YCSBRecordSize, 'c');
@@ -336,8 +391,8 @@ private:
 					mn = table->GetWithInsert(key).node;
 					mn->value = (uint64_t *)(nv);
 				}
-
-				finish += 15;
+				finish += CONT_SIZE;
+				free(cont_keys);
 			}
 		}
 
@@ -408,14 +463,26 @@ public:
 
 	void Run() {
 		if(EUNO_USED) {
-			printf("Eunomia Tree\n");
+			printf("EunomiaTree\n");
 			table = new leveldb::MemstoreEunoTree();
 		} else {
 			printf("B+Tree\n");
 			table = new leveldb::MemstoreBPlusTree();
 		}
-
-		//
+		switch(FUNC_TYPE) {
+		case SEQT:
+			key_generator = SequentialKeys;
+			break;
+		case UNIF:
+			key_generator = UniformKeys;
+			break;
+		case NORM:
+			key_generator = NormalKeys;
+			break;
+		case CAUCHY:
+			key_generator = CauchyKeys;
+			break;
+		}
 		//table = new leveldb::LockfreeHashTable();
 		//table = new leveldb::MemstoreHashTable();
 		//table = new leveldb::MemStoreSkipList();
@@ -461,6 +528,7 @@ int main(int argc, char** argv) {
 		int n;
 		char junk;
 		double read_rate;
+		int func_type;
 		if(leveldb::Slice(argv[i]).starts_with("--benchmark=")) {
 			FLAGS_benchmarks = argv[i] + strlen("--benchmark=");
 		} else if(sscanf(argv[i], "--num=%d%c", &n, &junk) == 1) {
@@ -471,11 +539,26 @@ int main(int argc, char** argv) {
 			EUNO_USED = (n == 1);
 		} else if(sscanf(argv[i], "--read-rate=%lf%c", &read_rate, &junk) == 1) {
 			READ_RATIO = read_rate;
+		} else if(sscanf(argv[i], "--func=%d%c", &func_type, &junk) == 1) {
+			FUNC_TYPE = static_cast<dist_func>(func_type);
 		}
 
 	}
 	printf("threads = %d, read_rate = %lf\n", FLAGS_threads, READ_RATIO);
-
+	switch(FUNC_TYPE) {
+	case SEQT:
+		printf("Sequential Distribution\n");
+		break;
+	case UNIF:
+		printf("Uniform Distribution\n");
+		break;
+	case NORM:
+		printf("Normal Distribution\n");
+		break;
+	case CAUCHY:
+		printf("Cauchy Distribution\n");
+		break;
+	}
 	leveldb::Benchmark benchmark;
 	benchmark.Run();
 //  while (1);
