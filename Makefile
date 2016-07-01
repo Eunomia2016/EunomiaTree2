@@ -24,8 +24,8 @@ include build_config.mk
 CFLAGS += -I. -I./include $(PLATFORM_CCFLAGS) $(OPT)
 CXXFLAGS += -I. -I./include $(PLATFORM_CXXFLAGS) -std=c++11 $(OPT) 
 
-CFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -Wno-write-strings
-CXXFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -Wno-write-strings
+CFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -Wno-write-strings -Wall
+CXXFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -Wno-write-strings 
 
 LDFLAGS += $(PLATFORM_LDFLAGS) -lnuma -L./lib 
 LIBS += $(PLATFORM_LIBS) -lnuma -lbloom

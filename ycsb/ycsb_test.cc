@@ -31,15 +31,18 @@ static uint64_t nkeys = 100000000;
 static uint64_t pre_keys = 100000;
 static double READ_RATIO = 0.5;
 static bool EUNO_USED = false;
-static int CONT_SIZE = 100;
-
+static int CONT_SIZE = 16;
+static double THETA = 0.01;
+static int ZIP_RANGE = 10;
+static int ZIP_ITER = 16;
+static double DELTA = 1.0;
 uint64_t next_o_id = 0;
 
 #define CHECK 0
 #define YCSBRecordSize 100
 #define GETCOPY 0
 
-enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY};
+enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY, ZIPF};
 
 static dist_func FUNC_TYPE = SEQT;
 
@@ -113,11 +116,14 @@ private:
 	unsigned long seed;
 };
 
-static inline ALWAYS_INLINE uint64_t* SequentialKeys(int32_t start_id) {
-	fast_random r(8544290);
+static inline ALWAYS_INLINE uint64_t* SequentialKeys(uint64_t* dist_last_ids) {
+	uint64_t start_id = dist_last_ids[0]++;
+
+	fast_random r(start_id);
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	uint32_t upper_id = 1 * 10 + 1;
-	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
+
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(start_id);
 	for(int i = 0; i < CONT_SIZE; i++) {
 		uint64_t id = oid * CONT_SIZE + i ;
 		//printf("[%d]id = %lu\n",i, id);
@@ -126,10 +132,13 @@ static inline ALWAYS_INLINE uint64_t* SequentialKeys(int32_t start_id) {
 	return cont_window;
 }
 
-static inline ALWAYS_INLINE uint64_t* UniformKeys(int32_t start_id) {
-	fast_random r(8544290);
+static inline ALWAYS_INLINE uint64_t* UniformKeys(uint64_t* dist_last_ids) {
+	uint64_t start_id = dist_last_ids[0]++;
+
+	fast_random r(start_id);
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	uint32_t upper_id = 1 * 10 + 1;
+
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
 	for(int i = 0; i < CONT_SIZE; i++) {
 		uint64_t id = oid * CONT_SIZE + static_cast<int>(r.next()) % CONT_SIZE ;
@@ -139,46 +148,150 @@ static inline ALWAYS_INLINE uint64_t* UniformKeys(int32_t start_id) {
 	return cont_window;
 }
 
-static inline ALWAYS_INLINE uint64_t* NormalKeys(int32_t start_id) {
+static inline ALWAYS_INLINE uint64_t* NormalKeys(uint64_t* dist_last_ids) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	std::random_device rd;
+	std::mt19937 gen(rd());
 
-	std::default_random_engine generator;
-	std::normal_distribution<double> distribution(CONT_SIZE / 2, 5.0);
+	//std::default_random_engine generator;
+	std::normal_distribution<double> distribution(CONT_SIZE / 2, DELTA);
 
 	uint32_t upper_id =  1;
+	uint64_t start_id = dist_last_ids[0]++;
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
 
 	for(int i = 0; i < CONT_SIZE; i++) {
-		uint64_t id = oid * CONT_SIZE + static_cast<int>(distribution(generator)) % CONT_SIZE;
+		int no = static_cast<int>(distribution(gen)) % CONT_SIZE;
+		uint64_t id = oid * CONT_SIZE + no;
+		//printf("[%2d][%d]id = %lu, no = %d\n",sched_getcpu(), i, id, no);
 		cont_window[i] = id;
 		//printf("[%d]id = %lu\n", i, id);
 		//uint64_t id = oid * CONT_SIZE + i;
 		//cont_window[i] = id;
 	}
+
 	return cont_window;
 }
 
-static inline ALWAYS_INLINE uint64_t* CauchyKeys(int32_t start_id) {
+static inline ALWAYS_INLINE uint64_t* CauchyKeys(uint64_t* dist_last_ids) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 
-	std::default_random_engine generator;
-	std::cauchy_distribution<double> distribution(CONT_SIZE / 2, 5.0);
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	//std::default_random_engine gen;
+	std::cauchy_distribution<double> distribution(CONT_SIZE / 2, DELTA);
 
 	uint32_t upper_id =  1;
+	uint64_t start_id = dist_last_ids[0]++;
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
 
 	for(int i = 0; i < CONT_SIZE; i++) {
-		uint64_t id = oid * CONT_SIZE + static_cast<int>(distribution(generator)) % CONT_SIZE;
+		int ck = static_cast<int>(distribution(gen)); //% CONT_SIZE;
+		uint64_t id = oid * CONT_SIZE + ck;
+		//printf("[%2d][%d]id = %lu, ck = %d\n",sched_getcpu(), i, id, ck);
+
 		cont_window[i] = id;
-		//printf("[%d]id = %lu\n",i, id);
-		//uint64_t id = oid * CONT_SIZE + i;
-		//cont_window[i] = id;
+	}
+	sort(cont_window, cont_window + CONT_SIZE);
+	return cont_window;
+}
+double zeta(long n, double theta) {
+	int i;
+	double ans = 0;
+	for(i = 1; i <= n; i++) {
+		ans += pow(1 / static_cast<double>(n), theta);
+	}
+	return ans;
+}
+
+long zipf(long n, double theta) {
+	double alpha = 1 / (1 - theta);
+	double zetan = zeta(n, theta);
+	double eta = (1 - pow(2.0 / n, 1 - theta)) / (1 - zeta(2, theta) / zetan);
+	double u = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+	double uz = u * zetan;
+	if(uz < 1) return 1;
+	if(uz < 1 + pow(0.5, theta)) return 2;
+	return 1 + (long)(n * pow(eta * u - eta + 1, alpha));
+}
+
+struct probvals {
+	float prob;                  /* the access probability */
+	float cum_prob;              /* the cumulative access probability */
+};
+
+struct probvals* zdist = NULL;
+
+struct probvals* get_zipf(float theta, int NUM) {
+	float sum = 0.0;
+	float c = 0.0;
+	float expo;
+	float sumc = 0.0;
+	int i;
+
+	expo = theta;
+	/*
+	* zipfian - p(i) = c / i ^^ (theta) At x
+	* = 1, uniform * at x = 0, pure zipfian
+	*/
+	struct probvals* dist = (struct probvals*)calloc(NUM, sizeof(struct probvals));
+	for(i = 1; i <= NUM; i++) {
+		sum += 1.0 / (float) pow((double) i, (double)(expo));
+	}
+	c = 1.0 / sum;
+
+	for(i = 0; i < NUM; i++) {
+		dist[i].prob = c /
+					   (float) pow((double)(i + 1), (double)(expo));
+		sumc +=  dist[i].prob;
+		dist[i].cum_prob = sumc;
+	}
+	return dist;
+}
+
+
+static inline ALWAYS_INLINE uint64_t* ZipfKeys(uint64_t* dist_last_ids) {
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	//printf("zdist = %p\n", zdist);
+	double rnd = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+	//printf("rnd = %lf\n", rnd);
+	int dist_num = 0;
+	for(int j = 0; j < ZIP_RANGE ; j++) {
+		if(rnd < zdist[j].cum_prob) {
+			dist_num = j;
+			//printf("dist_num = %d\n", dist_num);
+			break;
+		}
+	}
+
+	uint32_t upper_id = 10 + dist_num;
+	uint64_t last_o_id = dist_last_ids[dist_num]++;// __sync_fetch_and_add(&dist_o_id[dist_num], 1);
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
+
+	for(int i = 0; i < CONT_SIZE; i++) {
+		cont_window[i] = oid * CONT_SIZE + i;
+		//printf("cont_window[%d] = %lu\n",i,cont_window[i]);
 	}
 	return cont_window;
 }
 
+/*
+static inline ALWAYS_INLINE uint64_t* ZipfKeys(int32_t start_id) {
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	uint32_t upper_id =  1;
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
+	for(int i = 0; i < CONT_SIZE; i++) {
+		long zf = zipf(CONT_SIZE, THETA)%CONT_SIZE;
+		uint64_t id = oid * CONT_SIZE + zf;
+		//printf("[%2d][%d]id = %lu zf = %ld\n",sched_getcpu(), i, id,zf);
+		cont_window[i] = id;
+	}
+	sort(cont_window,cont_window+CONT_SIZE);
+	return cont_window;
+}
+*/
 class Benchmark {
-	typedef uint64_t* (*Key_Generator)(int32_t);
+	typedef uint64_t* (*Key_Generator)(uint64_t*);
 
 private:
 	int64_t total_count;
@@ -321,14 +434,15 @@ private:
 				bool b = false;
 
 				while(!b) {
+					/*
 					tx.Begin();
 					uint64_t *s;
-					/*
+
 					tx.Get(0, key, &s);
 					std::string c(YCSBRecordSize, 'c');
 					//printf("[%d] write key = %lu\n", tid, key);
 					tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
-					*/
+
 					uint64_t * cont_keys = UniformKeys(next_id);
 					next_id++;
 					for(int idx = 0; idx < CONT_SIZE; idx++) {
@@ -338,6 +452,7 @@ private:
 						tx.Add(0, key, (uint64_t *)c.data(), YCSBRecordSize);
 					}
 					b = tx.End();
+					*/
 				}
 				finish += 15;
 				//printf("write ends\n");
@@ -357,7 +472,8 @@ private:
 
 		int num = thread->count;
 		int finish = 0 ;
-		int next_id = 3000;
+		uint64_t* dist_o_id = (uint64_t*)calloc(ZIP_RANGE, sizeof(uint64_t));
+		//int next_id = 3000;
 		fast_random r = thread->rnd;
 		double start = leveldb::Env::Default()->NowMicros();
 		std::string v;
@@ -374,13 +490,14 @@ private:
 			}
 			//Write
 			else {
-				uint64_t * cont_keys = key_generator(next_id);
-				next_id++;
+				uint64_t * cont_keys = key_generator(dist_o_id);
+
 				/*
 				for(int idx = 0; idx < CONT_SIZE; idx++){
 					printf("[%d]write key = %lu\n",idx, cont_keys[idx]);
 				}
 				*/
+
 				for(int idx = 0; idx < CONT_SIZE; idx++) {
 					uint64_t key = cont_keys[idx];
 
@@ -391,6 +508,7 @@ private:
 					mn = table->GetWithInsert(key).node;
 					mn->value = (uint64_t *)(nv);
 				}
+
 				finish += CONT_SIZE;
 				free(cont_keys);
 			}
@@ -398,7 +516,7 @@ private:
 
 		double end = leveldb::Env::Default()->NowMicros();
 		printf("Exe time: %f\n", (end - start) / 1000 / 1000);
-		printf("Thread[%d] Op Throughput %lf ops/s\n", tid, finish / ((end - start) / 1000 / 1000));
+		printf("Thread[%d] Total %d Ops. Throughput %lf ops/s\n", tid, finish, finish / ((end - start) / 1000 / 1000));
 	}
 
 public:
@@ -482,6 +600,13 @@ public:
 		case CAUCHY:
 			key_generator = CauchyKeys;
 			break;
+		case ZIPF:
+			key_generator = ZipfKeys;
+			if(zdist == NULL) {
+
+				zdist = get_zipf(THETA, ZIP_RANGE);
+			}
+			break;
 		}
 		//table = new leveldb::LockfreeHashTable();
 		//table = new leveldb::MemstoreHashTable();
@@ -524,11 +649,14 @@ public:
 }  // namespace leveldb
 
 int main(int argc, char** argv) {
+	srand(time(NULL));
 	for(int i = 1; i < argc; i++) {
 		int n;
 		char junk;
 		double read_rate;
 		int func_type;
+		int cont_size;
+		double theta;
 		if(leveldb::Slice(argv[i]).starts_with("--benchmark=")) {
 			FLAGS_benchmarks = argv[i] + strlen("--benchmark=");
 		} else if(sscanf(argv[i], "--num=%d%c", &n, &junk) == 1) {
@@ -541,10 +669,14 @@ int main(int argc, char** argv) {
 			READ_RATIO = read_rate;
 		} else if(sscanf(argv[i], "--func=%d%c", &func_type, &junk) == 1) {
 			FUNC_TYPE = static_cast<dist_func>(func_type);
+		} else if(sscanf(argv[i], "--cont-size=%d%c", &cont_size, &junk) == 1) {
+			CONT_SIZE = cont_size;
+		} else if(sscanf(argv[i], "--theta=%lf%c", &theta, &junk) == 1) {
+			THETA = theta;
 		}
 
 	}
-	printf("threads = %d, read_rate = %lf\n", FLAGS_threads, READ_RATIO);
+	printf("threads = %d, read_rate = %lf, cont_size = %d\n", FLAGS_threads, READ_RATIO, CONT_SIZE);
 	switch(FUNC_TYPE) {
 	case SEQT:
 		printf("Sequential Distribution\n");
@@ -558,7 +690,11 @@ int main(int argc, char** argv) {
 	case CAUCHY:
 		printf("Cauchy Distribution\n");
 		break;
+	case ZIPF:
+		printf("Zipfian Distribution. Theta = %lf\n", THETA);
+		break;
 	}
+
 	leveldb::Benchmark benchmark;
 	benchmark.Run();
 //  while (1);
