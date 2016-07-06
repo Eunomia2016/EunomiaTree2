@@ -33,7 +33,7 @@ static double READ_RATIO = 0.5;
 static bool EUNO_USED = false;
 static int CONT_SIZE = 16;
 static double THETA = 0.01;
-static int ZIP_RANGE = 10;
+static int ZIP_RANGE = 20;
 static int ZIP_ITER = 16;
 static double DELTA = 1.0;
 uint64_t next_o_id = 0;
@@ -265,7 +265,7 @@ static inline ALWAYS_INLINE uint64_t* ZipfKeys(uint64_t* dist_last_ids) {
 	}
 
 	uint32_t upper_id = 10 + dist_num;
-	uint64_t last_o_id = dist_last_ids[dist_num]++;// __sync_fetch_and_add(&dist_o_id[dist_num], 1);
+	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
 
 	for(int i = 0; i < CONT_SIZE; i++) {
@@ -516,7 +516,7 @@ private:
 
 		double end = leveldb::Env::Default()->NowMicros();
 		printf("Exe time: %f\n", (end - start) / 1000 / 1000);
-		printf("Thread[%d] Total %d Ops. Throughput %lf ops/s\n", tid, finish, finish / ((end - start) / 1000 / 1000));
+		printf("Thread[%d] Throughput %lf ops/s\n", tid, finish / ((end - start) / 1000 / 1000));
 	}
 
 public:

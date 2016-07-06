@@ -81,45 +81,69 @@ enum TPCC_TYPE{NEW_ORDER = 0, PAYMENT, DELIVERY, ORDER_STATUS, STOCK_LEVEL};
 #endif
 
 #if SHORTKEY
+
+static inline ALWAYS_INLINE size_t
+NumWarehouses() {
+	return (size_t) scale_factor;
+}
+
+// config constants
+
+static constexpr inline ALWAYS_INLINE size_t
+NumItems() {
+	return 100000;
+}
+
+static constexpr inline ALWAYS_INLINE size_t
+NumDistrictsPerWarehouse() {
+	return 5;
+}
+
+static constexpr inline ALWAYS_INLINE size_t
+NumCustomersPerDistrict() {
+	return 3000;
+}
+
+
 static inline ALWAYS_INLINE int64_t makeDistrictKey(int32_t w_id, int32_t d_id) {
-	int32_t did = d_id + (w_id * 10);
+	int32_t did = d_id + (w_id * NumDistrictsPerWarehouse());
 	int64_t id = static_cast<int64_t>(did);
 	return id;
 }
 
 static inline ALWAYS_INLINE int64_t makeCustomerKey(int32_t w_id, int32_t d_id, int32_t c_id) {
-	int32_t upper_id = w_id * 10 + d_id;
+	int32_t upper_id = w_id * NumDistrictsPerWarehouse()+ d_id;
 	int64_t id =  static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(c_id);
 	return id;
 }
 
 static inline ALWAYS_INLINE int64_t makeHistoryKey(int32_t h_c_id, int32_t h_c_d_id, int32_t h_c_w_id, int32_t h_d_id, int32_t h_w_id) {
-	int32_t cid = (h_c_w_id * 10 + h_c_d_id) * 3000 + h_c_id;
-	int32_t did = h_d_id + (h_w_id * 10);
+	int32_t cid = (h_c_w_id * NumDistrictsPerWarehouse() + h_c_d_id) * NumCustomersPerDistrict() + h_c_id;
+	int32_t did = h_d_id + (h_w_id * NumDistrictsPerWarehouse());
 	int64_t id = static_cast<int64_t>(cid) << 20 | static_cast<int64_t>(did);
 	return id;
 }
 
 static inline ALWAYS_INLINE int64_t makeNewOrderKey(int32_t w_id, int32_t d_id, int32_t o_id) {
-	int32_t upper_id = w_id * 10 + d_id;
+	int32_t upper_id = w_id * NumDistrictsPerWarehouse() + d_id;
 	int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	return id;
 }
 
 static inline ALWAYS_INLINE int64_t makeOrderKey(int32_t w_id, int32_t d_id, int32_t o_id) {
-	int32_t upper_id = w_id * 10 + d_id;
+	int32_t upper_id = w_id * NumDistrictsPerWarehouse() + d_id;
 	int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	return id;
 }
 
 static inline ALWAYS_INLINE int64_t makeOrderIndex(int32_t w_id, int32_t d_id, int32_t c_id, int32_t o_id) {
-	int32_t upper_id = (w_id * 10 + d_id) * 3000 + c_id;
+	int32_t upper_id = (w_id * NumDistrictsPerWarehouse() + d_id) * NumCustomersPerDistrict() + c_id;
 	int64_t id = static_cast<int64_t>(upper_id) << 32 | static_cast<int64_t>(o_id);
 	return id;
 }
 
 static inline ALWAYS_INLINE int64_t makeOrderLineKey(int32_t w_id, int32_t d_id, int32_t o_id, int32_t number) {
-	int32_t upper_id = w_id * 10 + d_id;
+	int32_t upper_id = w_id * NumDistrictsPerWarehouse() + d_id;
 	int64_t oid = static_cast<int64_t>(upper_id) * 10000000 + static_cast<int64_t>(o_id);
 	int64_t olid = oid * 15 + number;
 	int64_t id = static_cast<int64_t>(olid);
@@ -127,7 +151,7 @@ static inline ALWAYS_INLINE int64_t makeOrderLineKey(int32_t w_id, int32_t d_id,
 }
 
 static inline ALWAYS_INLINE int64_t makeStockKey(int32_t w_id, int32_t s_id) {
-	int32_t sid = s_id + (w_id * 100000);
+	int32_t sid = s_id + (w_id * NumItems());
 	int64_t id = static_cast<int64_t>(sid);
 	return id;
 }
@@ -178,27 +202,6 @@ static uint64_t makeCustomerIndex(int32_t w_id, int32_t d_id, string s_last, str
 
 #endif
 
-static inline ALWAYS_INLINE size_t
-NumWarehouses() {
-	return (size_t) scale_factor;
-}
-
-// config constants
-
-static constexpr inline ALWAYS_INLINE size_t
-NumItems() {
-	return 100000;
-}
-
-static constexpr inline ALWAYS_INLINE size_t
-NumDistrictsPerWarehouse() {
-	return 10;
-}
-
-static constexpr inline ALWAYS_INLINE size_t
-NumCustomersPerDistrict() {
-	return 3000;
-}
 
 // T must implement lock()/unlock(). Both must *not* throw exceptions
 template <typename T>

@@ -2,7 +2,7 @@
 for thread in 1 2 4 8 12 16 20
 do
 	echo "Threads = $thread Warehouses = 1"
-	./simple_run.sh $thread 1 &> thread.$thread.csv
+	./simple_run_newo.sh $thread 1 &> thread.$thread.csv
 	#./simple_run_fix_workload.sh $thread 2 &> thread.$thread.csv
 	cat thread.$thread.csv | grep "runtime"
 	#cat thread.$thread.csv | grep "reason"

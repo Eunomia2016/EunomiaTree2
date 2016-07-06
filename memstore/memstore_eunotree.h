@@ -65,6 +65,7 @@ Date: 2016/03/20
 
 #define ADAPTIVE_LOCK 1
 #define BM_QUERY 1
+#define BM_PROF 0
 
 #define SPEC_PROF 0
 
@@ -368,6 +369,7 @@ public:
 	~MemstoreEunoTree() {
 		if(tableid == 6) {
 			printf("[Alex] node_inserts = %lu, node_difference = %lu\n", node_inserts, node_difference);
+			printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
 		}
 		//printf("[Alex]~MemstoreEunoTree tableid = %d\n", tableid);
 		//printf("[Alex]~MemstoreEunoTree\n");
@@ -890,13 +892,14 @@ TOP_RETRY:  {
 			bm_found = queryBMFilter(leafNode, this_key); //it should be atomic
 			leafNode->mlock.Unlock();
 #endif
-			/*
-			if(bm_found && bm_exist){
+
+#if BM_PROF			
+			if(bm_found ){
 				bm_found_num++;
 			}else{
 				bm_miss_num++;
 			}
-			*/
+#endif
 
 #if TIME_BKD
 			bm_time += t.lap();
@@ -1245,7 +1248,6 @@ TOP_RETRY:  {
 					}
 					toInsert->num_keys++;
 					toInsert->keys[k] = child_sibling->keys[N - 1];
-
 
 					//printf("child_sibling->keys[N-1] = %lu",child_sibling->keys[N-1]);
 				}

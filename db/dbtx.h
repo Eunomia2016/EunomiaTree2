@@ -47,6 +47,7 @@
 #define DEBUG_PRINT 0
 
 #define TREE_TIME 0
+
 #define RW_TIME_BKD 0
 
 #define ABORT_REASON 0
@@ -62,9 +63,9 @@
 
 #define TOTAL_GETS 11
 
-#define END_TIME 0
+#define END_TIME 1
 
-#define EUNO_TREE 0
+#define EUNO_TREE 1
 
 #define NEW_INTERFACE 1
 

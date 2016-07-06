@@ -273,7 +273,8 @@ public:
 	~MemstoreBPlusTree() {
 		//printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
 		//printf("[Alex]~MemstoreBPlusTree\n");
-		//prof.reportAbortStatus();
+		if(tableid==6)
+			prof.reportAbortStatus();
 		//delprof.reportAbortStatus();
 		//PrintList();
 		//PrintStore();
@@ -1044,8 +1045,8 @@ public:
 		writes++;
 #endif
 
-		//printTree();
-		leaf->seq = leaf->seq + 1;
+		leaf->seq ++;
+
 		return new_sibling;
 	}
 
