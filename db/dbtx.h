@@ -63,7 +63,7 @@
 
 #define TOTAL_GETS 11
 
-#define END_TIME 1
+#define END_TIME 0
 
 #define EUNO_TREE 1
 
@@ -152,6 +152,10 @@ public:
 	bool End();
 	void Cleanup();
 	bool Atomic_Fetch(int tableid, uint64_t key, uint64_t** val, uint64_t* orderline_id);
+
+	uint64_t Fetch_last_dist_id(uint warehouse_id, uint d);
+	void Store_last_dist_id(uint warehouse_id, uint d, uint64_t val);
+
 	void Add(int tableid, uint64_t key, uint64_t* val);
 	void Add(int tableid, int indextableid, uint64_t key, uint64_t seckey, uint64_t* val);
 

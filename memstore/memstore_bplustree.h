@@ -272,12 +272,9 @@ public:
 
 	~MemstoreBPlusTree() {
 		//printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
-		//printf("[Alex]~MemstoreBPlusTree\n");
-		if(tableid==6)
-			prof.reportAbortStatus();
+		printf("[Alex]~MemstoreBPlusTree\n");
+		prof.reportAbortStatus();
 		//delprof.reportAbortStatus();
-		//PrintList();
-		//PrintStore();
 		//printf("rwconflict %ld\n", rconflict);
 		//printf("wwconflict %ld\n", wconflict);
 		//printf("depth %d\n",depth);

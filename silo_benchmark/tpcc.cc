@@ -2613,6 +2613,7 @@ tpcc_worker::txn_payment(bool first_run) {
 	return txn_result(false, 0);
 }
 
+#if 1
 tpcc_worker::txn_result
 tpcc_worker::txn_delivery(bool first_run) {
 	timer txn_tim, orli_tim;
@@ -2657,8 +2658,11 @@ tpcc_worker::txn_delivery(bool first_run) {
 			//printf("d = %u\n", d);
 			int32_t no_o_id = 1;
 			uint64_t *no_value;
+			
+			//uint64_t last_delete = tx.Fetch_last_dist_id(warehouse_id, d);
 			int64_t start = makeNewOrderKey(warehouse_id, d, last_no_o_ids[warehouse_id - 1][d - 1]);
 			int64_t end = makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max());
+
 			int64_t no_key  = -1;
 #if DBTX_TIME
 			txn_tim.lap();
@@ -2739,6 +2743,11 @@ tpcc_worker::txn_delivery(bool first_run) {
 			int32_t no_o_id = k_no->no_o_id;
 #endif
 #endif
+			/*
+			if(no_o_id!=-1){
+				tx.Store_last_dist_id(warehouse_id, d, no_o_id);
+			}
+			*/
 			last_no_o_ids[warehouse_id - 1][d - 1] = no_o_id + 1; // XXX: update last seen
 #if 0
 #if SHORTKEY
@@ -2975,7 +2984,185 @@ tpcc_worker::txn_delivery(bool first_run) {
 	}
 	return txn_result(false, 0);
 }
+#else
 
+tpcc_worker::txn_result
+tpcc_worker::txn_delivery(bool first_run) {
+	timer txn_tim, orli_tim, piece_tim;
+	uint64_t elapse = 0;
+	uint64_t piece_elapse = 0;
+	INVARIANT(NumDistrictsPerWarehouse() == 10);
+	const uint warehouse_id = PickWarehouseId(r, warehouse_id_start, warehouse_id_end);
+	const uint o_carrier_id = RandomNumber(r, 1, NumDistrictsPerWarehouse());
+	const uint32_t ts = GetCurrentTimeMillis();
+
+	// worst case txn profile:
+	//   10 times:
+	//     1 new_order scan node
+	//     1 oorder get
+	//     2 order_line scan nodes
+	//     15 order_line puts
+	//     1 new_order remove
+	//     1 oorder put
+	//     1 customer get
+	//     1 customer put
+	//
+	// output from counters:
+	//   max_absent_range_set_size : 0
+	//   max_absent_set_size : 0
+	//   max_node_scan_size : 21
+	//   max_read_set_size : 133
+	//   max_write_set_size : 133
+	//   num_txn_contexts : 4
+//  scoped_str_arena s_arena(arena);
+	try {
+		ssize_t retries = 0;
+		int32_t last_no_o_id[10];
+		uint c_ids[10];
+		float ol_totals[10];
+		tx.Begin();
+
+		ssize_t local_retries = 0;
+
+		bool first_run = true;
+		
+NEWORDER_PIECE:
+		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
+			//printf("d = %u\n", d);
+			int32_t no_o_id = 1;
+			uint64_t *no_value;
+			
+			uint64_t last_delete = tx.Fetch_last_dist_id(warehouse_id, d);
+			//int64_t start = makeNewOrderKey(warehouse_id, d, dist_last_id[warehouse_id - 1][d - 1]);
+			int64_t start = makeNewOrderKey(warehouse_id, d, last_delete);
+			int64_t end = makeNewOrderKey(warehouse_id, d, numeric_limits<int32_t>::max());
+			int64_t no_key  = -1;
+
+			DBTX::Iterator iter(&tx, NEWO);
+			
+			iter.Seek(start); //Tx.1
+			//printf("[DELIVERY] d = %2d, start = %ld\n",d, start);
+
+			bool valid = iter.Valid();
+
+			no_key = iter.Key();
+
+			if(unlikely(!valid || no_key > end)) {
+				last_no_o_id[d - 1] = -1;
+				printf("[DELIVERY] SeekToFirst\n");
+				iter.SeekToFirst();
+				continue;
+			}
+			
+			last_no_o_id[d - 1] = static_cast<int32_t>(no_key << 32 >> 32); //memorize the deleted key from the last iteration
+
+			tx.Delete(NEWO, no_key); //Tx.2
+
+		}
+		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
+			if(last_no_o_id[d - 1] != -1) {
+				tx.Store_last_dist_id(warehouse_id, d, last_no_o_id[d - 1]);
+			}
+		}
+
+ORDERLINE_PIECE:
+		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
+			if(last_no_o_id[d - 1] == -1) {
+				continue;
+			}
+			int no_o_id = last_no_o_id[d - 1];
+
+			uint64_t o_key = makeOrderKey(warehouse_id, d, no_o_id); //key of ORDER <- no_o_id
+			//printf("o_key = %d\n", no_o_id);
+
+			uint64_t* o_value;
+
+			bool found = tx.Get(ORDE, o_key, &o_value); //Tx.3
+			// even if we read the new order entry, there's no guarantee
+			// we will read the oorder entry: in this case the txn will abort,
+			// but we're simply bailing out early
+			if(unlikely(!found)) {
+				continue;
+			}
+
+			oorder::value *v_oo = (oorder::value *)o_value;
+
+			float sum_ol_amount = 0;
+
+			DBTX::Iterator iter1(&tx, ORLI);
+
+			int64_t start = makeOrderLineKey(warehouse_id, d, no_o_id, 1);
+			int64_t end = makeOrderLineKey(warehouse_id, d, no_o_id, 15);
+
+			iter1.Seek(start);//Tx.4
+
+			while(true) {
+				//printf("before getkey\n");
+				int64_t ol_key = iter1.Key();
+				//printf("after getkey. ol_key = %ld. start = %ld. end = %ld\n", ol_key, start,end);
+
+				if(ol_key > end) {
+					//printf("ol_key = %ld, end = %ld, break!\n", ol_key, end);
+					break;
+				}
+
+				uint64_t *ol_value = iter1.Value();
+				order_line::value *v_ol = (order_line::value *)ol_value;
+				sum_ol_amount += v_ol->ol_amount;
+				order_line::value v_ol_new(*v_ol);
+				v_ol_new.ol_delivery_d = ts;
+				
+
+				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new)); //Tx.5
+
+				iter1.Next(); //Tx.6
+
+			}
+
+			//printf("I must reach here\n");
+			// update oorder
+			oorder::value v_oo_new(*v_oo);
+			v_oo_new.o_carrier_id = o_carrier_id;
+
+
+			tx.Add(ORDE, o_key, (uint64_t *)(&v_oo_new), sizeof(v_oo_new)); //Tx.7
+
+			c_ids[d - 1] = v_oo->o_c_id;
+			ol_totals[d - 1] = sum_ol_amount;
+		}
+
+CUST_PIECE:
+		for(uint d = 1; d <= NumDistrictsPerWarehouse(); d++) {
+			if(last_no_o_id[d - 1] == -1) {
+				continue;
+			}
+
+			const uint c_id = c_ids[d - 1];
+			const float ol_total = ol_totals[d - 1];
+
+			uint64_t c_key = makeCustomerKey(warehouse_id, d, c_id); //key of CUST <- no_o_id
+			uint64_t *c_value;
+			bool found = tx.Get(CUST, c_key, &c_value); //Tx.8
+
+			INVARIANT(found);
+
+			customer::value *v_c = (customer::value *)c_value;
+			customer::value v_c_new(*v_c);
+			v_c_new.c_balance += ol_total;
+
+			tx.Add(CUST, c_key, (uint64_t *)(&v_c_new), sizeof(v_c_new)); //Tx.9
+			//printf("[DELIVERY] c_key = %lu\n", c_key);
+		}//Loop End
+
+		bool res = tx.End();
+		return txn_result(res, retries);
+	} catch(abstract_db::abstract_abort_exception &ex) {
+	}
+	return txn_result(false, 0);
+}
+
+
+#endif
 tpcc_worker::txn_result
 tpcc_worker::txn_order_status(bool first_run) {
 	timer txn_tim;

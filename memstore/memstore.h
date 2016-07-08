@@ -83,7 +83,9 @@ public:
 public:
 
 	Memstore() {};
-	~Memstore() {};
+	virtual ~Memstore() {
+		//printf("~Memstore()\n");
+	};
 
 	//Only for initialization
 	virtual Memstore::Iterator* GetIterator() = 0;

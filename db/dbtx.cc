@@ -841,6 +841,15 @@ retry:
 #endif
 }
 
+uint64_t DBTX::Fetch_last_dist_id(uint warehouse_id, uint d){
+	return __atomic_load_n(&txdb_->dist_last_id[warehouse_id-1][d-1] , __ATOMIC_ACQUIRE);
+}
+
+void DBTX::Store_last_dist_id(uint warehouse_id, uint d, uint64_t val){
+	__atomic_store_n(&txdb_->dist_last_id[warehouse_id-1][d-1], val, __ATOMIC_RELEASE);
+}
+
+
 bool DBTX::Atomic_Fetch(int tableid, uint64_t key, uint64_t** val, uint64_t* orderline_id){
 	bool newNode = false;
 	//step 1. First check if the <k,v> is in the write set

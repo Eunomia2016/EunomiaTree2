@@ -27,7 +27,7 @@
 
 #define AVOIDNESTTX
 
-enum OP_TYPE {GET_TYPE, ADD_TYPE, UPDATE_TYPE ,DEL_TYPE, UNKNOWN_TYPE};
+enum OP_TYPE {GET_TYPE, ADD_TYPE, UPDATE_TYPE , DEL_TYPE, UNKNOWN_TYPE};
 
 class RTMScope {
 	RTMProfile* globalprof;
@@ -88,7 +88,7 @@ public:
 				//Put the global lock into read set
 				if(slock->IsLocked()) {
 					_xabort(0xff);
-				} 
+				}
 				return;
 			} else {
 				retry++;
@@ -113,9 +113,9 @@ public:
 
 				int step = (read + write) / 64;
 
-				if(step == 0)
+				if(step == 0) {
 					step = 1;
-
+				}
 				if(nested > MAXNEST) {
 					break;
 				}

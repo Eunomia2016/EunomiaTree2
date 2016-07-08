@@ -303,7 +303,7 @@ public:
 	MemstoreEunoTree() {
 		//leaf_id = 0;
 		//tableid = __sync_fetch_and_add(&table_id,1);
-		//printf("MemstoreEunoTree()\n");
+		//printf("MemstoreEunoTree Initialized\n");
 		insert_seq = 0;
 		root = new LeafNode();
 		reinterpret_cast<LeafNode*>(root)->left = NULL;
@@ -315,12 +315,6 @@ public:
 		reads = 0;
 		calls = 0;
 #endif
-//		printf("root addr %lx\n", &root);
-//		printf("depth addr %lx\n", &depth);
-		/*		for (int i=0; i<4; i++) {
-					windex[i] = 0;
-					rindex[i] = 0;
-				}*/
 	}
 	MemstoreEunoTree(int _tableid) {
 		//printf("sizeof(Leaf_Seg) = %u\n", sizeof(Leaf_Seg));
@@ -363,17 +357,11 @@ public:
 		reads = 0;
 		calls = 0;
 #endif
-
 	}
 
 	~MemstoreEunoTree() {
-		if(tableid == 6) {
-			printf("[Alex] node_inserts = %lu, node_difference = %lu\n", node_inserts, node_difference);
-			printf("bm_found_num = %lu, bm_miss_num = %lu\n", bm_found_num, bm_miss_num);
-		}
-		//printf("[Alex]~MemstoreEunoTree tableid = %d\n", tableid);
 		//printf("[Alex]~MemstoreEunoTree\n");
-		//prof.reportAbortStatus();
+		prof.reportAbortStatus();
 		//delprof.reportAbortStatus();
 		//PrintList();
 		//PrintStore();
@@ -418,17 +406,16 @@ public:
 #if SPEC_PROF
 		printf("spec_hit = %lu, spec_miss = %lu\n", spec_hit, spec_miss);
 #endif
-		//printf("spec_time = %lu, insert_time = %lu\n", spec_time, insert_time);
 
 #if BTREE_PROF
 		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes) / (float)calls, (float)(writes) / (float)calls);
 #endif
-		//printTree();
-		//top();
 	}
+
 	void transfer_para(RTMPara& para) {
 		prof.transfer_para(para);
 	}
+	
 	inline void ThreadLocalInit() {
 		if(false == localinit_) {
 			arena_ = new RTMArena();
@@ -2242,8 +2229,6 @@ public:
 	int windex[4];
 	int rindex[4];
 };
-
-
 
 //__thread RTMArena* MemstoreEunoTree::arena_ = NULL;
 //__thread bool MemstoreEunoTree::localinit_ = false;

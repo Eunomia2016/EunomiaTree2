@@ -25,7 +25,7 @@
 
 static const char* FLAGS_benchmarks = "mix";
 
-static int FLAGS_num = 4000000;
+static int FLAGS_num = 5000000;
 static int FLAGS_threads = 1;
 static uint64_t nkeys = 100000000;
 static uint64_t pre_keys = 100000;
@@ -33,8 +33,11 @@ static double READ_RATIO = 0.5;
 static bool EUNO_USED = false;
 static int CONT_SIZE = 16;
 static double THETA = 0.01;
-static int ZIP_RANGE = 20;
+static int ENTITIES = 20;
 static int ZIP_ITER = 16;
+
+static double H_VALUE = 0.2;
+
 static double DELTA = 1.0;
 uint64_t next_o_id = 0;
 
@@ -42,7 +45,7 @@ uint64_t next_o_id = 0;
 #define YCSBRecordSize 100
 #define GETCOPY 0
 
-enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY, ZIPF};
+enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY, ZIPF, SELF};
 
 static dist_func FUNC_TYPE = SEQT;
 
@@ -134,12 +137,14 @@ static inline ALWAYS_INLINE uint64_t* SequentialKeys(uint64_t* dist_last_ids) {
 
 static inline ALWAYS_INLINE uint64_t* UniformKeys(uint64_t* dist_last_ids) {
 	uint64_t start_id = dist_last_ids[0]++;
+	//std::random_device rd;
+	//std::mt19937 gen(rd());
 
 	fast_random r(start_id);
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	uint32_t upper_id = 1 * 10 + 1;
 
-	uint64_t oid = static_cast<uint64_t>(upper_id) * 10000000 + static_cast<uint64_t>(start_id);
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(start_id);
 	for(int i = 0; i < CONT_SIZE; i++) {
 		uint64_t id = oid * CONT_SIZE + static_cast<int>(r.next()) % CONT_SIZE ;
 		//printf("[%d]id = %lu\n",i, id);
@@ -195,6 +200,7 @@ static inline ALWAYS_INLINE uint64_t* CauchyKeys(uint64_t* dist_last_ids) {
 	sort(cont_window, cont_window + CONT_SIZE);
 	return cont_window;
 }
+
 double zeta(long n, double theta) {
 	int i;
 	double ans = 0;
@@ -249,21 +255,41 @@ struct probvals* get_zipf(float theta, int NUM) {
 	return dist;
 }
 
+static inline ALWAYS_INLINE double randf() {
+	return static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+}
 
 static inline ALWAYS_INLINE uint64_t* ZipfKeys(uint64_t* dist_last_ids) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	//printf("zdist = %p\n", zdist);
-	double rnd = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+	double rnd = randf();
 	//printf("rnd = %lf\n", rnd);
 	int dist_num = 0;
-	for(int j = 0; j < ZIP_RANGE ; j++) {
+	for(int j = 0; j < ENTITIES ; j++) {
 		if(rnd < zdist[j].cum_prob) {
 			dist_num = j;
 			//printf("dist_num = %d\n", dist_num);
 			break;
 		}
 	}
+	uint32_t upper_id = 10 + dist_num;
+	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
 
+	for(int i = 0; i < CONT_SIZE; i++) {
+		cont_window[i] = oid * CONT_SIZE + i;
+		//printf("cont_window[%d] = %lu\n",i,cont_window[i]);
+	}
+	return cont_window;
+}
+
+static inline ALWAYS_INLINE int Selfsimilar(long n, double h) {
+	return (static_cast<int>(n * pow(randf(), log(h) / log(1.0 - h))));
+}
+
+static inline ALWAYS_INLINE uint64_t* SelfSimilarKeys(uint64_t * dist_last_ids) {
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	int dist_num = Selfsimilar(ENTITIES,H_VALUE);
 	uint32_t upper_id = 10 + dist_num;
 	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
@@ -472,7 +498,7 @@ private:
 
 		int num = thread->count;
 		int finish = 0 ;
-		uint64_t* dist_o_id = (uint64_t*)calloc(ZIP_RANGE, sizeof(uint64_t));
+		uint64_t* dist_o_id = (uint64_t*)calloc(ENTITIES, sizeof(uint64_t));//thread-local variable
 		//int next_id = 3000;
 		fast_random r = thread->rnd;
 		double start = leveldb::Env::Default()->NowMicros();
@@ -491,13 +517,11 @@ private:
 			//Write
 			else {
 				uint64_t * cont_keys = key_generator(dist_o_id);
-
 				/*
 				for(int idx = 0; idx < CONT_SIZE; idx++){
 					printf("[%d]write key = %lu\n",idx, cont_keys[idx]);
 				}
 				*/
-
 				for(int idx = 0; idx < CONT_SIZE; idx++) {
 					uint64_t key = cont_keys[idx];
 
@@ -515,8 +539,8 @@ private:
 		}
 
 		double end = leveldb::Env::Default()->NowMicros();
-		printf("Exe time: %f\n", (end - start) / 1000 / 1000);
-		printf("Thread[%d] Throughput %lf ops/s\n", tid, finish / ((end - start) / 1000 / 1000));
+		//printf("Exe time: %f, total_num = %d\n", (end - start) / 1000 / 1000, finish);
+		//printf("Thread[%d] Throughput %lf ops/s\n", tid, finish / ((end - start) / 1000 / 1000));
 	}
 
 public:
@@ -558,15 +582,14 @@ public:
 		shared.start = true;
 		printf("Send Start Signal\n");
 		shared.cv.SignalAll();
-//		std::cout << "Startup Time : " << (leveldb::Env::Default()->NowMicros() - start)/1000 << " ms" << std::endl;
 
 		while(shared.num_done < thread_num) {
 			shared.cv.Wait();
 		}
 		shared.mu.Unlock();
 
-
 		printf("Total Run Time : %lf ms\n", (shared.end_time - shared.start_time) / 1000);
+		printf("Total Throughput = %lf op/s\n", (double)(num * thread_num) / ((shared.end_time - shared.start_time)/1000000));
 		/*
 			for (int i = 0; i < thread_num; i++) {
 			  printf("Thread[%d] Put Throughput %lf ops/s\n", i, num/(arg[i].thread->time1/1000/1000));
@@ -603,9 +626,10 @@ public:
 		case ZIPF:
 			key_generator = ZipfKeys;
 			if(zdist == NULL) {
-
-				zdist = get_zipf(THETA, ZIP_RANGE);
+				zdist = get_zipf(THETA, ENTITIES);
 			}
+		case SELF:
+			key_generator = SelfSimilarKeys;
 			break;
 		}
 		//table = new leveldb::LockfreeHashTable();
@@ -639,9 +663,12 @@ public:
 			method = &Benchmark::Mix;
 		else if(name == "txmix")
 			method = &Benchmark::TxMix;
-		printf("RunBenchmark\n");
+		printf("RunBenchmark Starts\n");
 		RunBenchmark(num_threads, num_, method);
+		//delete dynamic_cast<leveldb::MemstoreEunoTree*>(table);
 		delete table;
+		//delete store;
+		printf("RunBenchmark Ends\n");
 	}
 
 };
@@ -693,10 +720,12 @@ int main(int argc, char** argv) {
 	case ZIPF:
 		printf("Zipfian Distribution. Theta = %lf\n", THETA);
 		break;
+	case SELF:
+		printf("SelfSimilar Distribution. H_VALUE = %lf\n", H_VALUE);
+		break;
 	}
 
 	leveldb::Benchmark benchmark;
 	benchmark.Run();
-//  while (1);
 	return 1;
 }

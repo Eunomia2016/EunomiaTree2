@@ -75,6 +75,12 @@ DBTables::DBTables(int n, int thrs) {
 	threads = thrs;
 	RCUInit(thrs);
 	PBufInit(thrs);
+	
+	for(int i = 0; i < 64; i++){
+		for(int j = 0 ; j < 10; j++){
+			dist_last_id[i][j] = 0;
+		}
+	}
 
 #if PERSISTENT
 	pthread_t tid;

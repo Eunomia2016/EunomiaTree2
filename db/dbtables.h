@@ -66,6 +66,9 @@ public:
 
 	volatile uint64_t snapshot; // the counter for current snapshot: 1 is the first snapshot
 	int	threads;
+
+	uint64_t dist_last_id[64][10];
+
 	int number;
 	Memstore **tables;
 	TableSchema* schemas;
