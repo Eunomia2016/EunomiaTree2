@@ -25,9 +25,9 @@
 
 static const char* FLAGS_benchmarks = "mix";
 
-static int FLAGS_num = 5000000;
+static int FLAGS_num = 2000000;
 static int FLAGS_threads = 1;
-static uint64_t nkeys = 100000000;
+static uint64_t nkeys = 10000000;
 static uint64_t pre_keys = 100000;
 static double READ_RATIO = 0.5;
 static bool EUNO_USED = false;
@@ -201,11 +201,15 @@ static inline ALWAYS_INLINE uint64_t* CauchyKeys(uint64_t* dist_last_ids) {
 	return cont_window;
 }
 
+static inline ALWAYS_INLINE double randf() {
+	return static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+}
+
 double zeta(long n, double theta) {
 	int i;
 	double ans = 0;
 	for(i = 1; i <= n; i++) {
-		ans += pow(1 / static_cast<double>(n), theta);
+		ans += pow(1.0 / static_cast<double>(n), theta);
 	}
 	return ans;
 }
@@ -213,8 +217,8 @@ double zeta(long n, double theta) {
 long zipf(long n, double theta) {
 	double alpha = 1 / (1 - theta);
 	double zetan = zeta(n, theta);
-	double eta = (1 - pow(2.0 / n, 1 - theta)) / (1 - zeta(2, theta) / zetan);
-	double u = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+	double eta = (1 - pow(2.0 / n, 1.0 - theta)) / (1.0 - zeta(2, theta) / zetan);
+	double u = randf();
 	double uz = u * zetan;
 	if(uz < 1) return 1;
 	if(uz < 1 + pow(0.5, theta)) return 2;
@@ -255,10 +259,6 @@ struct probvals* get_zipf(float theta, int NUM) {
 	return dist;
 }
 
-static inline ALWAYS_INLINE double randf() {
-	return static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
-}
-
 static inline ALWAYS_INLINE uint64_t* ZipfKeys(uint64_t* dist_last_ids) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	//printf("zdist = %p\n", zdist);
@@ -287,9 +287,23 @@ static inline ALWAYS_INLINE int Selfsimilar(long n, double h) {
 	return (static_cast<int>(n * pow(randf(), log(h) / log(1.0 - h))));
 }
 
+static inline ALWAYS_INLINE uint64_t* ZipfianKeys(uint64_t * dist_last_ids) {
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	int dist_num = zipf(ENTITIES, H_VALUE);
+	uint32_t upper_id = 10 + dist_num;
+	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
+
+	for(int i = 0; i < CONT_SIZE; i++) {
+		cont_window[i] = oid * CONT_SIZE + i;
+		//printf("cont_window[%d] = %lu\n",i,cont_window[i]);
+	}
+	return cont_window;
+}
+
 static inline ALWAYS_INLINE uint64_t* SelfSimilarKeys(uint64_t * dist_last_ids) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
-	int dist_num = Selfsimilar(ENTITIES,H_VALUE);
+	int dist_num = Selfsimilar(ENTITIES, H_VALUE);
 	uint32_t upper_id = 10 + dist_num;
 	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
@@ -524,7 +538,6 @@ private:
 				*/
 				for(int idx = 0; idx < CONT_SIZE; idx++) {
 					uint64_t key = cont_keys[idx];
-
 					Memstore::MemNode * mn = table->GetWithInsert(key).node;
 					char *s = (char *)(mn->value);
 					std::string c(YCSBRecordSize, 'c');
@@ -589,7 +602,7 @@ public:
 		shared.mu.Unlock();
 
 		printf("Total Run Time : %lf ms\n", (shared.end_time - shared.start_time) / 1000);
-		printf("Total Throughput = %lf op/s\n", (double)(num * thread_num) / ((shared.end_time - shared.start_time)/1000000));
+		printf("Total Throughput = %lf op/s\n", (double)(num * thread_num) / ((shared.end_time - shared.start_time) / 1000000));
 		/*
 			for (int i = 0; i < thread_num; i++) {
 			  printf("Thread[%d] Put Throughput %lf ops/s\n", i, num/(arg[i].thread->time1/1000/1000));
@@ -628,14 +641,11 @@ public:
 			if(zdist == NULL) {
 				zdist = get_zipf(THETA, ENTITIES);
 			}
+			break;
 		case SELF:
 			key_generator = SelfSimilarKeys;
 			break;
 		}
-		//table = new leveldb::LockfreeHashTable();
-		//table = new leveldb::MemstoreHashTable();
-		//table = new leveldb::MemStoreSkipList();
-		//table = new MemstoreCuckooHashTable();
 		store = new DBTables();
 
 		int num_threads = FLAGS_threads;
@@ -676,7 +686,7 @@ public:
 }  // namespace leveldb
 
 int main(int argc, char** argv) {
-	srand(time(NULL));
+	srand(10000);
 	for(int i = 1; i < argc; i++) {
 		int n;
 		char junk;
@@ -684,6 +694,7 @@ int main(int argc, char** argv) {
 		int func_type;
 		int cont_size;
 		double theta;
+		double h_value;
 		if(leveldb::Slice(argv[i]).starts_with("--benchmark=")) {
 			FLAGS_benchmarks = argv[i] + strlen("--benchmark=");
 		} else if(sscanf(argv[i], "--num=%d%c", &n, &junk) == 1) {
@@ -700,6 +711,8 @@ int main(int argc, char** argv) {
 			CONT_SIZE = cont_size;
 		} else if(sscanf(argv[i], "--theta=%lf%c", &theta, &junk) == 1) {
 			THETA = theta;
+		} else if(sscanf(argv[i], "--hvalue=%lf%c", &h_value, &junk) == 1) {
+			H_VALUE = h_value;
 		}
 
 	}

@@ -64,6 +64,7 @@ Date: 2016/03/20
 #define CONTENTION_LEVEL 5
 
 #define ADAPTIVE_LOCK 1
+#define DEFAULT_LOCK 0
 #define BM_QUERY 1
 #define BM_PROF 0
 
@@ -218,6 +219,13 @@ public:
 		InnerNode* parent;
 		uint64_t seq;
 		unsigned last_thread_id;
+		int total_keys(){
+			int total_keys = 0;
+			for(int i = 0 ; i < SEGS; i++){
+				total_keys+=leaf_segs[i].key_num;
+			}
+			return total_keys;
+		}
 		//uint64_t paddings1[3];
 		//unsigned signature;
 	};
@@ -892,6 +900,12 @@ TOP_RETRY:  {
 			bm_time += t.lap();
 #endif
 
+#if DEFAULT_LOCK
+			if(leafNode->total_keys() >= LEAF_NUM/2){
+				leafNode->mlock.Lock();
+			}
+#endif
+
 #if ADAPTIVE_LOCK
 			if(ShouldLockLeaf(leafNode) || bm_found) {
 				locked = true;
@@ -908,6 +922,10 @@ TOP_RETRY:  {
 					consistent = false;
 				}
 			}
+#if DEFAULT_LOCK
+			
+			leafNode->mlock.Unlock();
+#endif
 
 #if ADAPTIVE_LOCK
 			if(locked) {
@@ -1641,15 +1659,15 @@ TOP_RETRY:  {
 		}
 
 		int idx = key % SEGS;
-		//printf("leaf = %x, key = %lu, idx = %d\n", leaf, key, idx);
 		bool should_check_all = false;
-		//printf("key = %lu, idx = %d\n", key, idx);
+		
 		if(leaf->leaf_segs[idx].key_num >= leaf->leaf_segs[idx].max_room) {
 			idx = (idx + 1) % SEGS;
 			if(leaf->leaf_segs[idx].key_num >= leaf->leaf_segs[idx].max_room) {
 				should_check_all = true;
 			}
 		}
+		
 		//bool should_check_all = leaf->leaf_segs[idx].key_num >= seg_len;
 		if(!should_check_all) {
 			//[Case #1] Shuffle to an empty segment, insert immediately

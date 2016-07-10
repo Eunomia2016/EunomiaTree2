@@ -26,12 +26,12 @@ CXXFLAGS += -I. -I./include $(PLATFORM_CXXFLAGS) -std=c++11 $(OPT)
 
 CFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -Wno-write-strings -Wall
 CXXFLAGS += -DUSE_JEMALLOC -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -Wno-write-strings 
+LDFLAGS += -ljemalloc
+LIBS += -ljemalloc
 
 LDFLAGS += $(PLATFORM_LDFLAGS) -lnuma -L./lib 
 LIBS += $(PLATFORM_LIBS) -lnuma -lbloom
 
-LDFLAGS += -ljemalloc
-LIBS += -ljemalloc
 
 LIBOBJECTS = $(SOURCES:.cc=.o)
 MEMENVOBJECTS = $(MEMENV_SOURCES:.cc=.o)
