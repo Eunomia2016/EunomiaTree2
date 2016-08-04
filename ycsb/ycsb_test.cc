@@ -23,6 +23,7 @@
 #include "db/dbtables.h"
 #include <random>
 
+static const int LENS = 100000;
 static const char* FLAGS_benchmarks = "mix";
 
 static int FLAGS_num = 10000000;
@@ -40,7 +41,6 @@ static double H_VALUE = 0.2;
 
 static double DELTA = 1.0;
 uint64_t next_o_id = 0;
-
 
 static const double EE  = 2.71828;
 
@@ -584,7 +584,6 @@ private:
 					mn = table->GetWithInsert(key).node;
 					mn->value = (uint64_t *)(nv);
 				}
-
 				finish += CONT_SIZE;
 				free(cont_keys);
 			}
@@ -595,13 +594,48 @@ private:
 		//printf("Thread[%d] Throughput %lf ops/s\n", tid, finish / ((end - start) / 1000 / 1000));
 	}
 
+	void ConsCheck(ThreadState* thread) {
+		int tid = thread->tid;
+		bind_cores(tid);
+		int num = thread->count;
+		int finish = 0 ;
+		fast_random r = thread->rnd;
+		r.set_seed(time(NULL));
+		uint64_t* array = (uint64_t*)calloc(LENS, sizeof(uint64_t));
+
+		for(int i = 0; i < LENS; i++){
+			array[i] = r.next() ;
+		}
+		/*
+		for(int i = 0; i < LENS/2; i++){
+			//printf("Put %d done\n",i);
+			table->Put(array[i*2], NULL); 	
+		}
+		*/
+		for(int i = 0; i < LENS; i++){
+			//printf("Put %d done\n",i);
+			//array[i] = r.next();
+			table->Put(array[i], NULL); 	
+		}
+		printf("Put all done\n");
+		for(int i = 0; i < LENS; i++){
+			Memstore::MemNode* res = table->Get(array[i] );
+			if(res==NULL){
+				printf("[%d] key = %lu nonexist\n",i, array[i]);
+			}
+		}
+		
+		//printf("Exe time: %f, total_num = %d\n", (end - start) / 1000 / 1000, finish);
+		//printf("Thread[%d] Throughput %lf ops/s\n", tid, finish / ((end - start) / 1000 / 1000));
+	}
+
+
 public:
 
 	Benchmark(): total_count(FLAGS_num), ramdon(1000) {}
 	~Benchmark() {
 
 	}
-
 	void RunBenchmark(int thread_num, int num,
 					  void (Benchmark::*method)(ThreadState*)) {
 		SharedState shared;
@@ -698,7 +732,7 @@ public:
 		store->RCUInit(num_threads);
 		Slice name = FLAGS_benchmarks;
 
-		if(true) {
+		if(false) {
 			for(uint64_t i = 1; i < pre_keys; i++) {
 				std::string *s = new std::string(YCSBRecordSize, 'a');
 				if(name == "txmix") {
@@ -718,6 +752,8 @@ public:
 			method = &Benchmark::Mix;
 		} else if(name == "txmix") {
 			method = &Benchmark::TxMix;
+		}else if (name=="check"){
+			method = &Benchmark::ConsCheck;
 		}
 		printf("RunBenchmark Starts\n");
 		RunBenchmark(num_threads, num_, method);
@@ -726,15 +762,18 @@ public:
 		//delete store;
 		printf("RunBenchmark Ends\n");
 		uint64_t total = 0, topten = 0;
+		/*
 		for(int i = 0 ; i < ENTITIES; i++) {
 			printf("statistics[%d] = %lu\n", i, statistics[i]);
 			total += statistics[i];
 		}
+		
 		for(int i = 0 ; i < ENTITIES / 10; i++) {
 			//printf("statistics[%d] = %lu\n", i, statistics[i]);
 			topten += statistics[i];
 		}
 		printf("total = %lu, topten = %lu\n", total, topten);
+		*/
 
 	}
 
@@ -744,6 +783,7 @@ public:
 
 int main(int argc, char** argv) {
 	srand(10000);
+	//srand(time(NULL));
 	for(int i = 1; i < argc; i++) {
 		int n;
 		char junk;
