@@ -219,10 +219,10 @@ public:
 		InnerNode* parent;
 		uint64_t seq;
 		unsigned last_thread_id;
-		int total_keys(){
+		int total_keys() {
 			int total_keys = 0;
-			for(int i = 0 ; i < SEGS; i++){
-				total_keys+=leaf_segs[i].key_num;
+			for(int i = 0 ; i < SEGS; i++) {
+				total_keys += leaf_segs[i].key_num;
 			}
 			return total_keys;
 		}
@@ -368,7 +368,7 @@ public:
 	}
 
 	~MemstoreEunoTree() {
-		//printf("[Alex]~MemstoreEunoTree\n");
+		printf("[Alex]~MemstoreEunoTree\n");
 		prof.reportAbortStatus();
 		//delprof.reportAbortStatus();
 		//PrintList();
@@ -423,7 +423,7 @@ public:
 	void transfer_para(RTMPara& para) {
 		prof.transfer_para(para);
 	}
-	
+
 	inline void ThreadLocalInit() {
 		if(false == localinit_) {
 			arena_ = new RTMArena();
@@ -510,22 +510,38 @@ public:
 
 	inline MemNode* Get(uint64_t key) {
 		LeafNode* targetLeaf = NULL;
+TOP_RETRY:
+
+		uint64_t seqno = 0;
 		{
 			RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
 			ScopeFind(key, &targetLeaf);
+			seqno = targetLeaf->seq;
 		}
-
+		
+#if BM_QUERY
+		targetLeaf->mlock.Lock();
 		bool bm_found = queryBMFilter(targetLeaf, key);
+		targetLeaf->mlock.Unlock();
 
 		if(!bm_found) {
 			return NULL;
 		}
+#endif
 
 		MemNode* res = NULL;
+		bool consistent = true;
 
 		{
 			RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
-			res = FindKeyInLeaf(targetLeaf,  key);
+			if(targetLeaf->seq == seqno) {
+				res = FindKeyInLeaf(targetLeaf, key);
+			} else {
+				consistent = false;
+			}
+		}
+		if(!consistent) {
+			goto TOP_RETRY;
 		}
 		return res;
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
@@ -826,6 +842,9 @@ public:
 	}
 
 	inline Memstore::InsertResult GetWithInsert(uint64_t key) {
+		bool should_sample = false;
+		should_sample = key % 10 == 0;
+
 		int cpu_id = sched_getcpu();
 		ThreadLocalInit();
 		//LeafNode* spec_leaf = NULL;
@@ -834,9 +853,9 @@ public:
 		//InnerNode* target_inner = NULL;
 
 		MemNode* res = NULL;
-		if(depth < CONTENTION_LEVEL ) {
+		if(depth < CONTENTION_LEVEL) {
 			//original_inserts++;
-			res = Insert_rtm(key, &target_leaf);
+			res = Insert_rtm(key, &target_leaf, should_sample);
 		} else {
 			//scope_inserts++;
 			LeafNode* leafNode = NULL;
@@ -851,31 +870,13 @@ public:
 #endif
 			uint64_t seqno = 0;
 
+
 TOP_RETRY:  {
-				RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE);
+				RTMScope begtx(&prof, depth * 2, 1, &rtmlock, GET_TYPE, should_sample);
 				temp_depth = ScopeFind(this_key, &leafNode);
 				seqno = leafNode->seq;
 			}
-			/*
-			if(tableid == 6 || tableid == 8) {
-				if(node_inserts <= 20000) {
-					node_inserts ++;
-					if(leafNode->last_thread_id != cpu_id) {
-						node_difference++;
-						leafNode->last_thread_id = cpu_id;
-					}
-				}
-				if(node_inserts == 20000) {
-					double contention_thr = (double)node_difference / node_inserts;
-					if(contention_thr < 0.3) {
-						contention_mode = false;
-						printf("contention_mode = false\n");
-					}
-					printf("[%d] node_inserts = %lu, node_difference = %lu, ratio = %lf\n",
-						   tableid, node_inserts, node_difference, (double)node_difference / node_inserts);
-				}
-			}
-*/
+
 #if TIME_BKD
 			stage_1_time += t.lap();
 #endif
@@ -888,10 +889,10 @@ TOP_RETRY:  {
 			leafNode->mlock.Unlock();
 #endif
 
-#if BM_PROF			
-			if(bm_found ){
+#if BM_PROF
+			if(bm_found) {
 				bm_found_num++;
-			}else{
+			} else {
 				bm_miss_num++;
 			}
 #endif
@@ -901,7 +902,7 @@ TOP_RETRY:  {
 #endif
 
 #if DEFAULT_LOCK
-			if(leafNode->total_keys() >= LEAF_NUM/2){
+			if(leafNode->total_keys() >= LEAF_NUM / 2) {
 				leafNode->mlock.Lock();
 			}
 #endif
@@ -914,7 +915,7 @@ TOP_RETRY:  {
 #endif
 			bool consistent = true;
 			{
-				RTMScope begtx(&prof, temp_depth * 2, 1, &rtmlock, GET_TYPE);
+				RTMScope begtx(&prof, temp_depth * 2, 1, &rtmlock, GET_TYPE, should_sample);
 
 				if(leafNode->seq == seqno) {
 					ScopeInsert(leafNode, this_key, &memNode, !bm_found, temp_depth);
@@ -922,8 +923,8 @@ TOP_RETRY:  {
 					consistent = false;
 				}
 			}
+
 #if DEFAULT_LOCK
-			
 			leafNode->mlock.Unlock();
 #endif
 
@@ -934,6 +935,7 @@ TOP_RETRY:  {
 #endif
 			if(!consistent) {
 				//inconsist++;
+				//printf("inconsistent\n");
 				goto TOP_RETRY;
 			} else {
 				//consist++;
@@ -1224,7 +1226,6 @@ TOP_RETRY:  {
 						new_sibling->children[new_sibling->num_keys] = insert_inner->children[insert_inner->num_keys];
 						reinterpret_cast<InnerNode*>(insert_inner->children[insert_inner->num_keys])->parent = new_sibling;
 
-						//XXX: should threshold ???
 						insert_inner->num_keys = threshold - 1;//=>7
 						/*
 						for(int i = 0; i < insert_inner->num_keys; i++){
@@ -1485,13 +1486,13 @@ TOP_RETRY:  {
 		return value;
 	}
 
-	inline Memstore::MemNode* Insert_rtm(uint64_t key, LeafNode** target_leaf) {
+	inline Memstore::MemNode* Insert_rtm(uint64_t key, LeafNode** target_leaf, bool should_sample = false) {
 		//printf("Insert_rtm key = %lu\n", key);
 #if BTREE_LOCK
 		MutexSpinLock lock(&slock);
 #else
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
-		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, ADD_TYPE);
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, ADD_TYPE, should_sample);
 #endif
 
 #if BTREE_PROF
@@ -1646,11 +1647,8 @@ TOP_RETRY:  {
 		}
 
 		if(!insert_only) {
-			//printf("insert key = %lu\n", key);
 			bool found = FindDuplicate(leaf, key, val); //if found, val is already set to the retrieved value
-			//dump_leaf(leaf);
 			if(found) { //duplicate insertion
-				//printf("duplication found\n");
 #if	DUP_PROF
 				dup_found++;
 #endif
@@ -1660,14 +1658,14 @@ TOP_RETRY:  {
 
 		int idx = key % SEGS;
 		bool should_check_all = false;
-		
+
 		if(leaf->leaf_segs[idx].key_num >= leaf->leaf_segs[idx].max_room) {
 			idx = (idx + 1) % SEGS;
 			if(leaf->leaf_segs[idx].key_num >= leaf->leaf_segs[idx].max_room) {
 				should_check_all = true;
 			}
 		}
-		
+
 		//bool should_check_all = leaf->leaf_segs[idx].key_num >= seg_len;
 		if(!should_check_all) {
 			//[Case #1] Shuffle to an empty segment, insert immediately
@@ -1707,7 +1705,6 @@ TOP_RETRY:  {
 					assert(*val != NULL);
 					dummyval_ = NULL;
 
-					//insert_log.check_all++;
 					//*target_leaf = leaf;
 					return NULL;
 				}
@@ -1724,7 +1721,8 @@ TOP_RETRY:  {
 				}
 				*/
 				//[Case #3] This LeafNode is really full
-				leaf->seq++;
+
+				leaf->seq++; //increase the sequential number of split leaf to keep consistency
 
 				int temp_idx = 1;
 				for(int i = 0; i < SEGS; i++) {

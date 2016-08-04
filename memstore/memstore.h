@@ -8,6 +8,7 @@
 #include "db/objpool.h"
 #include "util/txprofile.h"
 #include "util/rtm.h"
+
 class Memstore {
 public:
 	struct MemNode {
@@ -34,7 +35,7 @@ public:
 		}
 	};
 
-	struct InsertResult{
+	struct InsertResult {
 		MemNode* node;
 		bool hasNewNode;
 	};
@@ -93,7 +94,7 @@ public:
 	virtual MemNode* Put(uint64_t k, uint64_t* val) = 0;
 
 	virtual MemNode* Get(uint64_t key) = 0;
-	
+
 	virtual InsertResult GetWithInsert(uint64_t key) = 0;
 
 	virtual MemNode* GetForRead(uint64_t key) = 0;

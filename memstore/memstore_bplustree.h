@@ -9,7 +9,7 @@
 #include "util/rtmScope.h"
 #include "util/rtm.h"
 #include "util/rtm_arena.h"
-#include "util/mutexlock.h"
+//#include "util/mutexlock.h"
 #include "util/numa_util.h"
 #include "util/statistics.h"
 #include "util/bloomfilter.h"
@@ -203,54 +203,10 @@ public:
 		reinterpret_cast<LeafNode*>(root)->right = NULL;
 		reinterpret_cast<LeafNode*>(root)->seq = 0;
 		depth = 0;
-		
-#if LEVEL_LOG
-				for(int i = 0; i < 10; i++) {
-					level_logs[i].gets = 0;
-					level_logs[i].writes = 0;
-					level_logs[i].splits = 0;
-				}
-#endif
 
 		num_of_nodes = numa_num_configured_nodes();
 
-#if BUFFER_TEST
-		//buffer_reads = filtered_reads = 0;
-		buffer = new NUMA_Buffer();
-#if BM_TEST
-		bm_filters = (BloomFilter**)malloc(num_of_nodes * sizeof(BloomFilter*));
-		for(int i = 0; i < num_of_nodes; i++) {
-			bm_filters[i] =
-				bloom_filter_new_with_probability(ERROR_RATE, BM_SIZE, i);
-		}
-#endif
-
-#endif
-
-#if REMOTEACCESS
-		inner_local_access = inner_remote_access
-							 = leaf_local_access = leaf_remote_access = buffer_local_access = 0;
-#endif
-
-#if CACHE_SUBTREE_TEST
-		cached_subtrees = (Cached_subtree**)calloc(num_of_nodes, sizeof(Cached_subtree*));
-		for(int i = 0; i < num_of_nodes; i++) {
-			SpinLock* lock = (SpinLock*)Numa_alloc_onnode(sizeof(SpinLock), i);
-			Cached_subtree* local_cached_subtree = (Cached_subtree*)Numa_alloc_onnode(sizeof(Cached_subtree), i);
-			cached_subtrees[i] = new(local_cached_subtree) Cached_subtree(CACHED_DEPTH, i, lock);
-		}
-		global_timestamp = 0;
-		cached_subtree_begin = false;
-		global_tslock = (SpinLock*)calloc(1, sizeof(SpinLock));
-#endif
-
 		num_insert_rtm = 0;
-
-#if BTREE_PROF
-		writes = 0;
-		reads = 0;
-		calls = 0;
-#endif
 		/*
 			for (int i=0; i<4; i++) {
 				windex[i] = 0;
@@ -274,57 +230,6 @@ public:
 		//printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
 		printf("[Alex]~MemstoreBPlusTree\n");
 		prof.reportAbortStatus();
-		//delprof.reportAbortStatus();
-		//printf("rwconflict %ld\n", rconflict);
-		//printf("wwconflict %ld\n", wconflict);
-		//printf("depth %d\n",depth);
-		//printf("reads %ld\n",reads);
-		//printf("writes %ld\n", writes);
-		//printf("calls %ld touch %ld avg %f\n", calls, reads + writes,  (float)(reads + writes)/(float)calls );
-#if LEVEL_LOG
-		printf("=========Tableid = %d=========\n", tableid);
-		//printf("Insert_rtm = %d\n", num_insert_rtm);
-		for(int i = 0; i < 10; i++) {
-			printf("%d: %d, %d, %d\n", i, level_logs[i].gets, level_logs[i].writes, level_logs[i].splits);
-		}
-
-#endif
-#if BUFFER_TEST
-		//printf("buffer_reads = %d, filtered_reads = %d\n",
-		//buffer_reads, filtered_reads);
-		delete buffer;
-#endif
-#if REMOTEACCESS
-		printf("tableid = %2d, inner_local_access = %10d, inner_remote_access = %10d, leaf_local_access = %10d, leaf_remote_access = %10d, buffer_local_access = %10d\n",
-			   tableid, inner_local_access, inner_remote_access, leaf_local_access, leaf_remote_access, buffer_local_access);
-		table_prof.inner_local_access += inner_local_access;
-		table_prof.inner_remote_access += inner_remote_access;
-		table_prof.leaf_local_access += leaf_local_access;
-		table_prof.leaf_remote_access += leaf_remote_access;
-		table_prof.buffer_local_access += buffer_local_access;
-#endif
-
-#if BTREE_PROF
-		printf("calls %ld avg %f writes %f\n", calls, (float)(reads + writes) / (float)calls, (float)(writes) / (float)calls);
-#endif
-
-#if NODEDUMP
-		for(auto iter : node_map) {
-			//if(iter.second.gets + iter.second.writes + iter.second.splits > 10)
-			printf("[%ld][%ld]: {%ld, %ld, %ld}\n", tableid, iter.first, iter.second.gets, iter.second.writes, iter.second.splits);
-		}
-		printf("Total Nodes: %ld\n", node_map.size());
-#endif
-
-#if KEYDUMP
-		for(auto iter : key_map) {
-			if(iter.second.gets + iter.second.writes + iter.second.dels > 10)
-				printf("[%ld]: {%ld, %ld, %ld}\n", iter.first, iter.second.gets, iter.second.writes, iter.second.dels);
-		}
-		printf("Total Keys: %ld\n", key_map.size());
-#endif
-		//printTree();
-		//top();
 	}
 	void transfer_para(RTMPara& para) {
 		prof.transfer_para(para);
@@ -399,13 +304,7 @@ public:
 			index = 0;
 			inner = reinterpret_cast<InnerNode*>(node);
 
-#if LEVEL_LOG
-			//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-			//	sched_getcpu(), inner->signature, key, d+1);
-			level_logs[d + 1].gets++;
-#endif
-//			reads++;
-			while((index < inner->num_keys) && (key >= inner->keys[index])) {
+			while((index < inner->num_keys) && (inner->keys[index] <= key)) {
 				++index;
 			}
 			//get down to the corresponding child
@@ -414,12 +313,6 @@ public:
 
 		//it is a defacto leaf node, reinterpret_cast
 		LeafNode* leaf = reinterpret_cast<LeafNode*>(node);
-#if LEVEL_LOG
-
-		//printf("[%2d][GET] node = %10d, key = %20ld, d = %2d\n",
-		//			sched_getcpu(), leaf->signature, key, 0);
-		level_logs[0].gets++;
-#endif
 
 		if(leaf->num_keys == 0) return NULL;
 		unsigned k = 0;
@@ -686,7 +579,8 @@ public:
 		MutexSpinLock lock(&slock);
 #else
 		//RTMArenaScope begtx(&rtmlock, &prof, arena_);
-		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, ADD_TYPE);
+		bool should_sample = key % 10 == 0;
+		RTMScope begtx(&prof, depth * 2, 1, &rtmlock, ADD_TYPE, should_sample);
 #endif
 
 #if BTREE_PROF
@@ -733,7 +627,6 @@ public:
 		while((k < inner->num_keys) && (key >= inner->keys[k])) {
 			k++;
 		}
-
 
 		void *child = inner->children[k]; //search the descendent layer
 #if BTPREFETCH
@@ -952,7 +845,7 @@ public:
 		while((k < leaf->num_keys) && (leaf->keys[k] < key)) {
 			++k;
 		}
-		//duplicate key
+		//duplicate key, transformed into an update
 		if((k < leaf->num_keys) && (leaf->keys[k] == key)) {
 			*newKey = false;
 	#if BTPREFETCH
@@ -1316,6 +1209,7 @@ public:
 	char padding3[64];
 
 	RTMProfile prof;
+	RTMProfile writeProf;
 	char padding6[64];
 	port::SpinLock slock;
 #if BTREE_PROF

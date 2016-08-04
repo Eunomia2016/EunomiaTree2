@@ -38,6 +38,7 @@ class RTMScope {
 	int zero;
 	SpinLock* slock;
 	OP_TYPE type;
+	bool profiled;
 #ifdef AVOIDNESTTX
 	int isnest;
 #endif
@@ -46,10 +47,11 @@ public:
 	static SpinLock fblock;
 
 	inline RTMScope(RTMProfile* prof, int read = 1, int write = 1,
-					SpinLock* sl = NULL, OP_TYPE _type = UNKNOWN_TYPE) {
+					SpinLock* sl = NULL, OP_TYPE _type = UNKNOWN_TYPE, bool profiled_ = false) {
 		type = _type;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		globalprof = prof;
+		profiled = profiled_;
 		retry = 0;
 		conflict = 0;
 		capacity = 0;
@@ -137,6 +139,11 @@ public:
 		}
 		//printf("hold lock\n");
 		slock->Lock();
+#if RTMPROFILE
+if(profiled){
+		globalprof->fallbacks++;
+}
+#endif
 	}
 
 	void Abort() {
@@ -154,10 +161,9 @@ public:
 		else
 			_xend();
 		//access the global profile info outside the transaction scope
-		//printf("winner\n");
 		//clock_gettime(CLOCK_MONOTONIC, &end);
 #if RTMPROFILE
-		if(globalprof != NULL) {
+		if(profiled && globalprof != NULL) {
 			globalprof->totalCounts++;
 			globalprof->abortCounts += retry;
 			globalprof->capacityCounts += capacity;

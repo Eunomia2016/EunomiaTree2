@@ -25,27 +25,30 @@
 
 static const char* FLAGS_benchmarks = "mix";
 
-static int FLAGS_num = 2000000;
+static int FLAGS_num = 10000000;
 static int FLAGS_threads = 1;
 static uint64_t nkeys = 10000000;
 static uint64_t pre_keys = 100000;
 static double READ_RATIO = 0.5;
 static bool EUNO_USED = false;
-static int CONT_SIZE = 16;
+static int CONT_SIZE = 20;
 static double THETA = 0.01;
 static int ENTITIES = 20;
-static int ZIP_ITER = 16;
+static int LAMBDA = 1;
 
 static double H_VALUE = 0.2;
 
 static double DELTA = 1.0;
 uint64_t next_o_id = 0;
 
+
+static const double EE  = 2.71828;
+
 #define CHECK 0
 #define YCSBRecordSize 100
 #define GETCOPY 0
 
-enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY, ZIPF, SELF};
+enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY, ZIPF, SELF, POISSON};
 
 static dist_func FUNC_TYPE = SEQT;
 
@@ -119,7 +122,7 @@ private:
 	unsigned long seed;
 };
 
-static inline ALWAYS_INLINE uint64_t* SequentialKeys(uint64_t* dist_last_ids) {
+static inline ALWAYS_INLINE uint64_t* SequentialKeys(uint64_t* dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t start_id = dist_last_ids[0]++;
 
 	fast_random r(start_id);
@@ -135,7 +138,7 @@ static inline ALWAYS_INLINE uint64_t* SequentialKeys(uint64_t* dist_last_ids) {
 	return cont_window;
 }
 
-static inline ALWAYS_INLINE uint64_t* UniformKeys(uint64_t* dist_last_ids) {
+static inline ALWAYS_INLINE uint64_t* UniformKeys(uint64_t* dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t start_id = dist_last_ids[0]++;
 	//std::random_device rd;
 	//std::mt19937 gen(rd());
@@ -153,7 +156,7 @@ static inline ALWAYS_INLINE uint64_t* UniformKeys(uint64_t* dist_last_ids) {
 	return cont_window;
 }
 
-static inline ALWAYS_INLINE uint64_t* NormalKeys(uint64_t* dist_last_ids) {
+static inline ALWAYS_INLINE uint64_t* NormalKeys(uint64_t* dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	std::random_device rd;
 	std::mt19937 gen(rd());
@@ -167,6 +170,9 @@ static inline ALWAYS_INLINE uint64_t* NormalKeys(uint64_t* dist_last_ids) {
 
 	for(int i = 0; i < CONT_SIZE; i++) {
 		int no = static_cast<int>(distribution(gen)) % CONT_SIZE;
+		if(statistics != NULL) {
+			statistics[no ] += 1;
+		}
 		uint64_t id = oid * CONT_SIZE + no;
 		//printf("[%2d][%d]id = %lu, no = %d\n",sched_getcpu(), i, id, no);
 		cont_window[i] = id;
@@ -178,7 +184,7 @@ static inline ALWAYS_INLINE uint64_t* NormalKeys(uint64_t* dist_last_ids) {
 	return cont_window;
 }
 
-static inline ALWAYS_INLINE uint64_t* CauchyKeys(uint64_t* dist_last_ids) {
+static inline ALWAYS_INLINE uint64_t* CauchyKeys(uint64_t* dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 
 	std::random_device rd;
@@ -259,7 +265,7 @@ struct probvals* get_zipf(float theta, int NUM) {
 	return dist;
 }
 
-static inline ALWAYS_INLINE uint64_t* ZipfKeys(uint64_t* dist_last_ids) {
+static inline ALWAYS_INLINE uint64_t* ZipfKeys(uint64_t* dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	//printf("zdist = %p\n", zdist);
 	double rnd = randf();
@@ -287,7 +293,7 @@ static inline ALWAYS_INLINE int Selfsimilar(long n, double h) {
 	return (static_cast<int>(n * pow(randf(), log(h) / log(1.0 - h))));
 }
 
-static inline ALWAYS_INLINE uint64_t* ZipfianKeys(uint64_t * dist_last_ids) {
+static inline ALWAYS_INLINE uint64_t* ZipfianKeys(uint64_t * dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	int dist_num = zipf(ENTITIES, H_VALUE);
 	uint32_t upper_id = 10 + dist_num;
@@ -301,9 +307,44 @@ static inline ALWAYS_INLINE uint64_t* ZipfianKeys(uint64_t * dist_last_ids) {
 	return cont_window;
 }
 
-static inline ALWAYS_INLINE uint64_t* SelfSimilarKeys(uint64_t * dist_last_ids) {
+static inline ALWAYS_INLINE uint64_t* SelfSimilarKeys(uint64_t * dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	int dist_num = Selfsimilar(ENTITIES, H_VALUE);
+	uint32_t upper_id = 10 + dist_num;
+	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
+	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
+	if(statistics != NULL) {
+		statistics[dist_num] += 1;
+	}
+
+	for(int i = 0; i < CONT_SIZE; i++) {
+		cont_window[i] = oid * CONT_SIZE + i;
+		//printf("cont_window[%d] = %lu\n",i,cont_window[i]);
+	}
+	return cont_window;
+}
+
+int Poisson(long lambda) {
+	int n = 0;
+	double c = pow(EE, -lambda);
+	double p = 1.0;
+	while(p >= c) {
+		p = p * randf();
+		n++;
+	}
+	return n - 1;
+}
+
+static inline ALWAYS_INLINE uint64_t* PoissonKeys(uint64_t * dist_last_ids, uint64_t * statistics = NULL) {
+	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
+	int dist_num = Poisson(LAMBDA);
+	if(statistics != NULL) {
+		statistics[dist_num] += 1;
+	}
+	if(dist_num >= ENTITIES) {
+		dist_num = LAMBDA;
+	}
+
 	uint32_t upper_id = 10 + dist_num;
 	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
@@ -331,12 +372,14 @@ static inline ALWAYS_INLINE uint64_t* ZipfKeys(int32_t start_id) {
 }
 */
 class Benchmark {
-	typedef uint64_t* (*Key_Generator)(uint64_t*);
+	typedef uint64_t* (*Key_Generator)(uint64_t*, uint64_t*);
 
 private:
 	int64_t total_count;
 
 	Memstore *table;
+
+	uint64_t* statistics;
 
 	port::SpinLock slock;
 
@@ -530,14 +573,10 @@ private:
 			}
 			//Write
 			else {
-				uint64_t * cont_keys = key_generator(dist_o_id);
-				/*
-				for(int idx = 0; idx < CONT_SIZE; idx++){
-					printf("[%d]write key = %lu\n",idx, cont_keys[idx]);
-				}
-				*/
+				uint64_t* cont_keys = key_generator(dist_o_id, statistics);
 				for(int idx = 0; idx < CONT_SIZE; idx++) {
 					uint64_t key = cont_keys[idx];
+					//printf("[%2d] key = %lu\n", sched_getcpu(), key);
 					Memstore::MemNode * mn = table->GetWithInsert(key).node;
 					char *s = (char *)(mn->value);
 					std::string c(YCSBRecordSize, 'c');
@@ -603,11 +642,6 @@ public:
 
 		printf("Total Run Time : %lf ms\n", (shared.end_time - shared.start_time) / 1000);
 		printf("Total Throughput = %lf op/s\n", (double)(num * thread_num) / ((shared.end_time - shared.start_time) / 1000000));
-		/*
-			for (int i = 0; i < thread_num; i++) {
-			  printf("Thread[%d] Put Throughput %lf ops/s\n", i, num/(arg[i].thread->time1/1000/1000));
-			  printf("Thread[%d] Get Throughput %lf ops/s\n", i, num/(arg[i].thread->time2/1000/1000));
-			}*/
 
 		for(int i = 0; i < thread_num; i++) {
 			delete arg[i].thread;
@@ -616,6 +650,7 @@ public:
 	}
 
 	void Run() {
+		statistics = (uint64_t*)calloc(ENTITIES, sizeof(uint64_t));
 		if(EUNO_USED) {
 			printf("EunomiaTree\n");
 			table = new leveldb::MemstoreEunoTree();
@@ -626,24 +661,34 @@ public:
 		switch(FUNC_TYPE) {
 		case SEQT:
 			key_generator = SequentialKeys;
+			printf("Sequential Distribution\n");
 			break;
 		case UNIF:
 			key_generator = UniformKeys;
+			printf("Uniform Distribution\n");
 			break;
 		case NORM:
 			key_generator = NormalKeys;
+			printf("Normal Distribution\n");
 			break;
 		case CAUCHY:
 			key_generator = CauchyKeys;
+			printf("Cauchy Distribution\n");
 			break;
 		case ZIPF:
 			key_generator = ZipfKeys;
 			if(zdist == NULL) {
 				zdist = get_zipf(THETA, ENTITIES);
 			}
+			printf("Zipfian Distribution. Theta = %lf\n", THETA);
 			break;
 		case SELF:
 			key_generator = SelfSimilarKeys;
+			printf("SelfSimilar Distribution. H_VALUE = %lf\n", H_VALUE);
+			break;
+		case POISSON:
+			key_generator = PoissonKeys;
+			printf("Poisson Distribution. LAMBDA = %d\n", LAMBDA);
 			break;
 		}
 		store = new DBTables();
@@ -669,16 +714,28 @@ public:
 		//  exit(0);
 
 		void (Benchmark::*method)(ThreadState*) = NULL;
-		if(name == "mix")
+		if(name == "mix") {
 			method = &Benchmark::Mix;
-		else if(name == "txmix")
+		} else if(name == "txmix") {
 			method = &Benchmark::TxMix;
+		}
 		printf("RunBenchmark Starts\n");
 		RunBenchmark(num_threads, num_, method);
 		//delete dynamic_cast<leveldb::MemstoreEunoTree*>(table);
 		delete table;
 		//delete store;
 		printf("RunBenchmark Ends\n");
+		uint64_t total = 0, topten = 0;
+		for(int i = 0 ; i < ENTITIES; i++) {
+			printf("statistics[%d] = %lu\n", i, statistics[i]);
+			total += statistics[i];
+		}
+		for(int i = 0 ; i < ENTITIES / 10; i++) {
+			//printf("statistics[%d] = %lu\n", i, statistics[i]);
+			topten += statistics[i];
+		}
+		printf("total = %lu, topten = %lu\n", total, topten);
+
 	}
 
 };
@@ -716,28 +773,7 @@ int main(int argc, char** argv) {
 		}
 
 	}
-	printf("threads = %d, read_rate = %lf, cont_size = %d\n", FLAGS_threads, READ_RATIO, CONT_SIZE);
-	switch(FUNC_TYPE) {
-	case SEQT:
-		printf("Sequential Distribution\n");
-		break;
-	case UNIF:
-		printf("Uniform Distribution\n");
-		break;
-	case NORM:
-		printf("Normal Distribution\n");
-		break;
-	case CAUCHY:
-		printf("Cauchy Distribution\n");
-		break;
-	case ZIPF:
-		printf("Zipfian Distribution. Theta = %lf\n", THETA);
-		break;
-	case SELF:
-		printf("SelfSimilar Distribution. H_VALUE = %lf\n", H_VALUE);
-		break;
-	}
-
+	printf("key_num = %d, threads = %d, read_rate = %lf, cont_size = %d\n", FLAGS_num, FLAGS_threads, READ_RATIO, CONT_SIZE);
 	leveldb::Benchmark benchmark;
 	benchmark.Run();
 	return 1;

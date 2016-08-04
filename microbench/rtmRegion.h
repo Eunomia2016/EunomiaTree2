@@ -8,8 +8,6 @@
 #include <immintrin.h>
 #include <sys/time.h>
 
-
-
 struct RTMRegionProfile {
 	int abort;
 	int succ;

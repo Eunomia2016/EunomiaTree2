@@ -50,6 +50,7 @@ public:
 	uint64_t winner_interval;
 	uint64_t winners;
 	uint64_t total_interval;
+	uint32_t fallbacks;
 
 	static __inline__ void atomic_inc32(uint32_t *p) {
 		__asm__ __volatile__("lock; incl %0"
@@ -77,6 +78,7 @@ public:
 		}
 		winners = 0;
 		winner_interval = 0;
+		fallbacks = 0;
 	}
 
 	void recordRetryNum(int num) {
@@ -158,11 +160,14 @@ public:
 			printf("XABORT_LOCK %d\n", status[XABORT_NESTED_INDEX]);
 
 		if(totalCounts != 0) {
-			printf("Abort Counts %d\n", abortCounts);
+			printf("============================\n");
 			printf("Commit Counts %d\n", totalCounts);
+			printf("Abort Counts %d\n", abortCounts);
+			
 			printf("Capacity Counts %d\n", capacityCounts);
 			printf("Zero Counts %d\n", zeroCounts);
 			printf("Conflict Counts %d\n", conflictCounts);
+			printf("Fallback Counts %d\n", fallbacks);
 		}
 	}
 
