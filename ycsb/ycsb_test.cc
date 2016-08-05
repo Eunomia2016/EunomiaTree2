@@ -221,13 +221,14 @@ double zeta(long n, double theta) {
 }
 
 long zipf(long n, double theta) {
-	double alpha = 1 / (1 - theta);
-	double zetan = zeta(n, theta);
-	double eta = (1 - pow(2.0 / n, 1.0 - theta)) / (1.0 - zeta(2, theta) / zetan);
+	double tt = theta*1.2; 
+	double alpha = 1 / (1 - tt);
+	double zetan = zeta(n, tt);
+	double eta = (1 - pow(2.0 / n, 1.0 - tt)) / (1.0 - zeta(2, tt) / zetan);
 	double u = randf();
 	double uz = u * zetan;
 	if(uz < 1) return 1;
-	if(uz < 1 + pow(0.5, theta)) return 2;
+	if(uz < 1 + pow(0.5, tt)) return 2;
 	return 1 + (long)(n * pow(eta * u - eta + 1, alpha));
 }
 
@@ -239,13 +240,14 @@ struct probvals {
 struct probvals* zdist = NULL;
 
 struct probvals* get_zipf(float theta, int NUM) {
+	double tt = theta*1.2;
 	float sum = 0.0;
 	float c = 0.0;
 	float expo;
 	float sumc = 0.0;
 	int i;
 
-	expo = theta;
+	expo = tt;
 	/*
 	* zipfian - p(i) = c / i ^^ (theta) At x
 	* = 1, uniform * at x = 0, pure zipfian
@@ -292,10 +294,10 @@ static inline ALWAYS_INLINE uint64_t* ZipfKeys(uint64_t* dist_last_ids, uint64_t
 static inline ALWAYS_INLINE int Selfsimilar(long n, double h) {
 	return (static_cast<int>(n * pow(randf(), log(h) / log(1.0 - h))));
 }
-
+/*
 static inline ALWAYS_INLINE uint64_t* ZipfianKeys(uint64_t * dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
-	int dist_num = zipf(ENTITIES, H_VALUE);
+	int dist_num = zipf(ENTITIES, THETA);
 	uint32_t upper_id = 10 + dist_num;
 	uint64_t last_o_id = dist_last_ids[dist_num]++; // __sync_fetch_and_add(&dist_o_id[dist_num], 1);
 	uint64_t oid = static_cast<uint64_t>(upper_id) * 1000000 + static_cast<uint64_t>(last_o_id);
@@ -306,7 +308,7 @@ static inline ALWAYS_INLINE uint64_t* ZipfianKeys(uint64_t * dist_last_ids, uint
 	}
 	return cont_window;
 }
-
+*/
 static inline ALWAYS_INLINE uint64_t* SelfSimilarKeys(uint64_t * dist_last_ids, uint64_t * statistics = NULL) {
 	uint64_t* cont_window = (uint64_t*)calloc(CONT_SIZE, sizeof(uint64_t));
 	int dist_num = Selfsimilar(ENTITIES, H_VALUE);
@@ -561,28 +563,33 @@ private:
 		double start = leveldb::Env::Default()->NowMicros();
 		std::string v;
 		char nv[YCSBRecordSize];
-
+		
 		//printf("READ_RATIO = %lf\n", READ_RATIO);
 		while(finish < num) {
 			double d = r.next_uniform();
 			//Read
 			if(d < READ_RATIO) {
+				//printf("flag1\n");
 				uint64_t key = r.next() % pre_keys;
 				table->Get(key);
+				//printf("flag2\n");
 				finish += 1;
 			}
 			//Write
 			else {
 				uint64_t* cont_keys = key_generator(dist_o_id, statistics);
 				for(int idx = 0; idx < CONT_SIZE; idx++) {
-					uint64_t key = cont_keys[idx];
 					//printf("[%2d] key = %lu\n", sched_getcpu(), key);
-					Memstore::MemNode * mn = table->GetWithInsert(key).node;
-					char *s = (char *)(mn->value);
+					
+					uint64_t key = cont_keys[idx];
+					
+					//Memstore::MemNode * mn = table->GetWithInsert(key).node;
+					//char *s = (char *)(mn->value);
 					std::string c(YCSBRecordSize, 'c');
 					memcpy(nv, c.data(), YCSBRecordSize);
-					mn = table->GetWithInsert(key).node;
-					mn->value = (uint64_t *)(nv);
+					table->Put(key, (uint64_t *)nv);
+					//mn = table->GetWithInsert(key).node;
+					//mn->value = (uint64_t *)(nv);
 				}
 				finish += CONT_SIZE;
 				free(cont_keys);

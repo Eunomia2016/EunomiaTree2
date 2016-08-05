@@ -518,7 +518,9 @@ public:
 	}
 
 	inline MemNode* Get(uint64_t key) {
+		if(root==NULL) return NULL;
 		LeafNode* targetLeaf = NULL;
+		
 TOP_RETRY:
 		uint64_t seqno = 0;
 		{
@@ -601,9 +603,7 @@ TOP_RETRY:
 	}
 
 	inline MemNode* Put(uint64_t k, uint64_t* val) {
-
 		ThreadLocalInit();
-
 		MemNode *node = GetWithInsert(k).node;
 		node->value = val;
 #if BTREE_PROF
@@ -1648,6 +1648,7 @@ TOP_RETRY:  {
 		LeafNode *new_sibling = NULL;
 		//int idx = -1;
 		//int seg_len = leaf->born_key_num == 8 ? HAL_LEN : EMP_LEN;
+		
 		if(leaf == root) {
 			if(first_leaf) { //root node needs reinitialization
 				for(int i = 0 ; i < SEGS; i++) {
@@ -1659,7 +1660,6 @@ TOP_RETRY:  {
 				}
 				first_leaf = false;
 			}
-			
 		}
 		
 		if(!insert_only) {
