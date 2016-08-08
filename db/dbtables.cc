@@ -153,7 +153,7 @@ DBTables::~DBTables() {
 //This interface is just used during initialization
 void DBTables::TupleInsert(int tabid, uint64_t key, uint64_t *val, int len) {
 	char *value = (char *)malloc(sizeof(OBJPool::Obj) + len);
-
+	
 	value += sizeof(OBJPool::Obj);
 	memcpy(value, val, len);
 

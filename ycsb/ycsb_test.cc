@@ -240,7 +240,7 @@ struct probvals {
 struct probvals* zdist = NULL;
 
 struct probvals* get_zipf(float theta, int NUM) {
-	double tt = theta*1.2;
+	double tt = theta*1.0;
 	float sum = 0.0;
 	float c = 0.0;
 	float expo;
@@ -539,7 +539,7 @@ private:
 					b = tx.End();
 					*/
 				}
-				finish += 15;
+				finish ++;
 				//printf("write ends\n");
 			}
 		}
@@ -580,16 +580,14 @@ private:
 				uint64_t* cont_keys = key_generator(dist_o_id, statistics);
 				for(int idx = 0; idx < CONT_SIZE; idx++) {
 					//printf("[%2d] key = %lu\n", sched_getcpu(), key);
-					
 					uint64_t key = cont_keys[idx];
-					
-					//Memstore::MemNode * mn = table->GetWithInsert(key).node;
-					//char *s = (char *)(mn->value);
+					Memstore::MemNode * mn = table->GetWithInsert(key).node;
+					char *s = (char *)(mn->value);
 					std::string c(YCSBRecordSize, 'c');
 					memcpy(nv, c.data(), YCSBRecordSize);
-					table->Put(key, (uint64_t *)nv);
-					//mn = table->GetWithInsert(key).node;
-					//mn->value = (uint64_t *)(nv);
+					//table->Put(key, (uint64_t *)nv);
+					mn = table->GetWithInsert(key).node;
+					mn->value = (uint64_t *)(nv);
 				}
 				finish += CONT_SIZE;
 				free(cont_keys);
@@ -613,27 +611,19 @@ private:
 		for(int i = 0; i < LENS; i++){
 			array[i] = r.next() ;
 		}
-		/*
-		for(int i = 0; i < LENS/2; i++){
-			//printf("Put %d done\n",i);
-			table->Put(array[i*2], NULL); 	
-		}
-		*/
+		//table->Put(0,NULL);
 		for(int i = 0; i < LENS; i++){
-			//printf("Put %d done\n",i);
-			//array[i] = r.next();
 			table->Put(array[i], NULL); 	
 		}
 		printf("Put all done\n");
 		for(int i = 0; i < LENS; i++){
 			Memstore::MemNode* res = table->Get(array[i] );
-			if(res==NULL){
-				printf("[%d] key = %lu nonexist\n",i, array[i]);
+			if(res == NULL){
+				printf("[%d] key = %lu nonexist\n", i, array[i]);
+				return;
 			}
 		}
-		
-		//printf("Exe time: %f, total_num = %d\n", (end - start) / 1000 / 1000, finish);
-		//printf("Thread[%d] Throughput %lf ops/s\n", tid, finish / ((end - start) / 1000 / 1000));
+		printf("Check Pass\n");
 	}
 
 
@@ -691,7 +681,8 @@ public:
 	}
 
 	void Run() {
-		statistics = (uint64_t*)calloc(ENTITIES, sizeof(uint64_t));
+		//statistics = (uint64_t*)calloc(ENTITIES, sizeof(uint64_t));
+		statistics = NULL;
 		if(EUNO_USED) {
 			printf("EunomiaTree\n");
 			table = new leveldb::MemstoreEunoTree();

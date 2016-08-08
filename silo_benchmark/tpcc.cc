@@ -1468,15 +1468,17 @@ protected:
 						const size_t sz = Size(*v_oo);
 						oorder_total_sz += sz;
 						n_oorders++;
-
+						printf("here1\n");						
 						store->TupleInsert(ORDE, okey, (uint64_t *)v_oo, sizeof(oorder::value));
 						//Memstore::MemNode *node = store->tables[ORDE]->Put(okey, (uint64_t *)v_oo);
+						printf("here2\n");	
 
 						uint64_t sec = makeOrderIndex(w, d, v_oo->o_c_id, c);
 #if USESECONDINDEX
 						store->secondIndexes[ORDER_INDEX]->Put(sec, okey, node);
 #else
 						Memstore::MemNode* mn = store->tables[ORDER_INDEX]->Get(sec);
+
 						if(mn == NULL) {
 							uint64_t *prikeys = new uint64_t[2];
 							prikeys[0] = 1;
@@ -2672,7 +2674,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 			DBTX::Iterator iter(&tx, NEWO);
 
 			iter.Seek(start); //Tx.1 
-			
+
 			bool valid = iter.Valid();
 
 #if DBTX_TIME
@@ -2818,22 +2820,26 @@ tpcc_worker::txn_delivery(bool first_run) {
 				//printf("After valid\n");
 				//printf("before getkey\n");
 				int64_t ol_key = iter1.Key();
-				//printf("after getkey. ol_key = %ld. start = %ld. end = %ld\n", ol_key, start,end);
-				
+				//printf("after getkey. ol_key = %ld. start = %ld. end = %ld\n", ol_key, start, end);
 				if(ol_key > end){ 
 					//printf("ol_key = %ld, end = %ld, break!\n", ol_key, end);
 					break;
 				}
 
 				uint64_t *ol_value = iter1.Value();
+				//printf("ol_value = %p\n", ol_value);
 				order_line::value *v_ol = (order_line::value *)ol_value;
+				//printf("v_ol = %p\n", v_ol);
 				sum_ol_amount += v_ol->ol_amount;
+				//printf("sum_ol_amount = %f\n", sum_ol_amount);
 				order_line::value v_ol_new(*v_ol);
 				v_ol_new.ol_delivery_d = ts;
 #if DBTX_TIME
 				txn_tim.lap();
 #endif
+				//printf("Before Tx6\n");
 				tx.Add(ORLI, ol_key, (uint64_t *)(&v_ol_new), sizeof(v_ol_new)); //Tx.6
+				//printf("Before Tx6\n");
 #if DBTX_TIME
 #if DBTX_PROF
 
