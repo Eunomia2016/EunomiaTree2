@@ -1468,10 +1468,10 @@ protected:
 						const size_t sz = Size(*v_oo);
 						oorder_total_sz += sz;
 						n_oorders++;
-						printf("here1\n");						
+						//printf("here1\n");						
 						store->TupleInsert(ORDE, okey, (uint64_t *)v_oo, sizeof(oorder::value));
 						//Memstore::MemNode *node = store->tables[ORDE]->Put(okey, (uint64_t *)v_oo);
-						printf("here2\n");	
+						//printf("here2\n");	
 
 						uint64_t sec = makeOrderIndex(w, d, v_oo->o_c_id, c);
 #if USESECONDINDEX
@@ -2820,7 +2820,7 @@ tpcc_worker::txn_delivery(bool first_run) {
 				//printf("After valid\n");
 				//printf("before getkey\n");
 				int64_t ol_key = iter1.Key();
-				//printf("after getkey. ol_key = %ld. start = %ld. end = %ld\n", ol_key, start, end);
+				//printf("after getkey. ol_key = %ld. ol_value = %p. start = %ld. end = %ld\n", ol_key, iter1.Value(), start, end);
 				if(ol_key > end){ 
 					//printf("ol_key = %ld, end = %ld, break!\n", ol_key, end);
 					break;

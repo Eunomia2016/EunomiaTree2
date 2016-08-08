@@ -253,7 +253,7 @@ void MemstoreEunoTree::Iterator::Seek(uint64_t key) {
 	{
 		RTMScope begtx(&tree_->prof, tree_->depth, 1, &tree_->rtmlock);
 		LeafNode* leaf = tree_->FindLeaf(key); //the the LeafNode storing the key
-
+		
 		tree_->ReorganizeLeafNode(leaf);
 		//tree_->dump_reserved(leaf);
 		

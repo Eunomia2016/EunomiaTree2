@@ -228,8 +228,8 @@ public:
 
 	~MemstoreBPlusTree() {
 		//printf("[Alex]~MemstoreBPlusTree tableid = %d\n", tableid);
-		printf("[Alex]~MemstoreBPlusTree\n");
-		prof.reportAbortStatus();
+		//printf("[Alex]~MemstoreBPlusTree\n");
+		//prof.reportAbortStatus();
 	}
 	void transfer_para(RTMPara& para) {
 		prof.transfer_para(para);
