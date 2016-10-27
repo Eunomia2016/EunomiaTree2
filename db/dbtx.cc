@@ -361,13 +361,12 @@ inline void DBTX::WriteSet::Write(uint64_t gcounter) {
 					   kvs[i].node->seq, (uint64_t)kvs[i].node->value);
 #endif
 				assert(dbtx_ != NULL);
-
 				dbtx_->deleteset->Add(kvs[i].tableid, kvs[i].key, kvs[i].node, true);
 
 			}
 
 			uint64_t* oldval = kvs[i].node->value;
-			kvs[i].node->value = kvs[i].val;
+			kvs[i].node->value = kvs[i].val; //overwrite to the original position
 			kvs[i].commitval = kvs[i].val;
 
 			kvs[i].val = oldval;
@@ -440,9 +439,7 @@ inline bool DBTX::WriteSet::CheckWriteSet() {
 
 //Collect old version records
 inline void DBTX::WriteSet::CollectOldVersions(DBTables* tables) {
-
 	for(int i = 0; i < elems; i++) {
-
 		//First check if there is value replaced by the put operation
 		if(DBTX::ValidateValue(kvs[i].val)) {
 			tables->AddDeletedValue(kvs[i].tableid, kvs[i].val, commitSN);
@@ -747,7 +744,6 @@ bool DBTX::End() {
 
 #if RCUGC
 	txdb_->GC();
-
 	txdb_->DelayRemove();
 #endif
 

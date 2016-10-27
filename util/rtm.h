@@ -16,7 +16,7 @@
 #define MAXNEST 0
 #define MAXZERO 3
 #define MAXCAPACITY 16
-#define MAXCONFLICT 128
+#define MAXCONFLICT 20
 
 #define RTMPROFILE 0
 
@@ -104,8 +104,9 @@ public:
 					nested++;
 
 				if((stat & _XABORT_EXPLICIT) && _XABORT_CODE(stat) == 0xff) {
-					while(slock->IsLocked())
+					while(slock->IsLocked()){
 						_mm_pause();
+					}
 				}
 
 #if SIMPLERETY

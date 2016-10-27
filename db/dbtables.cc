@@ -288,10 +288,7 @@ void DBTables::DelayRemove() {
 	
 	rcu->WaitForGracePeriod();
 	
-	//printf("pivot1\n");
-
 	rmPool->RemoveAll();
-	//printf("pivot2\n");
 }
 
 void DBTables::PBufInit(int thrs) {

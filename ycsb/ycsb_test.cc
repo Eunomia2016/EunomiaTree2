@@ -44,9 +44,19 @@ uint64_t next_o_id = 0;
 
 static const double EE  = 2.71828;
 
+struct probvals {
+	float prob;                  /* the access probability */
+	float cum_prob;              /* the cumulative access probability */
+};
+
+struct probvals* zdist = NULL;
+const double contention_coeff = 1.4;
+
+
 #define CHECK 0
 #define YCSBRecordSize 100
 #define GETCOPY 0
+#define CORE_VERBOSE 0
 
 enum dist_func {SEQT = 0, UNIF, NORM, CAUCHY, ZIPF, SELF, POISSON};
 
@@ -211,36 +221,8 @@ static inline ALWAYS_INLINE double randf() {
 	return static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
 }
 
-double zeta(long n, double theta) {
-	int i;
-	double ans = 0;
-	for(i = 1; i <= n; i++) {
-		ans += pow(1.0 / static_cast<double>(n), theta);
-	}
-	return ans;
-}
-
-long zipf(long n, double theta) {
-	double tt = theta*1.2; 
-	double alpha = 1 / (1 - tt);
-	double zetan = zeta(n, tt);
-	double eta = (1 - pow(2.0 / n, 1.0 - tt)) / (1.0 - zeta(2, tt) / zetan);
-	double u = randf();
-	double uz = u * zetan;
-	if(uz < 1) return 1;
-	if(uz < 1 + pow(0.5, tt)) return 2;
-	return 1 + (long)(n * pow(eta * u - eta + 1, alpha));
-}
-
-struct probvals {
-	float prob;                  /* the access probability */
-	float cum_prob;              /* the cumulative access probability */
-};
-
-struct probvals* zdist = NULL;
-
 struct probvals* get_zipf(float theta, int NUM) {
-	double tt = theta*1.0;
+	double tt = theta * contention_coeff;
 	float sum = 0.0;
 	float c = 0.0;
 	float expo;
@@ -257,7 +239,6 @@ struct probvals* get_zipf(float theta, int NUM) {
 		sum += 1.0 / (float) pow((double) i, (double)(expo));
 	}
 	c = 1.0 / sum;
-
 	for(i = 0; i < NUM; i++) {
 		dist[i].prob = c /
 					   (float) pow((double)(i + 1), (double)(expo));
@@ -469,10 +450,21 @@ private:
 		}
 	}
 
+
 	void bind_cores(int tid) {
 		cpu_set_t mask;
+		int socket_0[] =	  {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
+		int mixed_sockets[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+
+		//int core_id = socket_0[tid];
+		int core_id = tid;
+		//int core_id = mixed_sockets[tid];
+
 		CPU_ZERO(&mask);
-		CPU_SET(tid , &mask);
+		CPU_SET(core_id, &mask);
+#if CORE_VERBOSE
+		printf("thread[%2d] binds to core %2d\n", tid, core_id);
+#endif
 		pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
 	}
 	//Main workload of YCSB
@@ -556,6 +548,7 @@ private:
 		bind_cores(tid);
 
 		int num = thread->count;
+		//printf("tid = %d, num = %ld\n",tid,num);
 		int finish = 0 ;
 		uint64_t* dist_o_id = (uint64_t*)calloc(ENTITIES, sizeof(uint64_t));//thread-local variable
 		//int next_id = 3000;
@@ -563,7 +556,7 @@ private:
 		double start = leveldb::Env::Default()->NowMicros();
 		std::string v;
 		char nv[YCSBRecordSize];
-		
+
 		//printf("READ_RATIO = %lf\n", READ_RATIO);
 		while(finish < num) {
 			double d = r.next_uniform();
@@ -579,8 +572,8 @@ private:
 			else {
 				uint64_t* cont_keys = key_generator(dist_o_id, statistics);
 				for(int idx = 0; idx < CONT_SIZE; idx++) {
-					//printf("[%2d] key = %lu\n", sched_getcpu(), key);
 					uint64_t key = cont_keys[idx];
+					//printf("[%2d] key = %lu\n", sched_getcpu(), key);
 					Memstore::MemNode * mn = table->GetWithInsert(key).node;
 					char *s = (char *)(mn->value);
 					std::string c(YCSBRecordSize, 'c');
@@ -608,22 +601,28 @@ private:
 		r.set_seed(time(NULL));
 		uint64_t* array = (uint64_t*)calloc(LENS, sizeof(uint64_t));
 
-		for(int i = 0; i < LENS; i++){
+		for(int i = 0; i < LENS; i++) {
 			array[i] = r.next() ;
 		}
 		//table->Put(0,NULL);
-		for(int i = 0; i < LENS; i++){
-			table->Put(array[i], NULL); 	
+		for(int i = 0; i < LENS; i++) {
+			table->Put(array[i], NULL);
 		}
 		printf("Put all done\n");
-		for(int i = 0; i < LENS; i++){
-			Memstore::MemNode* res = table->Get(array[i] );
-			if(res == NULL){
+		bool is_pass = true;
+		for(int i = 0; i < LENS; i++) {
+			Memstore::MemNode* res = table->Get(array[i]);
+			if(res == NULL) {
+				is_pass = false;
 				printf("[%d] key = %lu nonexist\n", i, array[i]);
-				return;
+				break;
 			}
 		}
-		printf("Check Pass\n");
+		if(is_pass) {
+			printf("CHECK PASS\n");
+		} else {
+			printf("CHECK FAILED\n");
+		}
 	}
 
 
@@ -750,7 +749,7 @@ public:
 			method = &Benchmark::Mix;
 		} else if(name == "txmix") {
 			method = &Benchmark::TxMix;
-		}else if (name=="check"){
+		} else if(name == "check") {
 			method = &Benchmark::ConsCheck;
 		}
 		printf("RunBenchmark Starts\n");
@@ -765,7 +764,7 @@ public:
 			printf("statistics[%d] = %lu\n", i, statistics[i]);
 			total += statistics[i];
 		}
-		
+
 		for(int i = 0 ; i < ENTITIES / 10; i++) {
 			//printf("statistics[%d] = %lu\n", i, statistics[i]);
 			topten += statistics[i];
@@ -811,7 +810,7 @@ int main(int argc, char** argv) {
 		}
 
 	}
-	printf("key_num = %d, threads = %d, read_rate = %lf, cont_size = %d\n", FLAGS_num, FLAGS_threads, READ_RATIO, CONT_SIZE);
+	printf("total_key_num = %d, threads = %d, read_rate = %lf, cont_size = %d\n", FLAGS_num * FLAGS_threads, FLAGS_threads, READ_RATIO, CONT_SIZE);
 	leveldb::Benchmark benchmark;
 	benchmark.Run();
 	return 1;

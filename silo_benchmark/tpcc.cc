@@ -2334,10 +2334,9 @@ tpcc_worker::txn_payment(bool first_run) {
 			txn_tim.lap();
 #endif
 			iter.Seek(c_start);//Tx.5
-			//printf("Seek\n");
+			
 #if DBTX_TIME
 #if DBTX_PROF
-
 			Op_prof[CUST_INDEX].seeks++;
 #endif
 			elapse = txn_tim.lap();
