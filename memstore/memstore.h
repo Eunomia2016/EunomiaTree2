@@ -82,7 +82,7 @@ public:
 	};
 
 public:
-
+	unsigned thread_num;
 	Memstore() {};
 	virtual ~Memstore() {
 		//printf("~Memstore()\n");
@@ -125,6 +125,9 @@ public:
 
 	virtual void transfer_para(RTMPara&) {
 		printf("[Alex]transfer_para\n");
+	}
+	virtual void set_thread_num(int i) {
+		thread_num = i;
 	}
 };
 #endif

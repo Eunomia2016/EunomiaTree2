@@ -11,12 +11,13 @@
 #include "util/spinlock.h"
 #include "txprofile.h"
 
+
 #define BILLION 1000000000L
 
 #define MAXNEST 0
 #define MAXZERO 3
 #define MAXCAPACITY 16
-#define MAXCONFLICT 20
+#define MAXCONFLICT 128
 
 #define RTMPROFILE 0
 
@@ -28,7 +29,6 @@
 #define AVOIDNESTTX
 
 enum OP_TYPE {GET_TYPE, ADD_TYPE, UPDATE_TYPE , DEL_TYPE, UNKNOWN_TYPE};
-
 class RTMScope {
 	RTMProfile* globalprof;
 	int retry;
@@ -42,12 +42,12 @@ class RTMScope {
 #ifdef AVOIDNESTTX
 	int isnest;
 #endif
-
+	//struct LeafNode;
 public:
 	static SpinLock fblock;
 
 	inline RTMScope(RTMProfile* prof, int read = 1, int write = 1,
-					SpinLock* sl = NULL, OP_TYPE _type = UNKNOWN_TYPE, bool profiled_ = false) {
+					SpinLock* sl = NULL, OP_TYPE _type = UNKNOWN_TYPE, bool profiled_ = false, int* conflict_num = NULL) {
 		type = _type;
 		//clock_gettime(CLOCK_MONOTONIC, &begin);
 		globalprof = prof;
@@ -104,9 +104,8 @@ public:
 					nested++;
 
 				if((stat & _XABORT_EXPLICIT) && _XABORT_CODE(stat) == 0xff) {
-					while(slock->IsLocked()){
+					while(slock->IsLocked())
 						_mm_pause();
-					}
 				}
 
 #if SIMPLERETY
@@ -138,7 +137,6 @@ public:
 
 			}
 		}
-		//printf("hold lock\n");
 		slock->Lock();
 #if RTMPROFILE
 if(profiled){
@@ -180,7 +178,12 @@ if(profiled){
 			globalprof->total_interval += total_interval;
 			*/
 		}
+		
 #endif
+	}
+	inline int getRetry() {
+		//printf("retry:%d\n", retry);
+		return retry;	
 	}
 
 private:

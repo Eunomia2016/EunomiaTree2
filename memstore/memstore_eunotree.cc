@@ -6,7 +6,7 @@ __thread RTMArena* MemstoreEunoTree::arena_ = NULL;
 __thread bool MemstoreEunoTree::localinit_ = false;
 __thread Memstore::MemNode *MemstoreEunoTree::dummyval_ = NULL;
 __thread MemstoreEunoTree::LeafNode *MemstoreEunoTree::dummyleaf_ = NULL;
-
+__thread MemstoreEunoTree::LeafNode *MemstoreEunoTree::dummyleaf_half = NULL;
 void MemstoreEunoTree::printLeaf(LeafNode *n) {
 	for(int i = 0; i < depth; i++)
 		printf(" ");
